@@ -93,6 +93,22 @@ class Asset(BaseDbModel):
         return root
 
     @classmethod
+    def get_or_create_extension_folder(cls, user, extension_id: str) -> Self:
+        """Get or create the folder for an extension at assets/extensions/<extension_id>.
+        Standard path for extension user data (files, folders). extension_id must be
+        safe (no path traversal)."""
+        if not extension_id or ".." in extension_id or "/" in extension_id or "\\" in extension_id:
+            raise ValueError("Invalid extension_id")
+        root = cls.get_root_folder(user)
+        ext_root = root.get_child("extensions")
+        if ext_root is None:
+            ext_root = cls.create(name="extensions", owner=user, parent=root)
+        folder = ext_root.get_child(extension_id)
+        if folder is None:
+            folder = cls.create(name=extension_id, owner=user, parent=ext_root)
+        return folder
+
+    @classmethod
     def get_user_structure(cls, user, parent=None):
         if parent is None:
             parent = cls.get_root_folder(user)

@@ -20,6 +20,7 @@ import { uiSystem } from "../../systems/ui";
 import { uiState } from "../../systems/ui/state";
 
 import Characters from "./Characters.vue";
+import Extensions from "./Extensions.vue";
 
 const router = useRouter();
 const { t } = useI18n();
@@ -92,6 +93,8 @@ const openClientSettings = (): void => uiSystem.showClientSettings(!uiState.raw.
             <button class="menu-accordion" @click="toggleNoteManager">
                 {{ t("common.notes") }}
             </button>
+            <!-- EXTENSIONS: DM sees all, players see only extensions made visible by room owner -->
+            <Extensions v-if="coreStore.state.extensionsEnabled" />
             <template v-if="gameState.isDmOrFake.value">
                 <!-- DM SETTINGS -->
                 <button class="menu-accordion" @click="openDmSettings">

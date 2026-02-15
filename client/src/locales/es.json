@@ -375,7 +375,12 @@
             "new_pwd": "Nueva Contraseña:",
             "repeat_pwd": "Repetir contraseña:",
             "delete_account": "Borrar cuenta",
-            "delete_confirm_msg": "¡Esta acción es irreversible!"
+            "delete_confirm_msg": "¡Esta acción es irreversible!",
+            "enable_extensions": "Habilitar extensiones",
+            "extensions_disclaimer_title": "Aviso de extensiones",
+            "extensions_disclaimer_text": "Las extensiones son creadas por usuarios. Úsalas bajo tu propio riesgo.",
+            "extensions_disclaimer_accept": "Entendido",
+            "extensions_disclaimer_cancel": "Cancelar"
         },
         "settings": {
             "account_settings": "Opciones de Cuenta",

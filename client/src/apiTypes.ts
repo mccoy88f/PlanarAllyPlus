@@ -24,7 +24,6 @@ export type ApiShapeCustomData = ApiShapeCustomDataText | ApiShapeCustomDataNumb
 
 export type DefaultNoteFilter = "NO_FILTER" | "ACTIVE_FILTER" | "NO_LINK_FILTER";
 export type InitiativeDirection = -1 | 0 | 1;
-export type InitiativeUpdateTiming = 0 | 1;
 
 export interface ApiShapeSize {
     x: number;
@@ -323,7 +322,6 @@ export interface ApiInitiativeEffect {
   name: string;
   turns: string | null;
   highlightsActor: boolean;
-  updateTiming: InitiativeUpdateTiming;
 }
 export interface ApiLocationUserOption {
   pan_x: number;
@@ -417,6 +415,7 @@ export interface ApiOptionalUserOptions {
   initiative_effect_visibility?: string | null;
   initiative_open_on_activate?: boolean | null;
   render_all_floors?: boolean | null;
+  extensions_enabled?: boolean | null;
 }
 export interface ApiRoomDataBlock extends ApiCoreDataBlock {
   data: string;
@@ -479,6 +478,7 @@ export interface ApiUserOptions {
   initiative_effect_visibility: string;
   initiative_open_on_activate: boolean;
   render_all_floors: boolean;
+  extensions_enabled: boolean;
 }
 export interface AssetOptionsInfoFail {
   error: string;
@@ -611,11 +611,6 @@ export interface InitiativeEffectRename {
   shape: GlobalId;
   index: number;
   name: string;
-}
-export interface InitiativeEffectTiming {
-  shape: GlobalId;
-  index: number;
-  timing: InitiativeUpdateTiming;
 }
 export interface InitiativeEffectTurns {
   shape: GlobalId;

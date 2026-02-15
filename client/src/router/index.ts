@@ -37,6 +37,7 @@ router.beforeEach(async (to, _from, next) => {
                 auth: boolean;
                 username: string;
                 email: string;
+                extensions_enabled?: boolean;
             };
             const versionData = (await versionResponse!.json()) as { release: string; env: string };
 
@@ -47,6 +48,7 @@ router.beforeEach(async (to, _from, next) => {
             if (authData.auth) {
                 coreStore.setUsername(authData.username);
                 coreStore.setEmail(authData.email);
+                coreStore.setExtensionsEnabled(authData.extensions_enabled ?? false);
                 next();
             } else {
                 checkLogin(next, to);

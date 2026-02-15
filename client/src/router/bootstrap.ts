@@ -19,6 +19,7 @@ const DashboardGames = () => import("../dashboard/games/GameList.vue");
 const CreateSwitcher = () => import("../dashboard/games/CreateSwitcher.vue");
 const CreateGame = () => import("../dashboard/games/CreateGame.vue");
 const Assets = () => import("../dashboard/Assets.vue");
+const Extensions = () => import("../dashboard/Extensions.vue");
 const Dashboard = () => import("../dashboard/Dashboard.vue");
 const ImportGame = () => import("../dashboard/games/ImportGame.vue");
 const ExportGame = () => import("../dashboard/games/ExportGame.vue");
@@ -98,6 +99,11 @@ const routes: RouteRecordRaw[] = [
                 path: "/assets/:folder*",
                 name: "assets",
                 component: Assets,
+            },
+            {
+                path: "extensions",
+                name: "extensions",
+                component: Extensions,
             },
             {
                 path: "settings",

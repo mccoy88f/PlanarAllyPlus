@@ -1,0 +1,6 @@
+[extension]
+id = "openrouter"
+name = "OpenRouter AI"
+version = "1.0.0"
+description = "Connect to free AI models via OpenRouter. Generate characters, stories, improve maps and more."
+author = "PlanarAlly"

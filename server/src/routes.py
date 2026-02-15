@@ -5,7 +5,7 @@ import aiohttp
 from aiohttp import web
 
 from .api import http
-from .api.http import auth, mods, notifications, rooms, server, users, version
+from .api.http import auth, extensions, mods, notifications, rooms, server, users, version
 from .app import app as main_app
 from .config import cfg
 from .utils import ASSETS_DIR, FILE_DIR, STATIC_DIR
@@ -50,6 +50,7 @@ main_app.router.add_get(f"{subpath}/api/auth", auth.is_authed)
 main_app.router.add_post(f"{subpath}/api/users/email", users.set_email)
 main_app.router.add_post(f"{subpath}/api/users/password", users.set_password)
 main_app.router.add_post(f"{subpath}/api/users/delete", users.delete_account)
+main_app.router.add_post(f"{subpath}/api/users/extensions-enabled", users.set_extensions_enabled)
 main_app.router.add_post(f"{subpath}/api/login", auth.login)
 main_app.router.add_post(f"{subpath}/api/register", auth.register)
 main_app.router.add_post(f"{subpath}/api/logout", auth.logout)
@@ -70,6 +71,34 @@ main_app.router.add_get(f"{subpath}/api/version", version.get_version)
 main_app.router.add_get(f"{subpath}/api/changelog", version.get_changelog)
 main_app.router.add_get(f"{subpath}/api/notifications", notifications.collect)
 main_app.router.add_post(f"{subpath}/api/mod/upload", mods.upload)
+main_app.router.add_get(f"{subpath}/api/extensions", extensions.list_extensions)
+main_app.router.add_patch(f"{subpath}/api/extensions/visibility", extensions.set_visibility)
+main_app.router.add_post(f"{subpath}/api/extensions/install/zip", extensions.install_from_zip)
+main_app.router.add_post(f"{subpath}/api/extensions/install/url", extensions.install_from_url)
+main_app.router.add_post(f"{subpath}/api/extensions/uninstall", extensions.uninstall)
+main_app.router.add_get(f"{subpath}/api/extensions/documents/list", extensions.documents.list_documents)
+main_app.router.add_get(
+    f"{subpath}/api/extensions/documents/serve/{{file_hash}}",
+    extensions.documents.serve_document,
+)
+main_app.router.add_post(f"{subpath}/api/extensions/documents/upload", extensions.documents.upload_document)
+main_app.router.add_post(f"{subpath}/api/extensions/documents/delete", extensions.documents.delete_document)
+main_app.router.add_post(f"{subpath}/api/extensions/documents/folder", extensions.documents.create_folder)
+main_app.router.add_patch(f"{subpath}/api/extensions/documents/rename", extensions.documents.rename_document)
+main_app.router.add_patch(f"{subpath}/api/extensions/documents/move", extensions.documents.move_document)
+main_app.router.add_post(f"{subpath}/api/extensions/dungeongen/generate", extensions.dungeongen.generate)
+main_app.router.add_get(
+    f"{subpath}/api/extensions/quintaedizione.online/db",
+    extensions.quintaedizione.get_db,
+)
+main_app.router.add_get(f"{subpath}/api/extensions/openrouter/models", extensions.openrouter.get_models)
+main_app.router.add_post(f"{subpath}/api/extensions/openrouter/chat", extensions.openrouter.chat)
+main_app.router.add_get(f"{subpath}/api/extensions/openrouter/settings", extensions.openrouter.get_settings)
+main_app.router.add_post(f"{subpath}/api/extensions/openrouter/settings", extensions.openrouter.set_settings)
+main_app.router.add_get(
+    f"{subpath}/api/extensions/{{folder}}/ui",
+    extensions.serve_extension_ui,
+)
 
 TAIL_REGEX = "/{tail:(?!api).*}"
 if "dev" in sys.argv:

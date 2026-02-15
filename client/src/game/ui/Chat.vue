@@ -5,6 +5,7 @@ import { useI18n } from "vue-i18n";
 import { uuidv4 } from "../../core/utils";
 import { chatSystem } from "../systems/chat";
 import { chatState } from "../systems/chat/state";
+import { openDocumentsPdfViewer, openQuintaedizioneModalForItem } from "../systems/extensions/ui";
 import { playerSystem } from "../systems/players";
 
 const { t } = useI18n();
@@ -101,6 +102,40 @@ function* parseMessage(data: string): Generator<string> {
     }
 }
 
+function handleContainerClick(event: MouseEvent): void {
+    const target = (event.target as HTMLElement).closest("a[href^='qe:'], a[href^='doc:']");
+    if (target instanceof HTMLAnchorElement) {
+        const href = target.getAttribute("href");
+        if (!href) return;
+        event.preventDefault();
+        if (href.startsWith("qe:")) {
+            const rest = href.slice(3);
+            const slashIdx = rest.indexOf("/");
+            if (slashIdx > 0) {
+                const collectionSlug = rest.slice(0, slashIdx);
+                const itemSlug = rest.slice(slashIdx + 1);
+                if (collectionSlug && itemSlug) {
+                    openQuintaedizioneModalForItem(collectionSlug, itemSlug);
+                }
+            }
+        } else if (href.startsWith("doc:")) {
+            const rest = href.slice(4);
+            const hashIdx = rest.indexOf("#");
+            const fileHash = hashIdx >= 0 ? rest.slice(0, hashIdx) : rest;
+            let page: number | undefined;
+            if (hashIdx >= 0) {
+                const fragment = rest.slice(hashIdx + 1);
+                const pageMatch = /^page=(\d+)$/i.exec(fragment);
+                if (pageMatch) page = parseInt(pageMatch[1], 10);
+            }
+            const name = target.textContent?.trim() || "";
+            if (fileHash) {
+                openDocumentsPdfViewer(fileHash, name || "Document", page);
+            }
+        }
+    }
+}
+
 function handleMessage(event: KeyboardEvent): void {
     if (event.key !== "Enter" || event.shiftKey) return;
     event.preventDefault();
@@ -127,7 +162,12 @@ function handleMessage(event: KeyboardEvent): void {
             </div>
             <font-awesome-icon v-show="expanded" icon="chevron-down" title="Collapse chat" @click.stop="toggleChat" />
         </div>
-        <div v-show="expanded" id="chat-container" ref="chatContainer">
+        <div
+            v-show="expanded"
+            id="chat-container"
+            ref="chatContainer"
+            @click="handleContainerClick"
+        >
             <template
                 v-for="[i, message] of chatState.reactive.messages.entries()"
                 :key="`${i}-${message.content.length}`"
@@ -250,6 +290,17 @@ dialog {
 
                 &:hover {
                     cursor: pointer;
+                }
+            }
+
+            :deep(a.qe-chat-link),
+            :deep(a.doc-chat-link) {
+                color: #0066cc;
+                text-decoration: underline;
+                cursor: pointer;
+
+                &:hover {
+                    color: #004499;
                 }
             }
         }

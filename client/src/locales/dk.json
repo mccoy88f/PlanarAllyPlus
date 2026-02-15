@@ -341,7 +341,12 @@
             "new_pwd": "Ny adgangskode:",
             "repeat_pwd": "Gentag adgangskode:",
             "delete_account": "Slet konto",
-            "delete_confirm_msg": "Denne handling er uigenkaldelig!"
+            "delete_confirm_msg": "Denne handling er uigenkaldelig!",
+            "enable_extensions": "Aktiver udvidelser",
+            "extensions_disclaimer_title": "Udvidelsesadvarsel",
+            "extensions_disclaimer_text": "Udvidelser er oprettet af brugere. Brug dem på eget ansvar.",
+            "extensions_disclaimer_accept": "Forstået",
+            "extensions_disclaimer_cancel": "Annuller"
         },
         "settings": {
             "account_settings": "Konto instillinger",

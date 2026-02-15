@@ -3,6 +3,7 @@ import { computed, type ComputedRef } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import { getStaticImg } from "../core/http";
+import { coreStore } from "../store/core";
 
 import { dashboardState } from "./state";
 
@@ -23,6 +24,11 @@ const sections: Section[] = [
     {
         nav: "ASSETS",
         routerPath: "assets",
+    },
+    {
+        nav: "EXTENSIONS",
+        routerPath: "extensions",
+        visible: computed(() => coreStore.state.extensionsEnabled),
     },
     {
         nav: "SETTINGS",

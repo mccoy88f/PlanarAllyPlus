@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Documents</title>
+    <link rel="stylesheet" href="../../../../static/extensions/ui.css" />
+    <style>
+        .doc-icon { color: #c00; flex-shrink: 0; }
+        .folder-icon { color: #f90; flex-shrink: 0; }
+        .doc-breadcrumb { display: flex; align-items: center; gap: 0.25rem; margin-bottom: 0.75rem; font-size: 0.9rem; flex-wrap: wrap; }
+        .doc-breadcrumb span { color: #666; cursor: pointer; }
+        .doc-breadcrumb span:hover { color: #333; text-decoration: underline; }
+        .doc-breadcrumb .current { color: #333; cursor: default; font-weight: 600; }
+        .doc-breadcrumb .current:hover { text-decoration: none; }
+        .doc-toolbar { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+        .doc-actions { display: flex; gap: 0.25rem; }
+        .doc-rename-input { width: 100%; max-width: 200px; padding: 0.2rem 0.4rem; font-size: 0.9rem; }
+        .doc-move-select { font-size: 0.85rem; padding: 0.2rem 0.4rem; }
+    </style>
+</head>
+<body class="ext-ui-root">
+    <div class="ext-ui-title">Documents</div>
+    <div id="breadcrumb" class="doc-breadcrumb" style="display:none"></div>
+    <div id="toolbar" class="doc-toolbar" style="display:none">
+        <button type="button" id="newFolderBtn" class="ext-ui-btn">New folder</button>
+        <input type="file" id="fileInput" class="ext-ui-file-input" accept=".pdf,application/pdf" />
+        <button type="button" id="uploadBtn" class="ext-ui-btn ext-ui-btn-primary">Upload PDF</button>
+    </div>
+    <div id="loading" class="ext-ui-loading">Loading...</div>
+    <div id="empty" class="ext-ui-empty" style="display:none">No documents in this folder.</div>
+    <ul id="list" class="ext-ui-list" style="display:none"></ul>
+    <div id="msg"></div>
+
+    <script>
+        (function() {
+            function base() {
+                const p = window.location.pathname;
+                const i = p.indexOf('/api/');
+                return i >= 0 ? p.slice(0, i) : '';
+            }
+            function api(path) { return base() + path; }
+
+            const listEl = document.getElementById('list');
+            const loadingEl = document.getElementById('loading');
+            const emptyEl = document.getElementById('empty');
+            const breadcrumbEl = document.getElementById('breadcrumb');
+            const toolbarEl = document.getElementById('toolbar');
+            const fileInput = document.getElementById('fileInput');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const newFolderBtn = document.getElementById('newFolderBtn');
+            const msgEl = document.getElementById('msg');
+
+            let rootId = null;
+            let currentFolderId = null;
+            let items = [];
+            let folderPath = [];
+
+            function showMsg(text, isError) {
+                msgEl.textContent = text;
+                msgEl.className = 'ext-ui-msg ' + (isError ? 'ext-ui-msg-error' : 'ext-ui-msg-success');
+                msgEl.style.display = 'block';
+                setTimeout(function() { msgEl.style.display = 'none'; }, 3000);
+            }
+
+            function buildFolderPath() {
+                const map = {};
+                items.forEach(function(it) { map[it.id] = it; });
+                const path = [];
+                let id = currentFolderId;
+                while (id && id !== rootId) {
+                    const it = map[id];
+                    if (it) { path.unshift(it); id = it.folderId; } else break;
+                }
+                return path;
+            }
+
+            function renderBreadcrumb() {
+                folderPath = buildFolderPath();
+                const parts = ['<span class="nav" data-id="' + rootId + '">Documents</span>'];
+                folderPath.forEach(function(f) {
+                    parts.push('<span class="nav" data-id="' + f.id + '">' + (f.name || '').replace(/</g, '&lt;') + '</span>');
+                });
+                if (folderPath.length > 0) {
+                    const last = folderPath[folderPath.length - 1];
+                    parts[parts.length - 1] = '<span class="current">' + (last.name || '').replace(/</g, '&lt;') + '</span>';
+                } else {
+                    parts[0] = '<span class="current">Documents</span>';
+                }
+                breadcrumbEl.innerHTML = parts.join(' &gt; ');
+                breadcrumbEl.style.display = 'flex';
+                breadcrumbEl.querySelectorAll('.nav').forEach(function(el) {
+                    el.addEventListener('click', function() {
+                        currentFolderId = parseInt(el.dataset.id, 10);
+                        if (currentFolderId === rootId) currentFolderId = rootId;
+                        render();
+                    });
+                });
+            }
+
+            function getCurrentItems() {
+                return items.filter(function(it) {
+                    const fid = it.folderId || rootId;
+                    return fid === currentFolderId;
+                });
+            }
+
+            function renderItem(it, opts) {
+                const isFolder = it.type === 'folder';
+                const icon = isFolder ? '<span class="folder-icon">📁</span>' : '<span class="doc-icon">📄</span>';
+                const nameEsc = (it.name || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+                let actions = '';
+                if (opts.rename) {
+                    actions += '<button type="button" class="ext-ui-icon-btn rename-btn" data-id="' + it.id + '" title="Rename">✏️</button>';
+                }
+                if (opts.move) {
+                    actions += '<button type="button" class="ext-ui-icon-btn move-btn" data-id="' + it.id + '" title="Move">📂</button>';
+                }
+                if (opts.delete) {
+                    actions += '<button type="button" class="ext-ui-icon-btn ext-ui-icon-btn-danger del-btn" data-id="' + it.id + '" title="Delete">🗑</button>';
+                }
+                return '<li class="ext-ui-list-item" data-id="' + it.id + '" data-type="' + (it.type || 'document') + '">' +
+                    '<div class="ext-ui-list-item-content" data-id="' + it.id + '" data-hash="' + (it.fileHash || '') + '" data-name="' + nameEsc + '">' +
+                    icon + '<span class="ext-ui-list-item-name">' + nameEsc + '</span></div>' +
+                    '<div class="doc-actions">' + actions + '</div></li>';
+            }
+
+            function render() {
+                const current = getCurrentItems();
+                const folders = current.filter(function(it) { return it.type === 'folder'; });
+                const docs = current.filter(function(it) { return it.type === 'document'; });
+
+                renderBreadcrumb();
+                toolbarEl.style.display = 'flex';
+
+                if (current.length === 0) {
+                    listEl.style.display = 'none';
+                    emptyEl.style.display = 'block';
+                    emptyEl.textContent = 'No documents in this folder.';
+                } else {
+                    emptyEl.style.display = 'none';
+                    let html = '';
+                    folders.forEach(function(f) {
+                        html += renderItem(f, { rename: true, move: true, delete: true });
+                    });
+                    docs.forEach(function(d) {
+                        html += renderItem(d, { rename: true, move: true, delete: true });
+                    });
+                    listEl.innerHTML = html;
+                    listEl.style.display = 'block';
+
+                    listEl.querySelectorAll('.ext-ui-list-item-content').forEach(function(el) {
+                        el.addEventListener('click', function(e) {
+                            if (e.target.closest('.doc-actions')) return;
+                            const type = el.closest('.ext-ui-list-item')?.dataset?.type;
+                            const hash = el.dataset.hash;
+                            const name = el.dataset.name || '';
+                            if (type === 'folder') {
+                                currentFolderId = parseInt(el.dataset.id, 10);
+                                render();
+                            } else if (hash) {
+                                var target = (window.top && window.top.opener) ? window.top.opener : (window.parent !== window ? window.parent : null);
+                                if (target) {
+                                    target.postMessage({
+                                        type: 'planarally-open-document',
+                                        fileHash: hash,
+                                        name: name
+                                    }, '*');
+                                } else {
+                                    var url = api('/api/extensions/documents/serve/' + hash) + '#toolbar=1&navpanes=1&scrollbar=1';
+                                    window.open(url, '_blank');
+                                }
+                            }
+                        });
+                    });
+                    listEl.querySelectorAll('.rename-btn').forEach(function(el) {
+                        el.addEventListener('click', function(e) { e.stopPropagation(); renameItem(parseInt(el.dataset.id, 10)); });
+                    });
+                    listEl.querySelectorAll('.move-btn').forEach(function(el) {
+                        el.addEventListener('click', function(e) { e.stopPropagation(); moveItem(parseInt(el.dataset.id, 10)); });
+                    });
+                    listEl.querySelectorAll('.del-btn').forEach(function(el) {
+                        el.addEventListener('click', function(e) { e.stopPropagation(); deleteDoc(parseInt(el.dataset.id, 10)); });
+                    });
+                }
+            }
+
+            function renameItem(id) {
+                const it = items.find(function(x) { return x.id === id; });
+                if (!it) return;
+                const name = prompt('New name:', it.name || '');
+                if (name == null || !name.trim()) return;
+                fetch(api('/api/extensions/documents/rename'), {
+                    method: 'PATCH',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id, name: name.trim() })
+                }).then(function(r) {
+                    if (r.ok) { showMsg('Renamed.'); load(); }
+                    else r.text().then(function(t) { showMsg(t || 'Rename failed.', true); });
+                }).catch(function() { showMsg('Rename failed.', true); });
+            }
+
+            function getDescendantIds(folderId) {
+                const ids = [folderId];
+                items.filter(function(x) { return (x.folderId || rootId) === folderId; }).forEach(function(x) {
+                    if (x.type === 'folder') ids.push.apply(ids, getDescendantIds(x.id));
+                });
+                return ids;
+            }
+
+            function moveItem(id) {
+                const it = items.find(function(x) { return x.id === id; });
+                if (!it) return;
+                const excludeIds = it.type === 'folder' ? getDescendantIds(id) : [id];
+                const folders = items.filter(function(x) {
+                    return x.type === 'folder' && excludeIds.indexOf(x.id) < 0;
+                });
+                const destIds = [{ id: rootId, name: 'Documents (root)' }];
+                folders.forEach(function(f) { destIds.push({ id: f.id, name: f.name }); });
+                const choice = destIds.map(function(d, i) { return (i + 1) + '. ' + d.name; }).join('\n');
+                const num = prompt('Move to folder (enter number):\n\n' + choice);
+                if (num == null) return;
+                const idx = parseInt(num, 10);
+                if (isNaN(idx) || idx < 1 || idx > destIds.length) return;
+                const destId = destIds[idx - 1].id;
+                if (destId === (it.folderId || rootId)) return;
+                fetch(api('/api/extensions/documents/move'), {
+                    method: 'PATCH',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id, parentId: destId })
+                }).then(function(r) {
+                    if (r.ok) { showMsg('Moved.'); load(); }
+                    else r.text().then(function(t) { showMsg(t || 'Move failed.', true); });
+                }).catch(function() { showMsg('Move failed.', true); });
+            }
+
+            async function load() {
+                loadingEl.style.display = 'block';
+                emptyEl.style.display = 'none';
+                listEl.style.display = 'none';
+                breadcrumbEl.style.display = 'none';
+                toolbarEl.style.display = 'none';
+                try {
+                    const r = await fetch(api('/api/extensions/documents/list'), { credentials: 'include' });
+                    const data = r.ok ? await r.json() : { documents: [], rootId: null };
+                    items = data.documents || [];
+                    rootId = data.rootId;
+                    if (currentFolderId === null || !items.some(function(it) { return it.id === currentFolderId || (it.type === 'folder' && it.folderId === currentFolderId); })) {
+                        currentFolderId = rootId;
+                    }
+                    loadingEl.style.display = 'none';
+                    render();
+                } catch (e) {
+                    loadingEl.style.display = 'none';
+                    emptyEl.textContent = 'Error loading documents.';
+                    emptyEl.style.display = 'block';
+                }
+            }
+
+            async function deleteDoc(id) {
+                try {
+                    const r = await fetch(api('/api/extensions/documents/delete'), {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: id })
+                    });
+                    if (r.ok) {
+                        showMsg('Deleted.');
+                        load();
+                    } else {
+                        showMsg(await r.text() || 'Delete failed.', true);
+                    }
+                } catch (e) {
+                    showMsg('Delete failed.', true);
+                }
+            }
+
+            newFolderBtn.addEventListener('click', function() {
+                const name = prompt('Folder name:');
+                if (!name || !name.trim()) return;
+                fetch(api('/api/extensions/documents/folder'), {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name.trim(), parentId: currentFolderId })
+                }).then(function(r) {
+                    if (r.ok) { showMsg('Folder created.'); load(); }
+                    else r.text().then(function(t) { showMsg(t || 'Failed.', true); });
+                }).catch(function() { showMsg('Failed.', true); });
+            });
+
+            fileInput.addEventListener('change', async function() {
+                const file = fileInput.files && fileInput.files[0];
+                if (!file || !file.name.toLowerCase().endsWith('.pdf')) return;
+                uploadBtn.disabled = true;
+                try {
+                    const fd = new FormData();
+                    fd.append('file', file);
+                    if (rootId) {
+                        fd.append('parentId', String(currentFolderId || rootId));
+                    }
+                    const r = await fetch(api('/api/extensions/documents/upload'), {
+                        method: 'POST',
+                        credentials: 'include',
+                        body: fd
+                    });
+                    if (r.ok) {
+                        showMsg('Document uploaded.');
+                        load();
+                    } else {
+                        showMsg(await r.text() || 'Upload failed.', true);
+                    }
+                } catch (e) {
+                    showMsg('Upload failed.', true);
+                } finally {
+                    uploadBtn.disabled = false;
+                    fileInput.value = '';
+                }
+            });
+
+            uploadBtn.addEventListener('click', function() { fileInput.click(); });
+
+            load();
+        })();
+    </script>
+</body>
+</html>

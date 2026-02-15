@@ -390,7 +390,12 @@
             "new_pwd": "Neues Passwort:",
             "repeat_pwd": "Passwort wiederholen:",
             "delete_account": "Benutzerkonto löschen",
-            "delete_confirm_msg": "Diese Aktion ist unwiderruflich!"
+            "delete_confirm_msg": "Diese Aktion ist unwiderruflich!",
+            "enable_extensions": "Erweiterungen aktivieren",
+            "extensions_disclaimer_title": "Erweiterungen-Hinweis",
+            "extensions_disclaimer_text": "Erweiterungen werden von Nutzern erstellt. Nutzung auf eigenes Risiko.",
+            "extensions_disclaimer_accept": "Verstanden",
+            "extensions_disclaimer_cancel": "Abbrechen"
         },
         "settings": {
             "account_settings": "Benutzerkonten-Einstellungen",

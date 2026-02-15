@@ -19,7 +19,14 @@ async def is_authed(request):
     if user is None:
         data = {"auth": False, "username": ""}
     else:
-        data = {"auth": True, "username": user.name, "email": user.email}
+        opts = user.default_options
+        extensions_enabled = bool(opts.extensions_enabled) if opts.extensions_enabled is not None else False
+        data = {
+            "auth": True,
+            "username": user.name,
+            "email": user.email,
+            "extensions_enabled": extensions_enabled,
+        }
         user.update_last_login()
     return web.json_response(data)
 

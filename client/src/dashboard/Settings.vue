@@ -16,6 +16,7 @@ const toast = useToast();
 
 const email = toRef(coreStore.state, "email");
 const username = toRef(coreStore.state, "username");
+const extensionsEnabled = toRef(coreStore.state, "extensionsEnabled");
 const changePasswordText = ref(t("settings.AccountSettings.change_pwd"));
 const showPasswordFields = ref(false);
 const passwordResetField = ref("");
@@ -68,6 +69,37 @@ function hidePasswordChange(): void {
     changePasswordText.value = t("settings.AccountSettings.change_pwd");
 }
 
+async function toggleExtensionsEnabled(checked: boolean): Promise<void> {
+    if (checked) {
+        // Enabling: show disclaimer first
+        const accepted = await modals.confirm(
+            t("settings.AccountSettings.extensions_disclaimer_title"),
+            t("settings.AccountSettings.extensions_disclaimer_text"),
+            {
+                yes: t("settings.AccountSettings.extensions_disclaimer_accept"),
+                no: t("settings.AccountSettings.extensions_disclaimer_cancel"),
+                focus: "deny",
+            },
+        );
+        if (accepted === true) {
+            const response = await http.postJson("/api/users/extensions-enabled", { enabled: true });
+            if (response.ok) {
+                coreStore.setExtensionsEnabled(true);
+            } else {
+                toast.error(t("settings.AccountSettings.server_request_error"));
+            }
+        }
+    } else {
+        // Disabling: just save
+        const response = await http.postJson("/api/users/extensions-enabled", { enabled: false });
+        if (response.ok) {
+            coreStore.setExtensionsEnabled(false);
+        } else {
+            toast.error(t("settings.AccountSettings.server_request_error"));
+        }
+    }
+}
+
 async function deleteAccount(): Promise<void> {
     const result = await modals.confirm(t("settings.AccountSettings.remove_account_msg"));
     if (result === true) {
@@ -89,6 +121,17 @@ async function deleteAccount(): Promise<void> {
         <div class="entry">
             <label for="name">{{ t("settings.AccountSettings.username") }}</label>
             <input id="name" type="text" :value="username" readonly />
+        </div>
+        <div class="entry">
+            <label for="extensions-enabled">{{ t("settings.AccountSettings.enable_extensions") }}</label>
+            <div class="checkbox-wrapper">
+                <input
+                    id="extensions-enabled"
+                    type="checkbox"
+                    :checked="extensionsEnabled"
+                    @change="toggleExtensionsEnabled(($event.target as HTMLInputElement).checked)"
+                />
+            </div>
         </div>
         <div class="entry">
             <label for="email">{{ t("settings.AccountSettings.email") }}</label>
@@ -196,6 +239,14 @@ async function deleteAccount(): Promise<void> {
         > input,
         input[type="password"] {
             width: 310px;
+        }
+        input[type="checkbox"] {
+            width: auto;
+            height: auto;
+        }
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
         }
         padding: 1rem;
 

@@ -14,7 +14,7 @@ When writing migrations make sure that these things are respected:
     - e.g. a column added to Circle also needs to be added to CircularToken
 """
 
-SAVE_VERSION = 114
+SAVE_VERSION = 116
 
 import asyncio
 import json
@@ -692,20 +692,22 @@ def upgrade(
                 'INSERT INTO "text" ("shape_id", "text", "font_size") SELECT "shape_id", "text", "font_size" FROM _text_112'
             )
     elif version == 113:
-        # Add updateTiming to initiative effects
+        # Add UserOptions.extensions_enabled
         with db.atomic():
-            rows = db.execute_sql("SELECT id, data FROM initiative").fetchall()
-            for rowid, data in rows:
-                try:
-                    json_data = json.loads(data) if data else {}
-                except:
-                    json_data = {}
-
-                for entry in json_data:
-                    for effect in entry["effects"]:
-                        effect["updateTiming"] = 0
-                data_text = json.dumps(json_data)
-                db.execute_sql("UPDATE initiative SET data = ? WHERE id = ?", (data_text, rowid))
+            db.execute_sql("ALTER TABLE user_options ADD COLUMN extensions_enabled INTEGER DEFAULT 0")
+            db.execute_sql(
+                "UPDATE user_options SET extensions_enabled = NULL WHERE id NOT IN (SELECT default_options_id FROM user)"
+            )
+    elif version == 114:
+        # Add UserOptions.openrouter_api_key, openrouter_model
+        with db.atomic():
+            db.execute_sql("ALTER TABLE user_options ADD COLUMN openrouter_api_key TEXT DEFAULT NULL")
+            db.execute_sql("ALTER TABLE user_options ADD COLUMN openrouter_model TEXT DEFAULT NULL")
+    elif version == 115:
+        # Add UserOptions.openrouter_base_prompt, openrouter_tasks
+        with db.atomic():
+            db.execute_sql("ALTER TABLE user_options ADD COLUMN openrouter_base_prompt TEXT DEFAULT NULL")
+            db.execute_sql("ALTER TABLE user_options ADD COLUMN openrouter_tasks TEXT DEFAULT NULL")
     else:
         raise UnknownVersionException(f"No upgrade code for save format {version} was found.")
     inc_save_version(db)

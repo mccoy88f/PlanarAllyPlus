@@ -1,0 +1,6 @@
+[extension]
+id = "dungeongen"
+name = "DungeonGen"
+version = "1.0.0"
+description = "Procedural dungeon generation for tabletop maps. Code by benjcooley (https://github.com/benjcooley/dungeongen)"
+author = "McCoy88f"

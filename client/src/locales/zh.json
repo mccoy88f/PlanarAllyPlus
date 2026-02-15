@@ -720,7 +720,12 @@
             "new_pwd": "新密码：",
             "repeat_pwd": "重复密码：",
             "delete_account": "删除账号",
-            "delete_confirm_msg": "该动作无法撤回！"
+            "delete_confirm_msg": "该动作无法撤回！",
+            "enable_extensions": "启用扩展",
+            "extensions_disclaimer_title": "扩展免责声明",
+            "extensions_disclaimer_text": "扩展由用户创建。使用风险自负。",
+            "extensions_disclaimer_accept": "我明白了",
+            "extensions_disclaimer_cancel": "取消"
         },
         "settings": {
             "account_settings": "账号设置",

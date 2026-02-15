@@ -16,10 +16,13 @@ const props = withDefaults(
         // This can be useful when a :deep cannot be used due to
         // e.g. windowed modals no longer having the correct child chain
         extraClass?: string;
+        // When false, clicking on the mask does not close the modal (close only via header X)
+        closeOnMaskClick?: boolean;
     }>(),
     {
         colour: "white",
         mask: true,
+        closeOnMaskClick: true,
         // This changes the modal to use `right:` positioning instead of the default usage of left.
         // This is mostly useful for modals that can change size and need to remain aligned to their right side.
         // important to note however is that native resize behaviour will not work properly with this.
@@ -176,6 +179,28 @@ function toggleWindow(): void {
         container.value.style.top = preWindowState.top;
     }
 }
+
+// Fullscreen mode
+const fullscreen = ref(false);
+const preFullscreenState = { left: "", top: "", width: "", height: "" };
+function toggleFullscreen(): void {
+    if (!container.value) return;
+
+    fullscreen.value = !fullscreen.value;
+    if (fullscreen.value) {
+        preFullscreenState.left = container.value.style.left;
+        preFullscreenState.top = container.value.style.top;
+        preFullscreenState.width = container.value.style.width;
+        preFullscreenState.height = container.value.style.height;
+        container.value.classList.add("modal-fullscreen");
+    } else {
+        container.value.classList.remove("modal-fullscreen");
+        container.value.style.left = preFullscreenState.left;
+        container.value.style.top = preFullscreenState.top;
+        container.value.style.width = preFullscreenState.width;
+        container.value.style.height = preFullscreenState.height;
+    }
+}
 </script>
 
 <template>
@@ -184,7 +209,7 @@ function toggleWindow(): void {
             v-show="visible"
             class="mask"
             :class="{ 'modal-mask': mask, 'dialog-mask': !mask }"
-            @click="close"
+            @click="() => closeOnMaskClick && close()"
             @dragover.prevent="dragOver"
         >
             <WindowPortal :visible="windowed" :modal-index="props.modalIndex">
@@ -200,6 +225,8 @@ function toggleWindow(): void {
                         :drag-start="dragStart"
                         :drag-end="dragEnd"
                         :toggle-window="toggleWindow"
+                        :toggle-fullscreen="toggleFullscreen"
+                        :fullscreen="fullscreen"
                     ></slot>
                     <slot></slot>
                 </div>
@@ -258,5 +285,19 @@ function toggleWindow(): void {
 .modal-leave-active .modal-container {
     -webkit-transform: scale(1.1);
     transform: scale(1.1);
+}
+
+.modal-container.modal-fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    max-height: none !important;
+    border-radius: 0;
+    z-index: 10000;
 }
 </style>

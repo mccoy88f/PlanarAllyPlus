@@ -95,7 +95,8 @@
         "apply": "Appliquer",
         "type": "Type",
         "background": "Arrière-plan",
-        "mods": "Mods"
+        "mods": "Mods",
+        "extensions": "Extensions"
     },
     "assets": {
         "add_shortcut": "Ajouter un raccourci",
@@ -749,7 +750,12 @@
                 "new_pwd": "Nouveau mot de passe :",
                 "repeat_pwd": "Répéter le mot de passe :",
                 "delete_account": "Supprimer le compte",
-                "delete_confirm_msg": "Cette action est irréversible !"
+                "delete_confirm_msg": "Cette action est irréversible !",
+                "enable_extensions": "Activer les extensions",
+                "extensions_disclaimer_title": "Avertissement extensions",
+                "extensions_disclaimer_text": "Les extensions sont créées par les utilisateurs. Utilisez-les à vos propres risques.",
+                "extensions_disclaimer_accept": "J'ai compris",
+                "extensions_disclaimer_cancel": "Annuler"
             },
             "settings": {
                 "account_settings": "Paramètres du compte",

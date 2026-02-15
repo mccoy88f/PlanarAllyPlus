@@ -33,6 +33,7 @@ import { LayerName } from "../../../models/floor";
 import { ToolMode, ToolName } from "../../../models/tools";
 import type { ISelectTool, ToolFeatures, ToolPermission } from "../../../models/tools";
 import type { Operation } from "../../../operations/model";
+import { isDungeonAsset } from "../../../dungeongen";
 import { moveShapes } from "../../../operations/movement";
 import { resizeShape } from "../../../operations/resize";
 import { rotateShapes } from "../../../operations/rotation";
@@ -555,10 +556,12 @@ class SelectTool extends Tool implements ISelectTool {
                 if (!accessSystem.hasAccessTo(shape.id, "movement")) return;
 
                 let targetPoint = gp;
+                const skipResizeSnap = "src" in shape && isDungeonAsset((shape as { src?: string }).src);
                 if (
                     event &&
                     playerSettingsState.useSnapping(event) &&
-                    this.hasFeature(SelectFeatures.Snapping, features)
+                    this.hasFeature(SelectFeatures.Snapping, features) &&
+                    !skipResizeSnap
                 )
                     [targetPoint, this.snappedToPoint] = snapToPoint(floorState.currentLayer.value!, gp, {
                         shape,
@@ -777,12 +780,15 @@ class SelectTool extends Tool implements ISelectTool {
                             shape: sel.id,
                         });
 
+                    const skipResizeToGrid =
+                        "src" in sel && isDungeonAsset((sel as { src?: string }).src);
                     if (
                         event &&
                         locationSettingsState.raw.useGrid.value &&
                         playerSettingsState.useSnapping(event) &&
                         !this.snappedToPoint &&
-                        this.hasFeature(SelectFeatures.Snapping, features)
+                        this.hasFeature(SelectFeatures.Snapping, features) &&
+                        !skipResizeToGrid
                     ) {
                         if (props.blocksVision !== VisionBlock.No)
                             visionState.deleteFromTriangulation({

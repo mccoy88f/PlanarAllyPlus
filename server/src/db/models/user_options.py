@@ -40,6 +40,12 @@ class UserOptions(BaseDbModel):
 
     render_all_floors = cast(bool | None, BooleanField(default=True, null=True))
 
+    extensions_enabled = cast(bool | None, BooleanField(default=False, null=True))
+    openrouter_api_key = cast(str | None, TextField(default=None, null=True))
+    openrouter_model = cast(str | None, TextField(default=None, null=True))
+    openrouter_base_prompt = cast(str | None, TextField(default=None, null=True))
+    openrouter_tasks = cast(str | None, TextField(default=None, null=True))
+
     @classmethod
     def create_empty(cls):
         return UserOptions.create(
@@ -67,6 +73,11 @@ class UserOptions(BaseDbModel):
             initiative_effect_visibility=None,
             initiative_open_on_activate=None,
             render_all_floors=None,
+            extensions_enabled=None,
+            openrouter_api_key=None,
+            openrouter_model=None,
+            openrouter_base_prompt=None,
+            openrouter_tasks=None,
         )
 
     @overload
@@ -107,4 +118,5 @@ class UserOptions(BaseDbModel):
             initiative_effect_visibility=self.initiative_effect_visibility,  # type: ignore
             initiative_open_on_activate=self.initiative_open_on_activate,  # type: ignore
             render_all_floors=self.render_all_floors,  # type: ignore
+            extensions_enabled=self.extensions_enabled,  # type: ignore
         )

@@ -7,6 +7,13 @@ import SliderComponent from "../../core/components/slider/SliderComponent.vue";
 import { baseAdjust } from "../../core/http";
 import { activeShapeStore } from "../../store/activeShape";
 import { coreStore } from "../../store/core";
+import { extensionsState } from "../systems/extensions/state";
+import {
+    closeDocumentsPdfViewer,
+    closeDungeongenModal,
+    closeOpenRouterModal,
+    closeQuintaedizioneModal,
+} from "../systems/extensions/ui";
 import { gameState } from "../systems/game/state";
 import { positionSystem } from "../systems/position";
 import { positionState } from "../systems/position/state";
@@ -15,6 +22,11 @@ import { uiState } from "../systems/ui/state";
 
 import Annotation from "./Annotation.vue";
 import Chat from "./Chat.vue";
+import DungeongenModal from "./extensions/DungeongenModal.vue";
+import DocumentsPdfViewer from "./extensions/DocumentsPdfViewer.vue";
+import ExtensionModal from "./extensions/ExtensionModal.vue";
+import OpenRouterModal from "./extensions/OpenRouterModal.vue";
+import QuintaedizioneModal from "./extensions/QuintaedizioneModal.vue";
 import DefaultContext from "./contextmenu/DefaultContext.vue";
 import ShapeContext from "./contextmenu/ShapeContext.vue";
 import { showDefaultContextMenu, showShapeContextMenu } from "./contextmenu/state";
@@ -212,6 +224,24 @@ function setTempZoomDisplay(value: number): void {
         />
         <!-- Modals that can be rearranged -->
         <ModalStack />
+        <!-- Extension modals (independent from menu) -->
+        <DungeongenModal
+            :visible="extensionsState.reactive.dungeongenModalOpen"
+            :on-close="closeDungeongenModal"
+        />
+        <QuintaedizioneModal
+            :visible="extensionsState.reactive.quintaedizioneModalOpen"
+            :on-close="closeQuintaedizioneModal"
+        />
+        <OpenRouterModal
+            :visible="extensionsState.reactive.openrouterModalOpen"
+            :on-close="closeOpenRouterModal"
+        />
+        <ExtensionModal />
+        <DocumentsPdfViewer
+            :visible="!!extensionsState.reactive.documentsPdfViewer"
+            :on-close="closeDocumentsPdfViewer"
+        />
         <!-- Modals that require immediate attention -->
         <CreateTokenDialog />
         <div id="teleport-modals"></div>

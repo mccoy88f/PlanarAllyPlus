@@ -56,6 +56,9 @@ ASSETS_DIR = STATIC_DIR / "assets"
 # Temporary files - pending uploads, exports etc
 TEMP_DIR = STATIC_DIR / "temp"
 MODS_DIR = STATIC_DIR / "mods"
+# Extensions: project root (local dev) or FILE_DIR/extensions (Docker)
+_ext_candidates = [FILE_DIR.parent / "extensions", FILE_DIR / "extensions"]
+EXTENSIONS_DIR = next((p for p in _ext_candidates if p.exists()), _ext_candidates[0])
 
 
 for folder in [ASSETS_DIR, DATA_DIR, TEMP_DIR]:

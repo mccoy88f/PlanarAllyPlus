@@ -33,6 +33,8 @@ class ApiUserOptions(TypeIdModel):
 
     render_all_floors: bool
 
+    extensions_enabled: bool
+
 
 class ApiOptionalUserOptions(TypeIdModel):
     fow_colour: str | None = None
@@ -63,3 +65,5 @@ class ApiOptionalUserOptions(TypeIdModel):
     initiative_open_on_activate: bool | None = None
 
     render_all_floors: bool | None = None
+
+    extensions_enabled: bool | None = None

@@ -1,0 +1,215 @@
+/**
+ * PlanarAlly Extension UI - Standard stylesheet
+ *
+ * Include this file in your extension's ui/index.html for a consistent look:
+ *   <link rel="stylesheet" href="../../../../static/extensions/ui.css">
+ *
+ * You can override any class with your own CSS. All classes use the .ext-ui- prefix.
+ */
+
+/* Reset & base */
+.ext-ui-root {
+    box-sizing: border-box;
+}
+.ext-ui-root *,
+.ext-ui-root *::before,
+.ext-ui-root *::after {
+    box-sizing: inherit;
+}
+.ext-ui-root {
+    margin: 0;
+    padding: 1rem;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #333;
+}
+
+/* Typography */
+.ext-ui-title {
+    margin: 0 0 1rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+.ext-ui-subtitle {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #555;
+}
+.ext-ui-text {
+    margin: 0.25rem 0;
+}
+.ext-ui-muted {
+    color: #666;
+    font-style: italic;
+}
+
+/* Buttons */
+.ext-ui-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    font-family: inherit;
+    border: 1px solid #ccc;
+    border-radius: 0.25rem;
+    background: #fff;
+    color: #333;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.ext-ui-btn:hover {
+    background: #f5f5f5;
+    border-color: #999;
+}
+.ext-ui-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.ext-ui-btn-primary {
+    background: #2196f3;
+    border-color: #2196f3;
+    color: #fff;
+}
+.ext-ui-btn-primary:hover:not(:disabled) {
+    background: #1976d2;
+    border-color: #1976d2;
+}
+.ext-ui-btn-danger {
+    background: #fff;
+    border-color: #c62828;
+    color: #c62828;
+}
+.ext-ui-btn-danger:hover:not(:disabled) {
+    background: #ffebee;
+}
+
+/* Inputs */
+.ext-ui-input,
+.ext-ui-select,
+.ext-ui-textarea {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.95rem;
+    font-family: inherit;
+    border: 1px solid #ddd;
+    border-radius: 0.25rem;
+    background: #fff;
+}
+.ext-ui-input:focus,
+.ext-ui-select:focus,
+.ext-ui-textarea:focus {
+    outline: none;
+    border-color: #888;
+}
+.ext-ui-input:disabled,
+.ext-ui-select:disabled,
+.ext-ui-textarea:disabled {
+    background: #f5f5f5;
+    cursor: not-allowed;
+}
+.ext-ui-textarea {
+    min-height: 4rem;
+    resize: vertical;
+}
+.ext-ui-label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #555;
+}
+
+/* Lists */
+.ext-ui-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.ext-ui-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.25rem;
+    border: 1px solid transparent;
+}
+.ext-ui-list-item:hover {
+    background: #f5f5f5;
+    border-color: #eee;
+}
+.ext-ui-list-item-content {
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+}
+.ext-ui-list-item-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Messages (success, error, info) */
+.ext-ui-msg {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.9rem;
+}
+.ext-ui-msg-success {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+.ext-ui-msg-error {
+    background: #ffebee;
+    color: #c62828;
+}
+.ext-ui-msg-info {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+
+/* Loading & empty states */
+.ext-ui-loading,
+.ext-ui-empty {
+    padding: 1rem 0;
+    color: #666;
+    font-style: italic;
+}
+
+/* Sections */
+.ext-ui-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+}
+.ext-ui-section-title {
+    margin: 0 0 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #666;
+}
+
+/* File input (hidden, use with .ext-ui-btn) */
+.ext-ui-file-input {
+    display: none;
+}
+
+/* Icon/action buttons (small) */
+.ext-ui-icon-btn {
+    padding: 0.25rem;
+    border: none;
+    background: transparent;
+    color: #999;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.ext-ui-icon-btn:hover {
+    color: #333;
+}
+.ext-ui-icon-btn-danger:hover {
+    color: #c62828;
+}

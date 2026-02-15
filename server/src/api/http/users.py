@@ -26,3 +26,13 @@ async def delete_account(request: web.Request):
     response = web.HTTPOk()
     await forget(request, response)
     return response
+
+
+async def set_extensions_enabled(request: web.Request):
+    user = await get_authorized_user(request)
+    data = await request.json()
+    enabled = bool(data["enabled"])
+    opts = user.default_options
+    opts.extensions_enabled = enabled
+    opts.save()
+    return web.HTTPOk()

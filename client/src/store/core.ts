@@ -7,6 +7,7 @@ interface CoreState {
     loading: boolean;
     username: string;
     email?: string;
+    extensionsEnabled: boolean;
     version: { release: string; env: string };
     changelog: string;
 }
@@ -18,6 +19,7 @@ class CoreStore extends Store<CoreState> {
             initialized: false,
             username: "",
             loading: false,
+            extensionsEnabled: false,
             version: { release: "", env: "" },
             changelog: "",
         };
@@ -43,6 +45,10 @@ class CoreStore extends Store<CoreState> {
 
     setEmail(email: string): void {
         this._state.email = email;
+    }
+
+    setExtensionsEnabled(enabled: boolean): void {
+        this._state.extensionsEnabled = enabled;
     }
 
     setChangelog(changelog: string): void {

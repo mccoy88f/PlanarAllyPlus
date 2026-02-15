@@ -341,7 +341,12 @@
             "new_pwd": "Новый пароль:",
             "repeat_pwd": "Повторите пароль:",
             "delete_account": "Удалить учётную запись",
-            "delete_confirm_msg": "Это действие нельзя отменить!"
+            "delete_confirm_msg": "Это действие нельзя отменить!",
+            "enable_extensions": "Включить расширения",
+            "extensions_disclaimer_title": "Предупреждение о расширениях",
+            "extensions_disclaimer_text": "Расширения создаются пользователями. Используйте на свой страх и риск.",
+            "extensions_disclaimer_accept": "Понятно",
+            "extensions_disclaimer_cancel": "Отмена"
         },
         "settings": {
             "account_settings": "Настройки учётной записи",

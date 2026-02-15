@@ -1,0 +1,7 @@
+[extension]
+id = "documents"
+name = "Documents"
+version = "1.0.0"
+description = "Upload and view PDF documents in a dedicated folder. Share documents with players."
+author = "McCoy88f"
+entry = "ui/index.html"

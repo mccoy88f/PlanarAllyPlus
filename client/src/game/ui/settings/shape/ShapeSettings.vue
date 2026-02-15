@@ -13,6 +13,7 @@ import type { PanelTab } from "../../../systems/ui/types";
 import AccessSettings from "./AccessSettings.vue";
 import { ShapeSettingCategory } from "./categories";
 import DataSettings from "./DataSettings.vue";
+import DungeonGenSettings from "./DungeonGenSettings.vue";
 import ExtraSettings from "./ExtraSettings.vue";
 import GridSettings from "./GridSettings.vue";
 import GroupSettings from "./GroupSettings.vue";
@@ -20,6 +21,7 @@ import LogicSettings from "./LogicSettings.vue";
 import PropertySettings from "./PropertySettings.vue";
 import TrackerSettings from "./TrackerSettings.vue";
 import VariantSwitcher from "./VariantSwitcher.vue";
+import { hasDungeonData } from "../../../dungeongen";
 
 const { t } = useI18n();
 
@@ -98,6 +100,14 @@ const tabs = computed(() => {
     tabs.push(...fixedTabs);
     if (owned.value) {
         tabs.push(...ownedTabs);
+        const shapeId = activeShapeStore.isComposite.value ? activeShapeStore.state.parentUuid : activeShapeStore.state.id;
+        if (shapeId !== undefined && hasDungeonData(shapeId)) {
+            tabs.push({
+                id: "DungeonGen",
+                label: t("game.ui.extensions.DungeongenSettings.tab"),
+                component: DungeonGenSettings,
+            });
+        }
     }
 
     for (const charTab of uiState.mutableReactive.characterTabs) {

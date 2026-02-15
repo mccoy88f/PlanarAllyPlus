@@ -353,7 +353,12 @@
             "new_pwd": "新密碼：",
             "repeat_pwd": "重複密碼：",
             "delete_account": "刪除賬號",
-            "delete_confirm_msg": "該動作無法撤回！"
+            "delete_confirm_msg": "該動作無法撤回！",
+            "enable_extensions": "啟用擴充功能",
+            "extensions_disclaimer_title": "擴充功能免責聲明",
+            "extensions_disclaimer_text": "擴充功能由使用者建立。使用風險自負。",
+            "extensions_disclaimer_accept": "我明白了",
+            "extensions_disclaimer_cancel": "取消"
         },
         "settings": {
             "account_settings": "賬號設定",
