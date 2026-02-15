@@ -107,7 +107,7 @@ class GeneralConfig(ConfigModel):
     # If disabled, users will not be able to export campaigns
     enable_export: bool = True
     # The User identifier that has access to administrative functions
-    admin_user: str | None = None
+    admin_user: str | None = "admin"
 
 
 class MailConfig(ConfigModel):

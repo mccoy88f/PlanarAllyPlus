@@ -29,6 +29,7 @@ from playhouse.sqlite_ext import SqliteExtDatabase
 from .db.all import ALL_NORMAL_MODELS, ALL_VIEWS
 from .db.db import db as ACTIVE_DB
 from .db.models.constants import Constants
+from .db.models.user import User
 from .thumbnail import generate_thumbnail_for_asset
 from .utils import ASSETS_DIR, FILE_DIR, SAVE_PATH, OldVersionException, UnknownVersionException, get_asset_hash_subpath
 from .logs import logger
@@ -51,6 +52,7 @@ def create_new_db(db: SqliteExtDatabase, version: int):
         secret_token=secrets.token_bytes(32),
         api_token=secrets.token_hex(32),
     )
+    User.create_new("admin", "admin")
 
 
 def check_existence() -> bool:
