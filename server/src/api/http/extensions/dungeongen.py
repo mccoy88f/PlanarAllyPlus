@@ -1,19 +1,12 @@
 """Dungeongen extension - procedural dungeon generation API."""
 
 import random
-import sys
 import uuid
-from pathlib import Path
 
 from aiohttp import web
 
 from ....auth import get_authorized_user
-from ....utils import EXTENSIONS_DIR, STATIC_DIR
-
-# Add dungeongen to path
-DUNGEONGEN_SRC = EXTENSIONS_DIR / "dungeongen-main" / "src"
-if DUNGEONGEN_SRC.exists():
-    sys.path.insert(0, str(DUNGEONGEN_SRC))
+from ....utils import STATIC_DIR
 
 # PlanarAlly grid: 1 cell = 50 pixels
 GRID_SIZE = 50

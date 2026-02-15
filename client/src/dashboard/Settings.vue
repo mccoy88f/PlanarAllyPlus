@@ -8,6 +8,7 @@ import { http } from "../core/http";
 import { useModal } from "../core/plugins/modals/plugin";
 import { getErrorReason, getValue } from "../core/utils";
 import { coreStore } from "../store/core";
+import { dashboardState } from "./state";
 
 const { t } = useI18n();
 const modals = useModal();
@@ -122,7 +123,7 @@ async function deleteAccount(): Promise<void> {
             <label for="name">{{ t("settings.AccountSettings.username") }}</label>
             <input id="name" type="text" :value="username" readonly />
         </div>
-        <div class="entry">
+        <div v-if="dashboardState.adminEnabled" class="entry">
             <label for="extensions-enabled">{{ t("settings.AccountSettings.enable_extensions") }}</label>
             <div class="checkbox-wrapper">
                 <input

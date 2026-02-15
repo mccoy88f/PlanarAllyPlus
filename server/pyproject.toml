@@ -21,11 +21,7 @@ dependencies = [
     "typing-extensions==4.15.0",
     "watchdog==6.0.0",
     # Dungeongen extension
-    "skia-python>=87.0",
-    "numpy>=1.24.0",
-    "opensimplex>=0.4",
-    "rich>=13.0.0",
-    "flask>=2.0.0",
+    "dungeongen>=0.1.14",
 ]
 
 [dependency-groups]

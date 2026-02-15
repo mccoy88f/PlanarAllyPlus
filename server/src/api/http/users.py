@@ -2,6 +2,7 @@ from aiohttp import web
 from aiohttp_security import forget
 
 from ...auth import get_authorized_user
+from ...config import cfg
 
 
 async def set_email(request: web.Request):
@@ -30,6 +31,8 @@ async def delete_account(request: web.Request):
 
 async def set_extensions_enabled(request: web.Request):
     user = await get_authorized_user(request)
+    if cfg().general.admin_user != user.name:
+        raise web.HTTPForbidden(reason="Only the server administrator can enable extensions.")
     data = await request.json()
     enabled = bool(data["enabled"])
     opts = user.default_options

@@ -81,10 +81,11 @@ async def chat(request: web.Request) -> web.Response:
         "temperature": temperature,
     }
 
+    referer = str(request.url.origin()) if request.url.absolute else "https://planarally.io"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": request.url.origin or "https://planarally.io",
+        "HTTP-Referer": referer,
     }
 
     try:
