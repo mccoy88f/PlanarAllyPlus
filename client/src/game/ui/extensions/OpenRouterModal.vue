@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useToast } from "vue-toastification";
 
+import type { ApiNote, ApiNoteRoom } from "../../../apiTypes";
 import Modal from "../../../core/components/modals/Modal.vue";
+import { uuidv4 } from "../../../core/utils";
 import { http } from "../../../core/http";
+import { coreStore } from "../../../store/core";
+import { gameState } from "../../systems/game/state";
+import { noteSystem } from "../../systems/notes";
+import { noteState } from "../../systems/notes/state";
+import type { NoteId } from "../../systems/notes/types";
 import { extensionsState } from "../../systems/extensions/state";
 import { closeOpenRouterModal } from "../../systems/extensions/ui";
 
@@ -22,6 +29,9 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const toast = useToast();
+
+const DEFAULT_BASE_PROMPT =
+    "Rispondi sempre in formato markdown. Non includere messaggi di apertura (es. \"ok, ti preparo il contenuto\") né di chiusura (es. \"buon divertimento\", \"spero ti sia utile\"). Restituisci solo il contenuto richiesto, senza prefazioni né conclusioni.";
 
 const DEFAULT_TASKS: TaskDef[] = [
     {
@@ -50,11 +60,13 @@ const DEFAULT_TASKS: TaskDef[] = [
 const activeTab = ref<"settings" | "tasks">("tasks");
 const apiKey = ref("");
 const selectedModel = ref("openrouter/free");
-const models = ref<{ id: string; name: string; is_free: boolean }[]>([]);
+const selectedImageModel = ref("sourceful/riverflow-v2-fast");
+const models = ref<{ id: string; name: string; is_free: boolean; output_modalities?: string[] }[]>([]);
 const loadingModels = ref(false);
 const savingSettings = ref(false);
 const runningTask = ref(false);
 const result = ref("");
+const resultRef = ref<HTMLDivElement | null>(null);
 const customPrompt = ref("");
 const basePrompt = ref("");
 const tasks = ref<TaskDef[]>([]);
@@ -67,6 +79,9 @@ const visible = computed(() => props.visible);
 
 const freeModels = computed(() => models.value.filter((m) => m.is_free));
 const paidModels = computed(() => models.value.filter((m) => !m.is_free));
+const imageModels = computed(() =>
+    models.value.filter((m) => (m.output_modalities ?? []).includes("image")),
+);
 
 async function loadModels(): Promise<void> {
     loadingModels.value = true;
@@ -74,7 +89,7 @@ async function loadModels(): Promise<void> {
         const resp = await http.get("/api/extensions/openrouter/models");
         if (resp.ok) {
             const data = (await resp.json()) as {
-                models: { id: string; name: string; is_free: boolean }[];
+                models: { id: string; name: string; is_free: boolean; output_modalities?: string[] }[];
             };
             models.value = data.models ?? [];
             if (models.value.length > 0 && !selectedModel.value) {
@@ -97,10 +112,12 @@ async function loadSettings(): Promise<void> {
                 model: string;
                 basePrompt?: string;
                 tasks?: TaskDef[];
+                imageModel?: string;
             };
             apiKey.value = data.hasApiKey ? "********" : "";
             selectedModel.value = data.model || "openrouter/free";
-            basePrompt.value = data.basePrompt ?? "";
+            selectedImageModel.value = data.imageModel || "sourceful/riverflow-v2-fast";
+            basePrompt.value = (data.basePrompt?.trim() || DEFAULT_BASE_PROMPT);
             tasks.value =
                 data.tasks && data.tasks.length > 0
                     ? data.tasks.map((t) => ({
@@ -124,10 +141,12 @@ async function saveSettings(): Promise<void> {
             model: string;
             basePrompt: string;
             tasks: TaskDef[];
+            imageModel: string;
         } = {
             model: selectedModel.value,
             basePrompt: basePrompt.value.trim(),
             tasks: tasks.value,
+            imageModel: selectedImageModel.value,
         };
         if (apiKey.value && apiKey.value !== "********") {
             body.apiKey = apiKey.value;
@@ -180,6 +199,8 @@ async function runTask(
             const data = (await resp.json()) as { choices?: { message?: { content?: string } }[] };
             const content = data.choices?.[0]?.message?.content ?? "";
             result.value = content || t("game.ui.extensions.OpenRouterModal.no_response");
+            await nextTick();
+            resultRef.value?.scrollIntoView({ behavior: "smooth", block: "nearest" });
         } else {
             const err = (await resp.json().catch(() => ({}))) as { error?: string };
             toast.error(err.error || t("game.ui.extensions.OpenRouterModal.request_error"));
@@ -217,6 +238,8 @@ async function runCustomTask(): Promise<void> {
             const data = (await resp.json()) as { choices?: { message?: { content?: string } }[] };
             const content = data.choices?.[0]?.message?.content ?? "";
             result.value = content || t("game.ui.extensions.OpenRouterModal.no_response");
+            await nextTick();
+            resultRef.value?.scrollIntoView({ behavior: "smooth", block: "nearest" });
         } else {
             const err = (await resp.json().catch(() => ({}))) as { error?: string };
             toast.error(err.error || t("game.ui.extensions.OpenRouterModal.request_error"));
@@ -265,6 +288,36 @@ function startEditTask(task: TaskDef): void {
 
 function cancelEditTask(): void {
     editingTask.value = null;
+}
+
+function extractFirstH1(markdown: string): string {
+    const m = markdown.match(/^#\s+(.+)$/m);
+    return m ? m[1]!.trim() : "Nota AI";
+}
+
+async function createNoteFromResult(): Promise<void> {
+    if (!result.value.trim()) return;
+    const title = extractFirstH1(result.value);
+    const [roomCreator, ...roomNameParts] = gameState.fullRoomName.value.split("/") as [string, ...string[]];
+    const roomName = roomNameParts.join("/");
+    const rooms: ApiNoteRoom[] = [
+        { roomCreator, roomName, locationId: null, locationName: null },
+    ];
+    const note: ApiNote = {
+        uuid: uuidv4() as unknown as NoteId,
+        creator: coreStore.state.username,
+        title: title || "Nota AI",
+        text: result.value,
+        showOnHover: false,
+        showIconOnShape: false,
+        rooms,
+        tags: [],
+        access: [],
+        shapes: [],
+    };
+    await noteSystem.newNote(note, true);
+    noteState.mutableReactive.currentNote = note.uuid;
+    toast.success(t("game.ui.extensions.OpenRouterModal.note_created"));
 }
 
 function close(): void {
@@ -391,12 +444,40 @@ onMounted(() => {
                     </select>
                 </div>
                 <div class="openrouter-field">
+                    <label>{{ t("game.ui.extensions.OpenRouterModal.image_model") }}</label>
+                    <select v-model="selectedImageModel" :disabled="loadingModels">
+                        <optgroup
+                            v-if="imageModels.length > 0"
+                            :label="t('game.ui.extensions.OpenRouterModal.image_model_label')"
+                        >
+                            <option
+                                v-for="m in imageModels"
+                                :key="m.id"
+                                :value="m.id"
+                            >
+                                {{ m.name }}
+                            </option>
+                        </optgroup>
+                        <option v-if="imageModels.length === 0 && !loadingModels" value="sourceful/riverflow-v2-fast">
+                            sourceful/riverflow-v2-fast (default)
+                        </option>
+                    </select>
+                    <p class="openrouter-hint">{{ t("game.ui.extensions.OpenRouterModal.image_model_hint") }}</p>
+                </div>
+                <div class="openrouter-field">
                     <label>{{ t("game.ui.extensions.OpenRouterModal.base_prompt") }}</label>
                     <textarea
                         v-model="basePrompt"
                         :placeholder="t('game.ui.extensions.OpenRouterModal.base_prompt_placeholder')"
                         rows="4"
                     />
+                    <button
+                        type="button"
+                        class="openrouter-restore-default"
+                        @click="basePrompt = DEFAULT_BASE_PROMPT"
+                    >
+                        {{ t("game.ui.extensions.OpenRouterModal.restore_default") }}
+                    </button>
                 </div>
                 <button
                     class="openrouter-save-btn"
@@ -408,17 +489,18 @@ onMounted(() => {
             </div>
 
             <div v-show="activeTab === 'tasks'" class="openrouter-tasks">
-                <div class="openrouter-tasks-header">
-                    <span class="openrouter-tasks-title">{{ t("game.ui.extensions.OpenRouterModal.tasks") }}</span>
-                    <button
-                        class="openrouter-save-btn-small"
-                        :disabled="savingSettings"
-                        @click="saveSettings"
-                    >
-                        {{ savingSettings ? "..." : t("common.save") }}
-                    </button>
-                </div>
-                <div class="openrouter-task-list">
+                <section class="openrouter-params-section">
+                    <div class="openrouter-tasks-header">
+                        <span class="openrouter-tasks-title">{{ t("game.ui.extensions.OpenRouterModal.tasks") }}</span>
+                        <button
+                            class="openrouter-save-btn-small"
+                            :disabled="savingSettings"
+                            @click="saveSettings"
+                        >
+                            {{ savingSettings ? "..." : t("common.save") }}
+                        </button>
+                    </div>
+                    <div class="openrouter-task-list">
                     <button
                         v-for="task in tasks"
                         :key="task.id"
@@ -513,11 +595,23 @@ onMounted(() => {
                         </button>
                     </template>
                 </div>
+                </section>
 
-                <div v-if="result" class="openrouter-result">
-                    <label>{{ t("game.ui.extensions.OpenRouterModal.result") }}</label>
-                    <div class="openrouter-result-content">{{ result }}</div>
-                </div>
+                <section class="openrouter-result-section">
+                    <h3>{{ t("game.ui.extensions.OpenRouterModal.result") }}</h3>
+                    <div v-if="!result" class="openrouter-result-placeholder">
+                        {{ t("game.ui.extensions.OpenRouterModal.click_run") }}
+                    </div>
+                    <div v-else ref="resultRef" class="openrouter-result-container">
+                        <div class="openrouter-result-content">{{ result }}</div>
+                        <button
+                            class="openrouter-create-note-btn"
+                            @click="createNoteFromResult"
+                        >
+                            {{ t("game.ui.extensions.OpenRouterModal.create_note") }}
+                        </button>
+                    </div>
+                </section>
             </div>
         </div>
     </Modal>
@@ -529,9 +623,9 @@ onMounted(() => {
     flex-direction: column;
     border-radius: 0.5rem;
     resize: both;
-    min-width: 450px;
+    min-width: 600px;
     min-height: 400px;
-    width: min(90vw, 700px);
+    width: min(90vw, 900px);
     height: min(85vh, 600px);
     overflow: hidden;
 }
@@ -612,6 +706,21 @@ onMounted(() => {
     margin: 0;
 }
 
+.openrouter-restore-default {
+    align-self: flex-start;
+    font-size: 0.85em;
+    padding: 0.25rem 0.5rem;
+    background: transparent;
+    border: 1px dashed #999;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    color: #666;
+
+    &:hover {
+        background: #f5f5f5;
+    }
+}
+
 .openrouter-field {
     display: flex;
     flex-direction: column;
@@ -653,8 +762,70 @@ onMounted(() => {
     flex: 1;
     min-height: 0;
     display: flex;
+    flex-direction: row;
+    gap: 1.5rem;
+    overflow: hidden;
+}
+
+.openrouter-params-section {
+    flex: 1;
+    min-width: 220px;
+    max-width: 320px;
+    display: flex;
     flex-direction: column;
     gap: 1rem;
+    overflow-y: auto;
+}
+
+.openrouter-result-section {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    h3 {
+        margin: 0 0 0.75rem;
+        font-weight: 600;
+        font-size: 1.1em;
+    }
+}
+
+.openrouter-result-placeholder {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    border: 1px dashed #ccc;
+    border-radius: 0.25rem;
+    background: #fafafa;
+    color: #888;
+    font-style: italic;
+}
+
+.openrouter-result-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.openrouter-create-note-btn {
+    align-self: flex-start;
+    padding: 0.5rem 1rem;
+    background: #82c8a0;
+    border: none;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-weight: 500;
+    flex-shrink: 0;
+
+    &:hover {
+        opacity: 0.9;
+    }
 }
 
 .openrouter-tasks-header {
@@ -797,21 +968,9 @@ onMounted(() => {
     }
 }
 
-.openrouter-result {
-    flex: 1;
-    min-height: 100px;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    overflow: hidden;
-
-    label {
-        font-weight: 500;
-    }
-}
-
 .openrouter-result-content {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 0.75rem;
     border: 1px solid #eee;

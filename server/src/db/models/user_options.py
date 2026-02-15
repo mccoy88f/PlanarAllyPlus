@@ -45,6 +45,7 @@ class UserOptions(BaseDbModel):
     openrouter_model = cast(str | None, TextField(default=None, null=True))
     openrouter_base_prompt = cast(str | None, TextField(default=None, null=True))
     openrouter_tasks = cast(str | None, TextField(default=None, null=True))
+    openrouter_image_model = cast(str | None, TextField(default=None, null=True))
 
     @classmethod
     def create_empty(cls):
@@ -78,6 +79,7 @@ class UserOptions(BaseDbModel):
             openrouter_model=None,
             openrouter_base_prompt=None,
             openrouter_tasks=None,
+            openrouter_image_model=None,
         )
 
     @overload

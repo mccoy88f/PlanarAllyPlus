@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useToast } from "vue-toastification";
 
@@ -43,6 +43,8 @@ const dungeonMeta = ref<{
 } | null>(null);
 const addingToMap = ref(false);
 const replacing = ref(false);
+const makingRealistic = ref(false);
+const openRouterAvailable = ref(false);
 
 const params = ref({
     size: "medium",
@@ -120,9 +122,16 @@ const symmetryBreakOptions = [
 
 const symmetryBreakMap: Record<string, number> = { low: 0.1, med: 0.2, high: 0.5 };
 
+onMounted(() => {
+    checkOpenRouter();
+});
+
 watch(
     () => [props.visible, editShapeId.value] as const,
     ([visible, shapeId]) => {
+        if (visible) {
+            checkOpenRouter();
+        }
         if (visible && shapeId) {
             const stored = getDungeonStoredData(shapeId);
             if (stored) {
@@ -256,6 +265,52 @@ function close(): void {
     dungeonMeta.value = null;
     closeDungeongenModal();
     props.onClose();
+}
+
+async function checkOpenRouter(): Promise<void> {
+    try {
+        const [extResp, settingsResp] = await Promise.all([
+            http.get("/api/extensions"),
+            http.get("/api/extensions/openrouter/settings"),
+        ]);
+        if (!extResp.ok || !settingsResp.ok) {
+            openRouterAvailable.value = false;
+            return;
+        }
+        const extData = (await extResp.json()) as { extensions?: { id: string }[] };
+        const settingsData = (await settingsResp.json()) as { hasApiKey?: boolean; imageModel?: string };
+        const hasExt = (extData.extensions ?? []).some((e) => e.id === "openrouter");
+        const hasConfig = settingsData.hasApiKey && settingsData.imageModel;
+        openRouterAvailable.value = !!hasExt && !!hasConfig;
+    } catch {
+        openRouterAvailable.value = false;
+    }
+}
+
+async function makeRealisticWithAI(): Promise<void> {
+    if (!previewUrl.value) return;
+    makingRealistic.value = true;
+    try {
+        const resp = await http.postJson("/api/extensions/openrouter/transform-image", {
+            imageUrl: previewUrl.value,
+            archetype: params.value.archetype,
+        });
+        if (resp.ok) {
+            const data = (await resp.json()) as { imageUrl?: string };
+            if (data.imageUrl) {
+                previewUrl.value = data.imageUrl;
+                toast.success(t("game.ui.extensions.DungeongenModal.realistic_done"));
+            }
+        } else {
+            const err = (await resp.json().catch(() => ({}))) as { error?: string };
+            toast.error(err.error || t("game.ui.extensions.DungeongenModal.realistic_error"));
+        }
+    } catch (e) {
+        toast.error(t("game.ui.extensions.DungeongenModal.realistic_error"));
+        console.error(e);
+    } finally {
+        makingRealistic.value = false;
+    }
 }
 </script>
 
@@ -426,6 +481,14 @@ function close(): void {
                         <div v-if="gridCells" class="preview-info">
                             {{ gridCells.width }}×{{ gridCells.height }} cells
                         </div>
+                        <button
+                            v-if="openRouterAvailable"
+                            class="realistic-btn"
+                            :disabled="makingRealistic"
+                            @click="makeRealisticWithAI"
+                        >
+                            {{ makingRealistic ? "..." : t("game.ui.extensions.DungeongenModal.make_realistic") }}
+                        </button>
                         <button
                             class="add-btn"
                             :data-testid="isEditMode ? 'dungeongen-replace-on-map' : 'dungeongen-add-to-map'"
@@ -638,6 +701,25 @@ function close(): void {
     .preview-info {
         font-size: 0.9em;
         color: #666;
+    }
+
+    .realistic-btn {
+        padding: 0.5rem 1rem;
+        background-color: #82c8a0;
+        color: #333;
+        border: none;
+        border-radius: 0.25rem;
+        cursor: pointer;
+        font-weight: 500;
+
+        &:hover:not(:disabled) {
+            opacity: 0.9;
+        }
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
     }
 
     .add-btn {

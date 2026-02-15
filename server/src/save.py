@@ -14,7 +14,7 @@ When writing migrations make sure that these things are respected:
     - e.g. a column added to Circle also needs to be added to CircularToken
 """
 
-SAVE_VERSION = 116
+SAVE_VERSION = 117
 
 import asyncio
 import json
@@ -710,6 +710,10 @@ def upgrade(
         with db.atomic():
             db.execute_sql("ALTER TABLE user_options ADD COLUMN openrouter_base_prompt TEXT DEFAULT NULL")
             db.execute_sql("ALTER TABLE user_options ADD COLUMN openrouter_tasks TEXT DEFAULT NULL")
+    elif version == 116:
+        # Add UserOptions.openrouter_image_model
+        with db.atomic():
+            db.execute_sql("ALTER TABLE user_options ADD COLUMN openrouter_image_model TEXT DEFAULT NULL")
     else:
         raise UnknownVersionException(f"No upgrade code for save format {version} was found.")
     inc_save_version(db)

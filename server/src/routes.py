@@ -95,6 +95,7 @@ main_app.router.add_get(f"{subpath}/api/extensions/openrouter/models", extension
 main_app.router.add_post(f"{subpath}/api/extensions/openrouter/chat", extensions.openrouter.chat)
 main_app.router.add_get(f"{subpath}/api/extensions/openrouter/settings", extensions.openrouter.get_settings)
 main_app.router.add_post(f"{subpath}/api/extensions/openrouter/settings", extensions.openrouter.set_settings)
+main_app.router.add_post(f"{subpath}/api/extensions/openrouter/transform-image", extensions.openrouter.transform_image)
 main_app.router.add_get(
     f"{subpath}/api/extensions/{{folder}}/ui",
     extensions.serve_extension_ui,

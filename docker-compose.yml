@@ -5,7 +5,10 @@
 services:
   planarally:
     container_name: planarally
-    image: mccoy88f/planarally:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: planarally:local
     restart: unless-stopped
     user: "9000"
     environment:
