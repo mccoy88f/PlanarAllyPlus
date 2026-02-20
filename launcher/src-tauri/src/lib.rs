@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::io::Cursor;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, Submenu};
@@ -47,6 +47,52 @@ fn project_root_for_dev() -> Option<PathBuf> {
         dir.parent()
     }
     .map(PathBuf::from)
+}
+
+/// Paths to preserve during update (relative to project root). These contain user data.
+const PRESERVE_PATHS: &[&str] = &[
+    "server/static/assets",
+    "server/static/thumbnails",
+    "server/static/mods",
+    "server/data",
+    "extensions/compendium/db",
+];
+
+fn backup_user_data(base: &Path, project_root: &Path) -> Result<PathBuf, String> {
+    let backup_dir = base.join("pa_update_backup");
+    if backup_dir.exists() {
+        std::fs::remove_dir_all(&backup_dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
+    for rel in PRESERVE_PATHS {
+        let src = project_root.join(rel);
+        if src.exists() && src.is_dir() {
+            let dst = backup_dir.join(rel);
+            if let Err(e) = fs_extra::dir::copy(src, &dst, &fs_extra::dir::CopyOptions::new().copy_inside(true)) {
+                // Non bloccare l'update se una cartella fallisce (es. permessi)
+                let _ = std::fs::remove_dir_all(&backup_dir);
+                return Err(format!("Backup fallito per {}: {}", rel, e));
+            }
+        }
+    }
+    Ok(backup_dir)
+}
+
+fn restore_user_data(backup_dir: &Path, project_root: &Path) -> Result<(), String> {
+    for rel in PRESERVE_PATHS {
+        let src = backup_dir.join(rel);
+        let dst = project_root.join(rel);
+        if src.exists() && src.is_dir() {
+            if dst.exists() {
+                std::fs::remove_dir_all(&dst).map_err(|e| e.to_string())?;
+            }
+            std::fs::create_dir_all(&dst).map_err(|e| e.to_string())?;
+            fs_extra::dir::copy(&src, &dst, &fs_extra::dir::CopyOptions::new().copy_inside(true))
+                .map_err(|e| format!("Restore fallito per {}: {}", rel, e))?;
+        }
+    }
+    std::fs::remove_dir_all(backup_dir).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 fn get_project_root() -> Result<PathBuf, String> {
@@ -125,6 +171,20 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
 
     app.emit("download-progress", "Estrazione...").ok();
 
+    let backup_dir = if app_dir.exists() {
+        if let Ok(project_root) = get_project_root() {
+            app.emit("download-progress", "Salvataggio dati utente...").ok();
+            match backup_user_data(&base, &project_root) {
+                Ok(b) => Some(b),
+                Err(e) => return Err(e),
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     if app_dir.exists() {
         std::fs::remove_dir_all(&app_dir).map_err(|e| e.to_string())?;
     }
@@ -139,9 +199,16 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
 
     let _ = std::fs::remove_file(&zip_path);
 
+    let root = get_project_root().map_err(|e| e.to_string())?;
+
+    if let Some(ref b) = backup_dir {
+        app.emit("download-progress", "Ripristino dati utente...").ok();
+        restore_user_data(b, &root).map_err(|e| e.to_string())?;
+    }
+
     app.emit("download-progress", "Completato").ok();
 
-    get_project_root().map(|p| p.to_string_lossy().to_string())
+    Ok(root.to_string_lossy().to_string())
 }
 
 #[tauri::command]
