@@ -85,14 +85,14 @@ npm ci
 echo "Build client..."
 npm run build
 
-# Server
+# Server: --python forza 3.13 (uv altrimenti può usare 3.14 → skia-python fallisce)
 echo "Installo dipendenze server..."
 cd "$ROOT/server"
-uv sync --no-group dev
+uv sync --python "$PYTHON_CMD" --no-group dev
 
 echo ""
 echo -e "${GREEN}=== Avvio server PlanarAlly Plus ===${NC}"
 echo "Apri http://localhost:8000 nel browser"
 echo ""
 
-exec uv run planarally.py
+exec uv run --python "$PYTHON_CMD" planarally.py
