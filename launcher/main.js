@@ -132,7 +132,7 @@ listen('server-log-err', (event) => {
 listen('server-started', () => {
   isRestarting = false;
   setRunning(true);
-  appendLog(t('serverStarted'));
+  appendLog('--- Server started ---');
   showUrlArea();
   updateLink();
   hideProgress(true, t('progressServerReady'));
@@ -143,12 +143,14 @@ listen('server-stopped', (event) => {
     setRunning(false);
     hideUrlArea();
   }
-  appendLog(tFormat('serverStopped', { code: event.payload }));
+  appendLog(`--- Server stopped (exit: ${event.payload}) ---`);
 });
 
 listen('download-progress', (event) => {
-  setStatus(event.payload, true);
-  progressStatus.textContent = event.payload;
+  const msg = event.payload;
+  setStatus(msg, true);
+  progressStatus.textContent = msg;
+  appendLog(msg);
 });
 
 btnUpdate.addEventListener('click', async () => {
@@ -166,7 +168,7 @@ btnUpdate.addEventListener('click', async () => {
     refreshStatus();
     hideProgress(true, t('progressUpdateComplete'));
   } catch (e) {
-    appendLog(t('statusErrorPrefix') + String(e), true);
+    appendLog('Error: ' + String(e), true);
     hideProgress(false, t('progressUpdateFailed'));
   }
   btnUpdate.disabled = btnStart.disabled; // keep disabled if server is running
@@ -184,7 +186,7 @@ btnStart.addEventListener('click', async () => {
   try {
     await invoke('start_server', { mode: 'full' });
   } catch (e) {
-    appendLog(t('statusErrorPrefix') + String(e), true);
+    appendLog('Error: ' + String(e), true);
     refreshStatus();
     hideProgress(false, t('progressStartFailed'));
     setRunning(false);
@@ -203,7 +205,7 @@ btnClose.addEventListener('click', async () => {
   try {
     await invoke('exit_app');
   } catch (e) {
-    appendLog(t('statusErrorPrefix') + String(e), true);
+    appendLog('Error: ' + String(e), true);
   }
 });
 
@@ -215,7 +217,7 @@ btnRestart.addEventListener('click', async () => {
   try {
     await invoke('restart_server');
   } catch (e) {
-    appendLog(t('statusErrorPrefix') + String(e), true);
+    appendLog('Error: ' + String(e), true);
     hideProgress(false, t('progressRestartFailed'));
     setRunning(false);
     isRestarting = false;
@@ -225,6 +227,12 @@ btnRestart.addEventListener('click', async () => {
 async function main() {
   await initI18n();
   statusEl.textContent = t('loading');
+  try {
+    const ver = await invoke('get_launcher_version');
+    document.getElementById('launcher-version').textContent = `v${ver}`;
+  } catch {
+    document.getElementById('launcher-version').textContent = '';
+  }
   refreshStatus();
 }
 main();

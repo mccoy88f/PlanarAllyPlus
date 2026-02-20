@@ -34,7 +34,7 @@ fn app_data_dir() -> Result<PathBuf, String> {
     dirs::data_local_dir()
         .or_else(dirs::home_dir)
         .map(|p| p.join("PlanarAllyPlus"))
-        .ok_or_else(|| "Impossibile determinare cartella dati".to_string())
+        .ok_or_else(|| "Cannot determine data folder".to_string())
 }
 
 fn project_root_for_dev() -> Option<PathBuf> {
@@ -55,6 +55,7 @@ const PRESERVE_PATHS: &[&str] = &[
     "server/static/thumbnails",
     "server/static/mods",
     "server/data",
+    "server/save_backups",
     "extensions/compendium/db",
 ];
 
@@ -74,7 +75,7 @@ fn backup_user_data(base: &Path, project_root: &Path) -> Result<PathBuf, String>
             std::fs::create_dir_all(dst.parent().unwrap()).map_err(|e| e.to_string())?;
             if let Err(e) = fs_extra::dir::copy(&src, &dst, &opts) {
                 let _ = std::fs::remove_dir_all(&backup_dir);
-                return Err(format!("Backup fallito per {}: {}", rel, e));
+                return Err(format!("Backup failed for {}: {}", rel, e));
             }
         }
     }
@@ -94,7 +95,7 @@ fn restore_user_data(backup_dir: &Path, project_root: &Path) -> Result<(), Strin
             }
             std::fs::create_dir_all(&dst).map_err(|e| e.to_string())?;
             fs_extra::dir::copy(&src, &dst, &opts)
-                .map_err(|e| format!("Restore fallito per {}: {}", rel, e))?;
+                .map_err(|e| format!("Restore failed for {}: {}", rel, e))?;
         }
     }
     std::fs::remove_dir_all(backup_dir).map_err(|e| e.to_string())?;
@@ -115,7 +116,7 @@ fn get_project_root() -> Result<PathBuf, String> {
     let base = app_data_dir()?;
     let app_dir = base.join("app");
     if !app_dir.exists() {
-        return Err("App non scaricata. Clicca Avvia o Aggiorna.".to_string());
+        return Err("App not downloaded. Click Start or Update.".to_string());
     }
 
     let entries: Vec<_> = std::fs::read_dir(&app_dir)
@@ -133,7 +134,7 @@ fn get_project_root() -> Result<PathBuf, String> {
     if app_dir.join("scripts").exists() {
         Ok(app_dir)
     } else {
-        Err("Struttura app non valida. Clicca Aggiorna.".to_string())
+        Err("Invalid app structure. Click Update.".to_string())
     }
 }
 
@@ -156,30 +157,30 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
     }
 
     let zip_url = get_zip_url();
-    app.emit("download-progress", "Download in corso...").ok();
+    app.emit("download-progress", "Downloading app...").ok();
 
     let response = reqwest::get(&zip_url)
         .await
-        .map_err(|e| format!("Download fallito: {}", e))?;
+        .map_err(|e| format!("Download failed: {}", e))?;
 
     if !response.status().is_success() {
-        return Err(format!("Server ha risposto {}", response.status()));
+        return Err(format!("Server responded with {}", response.status()));
     }
 
     let bytes = response
         .bytes()
         .await
-        .map_err(|e| format!("Lettura risposta: {}", e))?;
+        .map_err(|e| format!("Reading response: {}", e))?;
 
-    app.emit("download-progress", "Scrittura file...").ok();
+    app.emit("download-progress", "Writing file...").ok();
     std::fs::create_dir_all(&base).map_err(|e| e.to_string())?;
     std::fs::write(&zip_path, &bytes).map_err(|e| e.to_string())?;
 
-    app.emit("download-progress", "Estrazione...").ok();
+    app.emit("download-progress", "Extracting archive...").ok();
 
     let backup_dir = if app_dir.exists() {
         if let Ok(project_root) = get_project_root() {
-            app.emit("download-progress", "Salvataggio dati utente...").ok();
+            app.emit("download-progress", "Creating user data backup...").ok();
             match backup_user_data(&base, &project_root) {
                 Ok(b) => Some(b),
                 Err(e) => return Err(e),
@@ -197,24 +198,29 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
     std::fs::create_dir_all(&app_dir).map_err(|e| e.to_string())?;
 
     let mut archive =
-        zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("ZIP non valido: {}", e))?;
+        zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("Invalid ZIP: {}", e))?;
 
     archive
         .extract(&app_dir)
-        .map_err(|e| format!("Estrazione fallita: {}", e))?;
+        .map_err(|e| format!("Extraction failed: {}", e))?;
 
     let _ = std::fs::remove_file(&zip_path);
 
     let root = get_project_root().map_err(|e| e.to_string())?;
 
     if let Some(ref b) = backup_dir {
-        app.emit("download-progress", "Ripristino dati utente...").ok();
+        app.emit("download-progress", "Restoring user data backup...").ok();
         restore_user_data(b, &root).map_err(|e| e.to_string())?;
     }
 
-    app.emit("download-progress", "Completato").ok();
+    app.emit("download-progress", "Completed").ok();
 
     Ok(root.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn get_launcher_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
 }
 
 #[tauri::command]
@@ -318,10 +324,10 @@ async fn start_server(app: AppHandle, mode: String) -> Result<(), String> {
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
-        .map_err(|e| format!("Avvio fallito: {}", e))?;
+        .map_err(|e| format!("Start failed: {}", e))?;
 
-    let stdout = child.stdout.take().ok_or("impossibile catturare stdout")?;
-    let stderr = child.stderr.take().ok_or("impossibile catturare stderr")?;
+    let stdout = child.stdout.take().ok_or("cannot capture stdout")?;
+    let stderr = child.stderr.take().ok_or("cannot capture stderr")?;
 
     let app_stdout = app.clone();
     let app_stderr = app.clone();
@@ -423,7 +429,7 @@ async fn get_local_ip() -> Result<String, String> {
         .into_iter()
         .find(|(_, ip)| !ip.is_loopback() && matches!(ip, std::net::IpAddr::V4(_)))
         .map(|(_, ip)| ip.to_string())
-        .ok_or_else(|| "Nessun IP locale trovato".to_string())
+        .ok_or_else(|| "No local IP found".to_string())
 }
 
 #[tauri::command]
@@ -482,6 +488,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             ensure_app_downloaded,
             get_app_status,
+            get_launcher_version,
             start_server,
             stop_server,
             restart_server,
