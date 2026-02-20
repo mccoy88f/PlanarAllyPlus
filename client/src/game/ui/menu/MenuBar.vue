@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, toRef } from "vue";
+import { computed, onMounted, onUnmounted, ref, toRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 
@@ -26,10 +26,34 @@ const router = useRouter();
 const { t } = useI18n();
 
 const username = toRef(coreStore.state, "username");
+const isFullscreen = ref(!!document.fullscreenElement);
+
+function onFullscreenChange(): void {
+    isFullscreen.value = !!document.fullscreenElement;
+}
+
+onMounted(() => {
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+});
+onUnmounted(() => {
+    document.removeEventListener("fullscreenchange", onFullscreenChange);
+});
 
 async function exit(): Promise<void> {
     clearGame("leaving");
     await router.push({ name: "games" });
+}
+
+async function toggleFullscreen(): Promise<void> {
+    try {
+        if (document.fullscreenElement) {
+            await document.exitFullscreen();
+        } else {
+            await document.documentElement.requestFullscreen();
+        }
+    } catch {
+        // Fullscreen API not supported or denied
+    }
 }
 
 function settingsClick(event: MouseEvent): void {
@@ -136,6 +160,13 @@ const openClientSettings = (): void => uiSystem.showClientSettings(!uiState.raw.
             <button class="menu-accordion" @click="openClientSettings">
                 {{ t("game.ui.menu.MenuBar.client_settings") }}
             </button>
+        </div>
+        <div
+            class="menu-accordion"
+            style="width: 12.5rem; box-sizing: border-box; text-decoration: none; display: inline-block"
+            @click="toggleFullscreen"
+        >
+            {{ isFullscreen ? t("common.fullscreen_exit") : t("common.fullscreen") }}
         </div>
         <div
             class="menu-accordion"
