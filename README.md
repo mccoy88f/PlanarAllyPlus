@@ -1,4 +1,6 @@
-<p align="center"><a href="https://planarally.io" target="_blank" rel="noopener noreferrer"><img width="200" src="https://www.planarally.io/logos/pa-logo-background.svg" alt="PlanarAlly logo"></a></p>
+<p align="center"><a href="https://planarally.io" target="_blank" rel="noopener noreferrer"><img width="200" src="https://www.planarally.io/logos/pa-logo-background.svg" alt="PlanarAlly Plus logo"></a></p>
+
+<p align="center"><small>Read in: <a href="README.it.md">Italiano</a></small></p>
 
 <p align="center">
     <a href="https://github.com/Kruptein/PlanarAlly/releases"><img src="https://img.shields.io/github/downloads/kruptein/planarally/total.svg" alt="Downloads"></a>
@@ -8,13 +10,27 @@
     <a href="https://patreon.com/planarally" title="Donate to this project using Patreon"><img src="https://img.shields.io/badge/patreon-donate-red.svg" alt="Patreon donate button" /></a>
 </p>
 
-# PlanarAlly
+# PlanarAlly Plus
 
-A companion tool for when you travel into the planes.
+Un fork della versione 2026.1 con estensioni e funzioni migliorate.
 
-PlanarAlly is a web tool that adds virtual battlemaps with various extras to your TTRPG/D&D toolbox.
+A companion tool for when you travel into the planes. PlanarAlly Plus is a web tool that adds virtual battlemaps with various extras to your TTRPG/D&D toolbox.
 
-Some key features are:
+## What’s new in PlanarAlly Plus
+
+This fork adds these extensions and features:
+
+- **Documents** — Upload and view PDF documents. Share documents with players.
+- **AI Generator** — Connect to AI models (OpenRouter, Google AI Studio) for characters, stories, maps, and more.
+- **DungeonGen** — Procedural dungeon generation for tabletop maps.
+- **Compendium** — Install multiple knowledge bases (JSON), search in character sheets and elsewhere.
+- **Character Sheet** — D&D 5e character sheets for tokens (view/edit; DM sees all, players see their own).
+- **Assets Installer** — Upload ZIP files to install asset packs into the assets folder.
+- **Time Manager** — Timer and countdown with audio alert; runs in the background when the modal is closed.
+- **Guida** — Integrated documentation and user guide (IT/EN).
+- **Ambient Music** — Playlists and ambient audio from assets.
+
+## Core features
 
 **Self hosting**: You can run this software wherever you like without having to rely on an external service\
 **Offline support**: This tool can be used in a completely offline set-up for when you play D&D in a dark dungeon.
@@ -35,6 +51,26 @@ _Typically only one person in your group should have to download and install PA,
 Releases of PlanarAlly can be found on [the release page](https://github.com/Kruptein/PlanarAlly/releases).
 
 For more information on how to use/install PA, see the documentation.
+
+# Quick start from source
+
+Scripts in the `scripts/` folder verify prerequisites, install dependencies, and start the PlanarAlly Plus server:
+
+- **Linux/macOS**: `./scripts/run.sh`
+- **Windows** (PowerShell): `.\scripts\run.ps1`
+- **Windows** (Command Prompt): `scripts\run.bat`
+
+Prerequisites: Node.js 20+, Python 3.13+, [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+# Launcher app (download + avvio)
+
+Il launcher in `launcher/` è un'app desktop che **scarica** lo ZIP della repo, lo estrae e avvia il server. Non va ricompilata quando il codice cambia: l'eseguibile resta valido.
+
+- **Avvia**: scarica (se necessario), estrae, avvia server
+- **Aggiorna**: riscarica lo ZIP e riestrae
+- **Ferma/Riavvia**: controllo del server
+
+Vedi [launcher/README.md](launcher/README.md) per la configurazione dell'URL dello ZIP (fork, branch) e le istruzioni di build.
 
 # Documentation
 

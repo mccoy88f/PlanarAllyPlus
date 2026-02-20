@@ -58,3 +58,6 @@ docs/.doctrees
 
 # Intellij
 **/.idea/**
+
+# Launcher (Tauri app - non pushare)
+launcher/
