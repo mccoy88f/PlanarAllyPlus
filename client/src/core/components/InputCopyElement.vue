@@ -16,8 +16,20 @@ async function copy(): Promise<void> {
         await navigator.clipboard.writeText(props.value);
         state.popupString = t("core.components.InputCopyElement.copied");
     } catch {
-        console.log("Could not copy to clipboard :(");
-        state.popupString = t("common.error_msg");
+        try {
+            const ta = document.createElement("textarea");
+            ta.value = props.value;
+            ta.style.position = "fixed";
+            ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand("copy");
+            document.body.removeChild(ta);
+            state.popupString = t("core.components.InputCopyElement.copied");
+        } catch {
+            console.log("Could not copy to clipboard :(");
+            state.popupString = t("common.error_msg");
+        }
     }
     state.showPopup = true;
 }

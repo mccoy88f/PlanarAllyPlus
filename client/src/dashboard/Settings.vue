@@ -87,7 +87,7 @@ async function toggleExtensionsEnabled(checked: boolean): Promise<void> {
             if (response.ok) {
                 coreStore.setExtensionsEnabled(true);
             } else {
-                toast.error(t("settings.AccountSettings.server_request_error"));
+                toast.error((await getErrorReason(response)) ?? t("settings.AccountSettings.server_request_error"));
             }
         }
     } else {
@@ -96,7 +96,7 @@ async function toggleExtensionsEnabled(checked: boolean): Promise<void> {
         if (response.ok) {
             coreStore.setExtensionsEnabled(false);
         } else {
-            toast.error(t("settings.AccountSettings.server_request_error"));
+            toast.error((await getErrorReason(response)) ?? t("settings.AccountSettings.server_request_error"));
         }
     }
 }

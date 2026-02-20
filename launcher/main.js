@@ -226,13 +226,12 @@ btnRestart.addEventListener('click', async () => {
 
 async function main() {
   await initI18n();
-  statusEl.textContent = t('loading');
   try {
     const ver = await invoke('get_launcher_version');
     document.getElementById('launcher-version').textContent = `v${ver}`;
   } catch {
     document.getElementById('launcher-version').textContent = '';
   }
-  refreshStatus();
+  await refreshStatus();
 }
 main();

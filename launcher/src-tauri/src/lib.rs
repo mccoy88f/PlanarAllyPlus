@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -225,6 +227,19 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
 
     let root = get_project_root().map_err(|e| e.to_string())?;
 
+    // Make scripts executable (ZIP extraction doesn't preserve Unix permissions)
+    #[cfg(unix)]
+    for script in ["scripts/run.sh", "scripts/start-server.sh"] {
+        let p = root.join(script);
+        if p.exists() {
+            if let Ok(meta) = std::fs::metadata(&p) {
+                let mut perms = meta.permissions();
+                perms.set_mode(0o755);
+                let _ = std::fs::set_permissions(&p, perms);
+            }
+        }
+    }
+
     if let Some(ref b) = backup_dir {
         app.emit("download-progress", "Restoring user data backup...").ok();
         restore_user_data(b, &root).map_err(|e| e.to_string())?;
@@ -293,6 +308,19 @@ async fn start_server(app: AppHandle, mode: String) -> Result<(), String> {
     ensure_app_downloaded(app.clone(), false).await?;
     let root = get_project_root()?;
     let scripts = root.join("scripts");
+
+    // Ensure scripts are executable (fixes existing installs from ZIP without execute bits)
+    #[cfg(unix)]
+    for script in ["run.sh", "start-server.sh"] {
+        let p = scripts.join(script);
+        if p.exists() {
+            if let Ok(meta) = std::fs::metadata(&p) {
+                let mut perms = meta.permissions();
+                perms.set_mode(0o755);
+                let _ = std::fs::set_permissions(&p, perms);
+            }
+        }
+    }
 
     let (cmd, args): (std::ffi::OsString, Vec<std::ffi::OsString>) = if cfg!(target_os = "windows")
     {

@@ -31,9 +31,12 @@ watch(
     () => (showRefreshState.value = false),
 );
 
-const invitationUrl = computed(
-    () => `${gameState.reactive.clientUrl}${baseAdjust("/invite/")}${gameState.reactive.invitationCode}`,
-);
+const invitationUrl = computed(() => {
+    const url = `${gameState.reactive.clientUrl}${baseAdjust("/invite/")}${gameState.reactive.invitationCode}`;
+    return url.startsWith("http://") || url.startsWith("https://")
+        ? url
+        : `${window.location.protocol}//${url}`;
+});
 
 const qrCodeDataUrl = ref<string>("");
 
