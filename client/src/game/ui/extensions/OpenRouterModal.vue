@@ -936,15 +936,6 @@ onMounted(() => {
                     </template>
                     <template v-else>
                         <button
-                            v-if="currentTask"
-                            type="button"
-                            class="ext-ui-btn ext-ui-btn-success"
-                            :disabled="runningTask || (currentTask.id === 'custom' && !customPrompt.trim())"
-                            @click="currentTask.id === 'custom' ? runCustomTask() : runTask(currentTask, taskInput)"
-                        >
-                            {{ runningTask ? "..." : t("game.ui.extensions.OpenRouterModal.run") }}
-                        </button>
-                        <button
                             v-if="showImportToSheetButton && result.trim()"
                             type="button"
                             class="ext-ui-btn ext-ui-btn-primary"
@@ -960,6 +951,15 @@ onMounted(() => {
                             @click="createNoteFromResult"
                         >
                             {{ t("game.ui.extensions.OpenRouterModal.create_note") }}
+                        </button>
+                        <button
+                            v-if="currentTask"
+                            type="button"
+                            class="ext-ui-btn ext-ui-btn-success"
+                            :disabled="runningTask || (currentTask.id === 'custom' && !customPrompt.trim())"
+                            @click="currentTask.id === 'custom' ? runCustomTask() : runTask(currentTask, taskInput)"
+                        >
+                            {{ runningTask ? "..." : t("game.ui.extensions.OpenRouterModal.run") }}
                         </button>
                     </template>
                 </div>
@@ -991,7 +991,11 @@ onMounted(() => {
 
 .openrouter-bottom-bar {
     margin: 1rem -1.5rem 0 -1.5rem;
-    justify-content: flex-end;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
 }
 
 .openrouter-bottom-actions {

@@ -306,9 +306,11 @@ async function onAddClick(): Promise<void> {
                         class="ext-ui-list-item extension-item"
                     >
                         <div class="ext-ui-list-item-content">
-                            <span class="ext-ui-list-item-name extension-name">{{ ext.name }}</span>
-                            <span class="extension-version">v{{ ext.version }}</span>
-                            <span v-if="ext.description" class="extension-desc ext-ui-muted">{{ ext.description }}</span>
+                            <div class="ext-name-version">
+                                <span class="ext-ui-list-item-name extension-name">{{ ext.name }}</span>
+                                <span class="extension-version">v{{ ext.version }}</span>
+                            </div>
+                            <div v-if="ext.description" class="extension-desc ext-ui-muted">{{ ext.description }}</div>
                         </div>
                         <div class="ext-item-actions extension-item-actions">
                         <font-awesome-icon
@@ -391,7 +393,13 @@ async function onAddClick(): Promise<void> {
         .ext-ui-list-item-content {
             flex-direction: column;
             align-items: flex-start;
-            gap: 0.15rem;
+            gap: 0.35rem;
+        }
+
+        .ext-name-version {
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
         }
 
         .extension-version {
@@ -401,6 +409,7 @@ async function onAddClick(): Promise<void> {
 
         .extension-desc {
             font-size: 0.9em;
+            line-height: 1.3;
         }
 
         .extension-item-actions {

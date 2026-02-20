@@ -45,7 +45,10 @@
         .am-explorer-header { padding: 0.5rem 1rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
         .am-explorer-header h3 { margin: 0; font-size: 1rem; }
         .am-explorer-close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #666; padding: 0.25rem; }
-        .am-explorer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 1rem; }
+        .am-explorer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+        .am-explorer-search { flex-shrink: 0; }
+        .am-explorer-search input { width: 100%; padding: 0.5rem 0.75rem; font-size: 0.95rem; border: 1px solid #ddd; border-radius: 6px; }
+        .am-explorer-search input:focus { outline: none; border-color: var(--am-accent); }
         .am-explorer-footer { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-top: 1px solid #eee; background: #fafafa; flex-shrink: 0; }
         .doc-breadcrumb { display: flex; align-items: center; gap: 0.25rem; margin-bottom: 0.75rem; font-size: 0.9rem; flex-wrap: wrap; }
         .doc-breadcrumb span { color: #666; cursor: pointer; }
@@ -79,6 +82,9 @@
                 <button type="button" class="am-explorer-close" id="explorerClose">✕</button>
             </div>
             <div class="am-explorer-body">
+                <div id="searchWrap" class="am-explorer-search" style="display: none;">
+                    <input type="text" id="searchInput" class="ext-ui-input" placeholder="" />
+                </div>
                 <div id="breadcrumb" class="doc-breadcrumb" style="display: none;"></div>
                 <div id="loading" class="ext-ui-loading" style="display: none;"></div>
                 <div id="empty" class="ext-ui-empty" style="display: none;"></div>
@@ -106,17 +112,17 @@
 (function() {
     var locale = (new URLSearchParams(window.location.search).get('locale') || 'en').toLowerCase().split('-')[0];
     var L = locale === 'it' ? {
-        add: "Aggiungi brani", browse: "Sfoglia asset", explorerTitle: "Scegli file audio", explorerOpenTitle: "Apri playlist", explorerSaveTitle: "Salva playlist", playlist: "Playlist", showPlaylist: "Mostra playlist", hidePlaylist: "Nascondi playlist",
+        add: "Aggiungi brani", browse: "Sfoglia asset", explorerTitle: "Scegli file audio", explorerOpenTitle: "Apri playlist", explorerSaveTitle: "Salva playlist", searchPlaceholder: "Cerca...", playlist: "Playlist", showPlaylist: "Mostra playlist", hidePlaylist: "Nascondi playlist",
         savePlaylist: "Salva playlist", openPlaylist: "Apri playlist",
-        empty: "Nessun file audio in questa cartella.", emptyPlaylists: "Nessuna playlist in questa cartella.", noItems: "Nessun elemento", saveHere: "Salva qui", save: "Salva", saved: "Playlist salvata",
+        empty: "Nessun file audio in questa cartella.", emptyPlaylists: "Nessuna playlist in questa cartella.", noSearchResults: "Nessun risultato per la ricerca.", noItems: "Nessun elemento", saveHere: "Salva qui", save: "Salva", saved: "Playlist salvata",
         rename: "Rinomina", dragToReorder: "Trascina per riordinare",
         repeatNone: "Nessuna", repeatOne: "Ripeti traccia", repeatAll: "Ripeti playlist",
         prev: "Precedente", next: "Successivo", play: "Play", pause: "Pausa",
         loading: "Caricamento...", loadError: "Errore caricamento", assets: "Asset"
     } : {
-        add: "Add tracks", browse: "Browse assets", explorerTitle: "Choose audio file", explorerOpenTitle: "Open playlist", explorerSaveTitle: "Save playlist", playlist: "Playlist", showPlaylist: "Show playlist", hidePlaylist: "Hide playlist",
+        add: "Add tracks", browse: "Browse assets", explorerTitle: "Choose audio file", explorerOpenTitle: "Open playlist", explorerSaveTitle: "Save playlist", searchPlaceholder: "Search...", playlist: "Playlist", showPlaylist: "Show playlist", hidePlaylist: "Hide playlist",
         savePlaylist: "Save playlist", openPlaylist: "Open playlist",
-        empty: "No audio files in this folder.", emptyPlaylists: "No playlists in this folder.", noItems: "No items", saveHere: "Save here", save: "Save", saved: "Playlist saved",
+        empty: "No audio files in this folder.", emptyPlaylists: "No playlists in this folder.", noSearchResults: "No search results.", noItems: "No items", saveHere: "Save here", save: "Save", saved: "Playlist saved",
         rename: "Rename", dragToReorder: "Drag to reorder",
         repeatNone: "None", repeatOne: "Repeat track", repeatAll: "Repeat playlist",
         prev: "Previous", next: "Next", play: "Play", pause: "Pause",
@@ -134,6 +140,7 @@
     document.getElementById('explorerTitle').textContent = L.explorerTitle;
     document.getElementById('openPlaylistBtn').title = L.openPlaylist;
     document.getElementById('savePlaylistBtn').title = L.savePlaylist;
+    document.getElementById('searchInput').placeholder = L.searchPlaceholder;
 
     function updatePlaylistToggle() {
         var n = playlist.length;
@@ -181,6 +188,8 @@
     var loadingEl = document.getElementById('loading');
     var emptyEl = document.getElementById('empty');
     var breadcrumbEl = document.getElementById('breadcrumb');
+    var searchWrapEl = document.getElementById('searchWrap');
+    var searchInputEl = document.getElementById('searchInput');
 
     function getServeUrl(hash) { return apiBase + '/serve/' + hash; }
 
@@ -450,10 +459,18 @@
         });
     }
 
+    var searchQuery = '';
+
     function getCurrentItems() {
-        return items.filter(function(it) {
+        var current = items.filter(function(it) {
             var fid = it.folderId || rootId;
             return fid === currentFolderId;
+        });
+        if (!searchQuery.trim() || explorerMode !== 'add') return current;
+        var q = searchQuery.trim().toLowerCase();
+        return current.filter(function(it) {
+            var name = (it.name || '').toLowerCase();
+            return name.indexOf(q) >= 0;
         });
     }
 
@@ -465,6 +482,11 @@
     function render() {
         var current = getCurrentItems();
         renderBreadcrumb();
+        if (explorerMode === 'add') {
+            searchWrapEl.style.display = 'block';
+        } else {
+            searchWrapEl.style.display = 'none';
+        }
         loadingEl.style.display = 'none';
         var isEmpty = current.length === 0;
         if (explorerMode === 'savePlaylist') {
@@ -477,7 +499,7 @@
         if (isEmpty) {
             listEl.style.display = 'none';
             emptyEl.style.display = 'block';
-            emptyEl.textContent = explorerMode === 'add' ? L.empty : L.emptyPlaylists;
+            emptyEl.textContent = (explorerMode === 'add' && searchQuery.trim()) ? L.noSearchResults : (explorerMode === 'add' ? L.empty : L.emptyPlaylists);
             if (explorerMode === 'savePlaylist') {
                 document.getElementById('explorerFooter').style.display = 'flex';
                 document.getElementById('savePlaylistName').value = 'playlist.json';
@@ -579,10 +601,17 @@
 
     function openExplorer(mode) {
         explorerMode = mode || 'add';
+        searchQuery = '';
+        searchInputEl.value = '';
         document.getElementById('explorerTitle').textContent = explorerMode === 'add' ? L.explorerTitle : (explorerMode === 'openPlaylist' ? L.explorerOpenTitle : L.explorerSaveTitle);
         document.getElementById('explorerModal').classList.add('open');
         load();
     }
+
+    searchInputEl.oninput = function() {
+        searchQuery = this.value;
+        render();
+    };
 
     function closeExplorer() {
         document.getElementById('explorerModal').classList.remove('open');
