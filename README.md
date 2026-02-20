@@ -1,10 +1,10 @@
 <p align="center"><a href="https://planarally.io" target="_blank" rel="noopener noreferrer"><img width="200" src="https://www.planarally.io/logos/pa-logo-background.svg" alt="PlanarAlly Plus logo"></a></p>
 
-<p align="center"><small>Read in: <a href="README.it.md">Italiano</a></small></p>
+<p align="center"><small>Read in: <a href="README.it.md">Italian</a></small></p>
 
 <p align="center">
-    <a href="https://github.com/Kruptein/PlanarAlly/releases"><img src="https://img.shields.io/github/downloads/kruptein/planarally/total.svg" alt="Downloads"></a>
-    <a href="https://github.com/Kruptein/PlanarAlly/releases/latest"><img alt="GitHub release (latest by date)" src="https://img.shields.io/github/v/release/kruptein/planarally"></a>
+    <a href="https://github.com/mccoy88f/PlanarAllyPlus/releases"><img src="https://img.shields.io/github/downloads/mccoy88f/PlanarAllyPlus/total.svg" alt="Downloads"></a>
+    <a href="https://github.com/mccoy88f/PlanarAllyPlus/releases/latest"><img alt="GitHub release (latest by date)" src="https://img.shields.io/github/v/release/mccoy88f/PlanarAllyPlus"></a>
     <a href="https://discord.gg/mubGnTe" title="Join the discord server!"><img src="https://img.shields.io/discord/695640902135185449?logo=discord" alt="Discord invite button" /></a>
     <a href="https://planarally.io" title="Visit the planarally documentation"><img src="https://img.shields.io/badge/docs-read-lightblue.svg" alt="Documentation site button" /></a>
     <a href="https://patreon.com/planarally" title="Donate to this project using Patreon"><img src="https://img.shields.io/badge/patreon-donate-red.svg" alt="Patreon donate button" /></a>
@@ -12,7 +12,7 @@
 
 # PlanarAlly Plus
 
-Un fork della versione 2026.1 con estensioni e funzioni migliorate.
+A fork of version 2026.1 with extensions and improved features.
 
 A companion tool for when you travel into the planes. PlanarAlly Plus is a web tool that adds virtual battlemaps with various extras to your TTRPG/D&D toolbox.
 
@@ -27,7 +27,7 @@ This fork adds these extensions and features:
 - **Character Sheet** — D&D 5e character sheets for tokens (view/edit; DM sees all, players see their own).
 - **Assets Installer** — Upload ZIP files to install asset packs into the assets folder.
 - **Time Manager** — Timer and countdown with audio alert; runs in the background when the modal is closed.
-- **Guida** — Integrated documentation and user guide (IT/EN).
+- **Guide** — Integrated documentation and user guide (IT/EN).
 - **Ambient Music** — Playlists and ambient audio from assets.
 
 ## Core features
@@ -48,7 +48,7 @@ This tool is provided free to use and is open source.
 
 _Typically only one person in your group should have to download and install PA, alternatively you can use [a publicly hosted version](https://www.planarally.io/server/setup/managed/)._
 
-Releases of PlanarAlly can be found on [the release page](https://github.com/Kruptein/PlanarAlly/releases).
+Releases of PlanarAlly Plus can be found on [the release page](https://github.com/mccoy88f/PlanarAllyPlus/releases).
 
 For more information on how to use/install PA, see the documentation.
 
@@ -62,15 +62,15 @@ Scripts in the `scripts/` folder verify prerequisites, install dependencies, and
 
 Prerequisites: Node.js 20+, Python 3.13+, [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
-# Launcher app (download + avvio)
+# Launcher app (download + run)
 
-Il launcher in `launcher/` è un'app desktop che **scarica** lo ZIP della repo, lo estrae e avvia il server. Non va ricompilata quando il codice cambia: l'eseguibile resta valido.
+The launcher in `launcher/` is a desktop app that **downloads** the repo ZIP, extracts it and starts the server. You don't need to rebuild it when the code changes; the executable stays valid.
 
-- **Avvia**: scarica (se necessario), estrae, avvia server
-- **Aggiorna**: riscarica lo ZIP e riestrae
-- **Ferma/Riavvia**: controllo del server
+- **Start**: downloads (if needed), extracts, starts server
+- **Update**: re-downloads the ZIP and re-extracts
+- **Stop/Restart**: server control
 
-Vedi [launcher/README.md](launcher/README.md) per la configurazione dell'URL dello ZIP (fork, branch) e le istruzioni di build.
+See [launcher/README.md](launcher/README.md) for ZIP URL configuration (fork, branch) and build instructions.
 
 # Documentation
 

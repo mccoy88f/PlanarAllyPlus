@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# PlanarAlly Plus - Avvia solo il server (senza install)
-# Usato dal launcher per avvio/riavvio veloce
+# PlanarAlly Plus - Start server only (no install)
+# Used by launcher for quick start/restart
 
-# Carica profilo utente - necessario quando lanciato da app GUI
+# Load user profile - needed when launched from GUI app
 set +e 2>/dev/null
 for f in "$HOME/.zprofile" "$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.bashrc"; do
     [ -f "$f" ] && . "$f" 2>/dev/null
