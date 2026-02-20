@@ -56,6 +56,9 @@
         .doc-breadcrumb .current { color: #333; cursor: default; font-weight: 600; }
         .doc-breadcrumb .current:hover { text-decoration: none; }
         .am-save-playlist-btn { padding: 0.5rem 1rem; font-size: 0.95rem; min-height: 2rem; }
+        .am-add-footer { gap: 0.5rem; }
+        .am-audio-check { margin: 0; cursor: pointer; }
+        .am-audio-selectable.selected { background: #e8eaf6; }
     </style>
 </head>
 <body class="ext-ui-root am-root">
@@ -94,6 +97,10 @@
                 <input type="text" id="savePlaylistName" value="playlist.json" class="ext-ui-input" style="flex:1;max-width:200px;" />
                 <button type="button" class="ext-toolbar-btn am-save-playlist-btn" id="savePlaylistConfirm"></button>
             </div>
+            <div id="addFooter" class="am-explorer-footer am-add-footer" style="display: none;">
+                <button type="button" class="ext-ui-btn" id="selectAllBtn"></button>
+                <button type="button" class="ext-ui-btn ext-ui-btn-success" id="addSelectedBtn"></button>
+            </div>
         </div>
     </div>
     <div id="playlistToggle" class="am-playlist-toggle" title="">
@@ -115,6 +122,7 @@
         add: "Aggiungi brani", browse: "Sfoglia asset", explorerTitle: "Scegli file audio", explorerOpenTitle: "Apri playlist", explorerSaveTitle: "Salva playlist", searchPlaceholder: "Cerca...", playlist: "Playlist", showPlaylist: "Mostra playlist", hidePlaylist: "Nascondi playlist",
         savePlaylist: "Salva playlist", openPlaylist: "Apri playlist",
         empty: "Nessun file audio in questa cartella.", emptyPlaylists: "Nessuna playlist in questa cartella.", noSearchResults: "Nessun risultato per la ricerca.", noItems: "Nessun elemento", saveHere: "Salva qui", save: "Salva", saved: "Playlist salvata",
+        addSelected: "Aggiungi selezionati", selectAll: "Seleziona tutto", deselectAll: "Deseleziona",
         rename: "Rinomina", dragToReorder: "Trascina per riordinare",
         repeatNone: "Nessuna", repeatOne: "Ripeti traccia", repeatAll: "Ripeti playlist",
         prev: "Precedente", next: "Successivo", play: "Play", pause: "Pausa",
@@ -123,6 +131,7 @@
         add: "Add tracks", browse: "Browse assets", explorerTitle: "Choose audio file", explorerOpenTitle: "Open playlist", explorerSaveTitle: "Save playlist", searchPlaceholder: "Search...", playlist: "Playlist", showPlaylist: "Show playlist", hidePlaylist: "Hide playlist",
         savePlaylist: "Save playlist", openPlaylist: "Open playlist",
         empty: "No audio files in this folder.", emptyPlaylists: "No playlists in this folder.", noSearchResults: "No search results.", noItems: "No items", saveHere: "Save here", save: "Save", saved: "Playlist saved",
+        addSelected: "Add selected", selectAll: "Select all", deselectAll: "Deselect",
         rename: "Rename", dragToReorder: "Drag to reorder",
         repeatNone: "None", repeatOne: "Repeat track", repeatAll: "Repeat playlist",
         prev: "Previous", next: "Next", play: "Play", pause: "Pause",
@@ -190,6 +199,7 @@
     var breadcrumbEl = document.getElementById('breadcrumb');
     var searchWrapEl = document.getElementById('searchWrap');
     var searchInputEl = document.getElementById('searchInput');
+    var selectedAudios = {};
 
     function getServeUrl(hash) { return apiBase + '/serve/' + hash; }
 
@@ -424,6 +434,21 @@
         saveToStorage();
     }
 
+    function addSelectedToPlaylist(items) {
+        var added = 0;
+        items.forEach(function(item) {
+            if (playlist.some(function(p) { return p.fileHash === item.fileHash; })) return;
+            playlist.push({ name: item.name, fileHash: item.fileHash });
+            added++;
+        });
+        if (added > 0) {
+            if (playlist.length === added) currentIndex = 0;
+            renderPlaylist();
+            saveToStorage();
+            if (playlist.length > 0 && !sound) loadAndPlay(0);
+        }
+    }
+
     function buildFolderPath() {
         var map = {};
         items.forEach(function(it) { map[it.id] = it; });
@@ -489,12 +514,20 @@
         }
         loadingEl.style.display = 'none';
         var isEmpty = current.length === 0;
+        var audiosInCurrent = current.filter(function(it) { return it.type === 'audio'; });
         if (explorerMode === 'savePlaylist') {
             document.getElementById('explorerFooter').style.display = 'flex';
+            document.getElementById('addFooter').style.display = 'none';
             document.getElementById('savePlaylistName').value = 'playlist.json';
             document.getElementById('savePlaylistConfirm').textContent = L.save;
+        } else if (explorerMode === 'add' && audiosInCurrent.length > 0) {
+            document.getElementById('explorerFooter').style.display = 'none';
+            document.getElementById('addFooter').style.display = 'flex';
+            document.getElementById('selectAllBtn').textContent = Object.keys(selectedAudios).length === audiosInCurrent.length ? L.deselectAll : L.selectAll;
+            document.getElementById('addSelectedBtn').textContent = L.addSelected + ' (' + Object.keys(selectedAudios).length + ')';
         } else {
             document.getElementById('explorerFooter').style.display = 'none';
+            document.getElementById('addFooter').style.display = 'none';
         }
         if (isEmpty) {
             listEl.style.display = 'none';
@@ -528,8 +561,11 @@
                 });
             }
             audios.forEach(function(a) {
-                html += '<li class="ext-ui-list-item" data-id="' + a.id + '" data-type="audio" data-hash="' + escapeHtml(a.fileHash || '') + '" data-name="' + escapeHtml(a.name || '') + '">' +
+                var hash = a.fileHash || '';
+                var checked = selectedAudios[hash] ? ' checked' : '';
+                html += '<li class="ext-ui-list-item am-audio-selectable' + (selectedAudios[hash] ? ' selected' : '') + '" data-type="audio" data-hash="' + escapeHtml(hash) + '" data-name="' + escapeHtml(a.name || '') + '">' +
                     '<div class="ext-ui-list-item-content" style="display:flex;align-items:center;gap:0.75rem;">' +
+                    '<input type="checkbox" class="am-audio-check" data-hash="' + escapeHtml(hash) + '" data-name="' + escapeHtml(a.name || '') + '" ' + checked + ' />' +
                     '<span class="am-audio-icon">♪</span>' +
                     '<span class="ext-ui-list-item-name">' + escapeHtml(displayName(a)) + '</span></div></li>';
             });
@@ -538,14 +574,37 @@
             listEl.querySelectorAll('.ext-ui-list-item').forEach(function(el) {
                 var type = el.dataset.type;
                 el.style.cursor = 'pointer';
+                var audiosForFooter = audios;
+                if (type === 'audio') {
+                    el.querySelector('.am-audio-check').addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        var h = this.dataset.hash;
+                        if (this.checked) {
+                            selectedAudios[h] = { name: this.dataset.name, fileHash: h };
+                        } else {
+                            delete selectedAudios[h];
+                        }
+                        el.classList.toggle('selected', !!selectedAudios[h]);
+                        document.getElementById('selectAllBtn').textContent = Object.keys(selectedAudios).length === audiosForFooter.length ? L.deselectAll : L.selectAll;
+                        document.getElementById('addSelectedBtn').textContent = L.addSelected + ' (' + Object.keys(selectedAudios).length + ')';
+                    });
+                }
                 el.addEventListener('click', function() {
                     if (type === 'folder') {
                         currentFolderId = parseInt(el.dataset.id, 10);
                         render();
                     } else if (type === 'audio') {
-                        addToPlaylist({ name: el.dataset.name, fileHash: el.dataset.hash });
-                        if (playlist.length === 1) loadAndPlay(0);
-                        closeExplorer();
+                        var h = el.dataset.hash;
+                        if (selectedAudios[h]) {
+                            delete selectedAudios[h];
+                        } else {
+                            selectedAudios[h] = { name: el.dataset.name, fileHash: h };
+                        }
+                        var cb = el.querySelector('.am-audio-check');
+                        if (cb) cb.checked = !!selectedAudios[h];
+                        el.classList.toggle('selected', !!selectedAudios[h]);
+                        document.getElementById('selectAllBtn').textContent = Object.keys(selectedAudios).length === audios.length ? L.deselectAll : L.selectAll;
+                        document.getElementById('addSelectedBtn').textContent = L.addSelected + ' (' + Object.keys(selectedAudios).length + ')';
                     } else if (type === 'playlist') {
                         if (explorerMode === 'openPlaylist') {
                             var pName = (el.dataset.name || '').replace(/\.json$/i, '');
@@ -603,10 +662,32 @@
         explorerMode = mode || 'add';
         searchQuery = '';
         searchInputEl.value = '';
+        selectedAudios = {};
         document.getElementById('explorerTitle').textContent = explorerMode === 'add' ? L.explorerTitle : (explorerMode === 'openPlaylist' ? L.explorerOpenTitle : L.explorerSaveTitle);
         document.getElementById('explorerModal').classList.add('open');
         load();
     }
+
+    document.getElementById('selectAllBtn').onclick = function() {
+        var current = getCurrentItems();
+        var audios = current.filter(function(it) { return it.type === 'audio'; });
+        if (Object.keys(selectedAudios).length === audios.length) {
+            selectedAudios = {};
+        } else {
+            selectedAudios = {};
+            audios.forEach(function(a) {
+                selectedAudios[a.fileHash || ''] = { name: a.name, fileHash: a.fileHash };
+            });
+        }
+        render();
+    };
+
+    document.getElementById('addSelectedBtn').onclick = function() {
+        var items = Object.keys(selectedAudios).map(function(h) { return selectedAudios[h]; });
+        if (items.length === 0) return;
+        addSelectedToPlaylist(items);
+        closeExplorer();
+    };
 
     searchInputEl.oninput = function() {
         searchQuery = this.value;
@@ -616,6 +697,7 @@
     function closeExplorer() {
         document.getElementById('explorerModal').classList.remove('open');
         document.getElementById('explorerFooter').style.display = 'none';
+        document.getElementById('addFooter').style.display = 'none';
     }
 
     document.getElementById('addBtn').onclick = function() { openExplorer('add'); };
