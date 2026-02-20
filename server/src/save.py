@@ -14,7 +14,7 @@ When writing migrations make sure that these things are respected:
     - e.g. a column added to Circle also needs to be added to CircularToken
 """
 
-SAVE_VERSION = 117
+SAVE_VERSION = 120
 
 import asyncio
 import json
@@ -31,7 +31,15 @@ from .db.db import db as ACTIVE_DB
 from .db.models.constants import Constants
 from .db.models.user import User
 from .thumbnail import generate_thumbnail_for_asset
-from .utils import ASSETS_DIR, FILE_DIR, SAVE_PATH, OldVersionException, UnknownVersionException, get_asset_hash_subpath
+from .utils import (
+    ASSETS_DIR,
+    FILE_DIR,
+    SAVE_PATH,
+    THUMBNAILS_DIR,
+    OldVersionException,
+    UnknownVersionException,
+    get_asset_hash_subpath,
+)
 from .logs import logger
 
 
@@ -714,6 +722,19 @@ def upgrade(
         # Add UserOptions.openrouter_image_model
         with db.atomic():
             db.execute_sql("ALTER TABLE user_options ADD COLUMN openrouter_image_model TEXT DEFAULT NULL")
+    elif version == 117:
+        # Add UserOptions.openrouter_default_language (it | en)
+        with db.atomic():
+            db.execute_sql("ALTER TABLE user_options ADD COLUMN openrouter_default_language TEXT DEFAULT 'it'")
+    elif version == 118:
+        # Add UserOptions.ai_provider, google_ai_api_key (AI Generator: OpenRouter | Google)
+        with db.atomic():
+            db.execute_sql("ALTER TABLE user_options ADD COLUMN ai_provider TEXT DEFAULT 'openrouter'")
+            db.execute_sql("ALTER TABLE user_options ADD COLUMN google_ai_api_key TEXT DEFAULT NULL")
+    elif version == 119:
+        # Add UserOptions.openrouter_max_tokens (max output tokens for AI chat)
+        with db.atomic():
+            db.execute_sql("ALTER TABLE user_options ADD COLUMN openrouter_max_tokens INTEGER DEFAULT 8192")
     else:
         raise UnknownVersionException(f"No upgrade code for save format {version} was found.")
     inc_save_version(db)
@@ -784,6 +805,35 @@ def migrate_assets_folder():
 
         (ASSETS_DIR / first_level / second_level).mkdir(exist_ok=True, parents=True)
         shutil.copy(fl, ASSETS_DIR / first_level / second_level / fl.name)
+
+
+def migrate_thumbnails_to_dedicated_dir():
+    """Move existing thumbnails from ASSETS_DIR to THUMBNAILS_DIR (one-time migration)."""
+    if not ASSETS_DIR.exists():
+        return
+    moved = 0
+    for path in ASSETS_DIR.rglob("*.thumb.webp"):
+        rel = path.relative_to(ASSETS_DIR)
+        dest = THUMBNAILS_DIR / rel
+        if not dest.exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                shutil.move(str(path), str(dest))
+                moved += 1
+            except OSError:
+                pass
+    for path in ASSETS_DIR.rglob("*.thumb.jpeg"):
+        rel = path.relative_to(ASSETS_DIR)
+        dest = THUMBNAILS_DIR / rel
+        if not dest.exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                shutil.move(str(path), str(dest))
+                moved += 1
+            except OSError:
+                pass
+    if moved > 0:
+        logger.warning(f"Migrated {moved} thumbnails to dedicated directory.")
 
 
 def remove_old_assets():

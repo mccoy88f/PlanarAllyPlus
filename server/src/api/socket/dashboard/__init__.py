@@ -2,6 +2,7 @@ from ....api.socket.constants import DASHBOARD_NS
 from ....app import sio
 from ....auth import get_authorized_user
 from ....config import cfg
+from ....logs import logger
 from ....state.dashboard import dashboard_state
 from . import campaign  # noqa: F401
 
@@ -14,7 +15,12 @@ async def dashboard_connect(sid: str, environ):
         config = cfg()
         if config.general.enable_export:
             await sio.emit("Export.Enabled", True, to=sid, namespace=DASHBOARD_NS)
-        if config.general.admin_user == user.name:
+        admin_name = (config.general.admin_user or "admin").strip()
+        is_admin_match = admin_name and user.name.lower() == admin_name.lower()
+        logger.info(
+            f"Dashboard connect: user={user.name!r} admin_config={admin_name!r} is_admin={is_admin_match}"
+        )
+        if is_admin_match:
             await sio.emit("Admin.Enabled", True, to=sid, namespace=DASHBOARD_NS)
 
 

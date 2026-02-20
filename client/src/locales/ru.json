@@ -130,6 +130,34 @@
                     "client_settings": "Опции клиента"
                 }
             },
+            "extensions": {
+                "DocumentsModal": {
+                    "title": "Документы",
+                    "loading": "Загрузка...",
+                    "no_documents": "Нет документов. Загрузите PDF для начала.",
+                    "upload_success": "Документ загружен",
+                    "upload_multi_success": "Загружено документов: {count}",
+                    "upload_partial": "{ok} загружено, {err} ошибок",
+                    "upload_error": "Ошибка загрузки документа",
+                    "uploading": "Загрузка...",
+                    "delete_success": "Документ удалён",
+                    "delete_error": "Ошибка удаления документа"
+                },
+                "DocumentsPdfViewer": {
+                    "search": "Поиск в документе",
+                    "search_placeholder": "Поиск текста...",
+                    "search_not_found": "Совпадений не найдено",
+                    "search_hint": "Используйте Ctrl+F (или Cmd+F на Mac) для поиска в PDF",
+                    "copy_link": "Копировать ссылку",
+                    "copy_success": "Ссылка скопирована",
+                    "share_chat": "Поделиться в чате",
+                    "share_success": "Опубликовано в чате",
+                    "load_error": "Документ не найден",
+                    "document_fallback": "Документ",
+                    "pdf_viewer_title": "Просмотр PDF",
+                    "thumbnails": "Миниатюры страниц"
+                }
+            },
             "NoteDialog": {
                 "warning_msg": "Вы уверены, что хотите удалить это?",
                 "edit_title": "Редактировать заголовок",

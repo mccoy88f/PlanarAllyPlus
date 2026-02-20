@@ -1,6 +1,6 @@
 # Guida per sviluppatori di estensioni PlanarAlly
 
-Questa guida spiega come creare un'estensione per PlanarAlly, quali caratteristiche sono disponibili e come integrarle nel sistema.
+Questa guida spiega come creare un'estensione per PlanarAlly, quali caratteristiche sono disponibili, il framework UI disponibile e come integrarle nel sistema.
 
 ---
 
@@ -9,11 +9,13 @@ Questa guida spiega come creare un'estensione per PlanarAlly, quali caratteristi
 1. [Introduzione](#1-introduzione)
 2. [Mods vs Extensions](#2-mods-vs-extensions)
 3. [Architettura](#3-architettura)
-4. [Creare un'estensione passo a passo](#4-creare-unestensione-passo-a-passo) (include [Stili UI predefiniti](#44-stili-ui-predefiniti))
-5. [API server](#5-api-server) (include [Storage file/cartelle](#storage-file-e-cartelle-utente-assetsextensionsid))
-6. [Integrazione client](#6-integrazione-client)
-7. [Integrazione con la mappa](#7-integrazione-con-la-mappa)
-8. [Riferimento: DungeonGen](#8-riferimento-dungeongen)
+4. [Estensioni e framework disponibili](#4-estensioni-e-framework-disponibili)
+5. [Guida alla UI](#5-guida-alla-ui)
+6. [Creare un'estensione passo a passo](#6-creare-unestensione-passo-a-passo)
+7. [API server](#7-api-server)
+8. [Integrazione client](#8-integrazione-client)
+9. [Integrazione con la mappa](#9-integrazione-con-la-mappa)
+10. [Riferimento: DungeonGen](#10-riferimento-dungeongen)
 
 ---
 
@@ -75,9 +77,128 @@ extensions/
 
 ---
 
-## 4. Creare un'estensione passo a passo
+## 4. Estensioni e framework disponibili
 
-### 4.1 Struttura cartella
+### 4.1 Estensioni incluse in PlanarAlly
+
+| Estensione | ID | Descrizione |
+|------------|-----|-------------|
+| **Compendium** | `compendium` | Compendio di conoscenza: installa più JSON nello stesso formato, cerca nella scheda personaggio e altrove |
+| **Character Sheet** | `character-sheet` | Schede personaggio D&D 5e per token. Master vede tutto, giocatori vedono le proprie |
+| **Documents** | `documents` | Upload e visualizzazione PDF in una cartella dedicata. Condivisione con i giocatori |
+| **Assets Installer** | `assets-installer` | Carica file ZIP per estrarre asset nella cartella assets. Installa e disinstalla asset pack |
+| **AI Generator** | `openrouter` | Connetti modelli AI via OpenRouter o Google AI Studio. Genera personaggi, storie, migliora mappe |
+| **DungeonGen** | `dungeongen` | Generazione procedurale di dungeon per mappe da tavolo |
+
+### 4.2 Framework tecnico
+
+- **Server**: Python (aiohttp), estensioni in `extensions/<id>/`, API sotto `/api/extensions/<id>/`
+- **Client**: Vue 3, TypeScript; modali estensione con `ExtensionModal` o modali dedicati
+- **UI condivisa**: `server/static/extensions/ui.css` — classi `.ext-ui-*` e `.ext-*` per uniformare l’aspetto
+- **Comunicazione**: `postMessage` tra iframe estensione e client. Includi `ext-bridge.js` per facilitare la comunicazione. Messaggi supportati: `planarally-open-qe` (apri compendio), `planarally-toast`, `planarally-confirm`, `planarally-prompt`, `planarally-open-document`
+
+---
+
+## 5. Guida alla UI
+
+Le barre superiori e inferiori di qualsiasi estensione **seguono le stesse regole estetiche** per unificare l’interfaccia. Usa sempre le classi predefinite di `ui.css`.
+
+### 5.1 Inclusione del foglio di stile
+
+Includi `ui.css` nel tuo `ui/index.html`:
+
+```html
+<link rel="stylesheet" href="../../../../static/extensions/ui.css" />
+```
+
+Applica `ext-ui-root` al `<body>`.
+
+### 5.2 Standard layout
+
+| Elemento | Classe | Valori standard |
+|----------|--------|-----------------|
+| **Contenuto principale** | `ext-body` | padding 1rem 1.5rem, overflow-y auto |
+| **Barra superiore** | `ext-toolbar-bar` | min-height 2.75rem, padding 0.625rem 1.5rem |
+| **Barra inferiore** | `ext-bottom-bar` | min-height 2.75rem, padding 0.625rem 1.5rem, margin 0 1.5rem 1rem |
+| **Pulsanti icona (barre)** | `ext-toolbar-btn`, `ext-search-add-btn` | 32×32px, icone 16×16px |
+| **Barra di ricerca** | `ext-search-bar` | Ricerca + pulsante +: icona lente a sinistra, input centrale, pulsante + (32×32) a destra |
+
+### 5.3 Barra di ricerca unificata (ext-search-bar)
+
+La barra di ricerca deve **sempre** avere a sinistra l’icona della lente e a destra il pulsante +, come nelle altre estensioni (Compendium, Gestione estensioni, ecc.).
+
+**Struttura HTML:**
+
+```html
+<div class="ext-search-bar">
+    <span class="ext-search-icon" aria-hidden="true">&#128269;</span>
+    <!-- oppure con FontAwesome: <font-awesome-icon icon="search" class="ext-search-icon" /> -->
+    <input type="text" class="ext-search-input" placeholder="Cerca..." />
+    <button type="button" class="ext-search-add-btn" title="Aggiungi">
+        <span>+</span>
+        <!-- oppure: <font-awesome-icon icon="plus" /> -->
+    </button>
+</div>
+```
+
+**Classi:**
+- `ext-search-icon`: icona lente a sinistra (24px, grigio)
+- `ext-search-input`: campo testo che occupa lo spazio centrale
+- `ext-search-add-btn`: pulsante + (verde, 32×32, bordo #2e7d32)
+
+### 5.4 Esempio layout completo
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Header (titolo + chiudi/fullscreen/finestra)            │
+├─────────────────────────────────────────────────────────┤
+│ ext-toolbar-bar / ext-search-bar                        │
+│   [🔍] [_____ input ricerca _____] [+]                  │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│   Contenuto principale (pannelli, liste, ecc.)          │
+│                                                         │
+├─────────────────────────────────────────────────────────┤
+│ ext-bottom-bar (opzionale)                              │
+│   [Pulsante 1] [Pulsante 2]                    →        │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 5.5 Altre classi UI disponibili
+
+Vedi [sezione 6.4](#64-stili-ui-predefiniti) per l’elenco completo di tipografia, pulsanti, form, liste e messaggi.
+
+### 5.6 Comunicazione iframe–client (postMessage)
+
+Le estensioni con `entry` in `extension.toml` vengono caricate in un iframe. Per dialoghi e integrazioni usa `postMessage` verso `window.top` o `window.parent`.
+
+**Inclusione del bridge:**
+
+```html
+<script src="../../../../static/extensions/ext-bridge.js"></script>
+```
+
+**Messaggi dall’iframe verso il client:**
+
+| Tipo | Payload | Effetto |
+|------|---------|---------|
+| `planarally-confirm` | `{ id, title, message }` | Modale conferma (sì/no) — risponde con `planarally-confirm-response` |
+| `planarally-prompt` | `{ id, question, title, defaultValue }` | Modale prompt — risponde con `planarally-prompt-response` |
+| `planarally-toast` | `{ message, error? }` | Toast successo o errore |
+| `planarally-open-qe` | `{ collection, slug, compendium? }` | Apre il Compendium sull’articolo |
+| `planarally-open-document` | `{ fileHash, name, page? }` | Apre il visualizzatore PDF (est. Documents) |
+| `planarally-qe-hover` | `{ collection, slug, compendium?, clientX, clientY }` | Mostra tooltip compendio in hover |
+| `planarally-qe-hover-end` | — | Nasconde tooltip compendio |
+
+**Funzioni helper (ext-bridge.js):**
+- `parentConfirm(title, message)` → `Promise<boolean>`
+- `parentPrompt(question, title, defaultValue)` → `Promise<string>`
+
+---
+
+## 6. Creare un'estensione passo a passo
+
+### 6.1 Struttura cartella
 
 Crea una cartella in `extensions/<nome-estensione>/` con:
 
@@ -91,7 +212,7 @@ mia-estensione/
 └── ...
 ```
 
-### 4.2 Manifest (extension.toml)
+### 6.2 Manifest (extension.toml)
 
 Ogni estensione deve avere un file `extension.toml` nella root:
 
@@ -110,7 +231,7 @@ author = "Autore"
 - **`titleBarColor`**: colore della barra del titolo del modale (es. `"#f9f9f9"`, `"rgb(249,249,249)"`).
 - **`icon`**: icona FontAwesome da mostrare prima del titolo (es. `"book"`, `"file-pdf"`, `"far fa-book"`).
 
-### 4.3 Intestazione standard dei modali estensione
+### 6.3 Intestazione standard dei modali estensione
 
 Tutti i modali delle estensioni mostrano nella barra del titolo:
 
@@ -125,7 +246,7 @@ I modali delle estensioni sono **indipendenti dal menu impostazioni**: restano a
 - Titolo: `font-size: 1.1rem`, `font-weight: 600`
 - Pulsanti (chiudi, fullscreen, finestra): `font-size: 1.1rem`
 
-### 4.4 Stili UI predefiniti
+### 6.4 Stili UI predefiniti
 
 PlanarAlly fornisce un foglio di stile condiviso per unificare l'aspetto delle UI delle estensioni. Includilo nel tuo `ui/index.html`:
 
@@ -135,19 +256,36 @@ PlanarAlly fornisce un foglio di stile condiviso per unificare l'aspetto delle U
 
 Poi applica la classe `ext-ui-root` al `<body>` e usa le classi predefinite per gli elementi. Puoi sovrascrivere qualsiasi stile con il tuo CSS.
 
-**Classi disponibili (prefisso `.ext-ui-`):**
+**Barre (vedi [Guida alla UI](#5-guida-alla-ui) per dettagli):**
+- **Barra superiore**: `ext-toolbar-bar` per il contenitore; usa `ext-search-bar` con `ext-search-icon`, `ext-search-input`, `ext-search-add-btn`
+- **Barra inferiore**: `ext-bottom-bar` per azioni finali (genera, esporta)
+- **Pannelli laterali collassabili**: `.ext-sidebar`, `.ext-sidebar-left`, `.ext-sidebar-right`, `.ext-sidebar-content`, `.ext-sidebar-toggle`
+- **Pulsanti toolbar**: `.ext-toolbar-btn` (32×32), `.ext-toolbar-btn-add` (verde), `.ext-toolbar-btn-more` (overflow)
+
+**Classi disponibili (prefisso `.ext-ui-` e `.ext-`):**
 
 | Categoria | Classi | Uso |
 |-----------|--------|-----|
 | **Layout** | `ext-ui-root` | Contenitore principale (body) |
+| **Barre** | `ext-toolbar-bar`, `ext-bottom-bar` | Barre superiore e inferiore (unificate) |
+| **Ricerca** | `ext-search-bar`, `ext-search-icon`, `ext-search-input`, `ext-search-add-btn` | Barra ricerca con lente + input + pulsante + |
+| **Sidebar** | `ext-sidebar`, `ext-sidebar-left`, `ext-sidebar-right`, `ext-sidebar-collapsed`, `ext-sidebar-content`, `ext-sidebar-toggle` | Pannelli laterali collassabili |
+| **Toolbar** | `ext-toolbar-btn`, `ext-toolbar-btn-add`, `ext-toolbar-btn-more` | Pulsanti icona uniformi (32×32) |
 | **Tipografia** | `ext-ui-title`, `ext-ui-subtitle`, `ext-ui-text`, `ext-ui-muted` | Titoli e testo |
-| **Pulsanti** | `ext-ui-btn`, `ext-ui-btn-primary`, `ext-ui-btn-danger` | Pulsanti standard |
-| **Input** | `ext-ui-input`, `ext-ui-select`, `ext-ui-textarea`, `ext-ui-label` | Campi modulo |
+| **Pulsanti** | `ext-ui-btn`, `ext-ui-btn-primary`, `ext-ui-btn-success`, `ext-ui-btn-danger` | Pulsanti standard (primario blu, successo verde, pericolo rosso) |
+| **Campi form** | `ext-ui-field`, `ext-ui-label`, `ext-ui-hint`, `ext-ui-field-error` | Wrapper campo (label + input + hint/errore). Aggiungi `.has-error` al field per bordo rosso |
+| **Input** | `ext-ui-input`, `ext-ui-select`, `ext-ui-textarea`, `ext-ui-label` | Campi modulo base |
+| **Dropdown** | `ext-ui-dropdown` | Select stilizzato (alias per `<select>`) |
+| **Data** | `ext-ui-date` | Input `type="date"` o `type="datetime-local"` |
+| **Checkbox** | `ext-ui-checkbox`, `ext-ui-checkbox-group` | Checkbox con label; gruppo verticale di checkbox |
+| **Lista multipla** | `ext-ui-multiselect`, `ext-ui-multiselect-list`, `ext-ui-multiselect-list-item` | Select multiple nativo; lista custom con checkbox |
 | **Liste** | `ext-ui-list`, `ext-ui-list-item`, `ext-ui-list-item-content`, `ext-ui-list-item-name` | Liste cliccabili |
+| **Lista stacked** | `ext-ui-stacked`, `ext-ui-list-item-subtitle` | Variante: sottotitolo (piccolo) sopra, titolo sotto |
 | **Messaggi** | `ext-ui-msg`, `ext-ui-msg-success`, `ext-ui-msg-error`, `ext-ui-msg-info` | Feedback (successo, errore, info) |
 | **Stati** | `ext-ui-loading`, `ext-ui-empty` | Caricamento e stato vuoto |
 | **Sezioni** | `ext-ui-section`, `ext-ui-section-title` | Suddivisione del contenuto |
 | **Utility** | `ext-ui-file-input`, `ext-ui-icon-btn`, `ext-ui-icon-btn-danger` | Input file nascosto, pulsanti icona |
+| **Header modale** | `ext-modal-header`, `ext-modal-title`, `ext-modal-icon`, `ext-modal-actions`, `ext-modal-btn`, `ext-modal-close` | Header standard per modali estensione (draggable, chiudi, fullscreen, finestra) |
 
 **Esempio minimo:**
 
@@ -165,9 +303,67 @@ Poi applica la classe `ext-ui-root` al `<body>` e usa le classi predefinite per 
 </html>
 ```
 
+**Esempio form con componenti standard:**
+
+```html
+<form>
+  <!-- Campo con label e hint -->
+  <div class="ext-ui-field">
+    <label class="ext-ui-label" for="nome">Nome</label>
+    <input id="nome" type="text" class="ext-ui-input" />
+    <span class="ext-ui-hint">Inserisci il nome desiderato</span>
+  </div>
+
+  <!-- Dropdown -->
+  <div class="ext-ui-field">
+    <label class="ext-ui-label" for="tipo">Tipo</label>
+    <select id="tipo" class="ext-ui-dropdown">
+      <option value="a">Opzione A</option>
+      <option value="b">Opzione B</option>
+    </select>
+  </div>
+
+  <!-- Data -->
+  <div class="ext-ui-field">
+    <label class="ext-ui-label" for="data">Data</label>
+    <input id="data" type="date" class="ext-ui-date" />
+  </div>
+
+  <!-- Checkbox singola -->
+  <label class="ext-ui-checkbox">
+    <input type="checkbox" /> Abilita opzione
+  </label>
+
+  <!-- Gruppo checkbox -->
+  <div class="ext-ui-checkbox-group">
+    <span class="ext-ui-label">Seleziona</span>
+    <label class="ext-ui-checkbox"><input type="checkbox" name="x" value="1" /> Uno</label>
+    <label class="ext-ui-checkbox"><input type="checkbox" name="x" value="2" /> Due</label>
+  </div>
+
+  <!-- Lista multipla (nativa) -->
+  <div class="ext-ui-field">
+    <label class="ext-ui-label" for="multi">Selezione multipla</label>
+    <select id="multi" class="ext-ui-multiselect" multiple>
+      <option>Item 1</option>
+      <option>Item 2</option>
+    </select>
+  </div>
+
+  <!-- Lista multipla custom (con checkbox, label rende la riga cliccabile) -->
+  <div class="ext-ui-field">
+    <label class="ext-ui-label">Selezione da lista</label>
+    <ul class="ext-ui-multiselect-list">
+      <li class="ext-ui-multiselect-list-item"><label><input type="checkbox" /> Elemento A</label></li>
+      <li class="ext-ui-multiselect-list-item"><label><input type="checkbox" /> Elemento B</label></li>
+    </ul>
+  </div>
+</form>
+```
+
 L'autore può estendere o sovrascrivere gli stili a piacere; il set predefinito serve a velocizzare lo sviluppo e mantenere coerenza tra le estensioni.
 
-### 4.5 API server (Python)
+### 6.5 API server (Python)
 
 Crea il modulo che gestisce le richieste:
 
@@ -184,7 +380,7 @@ async def generate(request: web.Request) -> web.Response:
     return web.json_response({"result": "ok"})
 ```
 
-### 4.6 Registrazione route
+### 6.6 Registrazione route
 
 In `server/src/routes.py` aggiungi:
 
@@ -198,7 +394,7 @@ E in `server/src/api/http/extensions/__init__.py` importa il modulo:
 from . import mia_estensione
 ```
 
-### 4.7 Client UI
+### 6.7 Client UI
 
 Per aggiungere la voce nel menu Extensions e aprire un modale:
 
@@ -211,7 +407,7 @@ Per aggiungere la voce nel menu Extensions e aprire un modale:
 
 ---
 
-## 5. API server
+## 7. API server
 
 ### API di sistema (gestione estensioni)
 
@@ -270,9 +466,9 @@ return web.json_response({"url": url, ...})
 
 ---
 
-## 6. Integrazione client
+## 8. Integrazione client
 
-### 6.1 Stato estensioni
+### 8.1 Stato estensioni
 
 ```typescript
 // extensionsState in client/src/game/systems/extensions/state.ts
@@ -281,7 +477,7 @@ managerOpen: boolean
 dungeongenModalOpen: boolean  // Esempio: modale aperto/chiuso
 ```
 
-### 6.2 Client HTTP
+### 8.2 Client HTTP
 
 ```typescript
 import { http } from "../../../core/http";
@@ -297,15 +493,17 @@ const data = await file.arrayBuffer();
 const response = await http.post("/api/extensions/install/zip", data);
 ```
 
-### 6.3 Menu Extensions
+### 8.3 Menu Extensions
 
 Il menu è in `client/src/game/ui/menu/Extensions.vue`:
 
 - Carica lista con `GET /api/extensions`
 - Ogni voce mostra nome (tradotto) e al click chiama `onExtensionClick(ext)`
+- **Toggle**: se l'estensione è già aperta, il click la chiude; altrimenti la apre
+- **Bring-to-front**: quando si apre un'estensione, il suo modale viene portato in primo piano (z-index)
 - Per ogni estensione: `if (ext.id === "xxx") openXxxModal()`
 
-### 6.4 Traduzioni
+### 8.4 Traduzioni
 
 Aggiungi in `client/src/locales/en.json` e `it.json`:
 
@@ -317,9 +515,9 @@ E sotto `game.ui.extensions.XxxModal` per le etichette del modale.
 
 ---
 
-## 7. Integrazione con la mappa
+## 9. Integrazione con la mappa
 
-### 7.1 Aggiungere asset alla mappa
+### 9.1 Aggiungere asset alla mappa
 
 Per aggiungere un'immagine generata come Asset sulla mappa:
 
@@ -338,7 +536,7 @@ accessSystem.addAccess(asset.id, playerName, { edit: true, movement: true, visio
 layer.addShape(asset, SyncMode.FULL_SYNC, InvalidationMode.WITH_LIGHT);
 ```
 
-### 7.2 Custom data sulle forme
+### 9.2 Custom data sulle forme
 
 Per salvare parametri sull'asset (es. per rigenerare/sostituire):
 
@@ -361,7 +559,7 @@ customDataSystem.addElement(
 );
 ```
 
-### 7.3 Tab nelle proprietà
+### 9.3 Tab nelle proprietà
 
 Per mostrare una tab "Mia Estensione" nel dialogo "Mostra proprietà" quando la forma ha custom data:
 
@@ -378,7 +576,7 @@ if (shapeId !== undefined && hasMiaEstensioneData(shapeId)) {
 }
 ```
 
-### 7.4 Aggiornare immagine di un asset
+### 9.4 Aggiornare immagine di un asset
 
 ```typescript
 import { sendAssetRectImageChange } from "../../api/emits/shape/asset";
@@ -388,7 +586,7 @@ import { sendAssetRectImageChange } from "../../api/emits/shape/asset";
 
 ---
 
-## 8. Riferimento: DungeonGen
+## 10. Riferimento: DungeonGen
 
 DungeonGen è l'estensione di riferimento. Struttura:
 

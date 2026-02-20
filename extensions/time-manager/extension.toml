@@ -1,0 +1,8 @@
+[extension]
+id = "time-manager"
+name = "Time Manager"
+version = "1.0.0"
+description = "Timer and countdown with audio alert. Runs in background when modal is closed."
+author = "PlanarAlly"
+entry = "ui/index.html"
+titleBarColor = "#2e7d32"

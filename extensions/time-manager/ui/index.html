@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Time Manager</title>
+    <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=2" />
+    <style>
+        :root { --tm-accent: #2e7d32; }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; padding: 0; font-family: system-ui, sans-serif; font-size: 13px; }
+        .tm-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+        .tm-item { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px; background: #fafafa; }
+        .tm-item-display-wrap { width: 100%; }
+        .tm-item-name-row { display: flex; align-items: center; gap: 0.5rem; width: 100%; }
+        .tm-item-name { flex: 1; min-width: 0; }
+        .tm-item-name input { width: 100%; padding: 0.25rem 0.5rem; font-size: 0.9rem; border: 1px solid #ccc; border-radius: 4px; font-weight: 600; box-sizing: border-box; }
+        .tm-item-remove { flex-shrink: 0; background: none; border: none; color: #999; cursor: pointer; padding: 0.2rem; font-size: 1rem; }
+        .tm-item-remove:hover { color: #c00; }
+        .tm-item-btns { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; width: 100%; }
+        .tm-mode-toggle { display: flex; border: 1px solid #ccc; border-radius: 4px; overflow: hidden; }
+        .tm-mode-btn { padding: 0.35rem 0.6rem; border: none; background: #fff; cursor: pointer; font-size: 0.8rem; }
+        .tm-mode-btn.active.countdown { background: #f9a825; color: #000; }
+        .tm-mode-btn.active.timer { background: #ef6c00; color: #fff; }
+        .tm-mode-btn:not(.active):hover { background: #eee; }
+        .tm-display { font-family: monospace; font-size: 1.2rem; font-variant-numeric: tabular-nums; width: 100%; max-width: 100%; text-align: center; box-sizing: border-box; }
+        .tm-display[type="text"] { border: 1px solid #ccc; border-radius: 4px; padding: 0.16rem 0.32rem; background: #fff; }
+        .tm-display[type="text"]:read-only { border-color: transparent; background: transparent; cursor: default; }
+        .tm-display.running { color: var(--tm-accent); }
+        .tm-ctrl { display: flex; gap: 0.35rem; }
+        .tm-ctrl button { padding: 0.35rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer; font-size: 0.85rem; }
+        .tm-ctrl button:hover { background: #eee; }
+        .tm-ctrl button.primary { background: var(--tm-accent); color: #fff; border-color: var(--tm-accent); }
+        .tm-ctrl button.primary:hover { background: #1b5e20; }
+        .tm-ctrl button.primary.tm-stop { background: #c62828; border-color: #c62828; }
+        .tm-ctrl button.primary.tm-stop:hover { background: #b71c1c; }
+        .tm-toolbar .ext-search-bar { flex: 1; min-width: 0; }
+        .tm-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; padding: 0.35rem; }
+    </style>
+</head>
+<body class="ext-ui-root">
+    <div class="tm-root ext-modal-body-wrapper">
+        <div class="ext-toolbar-bar tm-toolbar">
+            <div class="ext-search-bar">
+                <span class="ext-search-icon" aria-hidden="true">&#128269;</span>
+                <input type="text" id="searchInput" class="ext-search-input" placeholder="" />
+                <button type="button" id="addBtn" class="ext-search-add-btn" title=""></button>
+            </div>
+        </div>
+        <div class="tm-list" id="list"></div>
+    </div>
+    <script>
+        const CHANNEL = "pa-time-manager";
+        const parent = window.parent;
+        let items = [];
+        const locale = (new URLSearchParams(location.search).get("locale") || "en").slice(0, 2);
+        const t = {
+            add: locale === "it" ? "Aggiungi timer" : "Add timer",
+            countdown: "Countdown",
+            timer: "Timer",
+            start: "Start",
+            stop: "Stop",
+            reset: "Reset",
+            remove: locale === "it" ? "Rimuovi" : "Remove",
+            removeConfirm: locale === "it" ? "Rimuovere?" : "Remove?",
+        };
+
+        function send(cmd, payload = {}) {
+            parent.postMessage({ type: `time-manager-${cmd}`, ...payload }, "*");
+        }
+
+        function formatMs(ms) {
+            const totalSec = Math.abs(Math.floor(ms / 1000));
+            const sign = ms < 0 ? "-" : "";
+            let h = Math.floor(totalSec / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const s = totalSec % 60;
+            if (h >= 24) {
+                const d = Math.floor(h / 24);
+                h = h % 24;
+                return sign + "(" + d + ") " + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+            }
+            return sign + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+        }
+
+        function parseDisplayToMs(str) {
+            const s = str.trim();
+            let m = s.match(/^\((\d+)\)\s*(\d{1,2}):(\d{1,2}):(\d{1,2})$/);
+            if (m) {
+                const days = Math.max(0, parseInt(m[1], 10) || 0);
+                const h = Math.max(0, Math.min(23, parseInt(m[2], 10) || 0));
+                const min = Math.max(0, Math.min(59, parseInt(m[3], 10) || 0));
+                const sec = Math.max(0, Math.min(59, parseInt(m[4], 10) || 0));
+                return (days * 24 * 3600 + h * 3600 + min * 60 + sec) * 1000;
+            }
+            m = s.match(/^(\d+):(\d{1,2}):(\d{1,2})$/);
+            if (m) {
+                const h = Math.max(0, parseInt(m[1], 10) || 0);
+                const min = Math.max(0, Math.min(59, parseInt(m[2], 10) || 0));
+                const sec = Math.max(0, Math.min(59, parseInt(m[3], 10) || 0));
+                return (h * 3600 + min * 60 + sec) * 1000;
+            }
+            m = s.match(/^(\d+):(\d{1,2})$/);
+            if (m) {
+                const min = Math.max(0, parseInt(m[1], 10) || 0);
+                const sec = Math.max(0, Math.min(59, parseInt(m[2], 10) || 0));
+                return (min * 60 + sec) * 1000;
+            }
+            return null;
+        }
+
+        function renderItem(item) {
+            const div = document.createElement("div");
+            div.className = "tm-item";
+            div.dataset.id = item.id;
+            const isCountdown = item.mode === "countdown";
+            const display = document.createElement(isCountdown ? "input" : "div");
+            display.className = "tm-display" + (item.running ? " running" : "");
+            if (isCountdown) {
+                display.type = "text";
+                display.value = formatMs(item.valueMs);
+                display.dataset.id = item.id;
+                display.readOnly = item.running;
+                display.placeholder = "HH:MM:SS";
+                display.title = locale === "it" ? "Modifica tempo (es. 01:30:00 o (1) 02:00:00)" : "Edit time (e.g. 01:30:00 or (1) 02:00:00)";
+                display.onblur = () => {
+                    if (item.running) return;
+                    const ms = parseDisplayToMs(display.value);
+                    if (ms !== null) {
+                        send("update", { id: item.id, targetMs: ms });
+                        send("reset", { id: item.id });
+                    } else {
+                        display.value = formatMs(item.targetMs);
+                    }
+                };
+                display.onkeydown = (e) => {
+                    if (e.key === "Enter") display.blur();
+                };
+            } else {
+                display.textContent = formatMs(item.valueMs);
+            }
+            const displayWrap = document.createElement("div");
+            displayWrap.className = "tm-item-display-wrap";
+            displayWrap.appendChild(display);
+            const nameInput = document.createElement("input");
+            nameInput.type = "text";
+            nameInput.value = item.name || "";
+            nameInput.placeholder = locale === "it" ? "Nome" : "Name";
+            nameInput.className = "tm-item-name";
+            nameInput.onchange = () => send("update", { id: item.id, name: nameInput.value.trim() || "Timer" });
+            const removeBtn = document.createElement("button");
+            removeBtn.className = "tm-item-remove";
+            removeBtn.textContent = "✕";
+            removeBtn.title = t.remove;
+            removeBtn.onclick = () => { if (confirm(t.removeConfirm)) send("remove", { id: item.id }); };
+            const nameRow = document.createElement("div");
+            nameRow.className = "tm-item-name-row";
+            nameRow.appendChild(nameInput);
+            nameRow.appendChild(removeBtn);
+            const modeDiv = document.createElement("div");
+            modeDiv.className = "tm-mode-toggle";
+            const countdownBtn = document.createElement("button");
+            countdownBtn.className = "tm-mode-btn countdown" + (item.mode === "countdown" ? " active" : "");
+            countdownBtn.textContent = t.countdown;
+            const timerBtn = document.createElement("button");
+            timerBtn.className = "tm-mode-btn timer" + (item.mode === "timer" ? " active" : "");
+            timerBtn.textContent = t.timer;
+            countdownBtn.onclick = () => { send("update", { id: item.id, mode: "countdown" }); send("reset", { id: item.id }); };
+            timerBtn.onclick = () => { send("update", { id: item.id, mode: "timer" }); send("reset", { id: item.id }); };
+            modeDiv.append(countdownBtn, timerBtn);
+            const ctrlDiv = document.createElement("div");
+            ctrlDiv.className = "tm-ctrl";
+            const startStop = document.createElement("button");
+            startStop.className = "primary" + (item.running ? " tm-stop" : "");
+            startStop.textContent = item.running ? t.stop : t.start;
+            startStop.onclick = () => send(item.running ? "stop" : "start", { id: item.id });
+            const resetBtn = document.createElement("button");
+            resetBtn.textContent = t.reset;
+            resetBtn.onclick = () => send("reset", { id: item.id });
+            ctrlDiv.append(startStop, resetBtn);
+            const btnsRow = document.createElement("div");
+            btnsRow.className = "tm-item-btns";
+            btnsRow.appendChild(modeDiv);
+            btnsRow.appendChild(ctrlDiv);
+            div.append(displayWrap, nameRow, btnsRow);
+            div._display = display;
+            div._startStop = startStop;
+            div._modeDiv = modeDiv;
+            div._countdownBtn = countdownBtn;
+            div._timerBtn = timerBtn;
+            return div;
+        }
+
+        function syncUI() {
+            const list = document.getElementById("list");
+            const ids = new Set(items.map(i => i.id));
+            for (const el of list.querySelectorAll(".tm-item")) {
+                if (!ids.has(el.dataset.id)) el.remove();
+            }
+            for (const item of items) {
+                let el = list.querySelector(`[data-id="${item.id}"]`);
+                if (!el) {
+                    el = renderItem(item);
+                    list.appendChild(el);
+                }
+                if (el._display instanceof HTMLInputElement) {
+                    el._display.readOnly = item.running;
+                    if (document.activeElement !== el._display) {
+                        el._display.value = formatMs(item.mode === "countdown" ? item.valueMs : item.valueMs);
+                    }
+                } else {
+                    el._display.textContent = formatMs(item.valueMs);
+                }
+                el._display.classList.toggle("running", item.running);
+                el._startStop.textContent = item.running ? t.stop : t.start;
+                el._startStop.classList.toggle("tm-stop", item.running);
+                el._startStop.onclick = () => send(item.running ? "stop" : "start", { id: item.id });
+                const q = el.querySelector(".tm-item-name");
+                if (q && q.value !== item.name) q.value = item.name || "";
+                el._countdownBtn.classList.toggle("active", item.mode === "countdown");
+                el._timerBtn.classList.toggle("active", item.mode === "timer");
+            }
+        }
+
+        window.addEventListener("message", (e) => {
+            const d = e.data;
+            if (d?.type === "time-manager-state" && Array.isArray(d.items)) {
+                items = d.items;
+                syncUI();
+            }
+        });
+
+        try {
+            const bc = new BroadcastChannel(CHANNEL);
+            bc.onmessage = (e) => {
+                if (e.data?.type === "state" && Array.isArray(e.data.items)) {
+                    items = e.data.items;
+                    syncUI();
+                }
+            };
+        } catch (_) {}
+
+        const searchInput = document.getElementById("searchInput");
+        const addBtn = document.getElementById("addBtn");
+        const searchPlaceholder = locale === "it" ? "Cerca timer..." : "Search timers...";
+        searchInput.placeholder = searchPlaceholder;
+        addBtn.innerHTML = "+";
+        addBtn.title = t.add;
+        addBtn.onclick = () => {
+            const mode = items.length > 0 && items[items.length - 1].mode === "countdown" ? "countdown" : "timer";
+            const name = "Timer " + (items.length + 1);
+            send("add", { mode, name, targetMs: 60000 });
+        };
+
+        let searchFilter = "";
+        searchInput.oninput = () => { searchFilter = searchInput.value.trim().toLowerCase(); syncUI(); };
+
+        syncUI = function() {
+            const list = document.getElementById("list");
+            const ids = new Set(items.map(i => i.id));
+            for (const el of list.querySelectorAll(".tm-item")) {
+                if (!ids.has(el.dataset.id)) el.remove();
+            }
+            for (const item of items) {
+                const match = !searchFilter || (item.name || "").toLowerCase().includes(searchFilter);
+                let el = list.querySelector('[data-id="' + item.id + '"]');
+                if (!el) {
+                    el = renderItem(item);
+                    list.appendChild(el);
+                }
+                el.style.display = match ? "" : "none";
+                if (el._display instanceof HTMLInputElement) {
+                    el._display.readOnly = item.running;
+                    if (document.activeElement !== el._display) {
+                        el._display.value = formatMs(item.mode === "countdown" ? item.valueMs : item.valueMs);
+                    }
+                } else {
+                    el._display.textContent = formatMs(item.valueMs);
+                }
+                el._display.classList.toggle("running", item.running);
+                el._startStop.textContent = item.running ? t.stop : t.start;
+                el._startStop.classList.toggle("tm-stop", item.running);
+                el._startStop.onclick = () => send(item.running ? "stop" : "start", { id: item.id });
+                const q = el.querySelector(".tm-item-name");
+                if (q && q.value !== item.name) q.value = item.name || "";
+                el._countdownBtn.classList.toggle("active", item.mode === "countdown");
+                el._timerBtn.classList.toggle("active", item.mode === "timer");
+            }
+        };
+
+        send("get-state");
+    </script>
+</body>
+</html>

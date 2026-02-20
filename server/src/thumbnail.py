@@ -2,11 +2,29 @@ import io
 import warnings
 from pathlib import Path
 
+import fitz
 from PIL import Image
 
-from .utils import ASSETS_DIR, get_asset_hash_subpath
+from .utils import ASSETS_DIR, THUMBNAILS_DIR, get_asset_hash_subpath
 
 warnings.simplefilter("ignore", Image.DecompressionBombWarning)
+
+
+def _pdf_first_page_to_image(pdf_path: Path, max_width: int = 400) -> bytes | None:
+    """Extract first page of PDF as PNG bytes for thumbnail generation."""
+    try:
+        doc = fitz.open(pdf_path)
+        if doc.page_count == 0:
+            doc.close()
+            return None
+        page = doc.load_page(0)
+        mat = fitz.Matrix(max_width / page.rect.width, max_width / page.rect.width)
+        pix = page.get_pixmap(matrix=mat, alpha=False)
+        img_bytes = pix.tobytes("png")
+        doc.close()
+        return img_bytes
+    except Exception:
+        return None
 
 
 def create_thumbnail_from_bytes(input_bytes, max_size=(200, 200)):
@@ -56,13 +74,19 @@ def generate_thumbnail_for_asset(name: str, file_hash: str) -> None:
         return
 
     try:
-        with open(asset_path, "rb") as f:
-            thumbnail = create_thumbnail_from_bytes(f.read())
+        if name.lower().endswith(".pdf"):
+            first_page_bytes = _pdf_first_page_to_image(asset_path)
+            if first_page_bytes is None:
+                return
+            thumbnail = create_thumbnail_from_bytes(first_page_bytes, max_size=(300, 420))
+        else:
+            with open(asset_path, "rb") as f:
+                thumbnail = create_thumbnail_from_bytes(f.read())
         if thumbnail is None:
             return
         for format, data in thumbnail.items():
-            path = ASSETS_DIR / Path(f"{full_hash_name}.thumb.{format}")
-
+            path = THUMBNAILS_DIR / Path(f"{full_hash_name}.thumb.{format}")
+            path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, "wb") as f:
                 f.write(data)
     except Image.DecompressionBombError:

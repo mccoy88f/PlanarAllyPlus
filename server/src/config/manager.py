@@ -46,6 +46,14 @@ class ConfigManager:
             if self.config_path.exists():
                 config_data = rtoml.loads(self.config_path.read_text())
                 self.config = ServerConfig(**config_data)
+                # Default admin_user for fresh installs / migrated configs
+                if not self.config.general.admin_user:
+                    self.config.general.admin_user = "admin"
+            # PA_ADMIN_USER env overrides config (useful for Docker)
+            env_admin = os.environ.get("PA_ADMIN_USER", "").strip()
+            if env_admin:
+                self.config.general.admin_user = env_admin
+            if self.config_path.exists():
                 set_save_path(self.config.general.save_file)
 
                 if not startup:

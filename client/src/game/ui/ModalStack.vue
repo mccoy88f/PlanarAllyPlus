@@ -14,10 +14,13 @@
 import { computed, onMounted, onUnmounted } from "vue";
 import type { Component } from "vue";
 
+import { extensionsState } from "../systems/extensions/state";
 import { gameState } from "../systems/game/state";
 import { modalSystem } from "../systems/modals";
 import { modalState } from "../systems/modals/state";
 import type { IndexedModal, ModalIndex } from "../systems/modals/types";
+
+const MODAL_STACK_BASE_Z = 10000;
 
 import AssetManager from "./assets/AssetManager.vue";
 import ExtensionsManager from "./extensions/ExtensionsManager.vue";
@@ -105,15 +108,26 @@ function setModalRef(m: Component | null, modalId: ModalIndex): void {
     if (isReffable(m)) refs[modalId] = m;
     else console.warn(`Modal without exposed close function found. (${getComponentName(modalId)})`);
 }
+
+function modalLayerZIndex(modalIndex: ModalIndex): number {
+    const lf = extensionsState.reactive.lastFocusedModal;
+    if (lf?.type !== "stack") return MODAL_STACK_BASE_Z;
+    const order = modalState.reactive.modalOrder;
+    const topIndex = order.at(-1);
+    return topIndex === modalIndex ? MODAL_STACK_BASE_Z + 100 : MODAL_STACK_BASE_Z;
+}
 </script>
 
 <template>
-    <div style="display: contents">
+    <div
+        v-for="modal of visibleModals"
+        :key="modal.props.modalIndex"
+        class="modal-stack-layer"
+        :style="{ zIndex: modalLayerZIndex(modal.props.modalIndex) }"
+    >
         <component
             :is="modal.component"
-            v-for="modal of visibleModals"
             :ref="(m: Component | null) => setModalRef(m, modal.props.modalIndex)"
-            :key="modal.props.modalIndex"
             v-bind="modal.props"
             @focus="modalSystem.focus(modal.props.modalIndex)"
             @close="modalSystem.close(modal.props.modalIndex, false)"
@@ -121,3 +135,18 @@ function setModalRef(m: Component | null, modalId: ModalIndex): void {
         />
     </div>
 </template>
+
+<style scoped>
+.modal-stack-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+}
+.modal-stack-layer :deep(.modal-mask),
+.modal-stack-layer :deep(.dialog-mask) {
+    pointer-events: auto;
+}
+.modal-stack-layer :deep(.modal-container) {
+    pointer-events: auto;
+}
+</style>

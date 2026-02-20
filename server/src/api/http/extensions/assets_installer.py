@@ -1,0 +1,325 @@
+"""Assets Installer extension - upload ZIP files to extract into assets folder."""
+
+import hashlib
+import io
+import json
+import re
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from zipfile import BadZipFile, ZipFile
+
+from aiohttp import web
+
+from ....auth import get_authorized_user
+from ....db.models.asset import Asset
+from ....thumbnail import generate_thumbnail_for_asset
+from ....utils import ASSETS_DIR, DATA_DIR, THUMBNAILS_DIR, get_asset_hash_subpath
+
+INSTALLER_BASE = "assets_installer"
+MANIFEST_FILE = DATA_DIR / "assets_installer_installs.json"
+
+
+def _load_manifest() -> list[dict]:
+    """Load installations manifest."""
+    if not MANIFEST_FILE.exists():
+        return []
+    try:
+        with open(MANIFEST_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+            return data.get("installs", [])
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def _save_manifest(installs: list[dict]) -> None:
+    """Save installations manifest."""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with open(MANIFEST_FILE, "w", encoding="utf-8") as f:
+        json.dump({"installs": installs}, f, indent=2)
+
+
+def _safe_zip_path(name: str) -> bool:
+    """Check if zip member path is safe (no path traversal)."""
+    normalized = Path(name).as_posix()
+    if ".." in normalized or normalized.startswith("/"):
+        return False
+    return True
+
+
+def _safe_target_path(path: str) -> Path | None:
+    """Validate target path and return path relative to ASSETS_DIR, or None if invalid."""
+    if not path or not path.strip():
+        return Path("")
+    clean = path.strip().replace("\\", "/").rstrip("/")
+    if ".." in clean or clean.startswith("/"):
+        return None
+    parts = [p for p in clean.split("/") if p]
+    for p in parts:
+        if not p or p in (".", ".."):
+            return None
+    return Path(*parts)
+
+
+def _get_or_create_target_folder(user, target_path: str):
+    """Resolve target_path to an Asset folder. Empty path = root of assets."""
+    root = Asset.get_root_folder(user)
+    if not target_path or not target_path.strip():
+        return root
+    parent = root
+    for part in target_path.strip().replace("\\", "/").strip("/").split("/"):
+        if part:
+            parent, _ = Asset.get_or_create(name=part, owner=user, parent=parent)
+    return parent
+
+
+async def upload_zip(request: web.Request) -> web.Response:
+    """Upload a ZIP file, extract to hash storage, and register assets in DB."""
+    user = await get_authorized_user(request)
+
+    reader = await request.multipart()
+    data = b""
+    filename = "archive.zip"
+    target_path = ""
+    async for part in reader:
+        if part.name == "file":
+            data = await part.read()
+            if part.filename:
+                filename = part.filename
+        elif part.name == "targetPath":
+            raw = await part.read()
+            target_path = raw.decode("utf-8").strip() if raw else ""
+
+    if not data:
+        return web.HTTPBadRequest(text="No file in 'file' field")
+
+    safe_target = _safe_target_path(target_path)
+    if safe_target is None:
+        return web.HTTPBadRequest(text="Invalid target path")
+
+    try:
+        with ZipFile(io.BytesIO(data)) as zf:
+            names = zf.namelist()
+            if not names:
+                return web.HTTPBadRequest(text="ZIP file is empty")
+
+            install_id = str(uuid.uuid4())[:8]
+            base_name = Path(filename).stem
+            if not re.match(r"^[a-zA-Z0-9_-]+$", base_name):
+                base_name = install_id
+            install_name = base_name
+
+            target_folder = _get_or_create_target_folder(user, target_path)
+            base_path_str = str(safe_target).replace("\\", "/") if str(safe_target) else ""
+
+            files_extracted: list[str] = []
+            asset_ids: list[int] = []
+            file_hashes: list[str] = []
+
+            for name in names:
+                if not _safe_zip_path(name):
+                    continue
+                info = zf.getinfo(name)
+                if info.is_dir():
+                    continue
+                rel = Path(name).as_posix()
+                if not rel or rel == ".":
+                    continue
+
+                file_data = zf.read(name)
+                hashname = hashlib.sha1(file_data).hexdigest()
+                full_hash_path = ASSETS_DIR / get_asset_hash_subpath(hashname)
+
+                if not full_hash_path.exists():
+                    full_hash_path.parent.mkdir(parents=True, exist_ok=True)
+                    full_hash_path.write_bytes(file_data)
+
+                parent_folder = target_folder
+                rel_path = Path(rel)
+                for part in rel_path.parent.parts:
+                    if part:
+                        parent_folder, _ = Asset.get_or_create(
+                            name=part, owner=user, parent=parent_folder
+                        )
+
+                asset = Asset.create(
+                    name=rel_path.name,
+                    file_hash=hashname,
+                    owner=user,
+                    parent=parent_folder,
+                )
+                asset_ids.append(asset.id)
+                file_hashes.append(hashname)
+                files_extracted.append(rel)
+
+                try:
+                    generate_thumbnail_for_asset(rel_path.name, hashname)
+                except Exception:
+                    pass
+
+            folders_created: set[str] = {str(Path(f).parent) for f in files_extracted if "/" in f or "\\" in f}
+            folders_created.discard(".")
+            folders_sorted = sorted(folders_created, key=lambda x: x.count("/"), reverse=True)
+
+            install_record = {
+                "id": install_id,
+                "name": install_name,
+                "files": files_extracted,
+                "folders": folders_sorted,
+                "basePath": base_path_str,
+                "assetIds": asset_ids,
+                "fileHashes": file_hashes,
+                "installedAt": datetime.now(timezone.utc).isoformat(),
+            }
+
+            installs = _load_manifest()
+            installs.append(install_record)
+            _save_manifest(installs)
+
+            return web.json_response({
+                "id": install_id,
+                "name": install_name,
+                "fileCount": len(files_extracted),
+            })
+
+    except BadZipFile:
+        return web.HTTPBadRequest(text="Invalid or corrupted ZIP file")
+    except OSError as e:
+        return web.HTTPInternalServerError(text=f"Failed to extract: {e}")
+    except Exception as e:
+        return web.HTTPInternalServerError(text=f"Upload error: {e}")
+
+
+def _is_hash_prefix_dir(name: str) -> bool:
+    """True if folder name looks like hash prefix (2 hex chars)."""
+    return (
+        len(name) == 2
+        and all(c in "0123456789abcdef" for c in name.lower())
+    )
+
+
+def _scan_folder_tree(base: Path, rel_path: Path, max_depth: int) -> dict | None:
+    """Recursively build folder tree. Returns {name, path, children} or None."""
+    if max_depth <= 0:
+        return None
+    children: list[dict] = []
+    full = base / rel_path if rel_path.parts else base
+    if not full.exists() or not full.is_dir():
+        return None
+    try:
+        for item in sorted(full.iterdir()):
+            if not item.is_dir() or item.name.startswith("."):
+                continue
+            if _is_hash_prefix_dir(item.name):
+                continue
+            child_rel = rel_path / item.name if rel_path.parts else Path(item.name)
+            child_node = _scan_folder_tree(base, child_rel, max_depth - 1)
+            path_str = child_rel.as_posix()
+            children.append({
+                "name": item.name,
+                "path": path_str,
+                "children": child_node["children"] if child_node else [],
+            })
+    except OSError:
+        pass
+    path_str = rel_path.as_posix() if rel_path.parts else ""
+    return {"name": path_str or "/", "path": path_str, "children": children}
+
+
+async def list_folders(request: web.Request) -> web.Response:
+    """List folder tree for upload target selection."""
+    await get_authorized_user(request)
+    tree = _scan_folder_tree(ASSETS_DIR, Path(""), max_depth=8)
+    root = {"name": "/", "path": "", "children": tree["children"] if tree else []}
+    return web.json_response({"tree": root})
+
+
+async def list_installs(request: web.Request) -> web.Response:
+    """List installed asset packs."""
+    await get_authorized_user(request)
+    installs = _load_manifest()
+    result = [
+        {
+            "id": i["id"],
+            "name": i["name"],
+            "fileCount": len(i.get("files", [])),
+            "basePath": i.get("basePath", ""),
+            "installedAt": i.get("installedAt"),
+        }
+        for i in installs
+    ]
+    result.sort(key=lambda x: (x["name"] or "").lower())
+    return web.json_response({"installs": result})
+
+
+async def uninstall(request: web.Request) -> web.Response:
+    """Uninstall an asset pack: remove files and empty folders."""
+    await get_authorized_user(request)
+
+    data = await request.json()
+    install_id = data.get("id", "").strip()
+    if not install_id:
+        return web.HTTPBadRequest(text="Install id is required")
+
+    if ".." in install_id or "/" in install_id or "\\" in install_id:
+        return web.HTTPBadRequest(text="Invalid install id")
+
+    installs = _load_manifest()
+    idx = next((i for i, x in enumerate(installs) if x.get("id") == install_id), None)
+    if idx is None:
+        return web.HTTPNotFound(text="Installation not found")
+
+    record = installs[idx]
+
+    try:
+        asset_ids = record.get("assetIds", [])
+        file_hashes = record.get("fileHashes", [])
+        if asset_ids:
+            for aid in asset_ids:
+                try:
+                    asset = Asset.get_by_id(aid)
+                    fh = asset.file_hash
+                    asset.delete_instance()
+                    if fh and not Asset.select().where(Asset.file_hash == fh).exists():
+                        hp = ASSETS_DIR / get_asset_hash_subpath(fh)
+                        if hp.exists():
+                            hp.unlink()
+                        base = str(get_asset_hash_subpath(fh))
+                        for ext in (".thumb.webp", ".thumb.jpeg"):
+                            tp = THUMBNAILS_DIR / f"{base}{ext}"
+                            if tp.exists():
+                                tp.unlink()
+                except Asset.DoesNotExist:
+                    pass
+        else:
+            base_path = record.get("basePath", "")
+            if base_path:
+                target_base = (ASSETS_DIR / base_path).resolve()
+            else:
+                target_base = ASSETS_DIR.resolve()
+            if str(target_base).startswith(str(ASSETS_DIR.resolve())):
+                for rel in record.get("files", []):
+                    if _safe_zip_path(rel):
+                        fp = target_base / rel
+                        if fp.exists() and fp.is_file():
+                            fp.unlink()
+                for rel in sorted(record.get("folders", []), key=lambda x: x.count("/"), reverse=True):
+                    if _safe_zip_path(rel):
+                        fp = target_base / rel
+                        if fp.exists() and fp.is_dir():
+                            try:
+                                fp.rmdir()
+                            except OSError:
+                                pass
+                if target_base.exists() and target_base != ASSETS_DIR:
+                    try:
+                        target_base.rmdir()
+                    except OSError:
+                        pass
+
+        installs.pop(idx)
+        _save_manifest(installs)
+
+        return web.json_response({"ok": True})
+    except OSError as e:
+        return web.HTTPInternalServerError(text=f"Failed to uninstall: {e}")

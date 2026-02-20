@@ -1,13 +1,15 @@
 """Documents extension - PDF upload and management in assets."""
 
 import hashlib
+from pathlib import Path
 
 from aiohttp import web
 
 from ....auth import get_authorized_user
 from ....db.models.asset import Asset
 from ....db.models.user import User
-from ....utils import ASSETS_DIR, get_asset_hash_subpath
+from ....thumbnail import generate_thumbnail_for_asset
+from ....utils import ASSETS_DIR, THUMBNAILS_DIR, get_asset_hash_subpath
 
 EXTENSION_ID = "documents"
 
@@ -67,6 +69,17 @@ async def serve_document(request: web.Request) -> web.Response:
     )
 
 
+def _thumbnail_path(file_hash: str) -> str | None:
+    """Return static URL path for PDF thumbnail if it exists, else None."""
+    subpath = get_asset_hash_subpath(file_hash)
+    thumb_rel = f"{subpath}.thumb.webp"
+    if (THUMBNAILS_DIR / thumb_rel).exists():
+        return f"/static/thumbnails/{thumb_rel}"
+    if (ASSETS_DIR / thumb_rel).exists():
+        return f"/static/assets/{thumb_rel}"
+    return None
+
+
 def _build_documents_tree(user: User, parent: Asset | None) -> list[dict]:
     """Build tree of folders and documents under parent (None = documents root)."""
     docs_folder = _get_or_create_documents_folder(user)
@@ -75,13 +88,16 @@ def _build_documents_tree(user: User, parent: Asset | None) -> list[dict]:
     for asset in Asset.select().where((Asset.parent == folder) & (Asset.owner == user)):
         if asset.file_hash:
             if asset.name.lower().endswith(".pdf"):
-                items.append({
+                doc_item: dict = {
                     "id": asset.id,
                     "name": asset.name,
                     "fileHash": asset.file_hash,
                     "folderId": asset.parent_id,
                     "type": "document",
-                })
+                }
+                if thumb := _thumbnail_path(asset.file_hash):
+                    doc_item["thumbnailUrl"] = thumb
+                items.append(doc_item)
         else:
             children = _build_documents_tree(user, asset)
             items.append({
@@ -165,6 +181,8 @@ async def upload_document(request: web.Request) -> web.Response:
 
     folder = _get_documents_parent(user, parent_id)
     asset = Asset.create(name=filename, file_hash=hashname, owner=user, parent=folder)
+
+    generate_thumbnail_for_asset(filename, hashname)
 
     return web.json_response(
         {"id": asset.id, "name": asset.name, "fileHash": asset.file_hash, "folderId": folder.id}
@@ -279,6 +297,35 @@ def _is_descendant(ancestor: Asset, node: Asset) -> bool:
             return True
         current = current.parent
     return False
+
+
+async def generate_thumbnails(request: web.Request) -> web.Response:
+    """Generate thumbnails for documents that don't have them. Body: { "fileHashes": ["abc..."] }."""
+    user = await get_authorized_user(request)
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    hashes = data.get("fileHashes") or data.get("file_hashes") or []
+    if not isinstance(hashes, list):
+        return web.HTTPBadRequest(text="fileHashes must be a list")
+
+    docs_folder = _get_or_create_documents_folder(user)
+    generated = 0
+    for h in hashes:
+        if not isinstance(h, str) or len(h) < 40:
+            continue
+        asset = Asset.get_or_none((Asset.file_hash == h) & (Asset.owner == user))
+        if not asset or not _is_in_documents_tree(asset, user):
+            continue
+        if not asset.name or not asset.name.lower().endswith(".pdf"):
+            continue
+        if _thumbnail_path(h):
+            continue
+        generate_thumbnail_for_asset(asset.name, h)
+        generated += 1
+
+    return web.json_response({"generated": generated})
 
 
 async def delete_document(request: web.Request) -> web.Response:

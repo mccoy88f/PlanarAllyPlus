@@ -1,6 +1,7 @@
 [extension]
 id = "openrouter"
-name = "OpenRouter AI"
+name = "AI Generator"
 version = "1.0.0"
-description = "Connect to free AI models via OpenRouter. Generate characters, stories, improve maps and more."
+icon = "star"
+description = "Connect to AI models via OpenRouter or Google AI Studio. Generate characters, stories, improve maps and more."
 author = "PlanarAlly"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { useToast } from "vue-toastification";
 
 import MarkdownModal from "../../core/components/modals/MarkdownModal.vue";
 import SliderComponent from "../../core/components/slider/SliderComponent.vue";
@@ -12,8 +13,13 @@ import {
     closeDocumentsPdfViewer,
     closeDungeongenModal,
     closeOpenRouterModal,
-    closeQuintaedizioneModal,
+    closeCompendiumModal,
+    openCompendiumModalForItem,
 } from "../systems/extensions/ui";
+import {
+    timeManagerHandleMessage,
+    COUNTDOWN_COMPLETE_EVENT,
+} from "../systems/extensions/time-manager";
 import { gameState } from "../systems/game/state";
 import { positionSystem } from "../systems/position";
 import { positionState } from "../systems/position/state";
@@ -26,7 +32,8 @@ import DungeongenModal from "./extensions/DungeongenModal.vue";
 import DocumentsPdfViewer from "./extensions/DocumentsPdfViewer.vue";
 import ExtensionModal from "./extensions/ExtensionModal.vue";
 import OpenRouterModal from "./extensions/OpenRouterModal.vue";
-import QuintaedizioneModal from "./extensions/QuintaedizioneModal.vue";
+import CompendiumHoverTooltip from "./extensions/CompendiumHoverTooltip.vue";
+import CompendiumModal from "./extensions/CompendiumModal.vue";
 import DefaultContext from "./contextmenu/DefaultContext.vue";
 import ShapeContext from "./contextmenu/ShapeContext.vue";
 import { showDefaultContextMenu, showShapeContextMenu } from "./contextmenu/state";
@@ -45,6 +52,7 @@ const uiEl = ref<HTMLDivElement | null>(null);
 
 const coreState = coreStore.state;
 const { t } = useI18n();
+const toast = useToast();
 
 const visible = reactive({
     locations: false,
@@ -70,6 +78,27 @@ const showChangelog = computed(() => {
     return false;
 });
 
+function handleExtensionMessage(event: MessageEvent): void {
+    const data = event.data;
+    if (timeManagerHandleMessage(data, event.source as Window | null)) return;
+    if (data?.type === "planarally-open-qe" && data.collection && data.slug) {
+        openCompendiumModalForItem(data.collection, data.slug, data.compendium);
+    }
+    if (data?.type === "ambient-music-playing" && typeof data.playing === "boolean") {
+        extensionsState.mutableReactive.ambientMusicPlaying = data.playing;
+        try {
+            localStorage.setItem("pa-ambient-music-playing", data.playing ? "1" : "0");
+        } catch {
+            /* ignore */
+        }
+    }
+}
+
+function handleCountdownComplete(e: CustomEvent<{ name: string }>): void {
+    const name = e.detail?.name ?? "Timer";
+    toast.info(t("game.ui.extensions.time-manager.countdown_complete", { name }));
+}
+
 onMounted(() => {
     // hide all UI elements that were previously open
     activeShapeStore.setShowEditDialog(false);
@@ -77,6 +106,13 @@ onMounted(() => {
     showDefaultContextMenu.value = false;
     showShapeContextMenu.value = false;
     tokenDialogVisible.value = false;
+    window.addEventListener("message", handleExtensionMessage);
+    window.addEventListener(COUNTDOWN_COMPLETE_EVENT, handleCountdownComplete as EventListener);
+});
+
+onUnmounted(() => {
+    window.removeEventListener("message", handleExtensionMessage);
+    window.removeEventListener(COUNTDOWN_COMPLETE_EVENT, handleCountdownComplete as EventListener);
 });
 
 function toggleLocations(): void {
@@ -108,6 +144,15 @@ function toggleMenu(): void {
             clearInterval(interval);
         }
     }, 20);
+}
+
+const EXTENSION_MODAL_BASE_Z = 10000;
+
+function extensionModalZIndex(modalId: string): number {
+    const lf = extensionsState.reactive.lastFocusedModal;
+    return lf?.type === "extension" && lf.id === modalId
+        ? EXTENSION_MODAL_BASE_Z + 100
+        : EXTENSION_MODAL_BASE_Z;
 }
 
 const zoomDisplay = computed({
@@ -224,24 +269,58 @@ function setTempZoomDisplay(value: number): void {
         />
         <!-- Modals that can be rearranged -->
         <ModalStack />
-        <!-- Extension modals (independent from menu) -->
-        <DungeongenModal
-            :visible="extensionsState.reactive.dungeongenModalOpen"
-            :on-close="closeDungeongenModal"
-        />
-        <QuintaedizioneModal
-            :visible="extensionsState.reactive.quintaedizioneModalOpen"
-            :on-close="closeQuintaedizioneModal"
-        />
-        <OpenRouterModal
-            :visible="extensionsState.reactive.openrouterModalOpen"
-            :on-close="closeOpenRouterModal"
-        />
-        <ExtensionModal />
-        <DocumentsPdfViewer
-            :visible="!!extensionsState.reactive.documentsPdfViewer"
-            :on-close="closeDocumentsPdfViewer"
-        />
+        <!-- Extension modals (independent from menu, z-index for bring-to-front) -->
+        <div
+            v-if="extensionsState.reactive.dungeongenModalOpen"
+            class="extension-modal-layer"
+            :style="{ zIndex: extensionModalZIndex('dungeongen') }"
+        >
+            <DungeongenModal
+                :visible="extensionsState.reactive.dungeongenModalOpen"
+                :on-close="closeDungeongenModal"
+            />
+        </div>
+        <CompendiumHoverTooltip />
+        <div
+            v-if="extensionsState.reactive.compendiumModalOpen"
+            class="extension-modal-layer"
+            :style="{ zIndex: extensionModalZIndex('compendium') }"
+        >
+            <CompendiumModal
+                :visible="extensionsState.reactive.compendiumModalOpen"
+                :on-close="closeCompendiumModal"
+            />
+        </div>
+        <div
+            v-if="extensionsState.reactive.openrouterModalOpen"
+            class="extension-modal-layer"
+            :style="{ zIndex: extensionModalZIndex('openrouter') }"
+        >
+            <OpenRouterModal
+                :visible="extensionsState.reactive.openrouterModalOpen"
+                :on-close="closeOpenRouterModal"
+            />
+        </div>
+        <div
+            v-for="ext in extensionsState.reactive.extensionModalsOpen"
+            :key="ext.id"
+            class="extension-modal-layer"
+            :style="{ zIndex: extensionModalZIndex(ext.id) }"
+        >
+            <ExtensionModal :extension="ext" />
+        </div>
+        <div
+            v-if="extensionsState.reactive.documentsPdfViewer"
+            class="extension-modal-layer"
+            :style="{ zIndex: extensionModalZIndex('documents-pdf') }"
+        >
+            <DocumentsPdfViewer
+                :visible="!!extensionsState.reactive.documentsPdfViewer"
+                :on-close="closeDocumentsPdfViewer"
+            />
+        </div>
+        <!-- Extension modal layer: position fixed, pointer-events none so children receive clicks -->
+        <!-- end extension modals -->
         <!-- Modals that require immediate attention -->
         <CreateTokenDialog />
         <div id="teleport-modals"></div>
@@ -251,6 +330,21 @@ function setTempZoomDisplay(value: number): void {
 </template>
 
 <style scoped lang="scss">
+.extension-modal-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+}
+
+/* Modali estensione: la maschera non deve bloccare i click (come Gestisci estensioni).
+   Solo il container del modale cattura i click; il resto passa all'interfaccia sotto. */
+.extension-modal-layer :deep(.dialog-mask) {
+    pointer-events: none;
+}
+.extension-modal-layer :deep(.modal-container) {
+    pointer-events: auto;
+}
+
 #ui {
     pointer-events: none;
     position: absolute;

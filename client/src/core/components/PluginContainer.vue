@@ -37,6 +37,7 @@ export default defineComponent({
         :title="prompt.title.value"
         :question="prompt.question.value"
         :error="prompt.error.value"
+        :default-answer="prompt.defaultAnswer.value"
         @close="prompt.close"
         @submit="prompt.submit"
     />

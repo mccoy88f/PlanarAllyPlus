@@ -57,8 +57,8 @@ function sortData(data: RoomInfoWithId[]): void {
 onMounted(async () => {
     if (route.params.error === "join_game") {
         await modals.confirm(
-            "Failed to join session",
-            "It was not possible to join the game session. This might be because the DM has locked the session.",
+            t("dashboard.GameList.join_failed_title"),
+            t("dashboard.GameList.join_failed_msg"),
             { showNo: false, yes: t("ok") },
         );
     }
@@ -88,7 +88,7 @@ async function rename(): Promise<void> {
     if (state.focussed === undefined) return;
 
     const name = await modals.prompt(
-        "What should the new name be for this session?",
+        t("dashboard.GameList.rename_prompt"),
         t("common.rename").toString(),
         (val) => ({
             valid: !state.owned.some((s) => s.name === val),
@@ -121,16 +121,19 @@ async function leaveOrDelete(): Promise<void> {
     const isOwner = state.focussed.creator === coreStore.state.username;
     if (isOwner) {
         const name = await modals.prompt(
-            `Type the room name to confirm: ${state.focussed.name}`,
-            "Removing Campaign",
+            t("dashboard.GameList.remove_confirm_type_msg", { name: state.focussed.name }),
+            t("dashboard.GameList.remove_confirm_title"),
             (val) => ({
                 valid: val === state.focussed?.name,
-                reason: "Room name does not match!",
+                reason: t("dashboard.GameList.room_name_mismatch"),
             }),
         );
         if (name !== state.focussed.name) return;
     } else {
-        const answer = await modals.confirm(`Leaving ${state.focussed.name}!`, "Are you sure?");
+        const answer = await modals.confirm(
+            t("dashboard.GameList.leave_confirm_title", { name: state.focussed.name }),
+            t("dashboard.GameList.leave_confirm_msg"),
+        );
         if (answer !== true) return;
     }
     const response = await http.delete(`/api/rooms/${state.focussed.creator}/${state.focussed.name}`);
@@ -152,11 +155,11 @@ async function exportCampaign(): Promise<void> {
     <div id="content">
         <div id="dm">
             <div class="title">
-                <span>DUNGEON MASTER</span>
-                <span @click="router.push({ name: 'create-game' })">NEW GAME +</span>
+                <span>{{ t("dashboard.GameList.dm_title") }}</span>
+                <span @click="router.push({ name: 'create-game' })">{{ t("dashboard.GameList.new_game") }}</span>
             </div>
             <div class="filters">
-                <span>Sort:</span>
+                <span>{{ t("dashboard.GameList.sort") }}</span>
                 <font-awesome-icon
                     icon="clock-rotate-left"
                     :class="{ selected: sort === 'clock' }"
@@ -193,25 +196,25 @@ async function exportCampaign(): Promise<void> {
                     <div class="data">
                         <div class="name">{{ session.name }}</div>
                         <div class="played">
-                            <span>LAST PLAYED:</span>
-                            <span>{{ session.last_played ?? "unknown" }}</span>
+                            <span>{{ t("dashboard.GameList.last_played") }}</span>
+                            <span>{{ session.last_played ?? t("dashboard.GameList.unknown") }}</span>
                         </div>
                     </div>
                     <div class="edit" @click.stop="rename">
-                        <img :src="baseAdjust('/static/img/edit.svg')" alt="Rename" />
+                        <img :src="baseAdjust('/static/img/edit.svg')" :alt="t('common.rename')" />
                     </div>
                     <div class="actions">
                         <button @click.stop="open(session)">
                             <img :src="getStaticImg('play.svg')" alt="Play" />
-                            LAUNCH
+                            {{ t("dashboard.GameList.launch") }}
                         </button>
                         <button @click.stop="exportCampaign">
                             <font-awesome-icon icon="download" />
-                            EXPORT
+                            {{ t("dashboard.GameList.export") }}
                         </button>
                         <button @click.stop="leaveOrDelete">
-                            <img :src="getStaticImg('cross.svg')" alt="Remove" />
-                            DELETE
+                            <img :src="getStaticImg('cross.svg')" :alt="t('common.remove')" />
+                            {{ t("dashboard.GameList.delete") }}
                         </button>
                     </div>
                 </div>
@@ -219,11 +222,11 @@ async function exportCampaign(): Promise<void> {
         </div>
         <div id="player">
             <div class="title">
-                <span>PLAYER</span>
+                <span>{{ t("dashboard.GameList.player_title") }}</span>
                 <span></span>
             </div>
             <div class="filters">
-                <span>Sort:</span>
+                <span>{{ t("dashboard.GameList.sort") }}</span>
                 <font-awesome-icon
                     icon="clock-rotate-left"
                     :class="{ selected: sort === 'clock' }"
@@ -253,23 +256,23 @@ async function exportCampaign(): Promise<void> {
                     <div class="data">
                         <div class="name">{{ session.name }}</div>
                         <div class="played">
-                            <span>DM:</span>
+                            <span>{{ t("dashboard.GameList.dm_label") }}</span>
                             <span>{{ session.creator }}</span>
                         </div>
                         <div class="played">
-                            <span>LAST PLAYED:</span>
-                            <span>{{ session.last_played ?? "unknown" }}</span>
+                            <span>{{ t("dashboard.GameList.last_played") }}</span>
+                            <span>{{ session.last_played ?? t("dashboard.GameList.unknown") }}</span>
                         </div>
                     </div>
                     <div class="edit"></div>
                     <div class="actions">
                         <button @click.stop="open(session)">
                             <img :src="getStaticImg('play.svg')" alt="Play" />
-                            LAUNCH
+                            {{ t("dashboard.GameList.launch") }}
                         </button>
                         <button @click.stop="leaveOrDelete">
-                            <img :src="getStaticImg('cross.svg')" alt="Leave" />
-                            LEAVE
+                            <img :src="getStaticImg('cross.svg')" :alt="t('dashboard.GameList.leave')" />
+                            {{ t("dashboard.GameList.leave") }}
                         </button>
                     </div>
                 </div>

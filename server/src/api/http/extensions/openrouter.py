@@ -1,4 +1,4 @@
-"""OpenRouter extension - AI services via OpenRouter API."""
+"""AI Generator extension - OpenRouter and Google AI Studio."""
 
 import base64
 import json
@@ -13,9 +13,38 @@ from ....db.models.user_options import UserOptions
 from ....utils import STATIC_DIR
 
 OPENROUTER_API = "https://openrouter.ai/api/v1"
+GOOGLE_AI_API = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_FREE_MODEL = "openrouter/free"
+DEFAULT_GOOGLE_MODEL = "gemini-2.0-flash"
 # Models that support image-to-image (input image + output image)
 DEFAULT_IMAGE_MODEL = "sourceful/riverflow-v2-fast"
+DEFAULT_GOOGLE_IMAGE_MODEL = "gemini-2.5-flash-image"
+
+# Google image models (generateContent API, image input + output)
+GOOGLE_IMAGE_MODELS = [
+    {"id": "gemini-2.5-flash-image", "name": "Gemini 2.5 Flash Image (Nano Banana)"},
+    {"id": "gemini-3-pro-image-preview", "name": "Gemini 3 Pro Image (Nano Banana Pro)"},
+]
+GOOGLE_IMAGE_MODEL_IDS = {m["id"] for m in GOOGLE_IMAGE_MODELS}
+
+
+def _resolve_image_model(opts) -> str:
+    """Return the image model to use based on provider and saved settings."""
+    provider = (opts.ai_provider or "openrouter").strip().lower()
+    saved = (opts.openrouter_image_model or "").strip()
+    if provider == "google":
+        return saved if saved in GOOGLE_IMAGE_MODEL_IDS else DEFAULT_GOOGLE_IMAGE_MODEL
+    return saved or DEFAULT_IMAGE_MODEL
+
+
+# Well-known Gemini models (used when API key not set for Google)
+# gemini-1.5-flash deprecato; usare gemini-2.0-flash o gemini-1.5-flash-8b
+GOOGLE_DEFAULT_MODELS = [
+    {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "is_free": True},
+    {"id": "gemini-2.0-flash-lite-001", "name": "Gemini 2.0 Flash Lite", "is_free": True},
+    {"id": "gemini-1.5-flash-8b", "name": "Gemini 1.5 Flash 8B", "is_free": True},
+    {"id": "gemini-1.5-pro", "name": "Gemini 1.5 Pro", "is_free": False},
+]
 
 
 def _get_modalities(m: dict) -> tuple[list[str], list[str]]:
@@ -25,28 +54,70 @@ def _get_modalities(m: dict) -> tuple[list[str], list[str]]:
     return (inp if isinstance(inp, list) else [], out if isinstance(out, list) else [])
 
 
-async def get_models(request: web.Request) -> web.Response:
-    """Fetch available models from OpenRouter, including modality info."""
-    await get_authorized_user(request)
+async def _get_google_models(api_key: str) -> list[dict]:
+    """Fetch models from Google AI Studio API."""
+    url = f"{GOOGLE_AI_API}/models?key={api_key}"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    return []
+                data = await resp.json()
+    except Exception:
+        return []
+    result = []
+    for m in (data.get("models") or []):
+        mid = m.get("name", "").replace("models/", "")
+        if not mid or "generateContent" not in (m.get("supportedGenerationMethods") or []):
+            continue
+        result.append({
+            "id": mid,
+            "name": m.get("displayName", mid),
+            "context_length": None,
+            "is_free": "flash" in mid.lower() or "1.5-flash" in mid,
+            "input_modalities": ["text"],
+            "output_modalities": ["text"],
+        })
+    return result
 
+
+async def get_models(request: web.Request) -> web.Response:
+    """Fetch available models from OpenRouter or Google AI Studio."""
+    user = await get_authorized_user(request)
+    opts = UserOptions.get_by_id(user.default_options)
+    provider = (request.query.get("provider") or opts.ai_provider or "openrouter").strip().lower()
+
+    if provider == "google":
+        model_type = (request.query.get("type") or "").strip().lower()
+        if model_type == "image":
+            return web.json_response({"models": GOOGLE_IMAGE_MODELS})
+        api_key = (opts.google_ai_api_key or "").strip()
+        if api_key:
+            models = await _get_google_models(api_key)
+        else:
+            models = [{
+                "id": m["id"],
+                "name": m["name"],
+                "context_length": None,
+                "is_free": m["is_free"],
+                "input_modalities": ["text"],
+                "output_modalities": ["text"],
+            } for m in GOOGLE_DEFAULT_MODELS]
+        return web.json_response({"models": models})
+
+    # OpenRouter
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{OPENROUTER_API}/models") as resp:
                 if resp.status != 200:
-                    return web.json_response(
-                        {"error": "Failed to fetch models"},
-                        status=502,
-                    )
+                    return web.json_response({"error": "Failed to fetch models"}, status=502)
                 data = await resp.json()
     except Exception as e:
-        return web.json_response(
-            {"error": str(e)},
-            status=502,
-        )
+        return web.json_response({"error": str(e)}, status=502)
 
-    models = data.get("data", [])
+    raw = data.get("data", [])
     result = []
-    for m in models:
+    for m in raw:
         model_id = m.get("id", "")
         pricing = m.get("pricing", {}) or {}
         prompt_cost = float(pricing.get("prompt", 1) or 1)
@@ -61,12 +132,70 @@ async def get_models(request: web.Request) -> web.Response:
             "input_modalities": inp_mod,
             "output_modalities": out_mod,
         })
-
     return web.json_response({"models": result})
 
 
+def _messages_to_gemini(messages: list) -> tuple[str | None, list]:
+    """Convert OpenRouter-style messages to Gemini format. Returns (system_instruction, contents)."""
+    system = None
+    contents = []
+    for msg in messages:
+        role = (msg.get("role") or "").lower()
+        content = msg.get("content")
+        if isinstance(content, list):
+            text_parts = [p.get("text", "") for p in content if p.get("type") == "text"]
+            text = " ".join(text_parts).strip() if text_parts else ""
+        else:
+            text = str(content or "").strip()
+        if not text:
+            continue
+        if role == "system":
+            system = text if system is None else f"{system}\n\n{text}"
+        elif role == "user":
+            contents.append({"role": "user", "parts": [{"text": text}]})
+        elif role == "assistant":
+            contents.append({"role": "model", "parts": [{"text": text}]})
+    return (system, contents)
+
+
+async def _chat_google(api_key: str, model: str, messages: list, max_tokens: int, temperature: float) -> dict:
+    """Call Google Gemini generateContent API."""
+    system, contents = _messages_to_gemini(messages)
+    if not contents and not system:
+        return {"error": "No valid messages"}
+
+    payload = {
+        "contents": contents,
+        "generationConfig": {
+            "maxOutputTokens": max_tokens,
+            "temperature": temperature,
+        },
+    }
+    if system:
+        payload["systemInstruction"] = {"parts": [{"text": system}]}
+
+    url = f"{GOOGLE_AI_API}/models/{model}:generateContent?key={api_key}"
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as resp:
+            text = await resp.text()
+            if resp.status != 200:
+                try:
+                    err_data = json.loads(text)
+                    err_msg = (err_data.get("error") or {}).get("message", text)
+                except Exception:
+                    err_msg = text
+                return {"error": err_msg, "_status": resp.status}
+            data = json.loads(text)
+    cands = (data.get("candidates") or [])
+    if not cands:
+        return {"error": "No response from model", "_status": 502}
+    parts = (cands[0].get("content") or {}).get("parts") or []
+    out_text = " ".join((p.get("text", "") for p in parts)).strip()
+    return {"choices": [{"message": {"content": out_text, "role": "assistant"}}]}
+
+
 async def chat(request: web.Request) -> web.Response:
-    """Proxy chat completion to OpenRouter."""
+    """Proxy chat completion to OpenRouter or Google AI Studio."""
     user = await get_authorized_user(request)
 
     try:
@@ -78,15 +207,35 @@ async def chat(request: web.Request) -> web.Response:
     if not messages:
         return web.HTTPBadRequest(text="messages is required")
 
-    model = body.get("model", DEFAULT_FREE_MODEL)
-    max_tokens = body.get("max_tokens", 2048)
-    temperature = body.get("temperature", 0.7)
-
     opts = UserOptions.get_by_id(user.default_options)
+    provider = (opts.ai_provider or "openrouter").strip().lower()
+
+    if provider == "google":
+        api_key = (opts.google_ai_api_key or "").strip()
+        if not api_key:
+            return web.json_response(
+                {"error": "Google AI API key not configured. Set it in the AI Generator settings."},
+                status=400,
+            )
+        model = body.get("model", DEFAULT_GOOGLE_MODEL)
+        max_tokens = body.get("max_tokens") if "max_tokens" in body else (opts.openrouter_max_tokens or 8192)
+        temperature = float(body.get("temperature", 0.7))
+        result = await _chat_google(api_key, model, messages, max_tokens, temperature)
+        if "error" in result:
+            return web.json_response(
+                {"error": result["error"]},
+                status=result.get("_status", 502),
+            )
+        return web.json_response(result)
+
+    # OpenRouter
+    model = body.get("model", DEFAULT_FREE_MODEL)
+    max_tokens = body.get("max_tokens") if "max_tokens" in body else (opts.openrouter_max_tokens or 8192)
+    temperature = body.get("temperature", 0.7)
     api_key = (opts.openrouter_api_key or "").strip()
     if not api_key:
         return web.json_response(
-            {"error": "OpenRouter API key not configured. Set it in the OpenRouter extension settings."},
+            {"error": "OpenRouter API key not configured. Set it in the AI Generator settings."},
             status=400,
         )
 
@@ -96,7 +245,6 @@ async def chat(request: web.Request) -> web.Response:
         "max_tokens": max_tokens,
         "temperature": temperature,
     }
-
     referer = str(request.url.origin()) if request.url.absolute else "https://planarally.io"
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -118,25 +266,24 @@ async def chat(request: web.Request) -> web.Response:
                         err_msg = err_data.get("error", {}).get("message", text)
                     except Exception:
                         err_msg = text
-                    return web.json_response(
-                        {"error": err_msg},
-                        status=resp.status,
-                    )
+                    return web.json_response({"error": err_msg}, status=resp.status)
                 return web.json_response(json.loads(text))
     except Exception as e:
-        return web.json_response(
-            {"error": str(e)},
-            status=502,
-        )
+        return web.json_response({"error": str(e)}, status=502)
 
 
 async def get_settings(request: web.Request) -> web.Response:
-    """Get OpenRouter settings for the current user (API key masked, model, base prompt, tasks)."""
+    """Get AI Generator settings (provider, API keys masked, model, etc)."""
     user = await get_authorized_user(request)
     opts = UserOptions.get_by_id(user.default_options)
 
-    api_key = opts.openrouter_api_key or ""
-    has_key = bool(api_key.strip())
+    provider = (opts.ai_provider or "openrouter").strip().lower()
+    if provider not in ("openrouter", "google"):
+        provider = "openrouter"
+
+    has_openrouter = bool((opts.openrouter_api_key or "").strip())
+    has_google = bool((opts.google_ai_api_key or "").strip())
+    has_key = has_openrouter if provider == "openrouter" else has_google
 
     tasks = []
     if opts.openrouter_tasks:
@@ -145,17 +292,30 @@ async def get_settings(request: web.Request) -> web.Response:
         except (json.JSONDecodeError, TypeError):
             pass
 
+    default_model = DEFAULT_FREE_MODEL if provider == "openrouter" else DEFAULT_GOOGLE_MODEL
+    model = opts.openrouter_model or default_model
+    if provider == "google":
+        if model.startswith("openrouter/"):
+            model = default_model
+        elif model == "gemini-1.5-flash":
+            model = "gemini-2.0-flash"
+            opts.openrouter_model = model
+            opts.save()
+
     return web.json_response({
+        "provider": provider,
         "hasApiKey": has_key,
-        "model": opts.openrouter_model or DEFAULT_FREE_MODEL,
+        "model": model,
         "basePrompt": opts.openrouter_base_prompt or "",
         "tasks": tasks,
-        "imageModel": opts.openrouter_image_model or DEFAULT_IMAGE_MODEL,
+        "imageModel": _resolve_image_model(opts),
+        "defaultLanguage": opts.openrouter_default_language or "it",
+        "maxTokens": opts.openrouter_max_tokens if opts.openrouter_max_tokens is not None else 8192,
     })
 
 
 async def set_settings(request: web.Request) -> web.Response:
-    """Update OpenRouter settings for the current user."""
+    """Update AI Generator settings."""
     user = await get_authorized_user(request)
 
     try:
@@ -163,32 +323,107 @@ async def set_settings(request: web.Request) -> web.Response:
     except json.JSONDecodeError:
         return web.HTTPBadRequest(text="Invalid JSON")
 
-    api_key = body.get("apiKey", "")
-    model = body.get("model", "").strip()
-    base_prompt = body.get("basePrompt", "")
-    tasks = body.get("tasks")
-    image_model = body.get("imageModel", "").strip()
-
     opts = UserOptions.get_by_id(user.default_options)
 
+    if "provider" in body:
+        p = (body.get("provider") or "openrouter").strip().lower()
+        if p in ("openrouter", "google"):
+            opts.ai_provider = p
+
     if "apiKey" in body:
-        opts.openrouter_api_key = api_key.strip() or None
-    if model:
-        opts.openrouter_model = model
+        provider = (opts.ai_provider or "openrouter").strip().lower()
+        key = (body.get("apiKey") or "").strip()
+        if provider == "google":
+            opts.google_ai_api_key = key or None
+        else:
+            opts.openrouter_api_key = key or None
+
+    if "googleApiKey" in body:
+        opts.google_ai_api_key = (body.get("googleApiKey") or "").strip() or None
+
+    if "model" in body:
+        opts.openrouter_model = (body.get("model") or "").strip() or None
     if "basePrompt" in body:
-        opts.openrouter_base_prompt = base_prompt.strip() or None
-    if tasks is not None:
-        opts.openrouter_tasks = json.dumps(tasks) if tasks else None
+        opts.openrouter_base_prompt = (body.get("basePrompt") or "").strip() or None
+    if "tasks" in body:
+        opts.openrouter_tasks = json.dumps(body["tasks"]) if body.get("tasks") else None
     if "imageModel" in body:
-        opts.openrouter_image_model = image_model or None
+        opts.openrouter_image_model = (body.get("imageModel") or "").strip() or None
+    if "defaultLanguage" in body:
+        lang = (body.get("defaultLanguage") or "it").strip().lower()
+        opts.openrouter_default_language = lang if lang in ("it", "en") else "it"
+    if "maxTokens" in body:
+        val = body.get("maxTokens")
+        if val is not None:
+            try:
+                n = int(val)
+                if n > 0:
+                    opts.openrouter_max_tokens = n
+            except (TypeError, ValueError):
+                pass
 
     opts.save()
 
     return web.json_response({"ok": True})
 
 
+def _save_generated_image(b64_data: str) -> str:
+    """Decode base64 image and save to static temp. Returns URL path."""
+    try:
+        if "," in b64_data:
+            b64_data = b64_data.split(",", 1)[1]
+        image_bytes = base64.b64decode(b64_data)
+    except Exception as e:
+        raise ValueError(f"Failed to decode image: {e}") from e
+    temp_dir = STATIC_DIR / "temp" / "dungeons"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}.png"
+    filepath = temp_dir / filename
+    filepath.write_bytes(image_bytes)
+    return f"/static/temp/dungeons/{filename}"
+
+
+async def _transform_image_google(
+    api_key: str, base64_image: str, prompt: str, model: str | None = None
+) -> str:
+    """Transform image via Google Gemini image model."""
+    model = model if model in GOOGLE_IMAGE_MODEL_IDS else DEFAULT_GOOGLE_IMAGE_MODEL
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": prompt},
+                {"inline_data": {"mime_type": "image/png", "data": base64_image}},
+            ]
+        }],
+        "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
+    }
+    url = f"{GOOGLE_AI_API}/models/{model}:generateContent?key={api_key}"
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as resp:
+            text = await resp.text()
+            if resp.status != 200:
+                try:
+                    err_data = json.loads(text)
+                    err_msg = (err_data.get("error") or {}).get("message", text)
+                except Exception:
+                    err_msg = text
+                raise ValueError(err_msg)
+            data = json.loads(text)
+    cands = data.get("candidates") or []
+    if not cands:
+        raise ValueError("No response from image model.")
+    parts = (cands[0].get("content") or {}).get("parts") or []
+    for p in parts:
+        inline = p.get("inline_data") or p.get("inlineData")
+        if inline:
+            b64 = inline.get("data", "")
+            if b64:
+                return f"data:image/png;base64,{b64}"
+    raise ValueError("Model did not return an image.")
+
+
 async def transform_image(request: web.Request) -> web.Response:
-    """Transform dungeon image to realistic via OpenRouter image-to-image model."""
+    """Transform dungeon image to realistic via OpenRouter or Google (Gemini 2.5 Flash Image)."""
     user = await get_authorized_user(request)
 
     try:
@@ -202,16 +437,9 @@ async def transform_image(request: web.Request) -> web.Response:
         return web.HTTPBadRequest(text="imageUrl is required")
 
     opts = UserOptions.get_by_id(user.default_options)
-    api_key = (opts.openrouter_api_key or "").strip()
-    if not api_key:
-        return web.json_response(
-            {"error": "OpenRouter API key not configured. Set it in the OpenRouter extension settings."},
-            status=400,
-        )
+    provider = (opts.ai_provider or "openrouter").strip().lower()
 
-    image_model = opts.openrouter_image_model or DEFAULT_IMAGE_MODEL
-
-    # Resolve image path: /static/temp/dungeons/xxx.png -> STATIC_DIR/temp/dungeons/xxx.png
+    # Resolve image path
     if image_url.startswith("/static/"):
         rel_path = unquote(image_url[len("/static/"):].lstrip("/"))
         filepath = STATIC_DIR / rel_path
@@ -236,7 +464,6 @@ async def transform_image(request: web.Request) -> web.Response:
         )
 
     base64_image = base64.b64encode(image_bytes).decode("ascii")
-    data_url = f"data:image/png;base64,{base64_image}"
 
     archetype_descriptions = {
         "classic": "classic dungeon with stone walls, corridors, and medieval architecture",
@@ -248,7 +475,6 @@ async def transform_image(request: web.Request) -> web.Response:
         "lair": "creature lair or nest with organic, cave-like dwelling",
     }
     archetype_desc = archetype_descriptions.get(archetype, archetype_descriptions["classic"])
-
     prompt = (
         f"Transform this schematic dungeon map into a photorealistic, detailed isometric or top-down dungeon map. "
         f"The style should be: {archetype_desc}. "
@@ -256,95 +482,92 @@ async def transform_image(request: web.Request) -> web.Response:
         "Make it look like a real tabletop RPG battle map with proper lighting and atmospheric details."
     )
 
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": data_url}},
-            ],
+    result_data_url = None
+
+    if provider == "google":
+        api_key = (opts.google_ai_api_key or "").strip()
+        if not api_key:
+            return web.json_response(
+                {"error": "Google AI API key not configured. Set it in the AI Generator settings."},
+                status=400,
+            )
+        image_model = _resolve_image_model(opts)
+        try:
+            result_data_url = await _transform_image_google(
+                api_key, base64_image, prompt, model=image_model
+            )
+        except ValueError as e:
+            return web.json_response({"error": str(e)}, status=502)
+    else:
+        # OpenRouter
+        api_key = (opts.openrouter_api_key or "").strip()
+        if not api_key:
+            return web.json_response(
+                {"error": "OpenRouter API key not configured. Set it in the AI Generator settings."},
+                status=400,
+            )
+        image_model = opts.openrouter_image_model or DEFAULT_IMAGE_MODEL
+        data_url = f"data:image/png;base64,{base64_image}"
+        payload = {
+            "model": image_model,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                ],
+            }],
+            "modalities": ["image", "text"],
+            "max_tokens": 4096,
         }
-    ]
+        referer = str(request.url.origin()) if request.url.absolute else "https://planarally.io"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": referer,
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{OPENROUTER_API}/chat/completions",
+                    json=payload,
+                    headers=headers,
+                ) as resp:
+                    text = await resp.text()
+                    if resp.status != 200:
+                        try:
+                            err_data = json.loads(text)
+                            err_msg = err_data.get("error", {}).get("message", text)
+                        except Exception:
+                            err_msg = text
+                        return web.json_response({"error": err_msg}, status=resp.status)
+                    data = json.loads(text)
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=502)
 
-    payload = {
-        "model": image_model,
-        "messages": messages,
-        "modalities": ["image", "text"],
-        "max_tokens": 4096,
-    }
+        choices = data.get("choices") or []
+        if not choices:
+            return web.json_response({"error": "No response from image model."}, status=502)
+        message = choices[0].get("message") or {}
+        images = message.get("images") or []
+        if not images:
+            return web.json_response(
+                {"error": "Model did not return an image. Ensure the selected model supports image-to-image."},
+                status=502,
+            )
+        img_data = images[0]
+        img_url = img_data.get("image_url") or img_data.get("imageUrl") or {}
+        result_data_url = img_url.get("url")
 
-    referer = str(request.url.origin()) if request.url.absolute else "https://planarally.io"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": referer,
-    }
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{OPENROUTER_API}/chat/completions",
-                json=payload,
-                headers=headers,
-            ) as resp:
-                text = await resp.text()
-                if resp.status != 200:
-                    try:
-                        err_data = json.loads(text)
-                        err_msg = err_data.get("error", {}).get("message", text)
-                    except Exception:
-                        err_msg = text
-                    return web.json_response(
-                        {"error": err_msg},
-                        status=resp.status,
-                    )
-                data = json.loads(text)
-    except Exception as e:
-        return web.json_response(
-            {"error": str(e)},
-            status=502,
-        )
-
-    # Extract generated image from response
-    choices = data.get("choices") or []
-    if not choices:
-        return web.json_response(
-            {"error": "No response from image model."},
-            status=502,
-        )
-
-    message = choices[0].get("message") or {}
-    images = message.get("images") or []
-    if not images:
-        return web.json_response(
-            {"error": "Model did not return an image. Ensure the selected model supports image-to-image generation (e.g. Sourceful Riverflow)."},
-            status=502,
-        )
-
-    img_data = images[0]
-    img_url = img_data.get("image_url") or img_data.get("imageUrl") or {}
-    result_data_url = img_url.get("url")
     if not result_data_url or not result_data_url.startswith("data:image"):
         return web.json_response(
             {"error": "Invalid image response format."},
             status=502,
         )
 
-    # Decode base64 and save to static temp so addDungeonToMap can use it
     try:
-        header, b64 = result_data_url.split(",", 1)
-        image_bytes = base64.b64decode(b64)
-    except Exception as e:
-        return web.json_response(
-            {"error": f"Failed to decode image: {e}"},
-            status=502,
-        )
+        url = _save_generated_image(result_data_url)
+    except ValueError as e:
+        return web.json_response({"error": str(e)}, status=502)
 
-    temp_dir = STATIC_DIR / "temp" / "dungeons"
-    temp_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"{uuid.uuid4().hex}.png"
-    filepath = temp_dir / filename
-    filepath.write_bytes(image_bytes)
-
-    url = f"/static/temp/dungeons/{filename}"
     return web.json_response({"imageUrl": url})

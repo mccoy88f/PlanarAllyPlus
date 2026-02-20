@@ -13,6 +13,7 @@ dependencies = [
     "cryptography==46.0.5",
     "peewee==3.19.0",
     "pillow==12.1.1",
+    "pymupdf==1.25.4",
     "pydantic[email]==2.12.5",
     "python-engineio==4.13.1",
     "python-socketio==5.16.1",

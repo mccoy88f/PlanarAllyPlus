@@ -48,11 +48,10 @@ const openPortal = async (): Promise<void> => {
 
     await nextTick();
 
-    const height = portal.value?.children[0]?.clientHeight ?? 0;
-    const width = portal.value?.children[0]?.clientWidth ?? 0;
-
-    // We add 2 times 0.4 * 16px as we use 0.4rem as a small offset (see Modal.vue)
-    windowRef = window.open("", "", `popup=true,height=${height + 0.8 * 16}px,width=${width + 0.8 * 16}px`);
+    // Open popup at full available screen size (default for all modals)
+    const w = Math.max(800, screen.availWidth);
+    const h = Math.max(600, screen.availHeight);
+    windowRef = window.open("", "", `popup=true,width=${w},height=${h},left=0,top=0`);
     if (!windowRef || portal.value === null) return;
 
     originalParent = portal.value.parentElement;
@@ -63,12 +62,26 @@ const openPortal = async (): Promise<void> => {
     // Ensure CSS is up to date
     copyStyles(window.document, windowRef.document);
 
+    // Apply fullscreen-style so the modal fills the popup window
+    const container = portal.value?.children[0];
+    if (container instanceof HTMLElement) {
+        container.classList.add("modal-fullscreen");
+    }
+
     // Close the portal when the parent window closes and when the portal itself is closed
     window.addEventListener("beforeunload", closePortal);
     windowRef.addEventListener("beforeunload", closePortal);
 };
 
+function removeFullscreenClass(): void {
+    const container = portal.value?.children[0];
+    if (container instanceof HTMLElement) {
+        container.classList.remove("modal-fullscreen");
+    }
+}
+
 const closePortal = (): void => {
+    removeFullscreenClass();
     if (props.modalIndex) {
         modalState.mutableReactive.poppedModals.delete(props.modalIndex);
     }
@@ -83,6 +96,7 @@ watch(props, async () => {
     if (props.visible) {
         await openPortal();
     } else {
+        removeFullscreenClass();
         if (originalParent) {
             originalParent.append(portal.value!);
         }

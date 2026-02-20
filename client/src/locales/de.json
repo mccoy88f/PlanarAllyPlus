@@ -146,6 +146,34 @@
                     "client_settings": "Client Einstellungen"
                 }
             },
+            "extensions": {
+                "DocumentsModal": {
+                    "title": "Dokumente",
+                    "loading": "Laden...",
+                    "no_documents": "Noch keine Dokumente. Lade ein PDF hoch, um zu beginnen.",
+                    "upload_success": "Dokument erfolgreich hochgeladen",
+                    "upload_multi_success": "{count} Dokumente hochgeladen",
+                    "upload_partial": "{ok} hochgeladen, {err} fehlgeschlagen",
+                    "upload_error": "Dokument konnte nicht hochgeladen werden",
+                    "uploading": "Hochladen...",
+                    "delete_success": "Dokument gelöscht",
+                    "delete_error": "Dokument konnte nicht gelöscht werden"
+                },
+                "DocumentsPdfViewer": {
+                    "search": "Im Dokument suchen",
+                    "search_placeholder": "Text suchen...",
+                    "search_not_found": "Keine Treffer gefunden",
+                    "search_hint": "Strg+F (oder Cmd+F auf Mac) zum Suchen im PDF verwenden",
+                    "copy_link": "Link in Zwischenablage kopieren",
+                    "copy_success": "Link in Zwischenablage kopiert",
+                    "share_chat": "In Chat teilen",
+                    "share_success": "Im Chat geteilt",
+                    "load_error": "Dokument nicht gefunden",
+                    "document_fallback": "Dokument",
+                    "pdf_viewer_title": "PDF-Viewer",
+                    "thumbnails": "Seitenvorschau"
+                }
+            },
             "NoteDialog": {
                 "warning_msg": "Bist Du sicher, dass du das löschen willst?",
                 "edit_title": "Titel bearbeiten",

@@ -1,0 +1,247 @@
+<!DOCTYPE html><html lang="it"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width"><meta name="color-scheme" content="dark light"><link rel="icon" type="image/png" href="/guida-docs/favicon.png"><title>Documentazione PlanarAlly</title><script defer data-domain="planarally.io" src="https://plausible.io/js/script.js"></script><script type="module" src="/guida-docs/_astro/main.astro_astro_type_script_index_0_lang.DwUysPJS.js"></script><style>*{box-sizing:border-box;margin:0}html{height:100vh}:root{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif,Apple Color Emoji,Segoe UI Emoji;font-size:1rem;--user-font-scale: 1rem - 16px;font-size:clamp(.875rem,.4626rem + 1.0309vw + var(--user-font-scale),1.125rem)}body{color:var(---fg-color);background-color:var(---bg-color);---fg-color: #222;---bg-color: #fff;---bg-header: hsla(0, 0%, 100%, .95)}body.dark-theme{---fg-color: #eee;---bg-color: rgb(9, 26, 40);---bg-header: hsla(207, 63.3%, 9.6%, .95)}@media (prefers-color-scheme: dark){body{---fg-color: #eee;---bg-color: rgb(9, 26, 40);---bg-header: hsla(207, 63.3%, 9.6%, .95)}body.light-theme{---fg-color: #222;---bg-color: #fff;---bg-header: hsla(0, 0%, 100%, .95)}}a{color:var(---fg-color);text-decoration:none}a:hover{cursor:pointer}kbd{background-color:#eee;border-radius:3px;border:1px solid #b4b4b4;box-shadow:0 1px 1px #0003,0 2px #ffffffb3 inset;color:#333;display:inline-block;font-size:.85em;font-weight:700;line-height:1;padding:2px 4px;white-space:nowrap}.current-link[data-astro-cid-5ov73oor]{color:#00835c;font-weight:700;position:relative}.current-link[data-astro-cid-5ov73oor]:after{content:"";position:absolute;top:35px;height:1px;left:50%;transform:translate(-50%);background-color:#00835c;width:100%}header[data-astro-cid-eyihteuk]{position:sticky;top:0;z-index:20;height:90px;padding-left:18.75rem;padding-right:150px;border-bottom:solid 1px rgb(226,236,236);background-color:var(---bg-header);display:flex;justify-content:space-between;align-items:center}@media (max-width: 960px){header[data-astro-cid-eyihteuk]{padding-left:150px}}@media (max-width: 500px){header[data-astro-cid-eyihteuk]{padding:0}}header[data-astro-cid-eyihteuk]>nav[data-astro-cid-eyihteuk]{display:flex;align-items:center}header[data-astro-cid-eyihteuk]>nav[data-astro-cid-eyihteuk]>*{margin:8px}header[data-astro-cid-eyihteuk]>div[data-astro-cid-eyihteuk]{width:100px;display:flex;justify-content:space-around;align-items:center}@media (max-width: 1024px){header[data-astro-cid-eyihteuk]>div[data-astro-cid-eyihteuk]{width:unset;justify-content:flex-end;padding-top:1rem;padding-right:1rem}header[data-astro-cid-eyihteuk]>div[data-astro-cid-eyihteuk]>[data-astro-cid-eyihteuk]{margin-left:5px}}header[data-astro-cid-eyihteuk] #logo[data-astro-cid-eyihteuk]{height:50px;margin-top:10px;margin-bottom:10px;padding:5px;max-width:50px;background:#f1e7d0e1;border-radius:25%}@media (max-width: 500px){header[data-astro-cid-eyihteuk] #logo-text[data-astro-cid-eyihteuk]{display:none}}
+.admonition[data-astro-cid-kvna52qi]{margin-bottom:1em;padding:15px 30px 15px 15px}.admonition[data-astro-cid-kvna52qi] p{margin-bottom:0}.admonition[data-astro-cid-kvna52qi]>.header[data-astro-cid-kvna52qi]{display:flex}.admonition[data-astro-cid-kvna52qi]>.header[data-astro-cid-kvna52qi]>.title[data-astro-cid-kvna52qi]{margin-left:5px;margin-top:0;margin-bottom:8px;text-transform:uppercase}.admonition[data-astro-cid-kvna52qi]>.header[data-astro-cid-kvna52qi] svg{display:inline-block;width:20px;height:20px;stroke-width:0}
+.admonition.info{background-color:#3498db1a;border-left:8px solid #3498db}.admonition.info>.header>.title{color:#3498db}.admonition.info>.header svg{stroke:#3498db;fill:#3498db}
+</style>
+<link rel="stylesheet" href="/guida-docs/_astro/assets.BnlQNqk7.css">
+<style>.admonition.warning{background-color:#e74c3c1a;border-left:8px solid #e74c3c}.admonition.warning>.header>.title{color:#e74c3c}.admonition.warning>.header svg{stroke:#e74c3c;fill:#e74c3c}
+#hamburger{position:fixed;z-index:20;padding:1.5rem;margin:.5rem;display:flex;align-items:center;background-color:var(---bg-color)}@media (min-width: 960px){#hamburger{display:none}}#hamburger *{pointer-events:none}#hamburger #text{margin-left:.75rem}
+</style></head> <body> <script>
+            const currentTheme = localStorage.getItem("theme");
+            if (currentTheme === "dark") {
+                document.body.classList.toggle("dark-theme");
+            } else if (currentTheme === "light") {
+                document.body.classList.toggle("light-theme");
+            }
+        </script> <header data-astro-cid-eyihteuk> <nav data-astro-cid-eyihteuk> <a href="/guida-docs/" data-astro-cid-eyihteuk><img id="logo" src="/guida-docs/logos/pa-logo-small.svg" style="max-width: 50px" data-no-zoom data-astro-cid-eyihteuk></a> <a id="logo-text" href="/guida-docs/" data-astro-cid-eyihteuk>PlanarAlly</a> <a href="/guida-docs/docs/" class data-astro-cid-5ov73oor> Docs </a>  <a href="/guida-docs/learn/" class data-astro-cid-5ov73oor> Impara </a>  <a href="/guida-docs/server/" class data-astro-cid-5ov73oor> Server </a>  <div style="flex-grow: 1" data-astro-cid-eyihteuk></div> </nav> <div data-astro-cid-eyihteuk> <!-- search --> <style>astro-island,astro-slot,astro-static-slot{display:contents}</style><script>(()=>{var e=async t=>{await(await t())()};(self.Astro||(self.Astro={})).only=e;window.dispatchEvent(new Event("astro:only"));})();</script><script>(()=>{var A=Object.defineProperty;var g=(i,o,a)=>o in i?A(i,o,{enumerable:!0,configurable:!0,writable:!0,value:a}):i[o]=a;var d=(i,o,a)=>g(i,typeof o!="symbol"?o+"":o,a);{let i={0:t=>m(t),1:t=>a(t),2:t=>new RegExp(t),3:t=>new Date(t),4:t=>new Map(a(t)),5:t=>new Set(a(t)),6:t=>BigInt(t),7:t=>new URL(t),8:t=>new Uint8Array(t),9:t=>new Uint16Array(t),10:t=>new Uint32Array(t),11:t=>1/0*t},o=t=>{let[l,e]=t;return l in i?i[l](e):void 0},a=t=>t.map(o),m=t=>typeof t!="object"||t===null?t:Object.fromEntries(Object.entries(t).map(([l,e])=>[l,o(e)]));class y extends HTMLElement{constructor(){super(...arguments);d(this,"Component");d(this,"hydrator");d(this,"hydrate",async()=>{var b;if(!this.hydrator||!this.isConnected)return;let e=(b=this.parentElement)==null?void 0:b.closest("astro-island[ssr]");if(e){e.addEventListener("astro:hydrate",this.hydrate,{once:!0});return}let c=this.querySelectorAll("astro-slot"),n={},h=this.querySelectorAll("template[data-astro-template]");for(let r of h){let s=r.closest(this.tagName);s!=null&&s.isSameNode(this)&&(n[r.getAttribute("data-astro-template")||"default"]=r.innerHTML,r.remove())}for(let r of c){let s=r.closest(this.tagName);s!=null&&s.isSameNode(this)&&(n[r.getAttribute("name")||"default"]=r.innerHTML)}let p;try{p=this.hasAttribute("props")?m(JSON.parse(this.getAttribute("props"))):{}}catch(r){let s=this.getAttribute("component-url")||"<unknown>",v=this.getAttribute("component-export");throw v&&(s+=` (export ${v})`),console.error(`[hydrate] Error parsing props for component ${s}`,this.getAttribute("props"),r),r}let u;await this.hydrator(this)(this.Component,p,n,{client:this.getAttribute("client")}),this.removeAttribute("ssr"),this.dispatchEvent(new CustomEvent("astro:hydrate"))});d(this,"unmount",()=>{this.isConnected||this.dispatchEvent(new CustomEvent("astro:unmount"))})}disconnectedCallback(){document.removeEventListener("astro:after-swap",this.unmount),document.addEventListener("astro:after-swap",this.unmount,{once:!0})}connectedCallback(){if(!this.hasAttribute("await-children")||document.readyState==="interactive"||document.readyState==="complete")this.childrenConnectedCallback();else{let e=()=>{document.removeEventListener("DOMContentLoaded",e),c.disconnect(),this.childrenConnectedCallback()},c=new MutationObserver(()=>{var n;((n=this.lastChild)==null?void 0:n.nodeType)===Node.COMMENT_NODE&&this.lastChild.nodeValue==="astro:end"&&(this.lastChild.remove(),e())});c.observe(this,{childList:!0}),document.addEventListener("DOMContentLoaded",e)}}async childrenConnectedCallback(){let e=this.getAttribute("before-hydration-url");e&&await import(e),this.start()}async start(){let e=JSON.parse(this.getAttribute("opts")),c=this.getAttribute("client");if(Astro[c]===void 0){window.addEventListener(`astro:${c}`,()=>this.start(),{once:!0});return}try{await Astro[c](async()=>{let n=this.getAttribute("renderer-url"),[h,{default:p}]=await Promise.all([import(this.getAttribute("component-url")),n?import(n):()=>()=>{}]),u=this.getAttribute("component-export")||"default";if(!u.includes("."))this.Component=h[u];else{this.Component=h;for(let f of u.split("."))this.Component=this.Component[f]}return this.hydrator=p,this.hydrate},e,this)}catch(n){console.error(`[astro-island] Error hydrating ${this.getAttribute("component-url")}`,n)}}attributeChangedCallback(){this.hydrate()}}d(y,"observedAttributes",["props"]),customElements.get("astro-island")||customElements.define("astro-island",y)}})();</script><astro-island uid="YNn5b" component-url="/guida-docs/_astro/ThemeSwitcher.wjNpNXWS.js" component-export="default" renderer-url="/guida-docs/_astro/client.28a_ayjm.js" props="{&quot;data-astro-cid-eyihteuk&quot;:[0,true]}" ssr client="only" opts="{&quot;name&quot;:&quot;ThemeSwitcher&quot;,&quot;value&quot;:&quot;vue&quot;}"></astro-island> <a aria-label="discord" href="//discord.gg/mubGnTe" rel="noopener noreferrer" target="_blank" title="Unisciti a noi su Discord" data-astro-cid-eyihteuk> <svg viewBox="0 0 640 512" width="1.5em" height="1.2em" data-astro-cid-eyihteuk="true"><path fill="currentColor" d="M524.531 69.836a1.5 1.5 0 0 0-.764-.7A485 485 0 0 0 404.081 32.03a1.82 1.82 0 0 0-1.923.91a338 338 0 0 0-14.9 30.6a447.9 447.9 0 0 0-134.426 0a310 310 0 0 0-15.135-30.6a1.89 1.89 0 0 0-1.924-.91a483.7 483.7 0 0 0-119.688 37.107a1.7 1.7 0 0 0-.788.676C39.068 183.651 18.186 294.69 28.43 404.354a2.02 2.02 0 0 0 .765 1.375a487.7 487.7 0 0 0 146.825 74.189a1.9 1.9 0 0 0 2.063-.676A348 348 0 0 0 208.12 430.4a1.86 1.86 0 0 0-1.019-2.588a321 321 0 0 1-45.868-21.853a1.885 1.885 0 0 1-.185-3.126a251 251 0 0 0 9.109-7.137a1.82 1.82 0 0 1 1.9-.256c96.229 43.917 200.41 43.917 295.5 0a1.81 1.81 0 0 1 1.924.233a235 235 0 0 0 9.132 7.16a1.884 1.884 0 0 1-.162 3.126a301.4 301.4 0 0 1-45.89 21.83a1.875 1.875 0 0 0-1 2.611a391 391 0 0 0 30.014 48.815a1.86 1.86 0 0 0 2.063.7A486 486 0 0 0 610.7 405.729a1.88 1.88 0 0 0 .765-1.352c12.264-126.783-20.532-236.912-86.934-334.541M222.491 337.58c-28.972 0-52.844-26.587-52.844-59.239s23.409-59.241 52.844-59.241c29.665 0 53.306 26.82 52.843 59.239c0 32.654-23.41 59.241-52.843 59.241m195.38 0c-28.971 0-52.843-26.587-52.843-59.239s23.409-59.241 52.843-59.241c29.667 0 53.307 26.82 52.844 59.239c0 32.654-23.177 59.241-52.844 59.241"></path></svg> </a> <a aria-label="github" href="//github.com/Kruptein/planarally" rel="noopener noreferrer" target="_blank" title="PlanarAlly @ GitHub" data-astro-cid-eyihteuk> <svg viewBox="0 0 496 512" width="1.17em" height="1.2em" data-astro-cid-eyihteuk="true"><path fill="currentColor" d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6c-3.3.3-5.6-1.3-5.6-3.6c0-2 2.3-3.6 5.2-3.6c3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9c2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9c.3 2 2.9 3.3 5.9 2.6c2.9-.7 4.9-2.6 4.6-4.6c-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2c12.8 2.3 17.3-5.6 17.3-12.1c0-6.2-.3-40.4-.3-61.4c0 0-70 15-84.7-29.8c0 0-11.4-29.1-27.8-36.6c0 0-22.9-15.7 1.6-15.4c0 0 24.9 2 38.6 25.8c21.9 38.6 58.6 27.5 72.9 20.9c2.3-16 8.8-27.1 16-33.7c-55.9-6.2-112.3-14.3-112.3-110.5c0-27.5 7.6-41.3 23.6-58.9c-2.6-6.5-11.1-33.3 2.6-67.9c20.9-6.5 69 27 69 27c20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27c13.7 34.7 5.2 61.4 2.6 67.9c16 17.7 25.8 31.5 25.8 58.9c0 96.5-58.9 104.2-114.8 110.5c9.2 7.9 17 22.9 17 46.4c0 33.7-.3 75.4-.3 83.6c0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252C496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2c1.6 1.6 3.9 2.3 5.2 1c1.3-1 1-3.3-.7-5.2c-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9c1.6 1 3.6.7 4.3-.7c.7-1.3-.3-2.9-2.3-3.9c-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2c2.3 2.3 5.2 2.6 6.5 1c1.3-1.3.7-4.3-1.3-6.2c-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2c-1.4-2.3-4-3.3-5.6-2"></path></svg> </a> </div> </header>   <astro-island uid="Z1Bwgxl" component-url="/guida-docs/_astro/HamburgerMenu.DG1aK2d8.js" component-export="default" renderer-url="/guida-docs/_astro/client.28a_ayjm.js" props="{&quot;element&quot;:[0,&quot;docs-nav&quot;],&quot;toggleClass&quot;:[0,&quot;open&quot;],&quot;data-astro-cid-ujtbphqs&quot;:[0,true]}" ssr client="only" opts="{&quot;name&quot;:&quot;HamburgerMenu&quot;,&quot;value&quot;:&quot;vue&quot;}"></astro-island> <nav id="docs-nav" data-astro-cid-ujtbphqs> <span class="depth-1" data-astro-cid-ujtbphqs>Installazione</span><a href="/guida-docs/server/setup/" class="depth-2" data-astro-cid-ujtbphqs> Avvio </a><a href="/guida-docs/server/setup/self-hosting/" class="depth-2" data-astro-cid-ujtbphqs> Self-hosted </a><a href="/guida-docs/server/setup/managed/" class="depth-2" data-astro-cid-ujtbphqs> Gestito </a><span class="depth-1" data-astro-cid-ujtbphqs>Gestione</span><a href="/guida-docs/server/management/configuration/" class="depth-2" data-astro-cid-ujtbphqs> Configurazione </a><a href="/guida-docs/server/management/users/" class="depth-2" data-astro-cid-ujtbphqs> Gestione utenti </a><span class="depth-1" data-astro-cid-ujtbphqs>Avanzato</span><a href="/guida-docs/server/advanced/proxy/" class="depth-2" data-astro-cid-ujtbphqs> Proxy inverso </a><a href="/guida-docs/server/advanced/subpath/" class="depth-2" data-astro-cid-ujtbphqs> Subpath </a> </nav> <div id="container" data-astro-cid-ujtbphqs> <main style data-astro-cid-ujtbphqs> <h1 id="configurazione-del-server"><a aria-hidden="true" tabindex="-1" href="#configurazione-del-server">#</a>Configurazione del server</h1>
+<div class="admonition warning" data-astro-cid-kvna52qi> <div class="header" data-astro-cid-kvna52qi> <div> <svg xmlns="http://www.w3.org/2000/svg" width="12" height="16" viewBox="0 0 12 16"><path fill-rule="evenodd" d="M5.05.31c.81 2.17.41 3.38-.52 4.31C3.55 5.67 1.98 6.45.9 7.98c-1.45 2.05-1.7 6.53 3.53 7.7-2.2-1.16-2.67-4.52-.3-6.61-.61 2.03.53 3.33 1.94 2.86 1.39-.47 2.3.53 2.27 1.67-.02.78-.31 1.44-1.13 1.81 3.42-.59 4.78-3.42 4.78-5.56 0-2.84-2.53-3.22-1.25-5.61-1.52.13-2.03 1.13-1.89 2.75.09 1.08-1.02 1.8-1.86 1.33-.67-.41-.66-1.19-.06-1.78C8.18 5.31 8.68 2.45 5.05.32L5.03.3l.02.01z"></path></svg> </div> <div class="title" data-astro-cid-kvna52qi>Modifiche recenti</div> </div>   <p>La configurazione del server è stata completamente modificata nella release 2025.2. La config descritta in questo documento
+si riferisce al nuovo formato.</p>  </div>  
+<p>Di default <strong>NON</strong> è presente alcun file di configurazione. PA usa invece valori predefiniti per tutte le impostazioni. I valori predefiniti della config si vedono <a href="#default-config">qui</a></p>
+<p>Per cambiare il comportamento, crea un file <code>config.toml</code> nella cartella <code>data</code> del server.</p>
+<p>Quando fornisci un file di config parziale, i campi/sezioni mancanti verranno sostituiti con i valori predefiniti dove rilevante.</p>
+<h1 id="formato"><a aria-hidden="true" tabindex="-1" href="#formato">#</a>Formato</h1>
+<p>Come indica l’estensione, la config usa il formato <a href="https://toml.io/en/">TOML</a>.</p>
+<p>La config è suddivisa in sezioni più piccole con intestazione <code>[section]</code>, e le sottosezioni sono indicate da <code>[section.some.subsection]</code>.
+Ogni (sotto)sezione è seguita da righe separate per configurare valori specifici.</p>
+<p>Informazioni dettagliate sul funzionamento del formato TOML esulano da questo documento, ma consultando la config predefinita dovresti capire bene come funziona.</p>
+<h1 id="config-predefinita"><a aria-hidden="true" tabindex="-1" href="#config-predefinita">#</a>Config predefinita</h1>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8;overflow-x:auto" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#E1E4E8">[</span><span style="color:#B392F0">general</span><span style="color:#E1E4E8">]</span></span>
+<span class="line"><span style="color:#E1E4E8">save_file = </span><span style="color:#9ECBFF">&quot;data/planar.sqlite&quot;</span></span>
+<span class="line"><span style="color:#E1E4E8">allow_signups = </span><span style="color:#79B8FF">true</span></span>
+<span class="line"><span style="color:#E1E4E8">enable_export = </span><span style="color:#79B8FF">true</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E1E4E8">[</span><span style="color:#B392F0">assets</span><span style="color:#E1E4E8">]</span></span>
+<span class="line"><span style="color:#E1E4E8">max_single_asset_size_in_bytes = </span><span style="color:#79B8FF">0</span></span>
+<span class="line"><span style="color:#E1E4E8">max_total_asset_size_in_bytes = </span><span style="color:#79B8FF">0</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E1E4E8">[</span><span style="color:#B392F0">webserver</span><span style="color:#E1E4E8">]</span></span>
+<span class="line"><span style="color:#E1E4E8">max_upload_size_in_bytes = </span><span style="color:#79B8FF">10485760</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E1E4E8">[</span><span style="color:#B392F0">webserver</span><span style="color:#E1E4E8">.</span><span style="color:#B392F0">connection</span><span style="color:#E1E4E8">]</span></span>
+<span class="line"><span style="color:#E1E4E8">type = </span><span style="color:#9ECBFF">&quot;hostport&quot;</span></span>
+<span class="line"><span style="color:#E1E4E8">host = </span><span style="color:#9ECBFF">&quot;0.0.0.0&quot;</span></span>
+<span class="line"><span style="color:#E1E4E8">port = </span><span style="color:#79B8FF">8000</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E1E4E8">[[</span><span style="color:#B392F0">logging</span><span style="color:#E1E4E8">]]</span></span>
+<span class="line"><span style="color:#E1E4E8">mode = </span><span style="color:#9ECBFF">&quot;stdout&quot;</span></span>
+<span class="line"><span style="color:#E1E4E8">level = </span><span style="color:#9ECBFF">&quot;INFO&quot;</span></span></code></pre>
+<div class="admonition info" data-astro-cid-kvna52qi> <div class="header" data-astro-cid-kvna52qi> <div> <svg xmlns="http://www.w3.org/2000/svg" width="14" height="16" viewBox="0 0 14 16"><path fill-rule="evenodd" d="M6.3 5.69a.942.942 0 0 1-.28-.7c0-.28.09-.52.28-.7.19-.18.42-.28.7-.28.28 0 .52.09.7.28.18.19.28.42.28.7 0 .28-.09.52-.28.7a1 1 0 0 1-.7.3c-.28 0-.52-.11-.7-.3zM8 7.99c-.02-.25-.11-.48-.31-.69-.2-.19-.42-.3-.69-.31H6c-.27.02-.48.13-.69.31-.2.2-.3.44-.31.69h1v3c.02.27.11.5.31.69.2.2.42.31.69.31h1c.27 0 .48-.11.69-.31.2-.19.3-.42.31-.69H8V7.98v.01zM7 2.3c-3.14 0-5.7 2.54-5.7 5.68 0 3.14 2.56 5.7 5.7 5.7s5.7-2.55 5.7-5.7c0-3.15-2.56-5.69-5.7-5.69v.01zM7 .98c3.86 0 7 3.14 7 7s-3.14 7-7 7-7-3.12-7-7 3.14-7 7-7z"></path></svg> </div> <div class="title" data-astro-cid-kvna52qi>Percorsi dei file</div> </div>   <p>Quando specifichi percorsi di file o cartelle puoi usare percorsi assoluti (es. <code>/home/user/example.txt</code>) o relativi
+(es. <code>data/planar.sqlite</code>). Con un percorso relativo, sarà relativo alla cartella principale del server e
+NON alla cartella dove si trova la config.</p>  </div>  
+<h1 id="impostazioni-importanti"><a aria-hidden="true" tabindex="-1" href="#impostazioni-importanti">#</a>Impostazioni importanti</h1>
+<p>Alcune impostazioni che probabilmente vorrai controllare:</p>
+<ul>
+<li><a href="#field-save_file">Config file di salvataggio</a></li>
+<li><a href="#field-admin_user">Utente admin</a></li>
+<li><a href="#subsection-connection">L’intera sottosezione webserver.connection</a></li>
+<li><a href="#field-cors_allowed_origins">CORS</a></li>
+</ul>
+<p>L’<a href="#field-client_url">URL del client</a> è un’altra che di solito conviene configurare, ma non è critica.</p>
+<h1 id="sezioni"><a aria-hidden="true" tabindex="-1" href="#sezioni">#</a>Sezioni</h1>
+<p>Di seguito sono elencate tutte le opzioni possibili con i relativi valori predefiniti.
+Se queste informazioni diventassero obsolete e causassero errori, la fonte ufficiale è <a href="https://github.com/Kruptein/PlanarAlly/blob/dev/server/src/config/types.py">disponibile su GitHub</a> in forma di codice.</p>
+<h2 id="general"><a aria-hidden="true" tabindex="-1" href="#general">#</a>General</h2>
+<p>Nome sezione: <code>general</code></p>
+<h3 id="campo-save_file"><a aria-hidden="true" tabindex="-1" href="#campo-save_file">#</a>Campo: <code>save_file</code></h3>
+<p>Predefinito: <code>&quot;data/planar.sqlite&quot;</code><br/>
+Tipo: <code>string</code></p>
+<p>Percorso del file di salvataggio. È un’impostazione cruciale: modificarla avrà un grosso impatto. Il file di salvataggio dovrebbe essere sottoposto a backup adeguato<sup><a href="#user-content-fn-1" id="user-content-fnref-1" data-footnote-ref aria-describedby="footnote-label">1</a></sup>.</p>
+<p>Se il server si avvia e il percorso scelto non esiste, il server creerà un nuovo file di salvataggio.</p>
+<div class="admonition info" data-astro-cid-kvna52qi> <div class="header" data-astro-cid-kvna52qi> <div> <svg xmlns="http://www.w3.org/2000/svg" width="14" height="16" viewBox="0 0 14 16"><path fill-rule="evenodd" d="M6.3 5.69a.942.942 0 0 1-.28-.7c0-.28.09-.52.28-.7.19-.18.42-.28.7-.28.28 0 .52.09.7.28.18.19.28.42.28.7 0 .28-.09.52-.28.7a1 1 0 0 1-.7.3c-.28 0-.52-.11-.7-.3zM8 7.99c-.02-.25-.11-.48-.31-.69-.2-.19-.42-.3-.69-.31H6c-.27.02-.48.13-.69.31-.2.2-.3.44-.31.69h1v3c.02.27.11.5.31.69.2.2.42.31.69.31h1c.27 0 .48-.11.69-.31.2-.19.3-.42.31-.69H8V7.98v.01zM7 2.3c-3.14 0-5.7 2.54-5.7 5.68 0 3.14 2.56 5.7 5.7 5.7s5.7-2.55 5.7-5.7c0-3.15-2.56-5.69-5.7-5.69v.01zM7 .98c3.86 0 7 3.14 7 7s-3.14 7-7 7-7-3.12-7-7 3.14-7 7-7z"></path></svg> </div> <div class="title" data-astro-cid-kvna52qi>Formato file di salvataggio</div> </div>   <p>Nota che, al momento, PlanarAlly supporta solo il salvataggio in formato SQLite.</p>  </div>  
+<div class="admonition warning" data-astro-cid-kvna52qi> <div class="header" data-astro-cid-kvna52qi> <div> <svg xmlns="http://www.w3.org/2000/svg" width="12" height="16" viewBox="0 0 12 16"><path fill-rule="evenodd" d="M5.05.31c.81 2.17.41 3.38-.52 4.31C3.55 5.67 1.98 6.45.9 7.98c-1.45 2.05-1.7 6.53 3.53 7.7-2.2-1.16-2.67-4.52-.3-6.61-.61 2.03.53 3.33 1.94 2.86 1.39-.47 2.3.53 2.27 1.67-.02.78-.31 1.44-1.13 1.81 3.42-.59 4.78-3.42 4.78-5.56 0-2.84-2.53-3.22-1.25-5.61-1.52.13-2.03 1.13-1.89 2.75.09 1.08-1.02 1.8-1.86 1.33-.67-.41-.66-1.19-.06-1.78C8.18 5.31 8.68 2.45 5.05.32L5.03.3l.02.01z"></path></svg> </div> <div class="title" data-astro-cid-kvna52qi>Attenzione</div> </div>   <p>Mentre il server è in esecuzione potrebbero essere creati file aggiuntivi del database (es. <code>planar.sqlite-shm</code> e <code>planar.sqlite-wal</code>).
+Il file <code>planar.sqlite-wal</code> (write-ahead-log) è essenziale per il database di salvataggio; i dati andrebbero persi se non viene salvato.
+Il file <code>planar.sqlite-shm</code> (shared memory) non è critico e non serve farlo in backup.</p><p>Se il server si spegne correttamente questi file scompaiono. Possono però restare se il server non è riuscito a spegnersi in modo pulito.
+Quando copi un file di salvataggio, assicurati di copiare anche questi file se esistono, altrimenti il salvataggio potrebbe essere corrotto o non aggiornato.</p>  </div>  
+<h3 id="campo-admin_user"><a aria-hidden="true" tabindex="-1" href="#campo-admin_user">#</a>Campo: <code>admin_user</code></h3>
+<p>Predefinito: N/D - campo opzionale<br/>
+Tipo: <code>string</code></p>
+<p>Quando qui è specificato un nome utente, questo utente sarà considerato l’admin principale.
+Avrà accesso a funzionalità extra nel cruscotto per gestire utenti e campagne sul server.</p>
+<h3 id="campo-client_url"><a aria-hidden="true" tabindex="-1" href="#campo-client_url">#</a>Campo: <code>client_url</code></h3>
+<p>Predefinito: N/D - campo opzionale<br/>
+Tipo: <code>string</code><br/>
+<em>È generalmente consigliato configurare questo campo, ma non è richiesto per una configurazione minima.</em></p>
+<p>Se impostato deve essere l’URL base completo dell’applicazione frontend (es. “<a href="https://app.planarally.io">https://app.planarally.io</a>”).</p>
+<p>Viene usato nell’URL di invito e nelle mail di recupero password. Se manca, l’URL di invito userà l’URL corrente del browser quando viene generato. Gli URL nelle email però <strong>non</strong> conterranno l’URL base perché il server non può prevederlo.</p>
+<h3 id="campo-allow_signups"><a aria-hidden="true" tabindex="-1" href="#campo-allow_signups">#</a>Campo: <code>allow_signups</code></h3>
+<p>Predefinito: <code>true</code><br/>
+Tipo: <code>boolean</code></p>
+<p>Questa impostazione stabilisce se gli utenti possono registrare un nuovo account tramite il frontend. Quando disabilitato la creazione di account è possibile solo tramite manipolazione del database.</p>
+<h3 id="campo-enable_export"><a aria-hidden="true" tabindex="-1" href="#campo-enable_export">#</a>Campo: <code>enable_export</code></h3>
+<p>Predefinito: <code>true</code><br/>
+Tipo: <code>boolean</code></p>
+<p>Quando questa impostazione è attiva è disponibile l’esportazione <strong>e</strong> importazione degli account per gli utenti.</p>
+<p>È generalmente consigliata perché permette agli utenti di spostare i propri dati su un altro server e fornirmi dati per il debugging.</p>
+<h2 id="webserver"><a aria-hidden="true" tabindex="-1" href="#webserver">#</a>Webserver</h2>
+<p>Nome sezione: <code>webserver</code></p>
+<p>Una delle sezioni più importanti da configurare è il webserver.
+Include l’importante sottosezione <code>connection</code>, che vorrai configurare per decidere come il server PA è collegato all’esterno.</p>
+<div id="subsection"><h3 id="sottosezione-connection"><a aria-hidden="true" tabindex="-1" href="#sottosezione-connection">#</a>Sottosezione: <code>connection</code></h3><p><em>È una sottosezione (vedi la <a href="#default-config">Config predefinita</a> per un esempio di configurazione).</em></p><p>Configura come il server è connesso allo stack di rete. Deve essere una configurazione HostPort oppure socket.
+Di default si usa la combinazione HostPort.</p><h4 id="campo-type"><a aria-hidden="true" tabindex="-1" href="#campo-type">#</a>campo: <code>type</code></h4><p>Predefinito: <code>&quot;hostport&quot;</code><br/>
+Tipo: <code>&quot;hostport&quot; o &quot;socket&quot;</code></p><p>Il campo type determina quale tipo di connessione viene usato.</p><pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8;overflow-x:auto" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#6A737D"># O si configura una connessione hostport</span></span>
+<span class="line"><span style="color:#E1E4E8">[</span><span style="color:#B392F0">webserver</span><span style="color:#E1E4E8">.</span><span style="color:#B392F0">connection</span><span style="color:#E1E4E8">]</span></span>
+<span class="line"><span style="color:#E1E4E8">type = </span><span style="color:#9ECBFF">&quot;hostport&quot;</span></span>
+<span class="line"><span style="color:#FDAEB7;font-style:italic">...</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#6A737D"># O una connessione socket</span></span>
+<span class="line"><span style="color:#E1E4E8">[</span><span style="color:#B392F0">webserver</span><span style="color:#E1E4E8">.</span><span style="color:#B392F0">connection</span><span style="color:#E1E4E8">]</span></span>
+<span class="line"><span style="color:#E1E4E8">type = </span><span style="color:#9ECBFF">&quot;socket&quot;</span></span>
+<span class="line"><span style="color:#FDAEB7;font-style:italic">...</span></span></code></pre><h4 id="campi-hostport"><a aria-hidden="true" tabindex="-1" href="#campi-hostport">#</a>Campi HostPort</h4><h4 id="campo-host"><a aria-hidden="true" tabindex="-1" href="#campo-host">#</a>campo: <code>host</code></h4><p>Predefinito: <code>&quot;0.0.0.0&quot;</code><br/>
+Tipo: <code>string</code></p><p>L’IP su cui il server tenterà di fare il bind.</p><h4 id="campo-port"><a aria-hidden="true" tabindex="-1" href="#campo-port">#</a>campo: <code>port</code></h4><p>Predefinito: <code>8000</code><br/>
+Tipo: <code>integer</code></p><p>La porta su cui il server tenterà di fare il bind.</p><p>Assicurati che la porta usata non sia occupata da altre applicazioni.
+Inoltre, assicurati che la porta sia accessibile dall’esterno della macchina.
+Specialmente in una rete privata (es. a casa) potrebbe essere necessario abilitare il <em>port forwarding</em> nella configurazione del router.</p><h4 id="esempio-config-hostport"><a aria-hidden="true" tabindex="-1" href="#esempio-config-hostport">#</a>Esempio config HostPort</h4><pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8;overflow-x:auto" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#E1E4E8">[</span><span style="color:#B392F0">webserver</span><span style="color:#E1E4E8">.</span><span style="color:#B392F0">connection</span><span style="color:#E1E4E8">]</span></span>
+<span class="line"><span style="color:#E1E4E8">type = </span><span style="color:#9ECBFF">&quot;hostport&quot;</span></span>
+<span class="line"><span style="color:#E1E4E8">host = </span><span style="color:#9ECBFF">&quot;192.168.0.1&quot;</span></span>
+<span class="line"><span style="color:#E1E4E8">port = </span><span style="color:#9ECBFF">&quot;80&quot;</span></span></code></pre><h4 id="campi-socket"><a aria-hidden="true" tabindex="-1" href="#campi-socket">#</a>Campi Socket</h4><h4 id="campo-socket"><a aria-hidden="true" tabindex="-1" href="#campo-socket">#</a>campo: <code>socket</code></h4><p>Predefinito: N/D<br/>
+Tipo: <code>string</code></p><p>Il percorso del socket che verrà usato per il bind.</p><h4 id="esempio-config-socket"><a aria-hidden="true" tabindex="-1" href="#esempio-config-socket">#</a>Esempio config Socket</h4><pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8;overflow-x:auto" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#E1E4E8">[</span><span style="color:#B392F0">webserver</span><span style="color:#E1E4E8">.</span><span style="color:#B392F0">connection</span><span style="color:#E1E4E8">]</span></span>
+<span class="line"><span style="color:#E1E4E8">type = </span><span style="color:#9ECBFF">&quot;socket&quot;</span></span>
+<span class="line"><span style="color:#E1E4E8">socket = </span><span style="color:#9ECBFF">&quot;/var/run/pa.sock&quot;</span></span></code></pre></div>
+<div id="subsection"><h3 id="sottosezione-ssl"><a aria-hidden="true" tabindex="-1" href="#sottosezione-ssl">#</a>Sottosezione: ssl</h3><p>È una sottosezione opzionale; se omessa non viene applicata alcuna config SSL al server PA.
+Questo non impedisce di configurare SSL più in alto nella catena (es. nel reverse proxy).</p><p>È fortemente consigliato assicurarsi che SSL sia configurato da qualche parte nella catena!</p><h4 id="campo-enabled"><a aria-hidden="true" tabindex="-1" href="#campo-enabled">#</a>Campo: <code>enabled</code></h4><p>Predefinito: <code>false</code><br/>
+Tipo: <code>boolean</code></p><p>Permette di attivare/disattivare la config SSL senza dover rimuovere completamente la sezione SSL o commentarla.
+Solo quando questo valore è <code>true</code> la config SSL verrà effettivamente applicata.</p><h4 id="campo-fullchain"><a aria-hidden="true" tabindex="-1" href="#campo-fullchain">#</a>Campo: <code>fullchain</code></h4><p>Predefinito: N/D<br/>
+Tipo: <code>string</code></p><p>Percorso del certificato full chain.</p><h4 id="campo-privkey"><a aria-hidden="true" tabindex="-1" href="#campo-privkey">#</a>Campo: <code>privkey</code></h4><p>Predefinito: N/D<br/>
+Tipo: <code>string</code></p><p>Percorso della chiave privata del certificato.</p><h4 id="esempio-config-ssl"><a aria-hidden="true" tabindex="-1" href="#esempio-config-ssl">#</a>Esempio config SSL</h4><pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8;overflow-x:auto" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#E1E4E8">[</span><span style="color:#B392F0">webserver</span><span style="color:#E1E4E8">.</span><span style="color:#B392F0">ssl</span><span style="color:#E1E4E8">]</span></span>
+<span class="line"><span style="color:#E1E4E8">enabled = </span><span style="color:#79B8FF">true</span></span>
+<span class="line"><span style="color:#E1E4E8">fullchain = </span><span style="color:#9ECBFF">&quot;/etc/letsencrypt/live/planarally/fullchain.pem&quot;</span></span>
+<span class="line"><span style="color:#E1E4E8">privkey = </span><span style="color:#9ECBFF">&quot;/etc/letsencrypt/live/planarally/privkey.pem&quot;</span></span></code></pre></div>
+<h3 id="campo-cors_allowed_origins"><a aria-hidden="true" tabindex="-1" href="#campo-cors_allowed_origins">#</a>Campo: <code>cors_allowed_origins</code></h3>
+<p>Predefinito: N/D (campo opzionale)<br/>
+Tipo: <code>string / Lista di stringhe</code></p>
+<p>Configurazione CORS per il server websocket.</p>
+<p>Questo valore viene passato al server socketio; più info sono nella <a href="https://python-socketio.readthedocs.io/en/latest/api.html#asyncserver-class">documentazione socketio</a>.
+Si può impostare <code>&#39;*&#39;</code> per permettere tutte le origini, utile per test ma non sicuro.</p>
+<p>Spesso va configurato con il valore wildcard (*) o con il dominio specifico corretto per far funzionare il tutto!
+La console del server dovrebbe loggare quando la connessione è stata rifiutata per CORS.</p>
+<h3 id="campo-max_upload_size_in_bytes"><a aria-hidden="true" tabindex="-1" href="#campo-max_upload_size_in_bytes">#</a>Campo: <code>max_upload_size_in_bytes</code></h3>
+<p>Predefinito: <code>10_586_760</code> (10 * 1024 ** 2 == 10 MB)<br/>
+Tipo: <code>integer</code></p>
+<p>La dimensione massima di un singolo upload di dati dal client.</p>
+<p>Va notato che agisce soprattutto come strategia di chunking.
+Gli upload degli asset e i trasferimenti delle campagne verranno spezzati secondo questo massimo, ma la dimensione totale può superare il limite!
+Vedi la sezione assets della config per info su come limitare la dimensione degli asset degli utenti.</p>
+<h2 id="mail"><a aria-hidden="true" tabindex="-1" href="#mail">#</a>Mail</h2>
+<p>Nome sezione: <code>mail</code></p>
+<p>È una sezione opzionale e di default non è abilitata.</p>
+<p>Al momento è usata solo per inviare email come parte del flusso di recupero password.</p>
+<h3 id="campo-enabled-1"><a aria-hidden="true" tabindex="-1" href="#campo-enabled-1">#</a>Campo: <code>enabled</code></h3>
+<p>Predefinito: <code>false</code><br/>
+Tipo: <code>boolean</code></p>
+<p>Permette di attivare/disattivare la config mail senza dover rimuovere completamente la sezione o commentarla.
+Solo quando questo valore è <code>true</code> la config mail verrà effettivamente applicata.</p>
+<h3 id="campo-host-1"><a aria-hidden="true" tabindex="-1" href="#campo-host-1">#</a>Campo: <code>host</code></h3>
+<p>Predefinito: N/D<br/>
+Tipo: <code>string</code></p>
+<p>L’host del server SMTP, deve essere compilato.</p>
+<h3 id="campo-port-1"><a aria-hidden="true" tabindex="-1" href="#campo-port-1">#</a>Campo: <code>port</code></h3>
+<p>Predefinito: N/D<br/>
+Tipo: <code>integer</code></p>
+<p>La porta del server SMTP, deve essere compilata.</p>
+<h3 id="campo-username"><a aria-hidden="true" tabindex="-1" href="#campo-username">#</a>Campo: <code>username</code></h3>
+<p>Predefinito: N/D (opzionale)<br/>
+Tipo: <code>string</code></p>
+<p>Se previsto, si può specificare il nome utente per l’autenticazione.</p>
+<h3 id="campo-password"><a aria-hidden="true" tabindex="-1" href="#campo-password">#</a>Campo: <code>password</code></h3>
+<p>Predefinito: N/D (opzionale)<br/>
+Tipo: <code>string</code></p>
+<p>Se previsto, si può specificare la password per l’autenticazione.</p>
+<h3 id="campo-default_from_address"><a aria-hidden="true" tabindex="-1" href="#campo-default_from_address">#</a>Campo: <code>default_from_address</code></h3>
+<p>Predefinito: N/D<br/>
+Tipo: <code>email-string</code></p>
+<p>L’indirizzo email predefinito da usare per l’invio delle mail.</p>
+<h3 id="campo-ssl_mode"><a aria-hidden="true" tabindex="-1" href="#campo-ssl_mode">#</a>Campo: <code>ssl_mode</code></h3>
+<p>Predefinito: <code>&quot;starttls&quot;</code><br/>
+Tipo: <code>Literal[&quot;ssl&quot;, &quot;tls&quot;, &quot;starttls&quot;, &quot;lmtp&quot;]</code><br/>
+Aggiunto: v2025.2.1</p>
+<p>Configura la modalità di connessione del client usata.
+Di default si usa il metodo starttls che dovrebbe coprire una vasta gamma di casi.</p>
+<p>A volte potrebbe non funzionare correttamente; in quel caso puoi provare la modalità <code>&quot;ssl&quot;</code> o una delle altre.</p>
+<h2 id="stats"><a aria-hidden="true" tabindex="-1" href="#stats">#</a>Stats</h2>
+<p>Nome sezione: <code>stats</code></p>
+<p>È una sezione opzionale che se non specificata userà un set di valori predefiniti.
+Controlla la raccolta e la trasmissione di statistiche d’uso anonime.</p>
+<p>Vedi <a href="https://github.com/Kruptein/PlanarAlly/pull/1608">questa PR su GitHub</a> per informazioni su cosa e perché.</p>
+<h3 id="campo-enabled-2"><a aria-hidden="true" tabindex="-1" href="#campo-enabled-2">#</a>Campo: <code>enabled</code></h3>
+<p>Predefinito: <code>true</code><br/>
+Tipo: <code>boolean</code></p>
+<p>Permette di attivare/disattivare la config stats senza dover rimuovere completamente la sezione o commentarla.
+Se impostato a <code>false</code> non verrà effettuata alcuna raccolta di statistiche.</p>
+<h3 id="campo-enable_export-1"><a aria-hidden="true" tabindex="-1" href="#campo-enable_export-1">#</a>Campo: <code>enable_export</code></h3>
+<p>Predefinito: <code>true</code><br/>
+Tipo: <code>boolean</code></p>
+<p>Permette di disabilitare l’esportazione delle statistiche al server stats di PA.
+La raccolta locale verrà comunque effettuata.</p>
+<h3 id="campo-export_frequency_in_seconds"><a aria-hidden="true" tabindex="-1" href="#campo-export_frequency_in_seconds">#</a>Campo: <code>export_frequency_in_seconds</code></h3>
+<p>Predefinito: <code>24 * 60 * 60</code> (1 giorno)<br/>
+Tipo: <code>int</code></p>
+<p>Determina con quale frequenza le statistiche vengono inviate al server stats di PA.</p>
+<p>Non è consigliato impostare un valore inferiore a 1 giorno.
+Frequenze consigliate: 1 giorno, 1 settimana o 1 mese.</p>
+<h3 id="campo-stats_url"><a aria-hidden="true" tabindex="-1" href="#campo-stats_url">#</a>Campo: <code>stats_url</code></h3>
+<p>Predefinito: <code>https://stats.planarally.io</code><br/>
+Tipo: <code>string</code></p>
+<p>L’URL di destinazione dei dati delle statistiche.</p>
+<h2 id="logging"><a aria-hidden="true" tabindex="-1" href="#logging">#</a>Logging</h2>
+<p>Nome sezione: <code>logging</code></p>
+<p>È una sezione opzionale e la sua configurazione predefinita è loggare su standard output al livello “INFO”.</p>
+<div class="admonition info" data-astro-cid-kvna52qi> <div class="header" data-astro-cid-kvna52qi> <div> <svg xmlns="http://www.w3.org/2000/svg" width="14" height="16" viewBox="0 0 14 16"><path fill-rule="evenodd" d="M6.3 5.69a.942.942 0 0 1-.28-.7c0-.28.09-.52.28-.7.19-.18.42-.28.7-.28.28 0 .52.09.7.28.18.19.28.42.28.7 0 .28-.09.52-.28.7a1 1 0 0 1-.7.3c-.28 0-.52-.11-.7-.3zM8 7.99c-.02-.25-.11-.48-.31-.69-.2-.19-.42-.3-.69-.31H6c-.27.02-.48.13-.69.31-.2.2-.3.44-.31.69h1v3c.02.27.11.5.31.69.2.2.42.31.69.31h1c.27 0 .48-.11.69-.31.2-.19.3-.42.31-.69H8V7.98v.01zM7 2.3c-3.14 0-5.7 2.54-5.7 5.68 0 3.14 2.56 5.7 5.7 5.7s5.7-2.55 5.7-5.7c0-3.15-2.56-5.69-5.7-5.69v.01zM7 .98c3.86 0 7 3.14 7 7s-3.14 7-7 7-7-3.12-7-7 3.14-7 7-7z"></path></svg> </div> <div class="title" data-astro-cid-kvna52qi>Più voci</div> </div>   <p>La sezione Logging può essere specificata più volte per configurare più file di output. Come tale devi usare
+l’intestazione di sezione <code>[[logging]]</code></p>  </div>  
+<h3 id="campo-level"><a aria-hidden="true" tabindex="-1" href="#campo-level">#</a>Campo <code>level</code></h3>
+<p>Predefinito: <code>INFO</code><br/>
+tipo: <code>Literal[&quot;DEBUG&quot;, &quot;INFO&quot;, &quot;WARNING&quot;, &quot;ERROR&quot;, &quot;CRITICAL&quot;]</code></p>
+<p>Il livello a cui questo logger scriverà. Anche i livelli superiori vengono loggati a questo livello. Ad esempio, se imposti ERROR verranno loggati sia ERROR che CRITICAL.</p>
+<h3 id="campo-mode"><a aria-hidden="true" tabindex="-1" href="#campo-mode">#</a>Campo <code>mode</code></h3>
+<p>Tipo: <code>Literal[&quot;stdout&quot;, &quot;file&quot;]</code></p>
+<p>Se specifichi stdout l’unico altro campo disponibile è level.</p>
+<p>Ecco un esempio di logging che imposta l’output standard su critical:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8;overflow-x:auto" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#FDAEB7;font-style:italic">...</span></span>
+<span class="line"><span style="color:#E1E4E8">[[</span><span style="color:#B392F0">logging</span><span style="color:#E1E4E8">]]</span></span>
+<span class="line"><span style="color:#E1E4E8">mode = </span><span style="color:#9ECBFF">&quot;stdout&quot;</span></span>
+<span class="line"><span style="color:#E1E4E8">level = </span><span style="color:#9ECBFF">&quot;CRITICAL&quot;</span></span>
+<span class="line"><span style="color:#FDAEB7;font-style:italic">...</span></span></code></pre>
+<h3 id="campo-file_path"><a aria-hidden="true" tabindex="-1" href="#campo-file_path">#</a>Campo <code>file_path</code></h3>
+<p>Predefinito: <code>data/planarally.log</code><br/>
+Tipo: <code>string</code></p>
+<p>Imposta il percorso di output per un log su file. Con Docker è consigliato usare la cartella data così è disponibile fuori dal container.</p>
+<h3 id="campo-max_log_size_in_bytes"><a aria-hidden="true" tabindex="-1" href="#campo-max_log_size_in_bytes">#</a>Campo <code>max_log_size_in_bytes</code></h3>
+<p>Predefinito: <code>200_000</code><br/>
+Tipo: <code>int</code></p>
+<p>La dimensione massima di un file di log prima della rotazione al file successivo.</p>
+<h3 id="campo-max_log_backups"><a aria-hidden="true" tabindex="-1" href="#campo-max_log_backups">#</a>Campo <code>max_log_backups</code></h3>
+<p>Predefinito: <code>5</code><br/>
+Tipo: <code>int</code></p>
+<p>Il numero di file di backup da mantenere; i file più vecchi verranno eliminati automaticamente.</p>
+<p>Ecco un esempio per configurare un file logger con solo 2 file di backup. Può essere combinato con l’esempio dell’output standard per scrivere sia su standard out che su file.</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8;overflow-x:auto" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#FDAEB7;font-style:italic">...</span></span>
+<span class="line"><span style="color:#E1E4E8">[[</span><span style="color:#B392F0">logging</span><span style="color:#E1E4E8">]]</span></span>
+<span class="line"><span style="color:#E1E4E8">mode = </span><span style="color:#9ECBFF">&quot;file&quot;</span></span>
+<span class="line"><span style="color:#E1E4E8">level = </span><span style="color:#9ECBFF">&quot;INFO&quot;</span></span>
+<span class="line"><span style="color:#E1E4E8">max_log_backups = </span><span style="color:#79B8FF">2</span></span>
+<span class="line"><span style="color:#FDAEB7;font-style:italic">...</span></span></code></pre>
+<section data-footnotes class="footnotes"><h2 class="sr-only" id="footnote-label"><a aria-hidden="true" tabindex="-1" href="#footnote-label">#</a>Footnotes</h2>
+<ol>
+<li id="user-content-fn-1">
+<p>La documentazione SQLite descrive l’importanza dei file <a href="https://www.sqlite.org/tempfiles.html#write_ahead_log_wal_files">-wal</a> e <a href="https://www.sqlite.org/tempfiles.html#shared_memory_files">-shm</a>. <a href="#user-content-fnref-1" data-footnote-backref aria-label="Back to reference 1" class="data-footnote-backref">↩</a></p>
+</li>
+</ol>
+</section> </main> </div> <aside id="doc-headers" style data-astro-cid-ujtbphqs> <a href="#configurazione-del-server" class="depth-1" data-astro-cid-ujtbphqs> Configurazione del server </a><a href="#formato" class="depth-1" data-astro-cid-ujtbphqs> Formato </a><a href="#config-predefinita" class="depth-1" data-astro-cid-ujtbphqs> Config predefinita </a><a href="#impostazioni-importanti" class="depth-1" data-astro-cid-ujtbphqs> Impostazioni importanti </a><a href="#sezioni" class="depth-1" data-astro-cid-ujtbphqs> Sezioni </a><a href="#general" class="depth-2" data-astro-cid-ujtbphqs> General </a><a href="#campo-save_file" class="depth-3" data-astro-cid-ujtbphqs> Campo: save_file </a><a href="#campo-admin_user" class="depth-3" data-astro-cid-ujtbphqs> Campo: admin_user </a><a href="#campo-client_url" class="depth-3" data-astro-cid-ujtbphqs> Campo: client_url </a><a href="#campo-allow_signups" class="depth-3" data-astro-cid-ujtbphqs> Campo: allow_signups </a><a href="#campo-enable_export" class="depth-3" data-astro-cid-ujtbphqs> Campo: enable_export </a><a href="#webserver" class="depth-2" data-astro-cid-ujtbphqs> Webserver </a><a href="#sottosezione-connection" class="depth-3" data-astro-cid-ujtbphqs> Sottosezione: connection </a><a href="#campo-type" class="depth-4" data-astro-cid-ujtbphqs> campo: type </a><a href="#campi-hostport" class="depth-4" data-astro-cid-ujtbphqs> Campi HostPort </a><a href="#campo-host" class="depth-4" data-astro-cid-ujtbphqs> campo: host </a><a href="#campo-port" class="depth-4" data-astro-cid-ujtbphqs> campo: port </a><a href="#esempio-config-hostport" class="depth-4" data-astro-cid-ujtbphqs> Esempio config HostPort </a><a href="#campi-socket" class="depth-4" data-astro-cid-ujtbphqs> Campi Socket </a><a href="#campo-socket" class="depth-4" data-astro-cid-ujtbphqs> campo: socket </a><a href="#esempio-config-socket" class="depth-4" data-astro-cid-ujtbphqs> Esempio config Socket </a><a href="#sottosezione-ssl" class="depth-3" data-astro-cid-ujtbphqs> Sottosezione: ssl </a><a href="#campo-enabled" class="depth-4" data-astro-cid-ujtbphqs> Campo: enabled </a><a href="#campo-fullchain" class="depth-4" data-astro-cid-ujtbphqs> Campo: fullchain </a><a href="#campo-privkey" class="depth-4" data-astro-cid-ujtbphqs> Campo: privkey </a><a href="#esempio-config-ssl" class="depth-4" data-astro-cid-ujtbphqs> Esempio config SSL </a><a href="#campo-cors_allowed_origins" class="depth-3" data-astro-cid-ujtbphqs> Campo: cors_allowed_origins </a><a href="#campo-max_upload_size_in_bytes" class="depth-3" data-astro-cid-ujtbphqs> Campo: max_upload_size_in_bytes </a><a href="#mail" class="depth-2" data-astro-cid-ujtbphqs> Mail </a><a href="#campo-enabled-1" class="depth-3" data-astro-cid-ujtbphqs> Campo: enabled </a><a href="#campo-host-1" class="depth-3" data-astro-cid-ujtbphqs> Campo: host </a><a href="#campo-port-1" class="depth-3" data-astro-cid-ujtbphqs> Campo: port </a><a href="#campo-username" class="depth-3" data-astro-cid-ujtbphqs> Campo: username </a><a href="#campo-password" class="depth-3" data-astro-cid-ujtbphqs> Campo: password </a><a href="#campo-default_from_address" class="depth-3" data-astro-cid-ujtbphqs> Campo: default_from_address </a><a href="#campo-ssl_mode" class="depth-3" data-astro-cid-ujtbphqs> Campo: ssl_mode </a><a href="#stats" class="depth-2" data-astro-cid-ujtbphqs> Stats </a><a href="#campo-enabled-2" class="depth-3" data-astro-cid-ujtbphqs> Campo: enabled </a><a href="#campo-enable_export-1" class="depth-3" data-astro-cid-ujtbphqs> Campo: enable_export </a><a href="#campo-export_frequency_in_seconds" class="depth-3" data-astro-cid-ujtbphqs> Campo: export_frequency_in_seconds </a><a href="#campo-stats_url" class="depth-3" data-astro-cid-ujtbphqs> Campo: stats_url </a><a href="#logging" class="depth-2" data-astro-cid-ujtbphqs> Logging </a><a href="#campo-level" class="depth-3" data-astro-cid-ujtbphqs> Campo level </a><a href="#campo-mode" class="depth-3" data-astro-cid-ujtbphqs> Campo mode </a><a href="#campo-file_path" class="depth-3" data-astro-cid-ujtbphqs> Campo file_path </a><a href="#campo-max_log_size_in_bytes" class="depth-3" data-astro-cid-ujtbphqs> Campo max_log_size_in_bytes </a><a href="#campo-max_log_backups" class="depth-3" data-astro-cid-ujtbphqs> Campo max_log_backups </a><a href="#footnote-label" class="depth-2" data-astro-cid-ujtbphqs> Footnotes </a> </aside>  </body></html> 

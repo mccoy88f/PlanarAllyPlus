@@ -4,36 +4,380 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Documents</title>
-    <link rel="stylesheet" href="../../../../static/extensions/ui.css" />
+    <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=2" />
+    <script src="../../../../static/extensions/ext-bridge.js"></script>
     <style>
-        .doc-icon { color: #c00; flex-shrink: 0; }
-        .folder-icon { color: #f90; flex-shrink: 0; }
+        html, body.doc-root { height: 100%; margin: 0; padding: 0; }
+        .doc-root { display: flex; flex-direction: column; overflow: hidden; }
+        .doc-content { flex: 1; min-height: 0; min-width: 0; overflow-y: auto; padding: 1rem 1.5rem; }
+        /* Riquadro unificato: cartelle, documenti (icona/thumbnail) stesso stile e dimensioni */
+        .doc-icon, .folder-icon, .doc-thumb {
+            flex-shrink: 0; border-radius: 0.25rem; border: 1px solid #ddd; background: #f5f5f5;
+            width: 2.5rem; height: 2.5rem; min-width: 2.5rem; min-height: 2.5rem;
+        }
+        .doc-icon, .folder-icon { display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+        .doc-icon { color: #c00; }
+        .folder-icon { color: #f90; }
+        .doc-thumb { object-fit: contain; }
+        .doc-list-item-doc { display: flex; align-items: center; gap: 0.75rem; }
+        .doc-list:not(.doc-grid) .ext-ui-list-item-content { display: flex; flex-direction: row; align-items: center; gap: 0.75rem; min-width: 0; }
+        .doc-list:not(.doc-grid) .ext-ui-list-item-name { flex: 1; min-width: 0; }
         .doc-breadcrumb { display: flex; align-items: center; gap: 0.25rem; margin-bottom: 0.75rem; font-size: 0.9rem; flex-wrap: wrap; }
         .doc-breadcrumb span { color: #666; cursor: pointer; }
         .doc-breadcrumb span:hover { color: #333; text-decoration: underline; }
         .doc-breadcrumb .current { color: #333; cursor: default; font-weight: 600; }
         .doc-breadcrumb .current:hover { text-decoration: none; }
-        .doc-toolbar { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
-        .doc-actions { display: flex; gap: 0.25rem; }
+        .doc-view-toggle { display: flex; gap: 2px; flex-shrink: 0; }
+        .doc-view-toggle .ext-toolbar-btn { flex-shrink: 0; }
+        .doc-view-toggle .ext-toolbar-btn.active { background: #e3f2fd; border-color: #2196f3; color: #2196f3; }
+        .doc-list { width: 100%; min-width: 0; }
+        .doc-list.doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.5rem; }
+        .doc-list.doc-grid .ext-ui-list-item { flex-direction: column; align-items: stretch; padding: 0.5rem; overflow: hidden; }
+        .doc-list.doc-grid .ext-ui-list-item-content { flex-direction: column; align-items: center; text-align: center; width: 100%; box-sizing: border-box; min-width: 0; overflow: hidden; }
+        .doc-list.doc-grid .doc-icon, .doc-list.doc-grid .folder-icon, .doc-list.doc-grid .doc-thumb {
+            width: 100%; max-width: 120px; aspect-ratio: 120/165; min-width: 0; min-height: 0; height: auto; margin-bottom: 0.25rem; flex-shrink: 0;
+        }
+        .doc-list.doc-grid .doc-icon, .doc-list.doc-grid .folder-icon { font-size: 4rem; }
+        .doc-list.doc-grid .doc-thumb { object-fit: cover; }
+        .doc-list.doc-grid .ext-ui-list-item-name { white-space: normal; word-break: break-word; width: 100%; }
+        .doc-list.doc-grid .ext-item-actions { justify-content: center; margin-top: 0.25rem; width: 100%; }
         .doc-rename-input { width: 100%; max-width: 200px; padding: 0.2rem 0.4rem; font-size: 0.9rem; }
         .doc-move-select { font-size: 0.85rem; padding: 0.2rem 0.4rem; }
+        @media (max-width: 480px) {
+            .doc-list.doc-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 0.4rem; }
+            .doc-list.doc-grid .ext-ui-list-item { padding: 0.35rem; }
+            .doc-list.doc-grid .doc-icon, .doc-list.doc-grid .folder-icon, .doc-list.doc-grid .doc-thumb {
+                max-width: 70px;
+            }
+            .doc-list.doc-grid .doc-icon, .doc-list.doc-grid .folder-icon { font-size: 2.5rem; }
+            .doc-breadcrumb { font-size: 0.85rem; }
+        }
+        @media (min-width: 769px) {
+            .doc-list.doc-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+        }
+        @media (min-width: 1200px) {
+            .doc-list.doc-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+        }
+        @media (min-width: 481px) and (max-width: 768px) {
+            .doc-list.doc-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.5rem; }
+            .doc-list.doc-grid .doc-icon, .doc-list.doc-grid .folder-icon, .doc-list.doc-grid .doc-thumb {
+                max-width: 90px;
+            }
+            .doc-list.doc-grid .doc-icon, .doc-list.doc-grid .folder-icon { font-size: 3rem; }
+        }
     </style>
 </head>
-<body class="ext-ui-root">
-    <div class="ext-ui-title">Documents</div>
-    <div id="breadcrumb" class="doc-breadcrumb" style="display:none"></div>
-    <div id="toolbar" class="doc-toolbar" style="display:none">
-        <button type="button" id="newFolderBtn" class="ext-ui-btn">New folder</button>
-        <input type="file" id="fileInput" class="ext-ui-file-input" accept=".pdf,application/pdf" />
-        <button type="button" id="uploadBtn" class="ext-ui-btn ext-ui-btn-primary">Upload PDF</button>
+<body class="ext-ui-root doc-root">
+    <div id="topBar" class="ext-toolbar-bar doc-top-bar" style="display:none">
+        <div class="ext-search-bar">
+            <span class="ext-search-icon" aria-hidden="true">&#128269;</span>
+            <input type="text" id="docSearchInput" class="ext-search-input" placeholder="" />
+            <input type="file" id="fileInput" class="ext-ui-file-input" accept=".pdf,application/pdf" multiple />
+            <button type="button" id="uploadBtn" class="ext-search-add-btn" title=""></button>
+        </div>
+        <button type="button" id="newFolderBtn" class="ext-ui-btn"></button>
+        <div class="doc-view-toggle">
+            <button type="button" id="viewListBtn" title="" class="ext-toolbar-btn active"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg></button>
+            <button type="button" id="viewGridBtn" title="" class="ext-toolbar-btn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3v8h8V3H3zm6 6H5V5h4v4zm-6 4v8h8v-8H3zm6 6H5v-4h4v4zm4-16v8h8V3h-8zm6 6h-4V5h4v4zm-6 4v8h8v-8h-8zm6 6h-4v-4h4v4z"/></svg></button>
+        </div>
     </div>
-    <div id="loading" class="ext-ui-loading">Loading...</div>
-    <div id="empty" class="ext-ui-empty" style="display:none">No documents in this folder.</div>
-    <ul id="list" class="ext-ui-list" style="display:none"></ul>
-    <div id="msg"></div>
+    <div id="content" class="doc-content">
+        <div id="breadcrumb" class="doc-breadcrumb" style="display:none"></div>
+        <div id="loading" class="ext-ui-loading"></div>
+        <div id="empty" class="ext-ui-empty" style="display:none"></div>
+        <ul id="list" class="ext-ui-list doc-list" style="display:none"></ul>
+        <div id="msg"></div>
+    </div>
 
     <script>
         (function() {
+            var TRANSLATIONS = {
+                en: {
+                    documents: "Documents",
+                    new_folder: "New folder",
+                    upload_pdf: "Upload PDF",
+                    loading: "Loading...",
+                    no_documents: "No documents in this folder.",
+                    search_documents: "Search documents...",
+                    rename: "Rename",
+                    move: "Move",
+                    delete: "Delete",
+                    delete_confirm: "Delete \"{{name}}\"? This cannot be undone.",
+                    new_name: "New name:",
+                    renamed: "Renamed.",
+                    rename_failed: "Rename failed.",
+                    move_to_folder: "Move to folder (enter number):",
+                    documents_root: "Documents (root)",
+                    moved: "Moved.",
+                    move_failed: "Move failed.",
+                    error_loading: "Error loading documents.",
+                    deleted: "Deleted.",
+                    delete_failed: "Delete failed.",
+                    folder_name: "Folder name:",
+                    folder_created: "Folder created.",
+                    failed: "Failed.",
+                    document_uploaded: "Document uploaded.",
+                    documents_uploaded_count: "documents uploaded",
+                    upload_failed: "Upload failed.",
+                    view_list: "List view",
+                    view_grid: "Grid view"
+                },
+                it: {
+                    documents: "Documenti",
+                    new_folder: "Nuova cartella",
+                    upload_pdf: "Carica PDF",
+                    loading: "Caricamento...",
+                    no_documents: "Nessun documento in questa cartella.",
+                    search_documents: "Cerca documenti...",
+                    rename: "Rinomina",
+                    move: "Sposta",
+                    delete: "Elimina",
+                    delete_confirm: "Eliminare \"{{name}}\"? Questa azione non può essere annullata.",
+                    new_name: "Nuovo nome:",
+                    renamed: "Rinominato.",
+                    rename_failed: "Rinomina fallita.",
+                    move_to_folder: "Sposta nella cartella (inserisci numero):",
+                    documents_root: "Documenti (radice)",
+                    moved: "Spostato.",
+                    move_failed: "Spostamento fallito.",
+                    error_loading: "Errore nel caricamento dei documenti.",
+                    deleted: "Eliminato.",
+                    delete_failed: "Eliminazione fallita.",
+                    folder_name: "Nome cartella:",
+                    folder_created: "Cartella creata.",
+                    failed: "Fallito.",
+                    document_uploaded: "Documento caricato.",
+                    documents_uploaded_count: "documenti caricati",
+                    upload_failed: "Caricamento fallito.",
+                    view_list: "Vista elenco",
+                    view_grid: "Vista griglia"
+                },
+                de: {
+                    documents: "Dokumente",
+                    new_folder: "Neuer Ordner",
+                    upload_pdf: "PDF hochladen",
+                    loading: "Laden...",
+                    no_documents: "Keine Dokumente in diesem Ordner.",
+                    search_documents: "Dokumente suchen...",
+                    rename: "Umbenennen",
+                    move: "Verschieben",
+                    delete: "Löschen",
+                    delete_confirm: "\"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden.",
+                    new_name: "Neuer Name:",
+                    renamed: "Umbenannt.",
+                    rename_failed: "Umbenennen fehlgeschlagen.",
+                    move_to_folder: "In Ordner verschieben (Nummer eingeben):",
+                    documents_root: "Dokumente (Stamm)",
+                    moved: "Verschoben.",
+                    move_failed: "Verschieben fehlgeschlagen.",
+                    error_loading: "Fehler beim Laden der Dokumente.",
+                    deleted: "Gelöscht.",
+                    delete_failed: "Löschen fehlgeschlagen.",
+                    folder_name: "Ordnername:",
+                    folder_created: "Ordner erstellt.",
+                    failed: "Fehlgeschlagen.",
+                    document_uploaded: "Dokument hochgeladen.",
+                    documents_uploaded_count: "Dokumente hochgeladen",
+                    upload_failed: "Hochladen fehlgeschlagen.",
+                    view_list: "Listenansicht",
+                    view_grid: "Rasteransicht"
+                },
+                dk: {
+                    documents: "Dokumenter",
+                    new_folder: "Ny mappe",
+                    upload_pdf: "Upload PDF",
+                    loading: "Indlæser...",
+                    no_documents: "Ingen dokumenter i denne mappe.",
+                    search_documents: "Søg dokumenter...",
+                    rename: "Omdøb",
+                    move: "Flyt",
+                    delete: "Slet",
+                    delete_confirm: "Slet \"{{name}}\"? Dette kan ikke fortrydes.",
+                    new_name: "Nyt navn:",
+                    renamed: "Omdøbt.",
+                    rename_failed: "Omdøbning mislykkedes.",
+                    move_to_folder: "Flyt til mappe (indtast nummer):",
+                    documents_root: "Dokumenter (rod)",
+                    moved: "Flyttet.",
+                    move_failed: "Flytning mislykkedes.",
+                    error_loading: "Fejl ved indlæsning af dokumenter.",
+                    deleted: "Slettet.",
+                    delete_failed: "Sletning mislykkedes.",
+                    folder_name: "Mappenavn:",
+                    folder_created: "Mappe oprettet.",
+                    failed: "Mislykkedes.",
+                    document_uploaded: "Dokument uploadet.",
+                    documents_uploaded_count: "dokumenter uploadet",
+                    upload_failed: "Upload mislykkedes.",
+                    view_list: "Listevisning",
+                    view_grid: "Gittervisning"
+                },
+                es: {
+                    documents: "Documentos",
+                    new_folder: "Nueva carpeta",
+                    upload_pdf: "Subir PDF",
+                    loading: "Cargando...",
+                    no_documents: "No hay documentos en esta carpeta.",
+                    search_documents: "Buscar documentos...",
+                    rename: "Renombrar",
+                    move: "Mover",
+                    delete: "Eliminar",
+                    delete_confirm: "¿Eliminar \"{{name}}\"? Esta acción no se puede deshacer.",
+                    new_name: "Nuevo nombre:",
+                    renamed: "Renombrado.",
+                    rename_failed: "Error al renombrar.",
+                    move_to_folder: "Mover a carpeta (introduce el número):",
+                    documents_root: "Documentos (raíz)",
+                    moved: "Movido.",
+                    move_failed: "Error al mover.",
+                    error_loading: "Error al cargar documentos.",
+                    deleted: "Eliminado.",
+                    delete_failed: "Error al eliminar.",
+                    folder_name: "Nombre de carpeta:",
+                    folder_created: "Carpeta creada.",
+                    failed: "Error.",
+                    document_uploaded: "Documento subido.",
+                    documents_uploaded_count: "documentos subidos",
+                    upload_failed: "Error al subir.",
+                    view_list: "Vista de lista",
+                    view_grid: "Vista de cuadrícula"
+                },
+                fr: {
+                    documents: "Documents",
+                    new_folder: "Nouveau dossier",
+                    upload_pdf: "Téléverser PDF",
+                    loading: "Chargement...",
+                    no_documents: "Aucun document dans ce dossier.",
+                    search_documents: "Rechercher des documents...",
+                    rename: "Renommer",
+                    move: "Déplacer",
+                    delete: "Supprimer",
+                    delete_confirm: "Supprimer \"{{name}}\" ? Cette action est irréversible.",
+                    new_name: "Nouveau nom :",
+                    renamed: "Renommé.",
+                    rename_failed: "Échec du renommage.",
+                    move_to_folder: "Déplacer vers le dossier (entrez le numéro) :",
+                    documents_root: "Documents (racine)",
+                    moved: "Déplacé.",
+                    move_failed: "Échec du déplacement.",
+                    error_loading: "Erreur lors du chargement des documents.",
+                    deleted: "Supprimé.",
+                    delete_failed: "Échec de la suppression.",
+                    folder_name: "Nom du dossier :",
+                    folder_created: "Dossier créé.",
+                    failed: "Échec.",
+                    document_uploaded: "Document téléversé.",
+                    documents_uploaded_count: "documents téléversés",
+                    upload_failed: "Échec du téléversement.",
+                    view_list: "Vue liste",
+                    view_grid: "Vue grille"
+                },
+                ru: {
+                    documents: "Документы",
+                    new_folder: "Новая папка",
+                    upload_pdf: "Загрузить PDF",
+                    loading: "Загрузка...",
+                    no_documents: "Нет документов в этой папке.",
+                    search_documents: "Поиск документов...",
+                    rename: "Переименовать",
+                    move: "Переместить",
+                    delete: "Удалить",
+                    delete_confirm: "Удалить \"{{name}}\"? Это действие нельзя отменить.",
+                    new_name: "Новое имя:",
+                    renamed: "Переименовано.",
+                    rename_failed: "Ошибка переименования.",
+                    move_to_folder: "Переместить в папку (введите номер):",
+                    documents_root: "Документы (корень)",
+                    moved: "Перемещено.",
+                    move_failed: "Ошибка перемещения.",
+                    error_loading: "Ошибка загрузки документов.",
+                    deleted: "Удалено.",
+                    delete_failed: "Ошибка удаления.",
+                    folder_name: "Имя папки:",
+                    folder_created: "Папка создана.",
+                    failed: "Ошибка.",
+                    document_uploaded: "Документ загружен.",
+                    documents_uploaded_count: "документов загружено",
+                    upload_failed: "Ошибка загрузки.",
+                    view_list: "Вид списка",
+                    view_grid: "Вид сетки"
+                },
+                tw: {
+                    documents: "文件",
+                    new_folder: "新增資料夾",
+                    upload_pdf: "上傳 PDF",
+                    loading: "載入中...",
+                    no_documents: "此資料夾中沒有文件。",
+                    search_documents: "搜尋文件...",
+                    rename: "重新命名",
+                    move: "移動",
+                    delete: "刪除",
+                    delete_confirm: "刪除「{{name}}」？此操作無法復原。",
+                    new_name: "新名稱：",
+                    renamed: "已重新命名。",
+                    rename_failed: "重新命名失敗。",
+                    move_to_folder: "移動到資料夾（輸入編號）：",
+                    documents_root: "文件（根目錄）",
+                    moved: "已移動。",
+                    move_failed: "移動失敗。",
+                    error_loading: "載入文件時發生錯誤。",
+                    deleted: "已刪除。",
+                    delete_failed: "刪除失敗。",
+                    folder_name: "資料夾名稱：",
+                    folder_created: "資料夾已建立。",
+                    failed: "失敗。",
+                    document_uploaded: "文件已上傳。",
+                    documents_uploaded_count: "個文件已上傳",
+                    upload_failed: "上傳失敗。",
+                    view_list: "清單檢視",
+                    view_grid: "網格檢視"
+                },
+                zh: {
+                    documents: "文档",
+                    new_folder: "新建文件夹",
+                    upload_pdf: "上传 PDF",
+                    loading: "加载中...",
+                    no_documents: "此文件夹中没有文档。",
+                    search_documents: "搜索文档...",
+                    rename: "重命名",
+                    move: "移动",
+                    delete: "删除",
+                    delete_confirm: "删除「{{name}}」？此操作无法撤销。",
+                    new_name: "新名称：",
+                    renamed: "已重命名。",
+                    rename_failed: "重命名失败。",
+                    move_to_folder: "移动到文件夹（输入编号）：",
+                    documents_root: "文档（根目录）",
+                    moved: "已移动。",
+                    move_failed: "移动失败。",
+                    error_loading: "加载文档时出错。",
+                    deleted: "已删除。",
+                    delete_failed: "删除失败。",
+                    folder_name: "文件夹名称：",
+                    folder_created: "文件夹已创建。",
+                    failed: "失败。",
+                    document_uploaded: "文档已上传。",
+                    documents_uploaded_count: "个文档已上传",
+                    upload_failed: "上传失败。",
+                    view_list: "列表视图",
+                    view_grid: "网格视图"
+                }
+            };
+
+            function getLocale() {
+                var params = new URLSearchParams(window.location.search);
+                var loc = params.get('locale') || 'en';
+                return TRANSLATIONS[loc] ? loc : 'en';
+            }
+
+            var locale = getLocale();
+            var L = TRANSLATIONS[locale] || TRANSLATIONS.en;
+            document.documentElement.lang = locale;
+
+            function t(key) {
+                return L[key] || TRANSLATIONS.en[key] || key;
+            }
+
             function base() {
                 const p = window.location.pathname;
                 const i = p.indexOf('/api/');
@@ -41,20 +385,31 @@
             }
             function api(path) { return base() + path; }
 
+            document.getElementById('newFolderBtn').textContent = t('new_folder');
+            document.getElementById('uploadBtn').textContent = '+';
+            document.getElementById('uploadBtn').title = t('upload_pdf');
+            document.getElementById('docSearchInput').placeholder = t('search_documents');
+            document.getElementById('loading').textContent = t('loading');
+
             const listEl = document.getElementById('list');
             const loadingEl = document.getElementById('loading');
             const emptyEl = document.getElementById('empty');
             const breadcrumbEl = document.getElementById('breadcrumb');
-            const toolbarEl = document.getElementById('toolbar');
+            const topBarEl = document.getElementById('topBar');
             const fileInput = document.getElementById('fileInput');
             const uploadBtn = document.getElementById('uploadBtn');
             const newFolderBtn = document.getElementById('newFolderBtn');
+            const docSearchInput = document.getElementById('docSearchInput');
             const msgEl = document.getElementById('msg');
 
             let rootId = null;
             let currentFolderId = null;
             let items = [];
             let folderPath = [];
+            let viewMode = 'list';
+            var pencilSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
+            var folderSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>';
+            var trashSvg = '<svg viewBox="0 0 448 512" fill="currentColor"><path d="M135.2 17.69L128 32H32C14.33 32 0 46.33 0 64v384c0 17.67 14.33 32 32 32h384c17.67 0 32-14.33 32-32V64c0-17.67-14.33-32-32-32h-96l-7.2-14.31A32 32 0 0 0 276.8 0H171.2a32 32 0 0 0-36 17.69zM64 96h384v352H64V96zm32 32v288h64V128H96zm128 0v288h64V128h-64zm128 0v288h64V128h-64z"/></svg>';
 
             function showMsg(text, isError) {
                 msgEl.textContent = text;
@@ -77,16 +432,16 @@
 
             function renderBreadcrumb() {
                 folderPath = buildFolderPath();
-                const parts = ['<span class="nav" data-id="' + rootId + '">Documents</span>'];
+                if (folderPath.length === 0) {
+                    breadcrumbEl.style.display = 'none';
+                    return;
+                }
+                const parts = ['<span class="nav" data-id="' + rootId + '">' + t('documents') + '</span>'];
                 folderPath.forEach(function(f) {
                     parts.push('<span class="nav" data-id="' + f.id + '">' + (f.name || '').replace(/</g, '&lt;') + '</span>');
                 });
-                if (folderPath.length > 0) {
-                    const last = folderPath[folderPath.length - 1];
-                    parts[parts.length - 1] = '<span class="current">' + (last.name || '').replace(/</g, '&lt;') + '</span>';
-                } else {
-                    parts[0] = '<span class="current">Documents</span>';
-                }
+                const last = folderPath[folderPath.length - 1];
+                parts[parts.length - 1] = '<span class="current">' + (last.name || '').replace(/</g, '&lt;') + '</span>';
                 breadcrumbEl.innerHTML = parts.join(' &gt; ');
                 breadcrumbEl.style.display = 'flex';
                 breadcrumbEl.querySelectorAll('.nav').forEach(function(el) {
@@ -99,30 +454,47 @@
             }
 
             function getCurrentItems() {
-                return items.filter(function(it) {
+                var base = items.filter(function(it) {
                     const fid = it.folderId || rootId;
                     return fid === currentFolderId;
                 });
+                var q = (docSearchInput.value || '').trim().toLowerCase();
+                if (!q) return base;
+                return base.filter(function(it) { return (it.name || '').toLowerCase().indexOf(q) >= 0; });
             }
 
+            function displayName(it) {
+                var n = it.name || '';
+                return it.type === 'folder' ? n : n.replace(/\.[^.]+$/, '');
+            }
             function renderItem(it, opts) {
                 const isFolder = it.type === 'folder';
-                const icon = isFolder ? '<span class="folder-icon">📁</span>' : '<span class="doc-icon">📄</span>';
-                const nameEsc = (it.name || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+                const fullNameEsc = (it.name || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+                const displayNameEsc = displayName(it).replace(/</g, '&lt;').replace(/"/g, '&quot;');
+                let iconHtml;
+                if (isFolder) {
+                    iconHtml = '<span class="folder-icon">📁</span>';
+                } else if (it.thumbnailUrl) {
+                    var thumbUrl = base() + it.thumbnailUrl;
+                    iconHtml = '<img class="doc-thumb" src="' + thumbUrl + '" alt="" loading="lazy" />';
+                } else {
+                    iconHtml = '<span class="doc-icon">📄</span>';
+                }
                 let actions = '';
                 if (opts.rename) {
-                    actions += '<button type="button" class="ext-ui-icon-btn rename-btn" data-id="' + it.id + '" title="Rename">✏️</button>';
+                    actions += '<button type="button" class="ext-action-btn rename-btn" data-id="' + it.id + '" title="' + t('rename') + '">' + pencilSvg + '</button>';
                 }
                 if (opts.move) {
-                    actions += '<button type="button" class="ext-ui-icon-btn move-btn" data-id="' + it.id + '" title="Move">📂</button>';
+                    actions += '<button type="button" class="ext-action-btn move-btn" data-id="' + it.id + '" title="' + t('move') + '">' + folderSvg + '</button>';
                 }
                 if (opts.delete) {
-                    actions += '<button type="button" class="ext-ui-icon-btn ext-ui-icon-btn-danger del-btn" data-id="' + it.id + '" title="Delete">🗑</button>';
+                    actions += '<button type="button" class="ext-action-btn delete del-btn" data-id="' + it.id + '" title="' + t('delete') + '">' + trashSvg + '</button>';
                 }
+                var contentClass = isFolder ? '' : ' doc-list-item-doc';
                 return '<li class="ext-ui-list-item" data-id="' + it.id + '" data-type="' + (it.type || 'document') + '">' +
-                    '<div class="ext-ui-list-item-content" data-id="' + it.id + '" data-hash="' + (it.fileHash || '') + '" data-name="' + nameEsc + '">' +
-                    icon + '<span class="ext-ui-list-item-name">' + nameEsc + '</span></div>' +
-                    '<div class="doc-actions">' + actions + '</div></li>';
+                    '<div class="ext-ui-list-item-content' + contentClass + '" data-id="' + it.id + '" data-hash="' + (it.fileHash || '') + '" data-name="' + fullNameEsc + '">' +
+                    iconHtml + '<span class="ext-ui-list-item-name">' + displayNameEsc + '</span></div>' +
+                    '<div class="ext-item-actions">' + actions + '</div></li>';
             }
 
             function render() {
@@ -131,14 +503,16 @@
                 const docs = current.filter(function(it) { return it.type === 'document'; });
 
                 renderBreadcrumb();
-                toolbarEl.style.display = 'flex';
+                topBarEl.style.display = 'flex';
 
                 if (current.length === 0) {
                     listEl.style.display = 'none';
                     emptyEl.style.display = 'block';
-                    emptyEl.textContent = 'No documents in this folder.';
+                    emptyEl.textContent = t('no_documents');
                 } else {
                     emptyEl.style.display = 'none';
+                    folders.sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }); });
+                    docs.sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }); });
                     let html = '';
                     folders.forEach(function(f) {
                         html += renderItem(f, { rename: true, move: true, delete: true });
@@ -147,7 +521,8 @@
                         html += renderItem(d, { rename: true, move: true, delete: true });
                     });
                     listEl.innerHTML = html;
-                    listEl.style.display = 'block';
+                    listEl.style.display = viewMode === 'grid' ? 'grid' : 'block';
+                    listEl.classList.toggle('doc-grid', viewMode === 'grid');
 
                     listEl.querySelectorAll('.ext-ui-list-item-content').forEach(function(el) {
                         el.addEventListener('click', function(e) {
@@ -159,7 +534,7 @@
                                 currentFolderId = parseInt(el.dataset.id, 10);
                                 render();
                             } else if (hash) {
-                                var target = (window.top && window.top.opener) ? window.top.opener : (window.parent !== window ? window.parent : null);
+                                var target = (window.parent !== window) ? window.parent : (window.top && window.top.opener) || null;
                                 if (target) {
                                     target.postMessage({
                                         type: 'planarally-open-document',
@@ -177,18 +552,35 @@
                         el.addEventListener('click', function(e) { e.stopPropagation(); renameItem(parseInt(el.dataset.id, 10)); });
                     });
                     listEl.querySelectorAll('.move-btn').forEach(function(el) {
-                        el.addEventListener('click', function(e) { e.stopPropagation(); moveItem(parseInt(el.dataset.id, 10)); });
+                        el.addEventListener('click', async function(e) { e.stopPropagation(); await moveItem(parseInt(el.dataset.id, 10)); });
                     });
                     listEl.querySelectorAll('.del-btn').forEach(function(el) {
-                        el.addEventListener('click', function(e) { e.stopPropagation(); deleteDoc(parseInt(el.dataset.id, 10)); });
+                        el.addEventListener('click', async function(e) { e.stopPropagation(); await deleteDoc(parseInt(el.dataset.id, 10)); });
                     });
                 }
             }
 
-            function renameItem(id) {
+            document.getElementById('viewListBtn').title = t('view_list');
+            document.getElementById('viewGridBtn').title = t('view_grid');
+            document.getElementById('viewListBtn').addEventListener('click', function() {
+                viewMode = 'list';
+                document.getElementById('viewListBtn').classList.add('active');
+                document.getElementById('viewGridBtn').classList.remove('active');
+                listEl.classList.remove('doc-grid');
+                if (listEl.style.display !== 'none') listEl.style.display = 'block';
+            });
+            document.getElementById('viewGridBtn').addEventListener('click', function() {
+                viewMode = 'grid';
+                document.getElementById('viewGridBtn').classList.add('active');
+                document.getElementById('viewListBtn').classList.remove('active');
+                listEl.classList.add('doc-grid');
+                if (listEl.style.display !== 'none') listEl.style.display = 'grid';
+            });
+
+            async function renameItem(id) {
                 const it = items.find(function(x) { return x.id === id; });
                 if (!it) return;
-                const name = prompt('New name:', it.name || '');
+                const name = typeof parentPrompt === 'function' ? await parentPrompt(t('new_name'), t('rename'), it.name || '') : prompt(t('new_name'), it.name || '');
                 if (name == null || !name.trim()) return;
                 fetch(api('/api/extensions/documents/rename'), {
                     method: 'PATCH',
@@ -196,9 +588,9 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: id, name: name.trim() })
                 }).then(function(r) {
-                    if (r.ok) { showMsg('Renamed.'); load(); }
-                    else r.text().then(function(t) { showMsg(t || 'Rename failed.', true); });
-                }).catch(function() { showMsg('Rename failed.', true); });
+                    if (r.ok) { showMsg(t('renamed')); load(); }
+                    else r.text().then(function(res) { showMsg(res || t('rename_failed'), true); });
+                }).catch(function() { showMsg(t('rename_failed'), true); });
             }
 
             function getDescendantIds(folderId) {
@@ -209,18 +601,18 @@
                 return ids;
             }
 
-            function moveItem(id) {
+            async function moveItem(id) {
                 const it = items.find(function(x) { return x.id === id; });
                 if (!it) return;
                 const excludeIds = it.type === 'folder' ? getDescendantIds(id) : [id];
                 const folders = items.filter(function(x) {
                     return x.type === 'folder' && excludeIds.indexOf(x.id) < 0;
                 });
-                const destIds = [{ id: rootId, name: 'Documents (root)' }];
+                const destIds = [{ id: rootId, name: t('documents_root') }];
                 folders.forEach(function(f) { destIds.push({ id: f.id, name: f.name }); });
                 const choice = destIds.map(function(d, i) { return (i + 1) + '. ' + d.name; }).join('\n');
-                const num = prompt('Move to folder (enter number):\n\n' + choice);
-                if (num == null) return;
+                const num = typeof parentPrompt === 'function' ? await parentPrompt(t('move_to_folder') + '\n\n' + choice, t('move'), '1') : prompt(t('move_to_folder') + '\n\n' + choice);
+                if (num == null || num === '') return;
                 const idx = parseInt(num, 10);
                 if (isNaN(idx) || idx < 1 || idx > destIds.length) return;
                 const destId = destIds[idx - 1].id;
@@ -231,9 +623,9 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: id, parentId: destId })
                 }).then(function(r) {
-                    if (r.ok) { showMsg('Moved.'); load(); }
-                    else r.text().then(function(t) { showMsg(t || 'Move failed.', true); });
-                }).catch(function() { showMsg('Move failed.', true); });
+                    if (r.ok) { showMsg(t('moved')); load(); }
+                    else r.text().then(function(res) { showMsg(res || t('move_failed'), true); });
+                }).catch(function() { showMsg(t('move_failed'), true); });
             }
 
             async function load() {
@@ -241,7 +633,7 @@
                 emptyEl.style.display = 'none';
                 listEl.style.display = 'none';
                 breadcrumbEl.style.display = 'none';
-                toolbarEl.style.display = 'none';
+                topBarEl.style.display = 'none';
                 try {
                     const r = await fetch(api('/api/extensions/documents/list'), { credentials: 'include' });
                     const data = r.ok ? await r.json() : { documents: [], rootId: null };
@@ -252,14 +644,33 @@
                     }
                     loadingEl.style.display = 'none';
                     render();
+                    var missingThumbs = items.filter(function(it) { return it.type === 'document' && it.fileHash && !it.thumbnailUrl; }).map(function(it) { return it.fileHash; });
+                    if (missingThumbs.length > 0) {
+                        try {
+                            var genR = await fetch(api('/api/extensions/documents/generate-thumbnails'), {
+                                method: 'POST',
+                                credentials: 'include',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ fileHashes: missingThumbs })
+                            });
+                            if (genR.ok) {
+                                var genData = await genR.json();
+                                if (genData.generated > 0) { load(); }
+                            }
+                        } catch (e) { /* ignore */ }
+                    }
                 } catch (e) {
                     loadingEl.style.display = 'none';
-                    emptyEl.textContent = 'Error loading documents.';
+                    emptyEl.textContent = t('error_loading');
                     emptyEl.style.display = 'block';
                 }
             }
 
             async function deleteDoc(id) {
+                const it = items.find(function(x) { return x.id === id; });
+                if (!it) return;
+                const ok = typeof parentConfirm === 'function' ? await parentConfirm(t('delete'), t('delete_confirm', { name: it.name || '' })) : confirm(t('delete_confirm', { name: it.name || '' }));
+                if (!ok) return;
                 try {
                     const r = await fetch(api('/api/extensions/documents/delete'), {
                         method: 'POST',
@@ -268,18 +679,18 @@
                         body: JSON.stringify({ id: id })
                     });
                     if (r.ok) {
-                        showMsg('Deleted.');
+                        showMsg(t('deleted'));
                         load();
                     } else {
-                        showMsg(await r.text() || 'Delete failed.', true);
+                        showMsg(await r.text() || t('delete_failed'), true);
                     }
                 } catch (e) {
-                    showMsg('Delete failed.', true);
+                    showMsg(t('delete_failed'), true);
                 }
             }
 
-            newFolderBtn.addEventListener('click', function() {
-                const name = prompt('Folder name:');
+            newFolderBtn.addEventListener('click', async function() {
+                const name = typeof parentPrompt === 'function' ? await parentPrompt(t('folder_name'), t('new_folder'), '') : prompt(t('folder_name'));
                 if (!name || !name.trim()) return;
                 fetch(api('/api/extensions/documents/folder'), {
                     method: 'POST',
@@ -287,34 +698,47 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: name.trim(), parentId: currentFolderId })
                 }).then(function(r) {
-                    if (r.ok) { showMsg('Folder created.'); load(); }
-                    else r.text().then(function(t) { showMsg(t || 'Failed.', true); });
-                }).catch(function() { showMsg('Failed.', true); });
+                    if (r.ok) { showMsg(t('folder_created')); load(); }
+                    else r.text().then(function(res) { showMsg(res || t('failed'), true); });
+                }).catch(function() { showMsg(t('failed'), true); });
             });
 
             fileInput.addEventListener('change', async function() {
-                const file = fileInput.files && fileInput.files[0];
-                if (!file || !file.name.toLowerCase().endsWith('.pdf')) return;
+                const files = fileInput.files;
+                if (!files || files.length === 0) return;
+                const pdfs = Array.prototype.filter.call(files, function(f) { return f.name.toLowerCase().endsWith('.pdf'); });
+                if (pdfs.length === 0) return;
                 uploadBtn.disabled = true;
+                var okCount = 0;
+                var errCount = 0;
                 try {
-                    const fd = new FormData();
-                    fd.append('file', file);
-                    if (rootId) {
-                        fd.append('parentId', String(currentFolderId || rootId));
+                    for (var i = 0; i < pdfs.length; i++) {
+                        var file = pdfs[i];
+                        var fd = new FormData();
+                        fd.append('file', file);
+                        if (rootId) {
+                            fd.append('parentId', String(currentFolderId || rootId));
+                        }
+                        var r = await fetch(api('/api/extensions/documents/upload'), {
+                            method: 'POST',
+                            credentials: 'include',
+                            body: fd
+                        });
+                        if (r.ok) {
+                            okCount++;
+                        } else {
+                            errCount++;
+                        }
                     }
-                    const r = await fetch(api('/api/extensions/documents/upload'), {
-                        method: 'POST',
-                        credentials: 'include',
-                        body: fd
-                    });
-                    if (r.ok) {
-                        showMsg('Document uploaded.');
+                    if (okCount > 0) {
+                        showMsg(okCount === 1 ? t('document_uploaded') : (okCount + ' ' + t('documents_uploaded_count')));
                         load();
-                    } else {
-                        showMsg(await r.text() || 'Upload failed.', true);
+                    }
+                    if (errCount > 0) {
+                        showMsg((errCount === pdfs.length ? '' : okCount + ' ok. ') + t('upload_failed'), true);
                     }
                 } catch (e) {
-                    showMsg('Upload failed.', true);
+                    showMsg(t('upload_failed'), true);
                 } finally {
                     uploadBtn.disabled = false;
                     fileInput.value = '';
@@ -322,6 +746,7 @@
             });
 
             uploadBtn.addEventListener('click', function() { fileInput.click(); });
+            docSearchInput.addEventListener('input', function() { render(); });
 
             load();
         })();

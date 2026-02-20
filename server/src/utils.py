@@ -53,6 +53,8 @@ SAVE_PATH = DATA_DIR / "planar.sqlite"
 STATIC_DIR = FILE_DIR / "static"
 # Uploaded user assets
 ASSETS_DIR = STATIC_DIR / "assets"
+# Thumbnails (separate from assets - not visible in asset manager)
+THUMBNAILS_DIR = STATIC_DIR / "thumbnails"
 # Temporary files - pending uploads, exports etc
 TEMP_DIR = STATIC_DIR / "temp"
 MODS_DIR = STATIC_DIR / "mods"
@@ -61,7 +63,7 @@ _ext_candidates = [FILE_DIR.parent / "extensions", FILE_DIR / "extensions"]
 EXTENSIONS_DIR = next((p for p in _ext_candidates if p.exists()), _ext_candidates[0])
 
 
-for folder in [ASSETS_DIR, DATA_DIR, TEMP_DIR]:
+for folder in [ASSETS_DIR, THUMBNAILS_DIR, DATA_DIR, TEMP_DIR]:
     if not folder.exists():
         folder.mkdir()
 

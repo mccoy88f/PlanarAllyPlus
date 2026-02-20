@@ -1,20 +1,60 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from "vue";
+import type { ExtensionModalData } from "../../systems/extensions/state";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { useToast } from "vue-toastification";
 
 import Modal from "../../../core/components/modals/Modal.vue";
+import { useModal } from "../../../core/plugins/modals/plugin";
 import { baseAdjust } from "../../../core/http";
 import { extensionsState } from "../../systems/extensions/state";
-import { closeExtensionModal, openDocumentsPdfViewer } from "../../systems/extensions/ui";
+import { gameState } from "../../systems/game/state";
+import {
+    requestCloseExtensionModal,
+    focusExtension,
+    openDocumentsPdfViewer,
+    openCompendiumModalForItem,
+} from "../../systems/extensions/ui";
 
-const { t } = useI18n();
+const props = defineProps<{ extension: ExtensionModalData }>();
 
-function handleMessage(event: MessageEvent): void {
-    const ext = extensionsState.reactive.extensionModalOpen;
-    if (ext?.id !== "documents") return;
+const { t, locale } = useI18n();
+const toast = useToast();
+const modals = useModal();
+const iframeEl = ref<HTMLIFrameElement | null>(null);
+
+async function handleMessage(event: MessageEvent): Promise<void> {
+    if (event.source !== iframeEl.value?.contentWindow) return;
+    const ext = props.extension;
     const data = event.data;
-    if (data?.type === "planarally-open-document" && data.fileHash && data.name) {
+    const source = event.source as Window | null;
+
+    if (data?.type === "planarally-confirm" && data.id && ext && source) {
+        const result = await modals.confirm(data.title || "", data.message || "", {
+            yes: t("common.confirm"),
+            no: t("common.cancel"),
+        });
+        source.postMessage({ type: "planarally-confirm-response", id: data.id, result: result ?? false }, "*");
+        return;
+    }
+    if (data?.type === "planarally-prompt" && data.id && ext && source) {
+        const result = await modals.prompt(data.question || "", data.title || "", undefined, data.defaultValue ?? "");
+        source.postMessage({ type: "planarally-prompt-response", id: data.id, result }, "*");
+        return;
+    }
+
+    if (data?.type === "planarally-open-document" && ext?.id === "documents" && data.fileHash && data.name) {
         openDocumentsPdfViewer(data.fileHash, data.name, data.page);
+    } else if (data?.type === "planarally-open-qe" && data.collection && data.slug) {
+        openCompendiumModalForItem(data.collection, data.slug, data.compendium);
+    } else if (data?.type === "planarally-toast" && typeof data.message === "string") {
+        if (data.error) {
+            toast.error(data.message);
+        } else {
+            toast.success(data.message);
+        }
+    } else if (data?.type === "ambient-music-playing" && typeof data.playing === "boolean") {
+        extensionsState.mutableReactive.ambientMusicPlaying = data.playing;
     }
 }
 
@@ -25,7 +65,14 @@ onUnmounted(() => {
     window.removeEventListener("message", handleMessage);
 });
 
-const currentExtension = computed(() => extensionsState.reactive.extensionModalOpen);
+const currentExtension = computed(() => props.extension);
+
+function extensionDisplayName(ext: { id: string; name: string } | undefined): string {
+    if (!ext) return "";
+    const key = `game.ui.menu.Extensions.extensions.${ext.id}`;
+    const translated = t(key);
+    return translated !== key ? translated : ext.name;
+}
 
 const headerStyle = computed(() => {
     const ext = currentExtension.value;
@@ -48,12 +95,69 @@ const iconProp = computed(() => {
 const iframeUrl = computed(() => {
     const ext = currentExtension.value;
     if (!ext?.uiUrl) return "";
-    return baseAdjust(ext.uiUrl.startsWith("/") ? ext.uiUrl.slice(1) : ext.uiUrl);
+    let url = baseAdjust(ext.uiUrl.startsWith("/") ? ext.uiUrl.slice(1) : ext.uiUrl);
+    const params = new URLSearchParams();
+    params.set("locale", locale.value || "en");
+    if (gameState.reactive.roomCreator && gameState.reactive.roomName) {
+        params.set("room_creator", gameState.reactive.roomCreator);
+        params.set("room_name", gameState.reactive.roomName);
+    }
+    if (ext?.id === "character-sheet" && ext.openSheetId) {
+        params.set("sheet_id", ext.openSheetId);
+    }
+    if (ext?.id === "character-sheet") {
+        params.set("qe_enabled", "1");
+    }
+    url += "?" + params.toString();
+    return url;
 });
 
 function close(): void {
-    closeExtensionModal();
+    requestCloseExtensionModal(props.extension.id);
 }
+
+const extensionModalClass = computed(() => {
+    const ext = currentExtension.value;
+    const base = "extension-modal";
+    const minimized =
+        ext?.id === "ambient-music" && extensionsState.reactive.ambientMusicMinimized;
+    const hasTopBar =
+        ext?.id === "character-sheet" ||
+        ext?.folder === "character-sheet" ||
+        ext?.id === "documents" ||
+        ext?.folder === "documents" ||
+        ext?.id === "guida" ||
+        ext?.folder === "guida" ||
+        ext?.id === "time-manager" ||
+        ext?.folder === "time-manager" ||
+        ext?.id === "ambient-music" ||
+        ext?.folder === "ambient-music";
+    let cls = base;
+    if (ext?.id === "assets-installer" || ext?.folder === "assets-installer") {
+        cls += " extension-modal--compact";
+    }
+    if (
+        ext?.id === "time-manager" ||
+        ext?.folder === "time-manager" ||
+        ext?.id === "ambient-music" ||
+        ext?.folder === "ambient-music"
+    ) {
+        cls += " extension-modal--compact-small";
+    }
+    if (ext?.id === "ambient-music" || ext?.folder === "ambient-music") {
+        cls += " extension-modal--ambient-music";
+    }
+    if (ext?.id === "character-sheet" || ext?.folder === "character-sheet" || ext?.id === "guida" || ext?.folder === "guida") {
+        cls += " extension-modal--wide";
+    }
+    if (hasTopBar) {
+        cls += " extension-modal--has-top-bar";
+    }
+    if (minimized) {
+        cls += " extension-modal--minimized";
+    }
+    return cls;
+});
 </script>
 
 <template>
@@ -62,8 +166,9 @@ function close(): void {
         :visible="!!currentExtension"
         :mask="false"
         :close-on-mask-click="false"
-        extra-class="extension-modal"
+        :extra-class="extensionModalClass"
         @close="close"
+        @focus="currentExtension && focusExtension(currentExtension.id)"
     >
         <template #header="{ dragStart, dragEnd, toggleWindow, toggleFullscreen, fullscreen }">
             <div
@@ -79,7 +184,7 @@ function close(): void {
                         :icon="iconProp"
                         class="ext-modal-icon"
                     />
-                    {{ currentExtension?.name ?? "" }}
+                    {{ extensionDisplayName(currentExtension ?? undefined) }}
                 </h2>
                 <div class="ext-modal-actions">
                     <font-awesome-icon
@@ -106,6 +211,7 @@ function close(): void {
         <div class="ext-modal-body">
             <iframe
                 v-if="iframeUrl"
+                ref="iframeEl"
                 :src="iframeUrl"
                 class="ext-modal-iframe"
                 :title="currentExtension?.name ?? 'Extension'"
@@ -126,47 +232,47 @@ function close(): void {
     min-height: 300px;
     overflow: hidden;
 }
+
+.extension-modal--compact {
+    width: min(90vw, 700px);
+    height: min(85vh, 600px);
+}
+
+.extension-modal--compact-small {
+    width: min(46vw, 345px);
+    height: min(29vh, 207px);
+    min-width: 260px;
+    min-height: 140px;
+    resize: both;
+}
+
+/* Ambient music: 20% wider, 2x height */
+.extension-modal--ambient-music {
+    width: min(64vw, 477px);
+    height: min(58vh, 414px);
+}
+
+.extension-modal--wide {
+    width: 95vw;
+    max-width: 95vw;
+    height: 90vh;
+    max-height: 90vh;
+}
+
+.extension-modal--minimized {
+    position: fixed !important;
+    left: -9999px !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
 </style>
 
 <style lang="scss" scoped>
-.ext-modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.5rem 1rem;
-    cursor: grab;
-    border-bottom: 1px solid #eee;
-    background: #f9f9f9;
-
-    .ext-modal-title {
-        margin: 0;
-        font-size: 1.1rem;
-        font-weight: 600;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    .ext-modal-icon {
-        flex-shrink: 0;
-    }
-
-    .ext-modal-actions {
-        display: flex;
-        gap: 0.5rem;
-        align-items: center;
-    }
-
-    .ext-modal-btn,
-    .ext-modal-close {
-        font-size: 1.1rem;
-        cursor: pointer;
-        flex-shrink: 0;
-
-        &:hover {
-            opacity: 0.7;
-        }
-    }
+.extension-modal--has-top-bar .ext-modal-header {
+    border-bottom: none;
 }
 
 .ext-modal-body {
@@ -179,5 +285,14 @@ function close(): void {
     width: 100%;
     height: 100%;
     border: none;
+}
+
+.extension-modal--has-top-bar .ext-modal-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.extension-modal--has-top-bar .ext-modal-iframe {
+    display: block;
 }
 </style>

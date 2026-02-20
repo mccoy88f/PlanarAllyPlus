@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Guida PlanarAlly</title>
+    <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=2" />
+    <style>
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+        .guida-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; background: #fff; }
+        /* Struttura standard: ext-toolbar-bar contiene ext-search-bar (Documents, Character-sheet) */
+        .guida-toolbar .ext-search-bar { flex: 1; min-width: 0; max-width: 400px; }
+        .guida-iframe-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .guida-iframe { flex: 1; border: none; width: 100%; height: 100%; }
+    </style>
+</head>
+<body class="ext-ui-root guida-root">
+    <div class="ext-toolbar-bar guida-toolbar">
+        <div class="ext-search-bar">
+            <span class="ext-search-icon" aria-hidden="true"></span>
+            <input type="text" id="searchInput" class="ext-search-input" placeholder="" />
+        </div>
+    </div>
+    <div class="guida-iframe-wrap">
+        <iframe id="docsFrame" class="guida-iframe" title="Documentazione PlanarAlly"></iframe>
+    </div>
+    <script>
+        (function() {
+            var searchInput = document.getElementById('searchInput');
+            var docsFrame = document.getElementById('docsFrame');
+
+            // URL docs: in base al locale (?locale=it|en da ExtensionModal)
+            var params = new URLSearchParams(window.location.search);
+            var locale = (params.get('locale') || 'en').toLowerCase().split('-')[0];
+            var docsPath = locale === 'it' ? '/guida-docs/' : '/guida-docs-en/';
+
+            var basePath = '';
+            var pathParts = window.location.pathname.split('/api/');
+            if (pathParts.length > 1) {
+                basePath = pathParts[0] || '';
+            }
+            docsFrame.src = basePath + docsPath;
+
+            searchInput.placeholder = locale === 'it' ? 'Cerca nella guida...' : 'Search in guide...';
+            document.documentElement.lang = locale === 'it' ? 'it' : 'en';
+
+            function doSearch() {
+                var q = searchInput.value.trim();
+                if (!q) return;
+                try {
+                    var doc = docsFrame.contentDocument || docsFrame.contentWindow.document;
+                    if (doc && doc.body) {
+                        var found = docsFrame.contentWindow.find(q, false, false, true, false, false, true);
+                        if (!found) docsFrame.contentWindow.find(q, true, false, true, false, false, true);
+                    }
+                } catch (e) { /* cross-origin o iframe non pronto */ }
+            }
+
+            searchInput.addEventListener('input', function() {
+                if (searchInput.value.trim()) doSearch();
+            });
+            searchInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') doSearch();
+                if (e.key === 'Escape') {
+                    searchInput.value = '';
+                    searchInput.blur();
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

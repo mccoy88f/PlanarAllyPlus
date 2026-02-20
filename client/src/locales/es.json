@@ -143,6 +143,34 @@
                     "client_settings": "Opciones de cliente"
                 }
             },
+            "extensions": {
+                "DocumentsModal": {
+                    "title": "Documentos",
+                    "loading": "Cargando...",
+                    "no_documents": "Aún no hay documentos. Sube un PDF para empezar.",
+                    "upload_success": "Documento subido correctamente",
+                    "upload_multi_success": "{count} documentos subidos",
+                    "upload_partial": "{ok} subidos, {err} fallidos",
+                    "upload_error": "Error al subir el documento",
+                    "uploading": "Subiendo...",
+                    "delete_success": "Documento eliminado",
+                    "delete_error": "Error al eliminar el documento"
+                },
+                "DocumentsPdfViewer": {
+                    "search": "Buscar en el documento",
+                    "search_placeholder": "Buscar texto...",
+                    "search_not_found": "No se encontraron coincidencias",
+                    "search_hint": "Usa Ctrl+F (o Cmd+F en Mac) para buscar en el PDF",
+                    "copy_link": "Copiar enlace al portapapeles",
+                    "copy_success": "Enlace copiado al portapapeles",
+                    "share_chat": "Compartir en el chat",
+                    "share_success": "Compartido en el chat",
+                    "load_error": "Documento no encontrado",
+                    "document_fallback": "Documento",
+                    "pdf_viewer_title": "Visor de PDF",
+                    "thumbnails": "Miniaturas de páginas"
+                }
+            },
             "NoteDialog": {
                 "warning_msg": "¿Estás seguro de querer remover esto?",
                 "edit_title": "Editar título",

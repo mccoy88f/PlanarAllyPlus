@@ -17,7 +17,7 @@ import { toGP } from "../../../core/geometry";
 import { getGlobalId, getShape } from "../../id";
 import type { Asset } from "../../shapes/variants/asset";
 import { extensionsState } from "../../systems/extensions/state";
-import { closeDungeongenModal } from "../../systems/extensions/ui";
+import { closeDungeongenModal, focusExtension } from "../../systems/extensions/ui";
 import { customDataSystem } from "../../systems/customData";
 import { propertiesSystem } from "../../systems/properties";
 import { SERVER_SYNC } from "../../../core/models/types";
@@ -322,30 +322,31 @@ async function makeRealisticWithAI(): Promise<void> {
         :close-on-mask-click="false"
         extra-class="dungeongen-modal"
         @close="close"
+        @focus="focusExtension('dungeongen')"
     >
         <template #header="{ dragStart, dragEnd, toggleWindow, toggleFullscreen, fullscreen }">
             <div
-                class="dungeongen-modal-header"
+                class="ext-modal-header"
                 draggable="true"
                 @dragstart="dragStart"
                 @dragend="dragEnd"
             >
-                <h2 class="dungeongen-modal-title">{{ t("game.ui.extensions.DungeongenModal.title") }}</h2>
-                <div class="dungeongen-modal-actions">
+                <h2 class="ext-modal-title">{{ t("game.ui.extensions.DungeongenModal.title") }}</h2>
+                <div class="ext-modal-actions">
                     <font-awesome-icon
                         :icon="['far', 'square']"
                         :title="t('game.ui.extensions.ExtensionModal.window')"
-                        class="dungeongen-modal-btn"
+                        class="ext-modal-btn"
                         @click.stop="toggleWindow?.()"
                     />
                     <font-awesome-icon
                         :icon="fullscreen ? 'compress' : 'expand'"
                         :title="fullscreen ? t('common.fullscreen_exit') : t('common.fullscreen')"
-                        class="dungeongen-modal-btn"
+                        class="ext-modal-btn"
                         @click.stop="toggleFullscreen?.()"
                     />
                     <font-awesome-icon
-                        class="dungeongen-modal-close"
+                        class="ext-modal-close"
                         :icon="['far', 'window-close']"
                         :title="t('common.close')"
                         @click="close"
@@ -353,144 +354,138 @@ async function makeRealisticWithAI(): Promise<void> {
                 </div>
             </div>
         </template>
-        <div class="modal-body">
-                <section class="params-section">
-                    <h3>{{ t("game.ui.extensions.DungeongenModal.settings") }}</h3>
-                    <div class="param-row">
-                        <label>{{ t("game.ui.extensions.DungeongenModal.size") }}</label>
-                        <select v-model="params.size">
-                            <option v-for="opt in sizeOptions" :key="opt.value" :value="opt.value">
-                                {{ t(opt.labelKey) }}
-                            </option>
-                        </select>
+        <div class="ext-modal-body-wrapper">
+            <div class="ext-body ext-two-col">
+                <section class="ext-ui-section ext-two-col-side ext-two-col-single">
+                    <h3 class="ext-ui-section-title">{{ t("game.ui.extensions.DungeongenModal.settings") }}</h3>
+                    <div class="dg-fields-row">
+                        <div class="ext-ui-field">
+                            <label class="ext-ui-label" for="dg-size">{{ t("game.ui.extensions.DungeongenModal.size") }}</label>
+                            <select id="dg-size" v-model="params.size" class="ext-ui-select">
+                                <option v-for="opt in sizeOptions" :key="opt.value" :value="opt.value">
+                                    {{ t(opt.labelKey) }}
+                                </option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="param-row">
-                        <label>{{ t("game.ui.extensions.DungeongenModal.archetype") }}</label>
-                        <select v-model="params.archetype">
-                            <option v-for="opt in archetypeOptions" :key="opt.value" :value="opt.value">
-                                {{ t(opt.labelKey) }}
-                            </option>
-                        </select>
+                    <div class="dg-fields-row">
+                        <div class="ext-ui-field">
+                            <label class="ext-ui-label" for="dg-archetype">{{ t("game.ui.extensions.DungeongenModal.archetype") }}</label>
+                            <select id="dg-archetype" v-model="params.archetype" class="ext-ui-select">
+                                <option v-for="opt in archetypeOptions" :key="opt.value" :value="opt.value">
+                                    {{ t(opt.labelKey) }}
+                                </option>
+                            </select>
+                        </div>
+                        <div class="ext-ui-field">
+                            <label class="ext-ui-label" for="dg-symmetry">{{ t("game.ui.extensions.DungeongenModal.symmetry") }}</label>
+                            <select id="dg-symmetry" v-model="params.symmetry" class="ext-ui-select">
+                                <option v-for="opt in symmetryOptions" :key="opt.value" :value="opt.value">
+                                    {{ t(opt.labelKey) }}
+                                </option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="param-row">
-                        <label>{{ t("game.ui.extensions.DungeongenModal.symmetry") }}</label>
-                        <select v-model="params.symmetry">
-                            <option v-for="opt in symmetryOptions" :key="opt.value" :value="opt.value">
-                                {{ t(opt.labelKey) }}
-                            </option>
-                        </select>
+                    <div class="dg-fields-row">
+                        <div class="ext-ui-field">
+                            <label class="ext-ui-label" for="dg-water">{{ t("game.ui.extensions.DungeongenModal.water") }}</label>
+                            <select id="dg-water" v-model="params.water" class="ext-ui-select">
+                                <option v-for="opt in waterOptions" :key="opt.value" :value="opt.value">
+                                    {{ t(opt.labelKey) }}
+                                </option>
+                            </select>
+                        </div>
+                        <div class="ext-ui-field">
+                            <label class="ext-ui-label" for="dg-pack">{{ t("game.ui.extensions.DungeongenModal.pack") }}</label>
+                            <select id="dg-pack" v-model="params.pack" class="ext-ui-select">
+                                <option v-for="opt in packOptions" :key="opt.value" :value="opt.value">
+                                    {{ t(opt.labelKey) }}
+                                </option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="param-row">
-                        <label>{{ t("game.ui.extensions.DungeongenModal.water") }}</label>
-                        <select v-model="params.water">
-                            <option v-for="opt in waterOptions" :key="opt.value" :value="opt.value">
-                                {{ t(opt.labelKey) }}
-                            </option>
-                        </select>
+                    <div class="dg-fields-row">
+                        <div class="ext-ui-field">
+                            <label class="ext-ui-label" for="dg-roomsize">{{ t("game.ui.extensions.DungeongenModal.roomsize") }}</label>
+                            <select id="dg-roomsize" v-model="params.roomsize" class="ext-ui-select">
+                                <option v-for="opt in roomsizeOptions" :key="opt.value" :value="opt.value">
+                                    {{ t(opt.labelKey) }}
+                                </option>
+                            </select>
+                        </div>
+                        <div class="ext-ui-field">
+                            <label class="ext-ui-label" for="dg-cross">{{ t("game.ui.extensions.DungeongenModal.cross") }}</label>
+                            <select id="dg-cross" v-model="params.cross" class="ext-ui-select">
+                                <option v-for="opt in crossOptions" :key="opt.value" :value="opt.value">
+                                    {{ t(opt.labelKey) }}
+                                </option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="param-row">
-                        <label>{{ t("game.ui.extensions.DungeongenModal.pack") }}</label>
-                        <select v-model="params.pack">
-                            <option v-for="opt in packOptions" :key="opt.value" :value="opt.value">
-                                {{ t(opt.labelKey) }}
-                            </option>
-                        </select>
+                    <div class="dg-fields-row">
+                        <div class="ext-ui-field">
+                            <label class="ext-ui-label" for="dg-symbreak">{{ t("game.ui.extensions.DungeongenModal.symmetry_break") }}</label>
+                            <select id="dg-symbreak" v-model="params.symmetry_break" class="ext-ui-select">
+                                <option v-for="opt in symmetryBreakOptions" :key="opt.value" :value="opt.value">
+                                    {{ t(opt.labelKey) }}
+                                </option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="param-row">
-                        <label>{{ t("game.ui.extensions.DungeongenModal.roomsize") }}</label>
-                        <select v-model="params.roomsize">
-                            <option v-for="opt in roomsizeOptions" :key="opt.value" :value="opt.value">
-                                {{ t(opt.labelKey) }}
-                            </option>
-                        </select>
-                    </div>
-                    <div class="param-row">
-                        <label>{{ t("game.ui.extensions.DungeongenModal.cross") }}</label>
-                        <select v-model="params.cross">
-                            <option v-for="opt in crossOptions" :key="opt.value" :value="opt.value">
-                                {{ t(opt.labelKey) }}
-                            </option>
-                        </select>
-                    </div>
-                    <div class="param-row">
-                        <label>{{ t("game.ui.extensions.DungeongenModal.symmetry_break") }}</label>
-                        <select v-model="params.symmetry_break">
-                            <option v-for="opt in symmetryBreakOptions" :key="opt.value" :value="opt.value">
-                                {{ t(opt.labelKey) }}
-                            </option>
-                        </select>
-                    </div>
-                    <div class="param-row param-row-checkbox">
-                        <label>
+                    <div class="dg-fields-row">
+                        <label class="ext-ui-checkbox">
                             <input v-model="params.round_rooms" type="checkbox" />
                             {{ t("game.ui.extensions.DungeongenModal.round_rooms") }}
                         </label>
                     </div>
-                    <div class="param-row param-row-checkbox">
-                        <label>
+                    <div class="dg-fields-row">
+                        <label class="ext-ui-checkbox">
                             <input v-model="params.halls" type="checkbox" />
                             {{ t("game.ui.extensions.DungeongenModal.halls") }}
                         </label>
                     </div>
-                    <div class="param-row param-row-checkbox">
-                        <label>
+                    <div class="dg-fields-row">
+                        <label class="ext-ui-checkbox">
                             <input v-model="params.show_numbers" type="checkbox" />
                             {{ t("game.ui.extensions.DungeongenModal.show_numbers") }}
                         </label>
                     </div>
-                    <div class="param-row param-row-full">
-                        <label>{{ t("game.ui.extensions.DungeongenModal.seed") }}</label>
+                    <div class="ext-ui-field">
+                        <label class="ext-ui-label" for="dg-seed">{{ t("game.ui.extensions.DungeongenModal.seed") }}</label>
                         <input
+                            id="dg-seed"
                             v-model="params.seed"
                             type="text"
+                            class="ext-ui-input"
                             :placeholder="t('game.ui.extensions.DungeongenModal.seed_placeholder')"
                             :disabled="isEditMode"
                         />
-                        <p v-if="isEditMode" class="edit-mode-note">
+                        <p v-if="isEditMode" class="ext-ui-hint edit-mode-note">
                             {{ t("game.ui.extensions.DungeongenModal.edit_mode_note") }}
                         </p>
                     </div>
-                    <div class="generate-buttons param-row-full">
-                        <button
-                            class="generate-btn"
-                            data-testid="dungeongen-generate"
-                            :disabled="generating"
-                            @click="generate(false)"
-                        >
-                            {{ generating ? t("game.ui.extensions.DungeongenModal.generating") : t("game.ui.extensions.DungeongenModal.generate") }}
-                        </button>
-                        <button
-                            v-if="!isEditMode"
-                            class="generate-new-btn"
-                            data-testid="dungeongen-generate-new"
-                            :disabled="generating"
-                            @click="generate(true)"
-                        >
-                            {{ t("game.ui.extensions.DungeongenModal.generate_new") }}
-                        </button>
-                    </div>
                 </section>
 
-                <section class="preview-section">
-                    <h3>{{ t("game.ui.extensions.DungeongenModal.preview") }}</h3>
-                    <div v-if="!previewUrl" class="preview-placeholder">
+                <section class="ext-ui-section ext-two-col-main">
+                    <h3 class="ext-ui-section-title">{{ t("game.ui.extensions.DungeongenModal.preview") }}</h3>
+                    <div v-if="!previewUrl" class="ext-ui-empty preview-placeholder">
                         {{ t("game.ui.extensions.DungeongenModal.click_generate") }}
                     </div>
                     <div v-else class="preview-container">
                         <img :src="previewUrl ? baseAdjust(previewUrl) : ''" alt="Dungeon preview" class="preview-img" />
-                        <div v-if="gridCells" class="preview-info">
+                        <div v-if="gridCells" class="preview-info ext-ui-muted">
                             {{ gridCells.width }}×{{ gridCells.height }} cells
                         </div>
                         <button
                             v-if="openRouterAvailable"
-                            class="realistic-btn"
+                            class="ext-ui-btn ext-ui-btn-success realistic-btn"
                             :disabled="makingRealistic"
                             @click="makeRealisticWithAI"
                         >
                             {{ makingRealistic ? "..." : t("game.ui.extensions.DungeongenModal.make_realistic") }}
                         </button>
                         <button
-                            class="add-btn"
+                            class="ext-ui-btn add-btn"
                             :data-testid="isEditMode ? 'dungeongen-replace-on-map' : 'dungeongen-add-to-map'"
                             :disabled="addingToMap || replacing"
                             @click="addToMap"
@@ -500,6 +495,26 @@ async function makeRealisticWithAI(): Promise<void> {
                     </div>
                 </section>
             </div>
+            <div class="ext-bottom-bar">
+                <button
+                    class="ext-ui-btn ext-ui-btn-success generate-btn"
+                    data-testid="dungeongen-generate"
+                    :disabled="generating"
+                    @click="generate(false)"
+                >
+                    {{ generating ? t("game.ui.extensions.DungeongenModal.generating") : t("game.ui.extensions.DungeongenModal.generate") }}
+                </button>
+                <button
+                    v-if="!isEditMode"
+                    class="ext-ui-btn"
+                    data-testid="dungeongen-generate-new"
+                    :disabled="generating"
+                    @click="generate(true)"
+                >
+                    {{ t("game.ui.extensions.DungeongenModal.generate_new") }}
+                </button>
+            </div>
+        </div>
     </Modal>
 </template>
 
@@ -518,104 +533,34 @@ async function makeRealisticWithAI(): Promise<void> {
 </style>
 
 <style scoped lang="scss">
-.dungeongen-modal-header {
+.ext-two-col-side {
+    gap: 0.35rem;
+}
+.ext-two-col-side .ext-ui-field {
+    margin-bottom: 0;
+}
+.ext-two-col-side .ext-ui-field .ext-ui-label {
+    margin-bottom: 0.2rem;
+}
+
+.dg-fields-row {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.5rem 1rem;
-    cursor: grab;
-    border-bottom: 1px solid #eee;
-    background: #f9f9f9;
-
-    .dungeongen-modal-title {
-        margin: 0;
-        font-size: 1.1rem;
-        font-weight: 600;
-    }
-
-    .dungeongen-modal-actions {
-        display: flex;
-        gap: 0.5rem;
-        align-items: center;
-    }
-
-    .dungeongen-modal-btn,
-    .dungeongen-modal-close {
-        font-size: 1.1rem;
-        cursor: pointer;
-        flex-shrink: 0;
-
-        &:hover {
-            opacity: 0.7;
-        }
-    }
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-bottom: 0.35rem;
 }
-
-.modal-body {
+.dg-fields-row .ext-ui-field {
     flex: 1;
-    min-height: 0;
-    display: flex;
-    gap: 1.5rem;
-    padding: 1.5rem 2rem;
-    overflow: auto;
+    min-width: 100px;
+}
+.dg-checkboxes .ext-ui-field {
+    flex: 0 0 auto;
 }
 
-.params-section {
-    flex: 1;
-    min-width: 220px;
-    max-width: 320px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0 1rem;
-    align-content: start;
-
-    > h3 {
-        grid-column: 1 / -1;
-        font-weight: bold;
-        font-size: 1.1em;
-        margin-bottom: 0.5rem;
-    }
-}
-
-.preview-section {
-    flex: 1;
-    min-width: 200px;
-
-    > h3 {
-        font-weight: bold;
-        font-size: 1.1em;
-        margin-bottom: 0.5rem;
-    }
-}
-
-.params-section h3,
-.preview-section h3 {
-    margin: 0 0 0.75rem;
-}
-
-.param-row,
-.param-row-checkbox {
-    grid-column: span 1;
-    margin-bottom: 0.75rem;
-
-    label {
-        display: block;
-        font-weight: 500;
-        font-size: 0.95em;
-        margin-bottom: 0.25rem;
-    }
-
-    select,
-    input[type="text"] {
-        width: 100%;
-        padding: 0.5rem;
-        border: 1px solid #ccc;
-        border-radius: 0.25rem;
-    }
-}
-
-.param-row-full {
-    grid-column: 1 / -1;
+.ext-two-col-main > h3 {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 0.5rem;
 }
 
 .edit-mode-note {
@@ -625,67 +570,14 @@ async function makeRealisticWithAI(): Promise<void> {
     font-style: italic;
 }
 
-.param-row-checkbox label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-
-    input[type="checkbox"] {
-        width: auto;
-    }
-}
-
-.generate-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-top: 1rem;
-}
-
-.generate-btn,
-.generate-new-btn {
-    padding: 0.5rem 1rem;
-    border-radius: 0.25rem;
-    cursor: pointer;
-    font-weight: 500;
-    border: none;
-
-    &:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-    }
-}
-
-.generate-btn {
-    background-color: #82c8a0;
-    color: #333;
-
-    &:hover:not(:disabled) {
-        background-color: #6bb88a;
-    }
-}
-
-.generate-new-btn {
-    background-color: #eee;
-    color: #444;
-    border: 1px solid #ccc;
-
-    &:hover:not(:disabled) {
-        background-color: #e0e0e0;
-    }
-}
-
-.preview-placeholder {
+.ext-two-col-main .preview-placeholder {
     border: 2px dashed #ccc;
-    padding: 2rem;
     text-align: center;
-    color: #666;
     min-height: 200px;
     border-radius: 0.25rem;
 }
 
-.preview-container {
+.ext-two-col-main .preview-container {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -703,41 +595,14 @@ async function makeRealisticWithAI(): Promise<void> {
         color: #666;
     }
 
-    .realistic-btn {
-        padding: 0.5rem 1rem;
-        background-color: #82c8a0;
-        color: #333;
-        border: none;
-        border-radius: 0.25rem;
-        cursor: pointer;
-        font-weight: 500;
-
-        &:hover:not(:disabled) {
-            opacity: 0.9;
-        }
-
-        &:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-    }
-
     .add-btn {
-        padding: 0.5rem 1rem;
         background-color: #ff7052;
+        border-color: #ff7052;
         color: white;
-        border: none;
-        border-radius: 0.25rem;
-        cursor: pointer;
-        font-weight: 500;
 
         &:hover:not(:disabled) {
-            opacity: 0.9;
-        }
-
-        &:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
+            background-color: #e65a3d;
+            border-color: #e65a3d;
         }
     }
 }

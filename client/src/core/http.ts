@@ -13,6 +13,7 @@ export const http = {
     patchJson,
     post,
     postJson,
+    put,
 };
 
 async function get(url: string): Promise<Response> {
@@ -48,6 +49,11 @@ async function patchJson(url: string, data?: any): Promise<Response> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data ?? {}),
     });
+}
+
+async function put(url: string): Promise<Response> {
+    if (url.startsWith("/")) url = url.slice(1);
+    return fetch(import.meta.env.BASE_URL + url, { method: "PUT" });
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types

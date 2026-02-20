@@ -31,6 +31,7 @@ loop = asyncio.new_event_loop()
 
 if not save_newly_created:
     save.upgrade_save(loop=loop)
+    save.migrate_thumbnails_to_dedicated_dir()
 
 from . import routes, stats  # noqa: F401, E402
 from .api import http  # noqa: F401, E402

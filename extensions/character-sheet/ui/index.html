@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scheda del personaggio</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.0/dist/css/bootstrap.min.css" crossorigin="anonymous" />
+  <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=2" />
+  <script src="../../../../static/extensions/ext-bridge.js"></script>
+  <link rel="stylesheet" href="dndstyles.css" />
+  <style>
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+    .cs-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; padding: 0; }
+    .cs-top-bar .ext-search-bar { flex: 1; min-width: 0; }
+    .cs-body { display: flex; flex: 1; min-height: 0; overflow: hidden; gap: 0; position: relative; }
+    .cs-sidebar { flex-shrink: 0; }
+    .cs-main { position: relative; flex: 1; min-width: 0; overflow-y: auto; padding: 1rem 1.5rem; display: flex; flex-direction: column; }
+    .cs-sheet-panel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .cs-main-content { flex: 1; min-height: 0; overflow-y: auto; }
+    .cs-bottom-bar { margin: 0 -1.5rem 0 -1.5rem; padding: 0.625rem 1.5rem; justify-content: flex-start; }
+    .cs-bottom-bar .cs-toolbar-spacer { flex: 1; min-width: 0.5rem; }
+    .cs-sidebar-toggle { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 24px; height: 48px; border: 1px solid #dee2e6; border-left: none; border-radius: 0 4px 4px 0; background: #fff; cursor: pointer; z-index: 10; font-size: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 1px 0 4px rgba(0,0,0,0.1); }
+    .cs-sheet-list.ext-ui-list .ext-ui-list-item { margin-bottom: 2px; }
+    .cs-sheet-list.ext-ui-list .ext-ui-list-item.selected { background: #cce5ff; }
+    .cs-toolbar { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    .cs-toolbar .ext-ui-btn { flex-shrink: 0; }
+    .cs-edit-toggle { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .cs-edit-toggle.cs-edit-enabled { background: #2e7d32; border-color: #2e7d32; color: #fff; }
+    .cs-edit-toggle.cs-edit-enabled:hover { background: #1b5e20; border-color: #1b5e20; }
+    .cs-edit-toggle.cs-edit-disabled { background: #c62828; border-color: #c62828; color: #fff; }
+    .cs-edit-toggle.cs-edit-disabled:hover { background: #b71c1c; border-color: #b71c1c; }
+    .cs-edit-toggle .cs-lock-icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.15em; margin-right: 0.2em; }
+    .cs-toolbar-spacer { flex: 1; min-width: 0.5rem; }
+    .cs-toolbar select.ext-ui-select, .cs-toolbar .ext-ui-select { padding: 0.4rem 0.6rem; font-size: 0.95rem; font-family: inherit; border: 1px solid #ddd; border-radius: 0.25rem; background: #fff; }
+    .cs-toolbar select.ext-ui-select:focus, .cs-toolbar .ext-ui-select:focus { outline: none; border-color: #888; }
+    .cs-sheet-disabled input, .cs-sheet-disabled textarea { pointer-events: none; }
+    .cs-sheet-disabled .d-and-d-skill-circle, .cs-sheet-disabled .d-and-d-image, .cs-sheet-disabled [data-img] { pointer-events: none; cursor: default; }
+    /* qe links devono restare cliccabili/hover in read-only per tooltip compendium */
+    .cs-sheet-disabled a.qe-internal-link { pointer-events: auto !important; cursor: pointer; }
+    .cs-tabs { display: flex; gap: 0.25rem; margin-bottom: 0.5rem; border-bottom: 1px solid #dee2e6; }
+    .cs-tab { padding: 0.5rem 1rem; cursor: pointer; border-radius: 4px 4px 0 0; background: #e9ecef; }
+    .cs-tab.active { background: #fff; border: 1px solid #dee2e6; border-bottom-color: #fff; margin-bottom: -1px; }
+    .cs-page { display: none; }
+    .cs-page.active { display: block; }
+    .cs-view-val { display: inline-block; min-height: 1.2em; }
+    .cs-view-inline { display: inline; min-height: 1.2em; }
+    .cs-view-multiline { white-space: pre-wrap; min-height: 2em; }
+    .d-and-d-spelllist table tr .cs-spell-name-view { width: 100%; border-bottom: 1px solid rgb(150, 150, 150); font-size: 15px; display: block; }
+    .cs-markdown strong { font-weight: 700 !important; }
+    .cs-markdown a.qe-internal-link { color: #333; text-decoration: underline; cursor: pointer; }
+    .cs-markdown a.qe-internal-link:hover { color: #111; }
+    .cs-txt-view { line-height: 25px; background-image: linear-gradient(transparent, transparent calc(25px - 1px), rgb(207, 207, 207) 0px); background-size: 100% 25px; min-height: 2em; padding: 2px 0; }
+      @media print {
+      @page { margin: 10mm; }
+      body { overflow: visible !important; }
+      .cs-top-bar, .cs-sidebar, .cs-bottom-bar, .cs-tabs, .cs-sidebar-toggle, #selectPrompt { display: none !important; }
+      .cs-main { padding: 0 !important; overflow: visible !important; }
+      .cs-page { display: block !important; page-break-after: always; break-after: page; }
+      .cs-page:last-child { page-break-after: auto; break-after: auto; }
+      #editForm { margin: 0 !important; padding: 0 !important; }
+    }
+  </style>
+</head>
+<body class="ext-ui-root cs-root">
+  <div class="ext-toolbar-bar cs-top-bar">
+    <div class="ext-search-bar">
+      <span class="ext-search-icon" aria-hidden="true">&#128269;</span>
+      <input type="text" id="sheetSearchInput" class="ext-search-input" placeholder="" />
+      <button type="button" id="newBtn" class="ext-search-add-btn" title=""></button>
+    </div>
+  </div>
+  <div class="cs-body">
+    <aside id="sidebar" class="ext-sidebar ext-sidebar-left cs-sidebar">
+      <div class="ext-sidebar-content">
+        <div id="loading" class="ext-ui-loading" style="display:none">Caricamento...</div>
+        <ul id="sheetList" class="ext-ui-list cs-sheet-list" style="display:none"></ul>
+        <div id="noRoom" style="display:none; padding:1rem; color:#666">Apri una partita per gestire le schede.</div>
+      </div>
+    </aside>
+    <main class="cs-main">
+      <button type="button" id="sidebarToggle" class="ext-sidebar-toggle cs-sidebar-toggle" title="Mostra/Nascondi elenco schede" aria-label="Toggle sidebar">◀</button>
+      <div id="selectPrompt" style="padding:2rem; text-align:center; color:#666">
+        <p style="margin-bottom:1rem">Seleziona o crea una scheda.</p>
+      </div>
+      <div id="sheetPanel" class="cs-sheet-panel" style="display:none">
+        <div class="cs-main-content">
+          <div class="cs-tabs" id="csTabs">
+            <div class="cs-tab active" data-tab="stats"></div>
+            <div class="cs-tab" data-tab="profile"></div>
+            <div class="cs-tab" data-tab="spells"></div>
+          </div>
+          <div id="editForm" class="d-and-d-character-sheet container-xl mt-5 mb-5 cs-sheet-disabled"></div>
+        </div>
+        <div class="ext-bottom-bar cs-bottom-bar cs-toolbar">
+          <button type="button" id="editToggle" class="ext-ui-btn cs-edit-toggle cs-edit-disabled"></button>
+          <div class="cs-toolbar-spacer"></div>
+          <div style="display:flex; align-items:center; gap:0.5rem">
+            <span id="linkToCharacterLabel">Collega a personaggio:</span>
+            <select id="charSelect" class="ext-ui-select" style="min-width:140px"></select>
+          </div>
+          <button type="button" id="exportJsonBtn" class="ext-ui-btn"></button>
+          <input type="file" id="importJsonInput" accept=".json" style="display:none" />
+          <button type="button" id="importJsonBtn" class="ext-ui-btn"></button>
+          <button type="button" id="exportPdfBtn" class="ext-ui-btn"></button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var roomCreator = params.get('room_creator') || '';
+  var roomName = params.get('room_name') || '';
+  var locale = params.get('locale') || 'it';
+  var openSheetId = params.get('sheet_id') || '';
+  var qeEnabled = params.get('qe_enabled') === '1';
+  var qeNamesCache = [];
+
+  var L = {
+    it: { name:"Nome", classLevel:"Classe e livello", background:"Background", playerName:"Nome giocatore", faction:"Fazione", race:"Razza", alignment:"Allineamento", xp:"PE", dciNo:"N° DCI",
+      str:"FOR", dex:"DES", con:"COS", int:"INT", wis:"SAG", cha:"CAR", ac:"CA", init:"Iniziativa", speed:"Velocità", inspiration:"Ispirazione", proficiencyBonus:"Bonus competenza",
+      savingThrows:"Tiri salvezza", skills:"Abilità", passivePerception:"Percezione passiva", otherProficiencies:"Altre competenze e lingue", deathSaves:"Tiri per la morte",
+      maxHp:"PF max", hp:"PF correnti", tempHp:"PF temporanei", hitDice:"Dadi vita", attacks:"Attacchi e incantesimi", equipment:"Equipaggiamento", equipment2:"Equipaggiamento 2",
+      personalityTraits:"Tratti", ideals:"Ideali", bonds:"Legami", flaws:"Difetti", featuresTraits:"Tratti e talenti", cp:"RM", sp:"AR", ep:"EL", gp:"OR", pp:"PL",
+      successes:"Successi", failures:"Fallimenti", armourClass:"Classe armatura",
+      acrobatics:"Acrobazia", animalHandling:"Addestrare animali", arcana:"Arcana", athletics:"Atletica", deception:"Inganno", history:"Storia", insight:"Intuizione",
+      intimidation:"Intimidire", investigation:"Investigazione", medicine:"Medicina", nature:"Natura", perception:"Percezione", performance:"Intrattenere", persuasion:"Persuasione",
+      religion:"Religione", sleightOfHand:"Borseggio", stealth:"Furtività", survival:"Sopravvivenza",
+      age:"Età", height:"Altezza", weight:"Peso", eyes:"Occhi", skin:"Pelle", hair:"Capelli", appearance:"Aspetto", backstory:"Storia", factionRank:"Grado fazione", allies:"Alleati", additionalFeatures:"Tratti aggiuntivi", treasure:"Tesoro", totalNonConsumableMagicItems:"Oggetti magici",
+      spellcastingClass:"Classe incantatore", preparedSpellsTotal:"Incantesimi preparati", spellSaveDC:"CD tiro salvezza", spellAttackBonus:"Bonus attacco incantesimo", cantrips:"Trucchetti",
+      stats:"Statistiche", profile:"Profilo", spells:"Incantesimi", attackName:"Nome", atkBonus:"Bonus attacco", damageType:"Danno/Tipo",
+      spellLevel:"Livello incantesimo", slotsTotal:"Slot totali", slotsRemaining:"Slot rimanenti", prepared:"Preparato", preparedSpellsTotalLabel:"Incantesimi preparati - Totale", spellName:"Nome incantesimo",
+      initiative:"Iniziativa", enableEdits:"Abilita modifiche", disableEdits:"Solo lettura", export:"Esporta", import:"Importa", print:"Stampa", linkToCharacter:"Collega a personaggio:",       save:"Salva", delete:"Elimina", newSheet:"Nuova scheda", none:"Nessuno",
+      visibleToPlayers:"Visibile a tutti i giocatori", hiddenFromPlayers:"Nascosta ai giocatori",
+      searchSheets:"Cerca schede..."
+    },
+    en: { name:"Name", classLevel:"Class & Level", background:"Background", playerName:"Player Name", faction:"Faction", race:"Race", alignment:"Alignment", xp:"XP", dciNo:"DCI Number",
+      str:"STR", dex:"DEX", con:"CON", int:"INT", wis:"WIS", cha:"CHA", ac:"AC", init:"Init", speed:"Speed", inspiration:"Inspiration", proficiencyBonus:"Proficiency Bonus",
+      savingThrows:"Saving Throws", skills:"Skills", passivePerception:"Passive Perception", otherProficiencies:"Other Proficiencies & Languages", deathSaves:"Death Saves",
+      maxHp:"HP Max", hp:"Current HP", tempHp:"Temp HP", hitDice:"Hit Dice", attacks:"Attacks & Spellcasting", equipment:"Equipment", equipment2:"Equipment 2",
+      personalityTraits:"Personality", ideals:"Ideals", bonds:"Bonds", flaws:"Flaws", featuresTraits:"Features & Traits", cp:"CP", sp:"SP", ep:"EP", gp:"GP", pp:"PP",
+      successes:"Successes", failures:"Failures", armourClass:"Armour Class",
+      acrobatics:"Acrobatics", animalHandling:"Animal Handling", arcana:"Arcana", athletics:"Athletics", deception:"Deception", history:"History", insight:"Insight",
+      intimidation:"Intimidation", investigation:"Investigation", medicine:"Medicine", nature:"Nature", perception:"Perception", performance:"Performance", persuasion:"Persuasion",
+      religion:"Religion", sleightOfHand:"Sleight of Hand", stealth:"Stealth", survival:"Survival",
+      age:"Age", height:"Height", weight:"Weight", eyes:"Eyes", skin:"Skin", hair:"Hair", appearance:"Appearance", backstory:"Backstory", factionRank:"Faction Rank", allies:"Allies", additionalFeatures:"Additional Features", treasure:"Treasure", totalNonConsumableMagicItems:"Total Non-Consumable Magic Items",
+      spellcastingClass:"Spellcasting Class", preparedSpellsTotal:"Prepared Spells Total", spellSaveDC:"Spell Save DC", spellAttackBonus:"Spell Attack Bonus", cantrips:"Cantrips",
+      stats:"Stats", profile:"Profile", spells:"Spells", attackName:"Name", atkBonus:"Atk Bonus", damageType:"Damage/Type",
+      spellLevel:"Spell Level", slotsTotal:"Slots Total", slotsRemaining:"Slots Remaining", prepared:"Prepared", preparedSpellsTotalLabel:"Prepared Spells Total", spellName:"Spell Name",
+      initiative:"Initiative", enableEdits:"Enable edits", disableEdits:"Read only", export:"Export", import:"Import", print:"Print", linkToCharacter:"Link to character:", save:"Save", delete:"Delete", newSheet:"New sheet", none:"None",
+      visibleToPlayers:"Visible to all players", hiddenFromPlayers:"Hidden from players",
+      searchSheets:"Search sheets..."
+    }
+  };
+  var t = function(k) { return (L[locale] || L.en)[k] || L.en[k] || k; };
+
+  function api(path) {
+    var base = window.location.pathname.indexOf('/api/') >= 0 ? window.location.pathname.slice(0, window.location.pathname.indexOf('/api/')) : '';
+    return base + path;
+  }
+  function qs(u, opts) {
+    var url = u + (u.includes('?') ? '&' : '?') + 'room_creator=' + encodeURIComponent(roomCreator) + '&room_name=' + encodeURIComponent(roomName);
+    return fetch(api(url), Object.assign({ credentials: 'include' }, opts || {}));
+  }
+  function toast(msg, err) {
+    try { if (window.parent !== window) window.parent.postMessage({ type: 'planarally-toast', message: msg, error: !!err }, '*'); } catch(e) {}
+  }
+
+  function extractQeLinksFromObj(obj, out) {
+    if (!obj) return;
+    if (typeof obj === 'string') {
+      var re = /\[([^\]]*)\]\(qe:([^)]+)\)/gi;
+      var m;
+      while ((m = re.exec(obj)) !== null) {
+        var linkText = (m[1] || '').trim();
+        var path = (m[2] || '').trim();
+        if (!linkText || !path) continue;
+        var parts = path.split('/');
+        var comp = parts.length >= 3 ? parts[0] : undefined;
+        var coll = parts.length >= 3 ? parts[1] : parts[0];
+        var slug = parts.length >= 3 ? parts[2] : parts[1];
+        if (coll && slug) out.push({ name: linkText, compendiumSlug: comp, collectionSlug: coll, itemSlug: slug });
+      }
+      return;
+    }
+    if (Array.isArray(obj)) { obj.forEach(function(x){ extractQeLinksFromObj(x, out); }); return; }
+    if (typeof obj === 'object') { Object.keys(obj).forEach(function(k){ extractQeLinksFromObj(obj[k], out); }); }
+  }
+
+  if (qeEnabled) {
+    qs('/api/extensions/compendium/names').then(function(r){ return r.ok ? r.json() : { names: [] }; }).then(function(data){
+      qeNamesCache = (data.names || []).slice().sort(function(a,b){ return (b.name || '').length - (a.name || '').length; });
+      if (selectedId && editForm.innerHTML && !editingEnabled) renderAll(toFormData(currentData));
+    }).catch(function(){ qeNamesCache = []; });
+  }
+
+  var sheets = [], characters = [], selectedId = null, currentData = {}, currentTab = 'stats', editingEnabled = false;
+  var sheetList = document.getElementById('sheetList');
+  var loading = document.getElementById('loading');
+  var noRoom = document.getElementById('noRoom');
+  var selectPrompt = document.getElementById('selectPrompt');
+  var sheetPanel = document.getElementById('sheetPanel');
+  var editForm = document.getElementById('editForm');
+
+  var SKILL_KEYS = ['acrobatics','animalHandling','arcana','athletics','deception','history','insight','intimidation','investigation','medicine','nature','perception','performance','persuasion','religion','sleightOfHand','stealth','survival'];
+  var SKILL_HINTS = { acrobatics:'(Dex)', animalHandling:'(Wis)', arcana:'(Int)', athletics:'(Str)', deception:'(Cha)', history:'(Int)', insight:'(Wis)', intimidation:'(Cha)', investigation:'(Int)', medicine:'(Wis)', nature:'(Int)', perception:'(Wis)', performance:'(Cha)', persuasion:'(Cha)', religion:'(Int)', sleightOfHand:'(Dex)', stealth:'(Dex)', survival:'(Wis)' };
+
+  function toFormData(d) {
+    var s = d || {}, pa = s.planarally || {}, st = pa.savingThrows || {}, sk = pa.skills || {};
+    var stats = s.stats || [{value:10},{value:10},{value:10},{value:10},{value:10},{value:10}];
+    var cur = s.currencies || {}, tr = s.traits || {}, race = s.race || {};
+    var c0 = (s.classes && s.classes[0]) || {};
+    var ds = s.dndsheets || {};
+    var fd = {
+      name: s.name || ds.name || '',
+      classLevel: (c0.definition && c0.definition.name ? c0.definition.name : '') + ' ' + (c0.level || 1) || ds.classLevel || '',
+      background: (s.background && s.background.definition && s.background.definition.name) ? s.background.definition.name : ds.background || '',
+      playerName: ds.playerName || '',
+      faction: ds.faction || '',
+      race: race.baseName || race.fullName || ds.race || '',
+      alignment: s.alignmentId != null ? String(s.alignmentId) : (ds.alignment || ''),
+      xp: s.currentXp != null ? String(s.currentXp) : (ds.xp || '0'),
+      dciNo: ds.dciNo || '',
+      str: String(stats[0] && stats[0].value != null ? stats[0].value : (ds.str || 10)),
+      dex: String(stats[1] && stats[1].value != null ? stats[1].value : (ds.dex || 10)),
+      con: String(stats[2] && stats[2].value != null ? stats[2].value : (ds.con || 10)),
+      int: String(stats[3] && stats[3].value != null ? stats[3].value : (ds.int || 10)),
+      wis: String(stats[4] && stats[4].value != null ? stats[4].value : (ds.wis || 10)),
+      cha: String(stats[5] && stats[5].value != null ? stats[5].value : (ds.cha || 10)),
+      strMod: ds.strMod != null ? String(ds.strMod) : '', dexMod: ds.dexMod != null ? String(ds.dexMod) : '', conMod: ds.conMod != null ? String(ds.conMod) : '',
+      intMod: ds.intMod != null ? String(ds.intMod) : '', wisMod: ds.wisMod != null ? String(ds.wisMod) : '', chaMod: ds.chaMod != null ? String(ds.chaMod) : '',
+      inspiration: (s.inspiration || ds.inspiration) ? '1' : '0',
+      proficiencyBonus: pa.proficiencyBonus || ds.proficiencyBonus || '',
+      passivePerception: pa.passivePerception || ds.passivePerception || '',
+      ac: String(pa.armorClass != null ? pa.armorClass : (ds.ac || 10)),
+      init: String(pa.initiative != null ? pa.initiative : (ds.init || 0)),
+      speed: String((race.weightSpeeds && race.weightSpeeds.normal && race.weightSpeeds.normal.walk != null) ? race.weightSpeeds.normal.walk : (ds.speed || 30)),
+      maxHp: String(s.baseHitPoints != null ? s.baseHitPoints : (ds.maxHp || 0)),
+      hp: String(s.currentHitPoints != null ? s.currentHitPoints : (ds.hp || 0)),
+      tempHp: String(s.temporaryHitPoints != null ? s.temporaryHitPoints : (ds.tempHp || 0)),
+      hitDiceMax: pa.hitDiceTotal || ds.hitDiceMax || '',
+      hitDice: pa.hitDiceRemaining || ds.hitDice || '',
+      deathsaveSuccesses: pa.deathSaveSuccesses != null ? pa.deathSaveSuccesses : (ds.deathsaveSuccesses || 0),
+      deathsaveFailures: pa.deathSaveFailures != null ? pa.deathSaveFailures : (ds.deathsaveFailures || 0),
+      attacksText: pa.attacksText || ds.attacksText || '',
+      equipment: Array.isArray(s.inventory) ? s.inventory.map(function(it){ var n=(it.definition||{}).name||''; var q=it.quantity||1; return q>1?n+' x'+q:n; }).filter(Boolean).join('\n') : (ds.equipment || ''),
+      equipment2: ds.equipment2 || '',
+      personalityTraits: tr.personalityTraits || ds.personalityTraits || '',
+      ideals: tr.ideals || ds.ideals || '',
+      bonds: tr.bonds || ds.bonds || '',
+      flaws: tr.flaws || ds.flaws || '',
+      featuresTraits: pa.features || ds.featuresTraits || '',
+      otherProficiencies: pa.proficiencies || ds.otherProficiencies || '',
+      cp: String(cur.cp != null ? cur.cp : (ds.cp || 0)), sp: String(cur.sp != null ? cur.sp : (ds.sp || 0)), ep: String(cur.ep != null ? cur.ep : (ds.ep || 0)),
+      gp: String(cur.gp != null ? cur.gp : (ds.gp || 0)), pp: String(cur.pp != null ? cur.pp : (ds.pp || 0)),
+      strSave: String((st.str||{}).mod || 0), strSaveChecked: !!(st.str||{}).proficient,
+      dexSave: String((st.dex||{}).mod || 0), dexSaveChecked: !!(st.dex||{}).proficient,
+      conSave: String((st.con||{}).mod || 0), conSaveChecked: !!(st.con||{}).proficient,
+      intSave: String((st.int||{}).mod || 0), intSaveChecked: !!(st.int||{}).proficient,
+      wisSave: String((st.wis||{}).mod || 0), wisSaveChecked: !!(st.wis||{}).proficient,
+      chaSave: String((st.cha||{}).mod || 0), chaSaveChecked: !!(st.cha||{}).proficient,
+      age: ds.age || '', height: ds.height || '', weight: ds.weight || '', eyes: ds.eyes || '', skin: ds.skin || '', hair: ds.hair || '',
+      appearance: ds.appearance || '', backstory: ds.backstory || '', factionRank: ds.factionRank || '', allies: ds.allies || '', allies2: ds.allies2 || '',
+      factionImg: ds.factionImg || '', additionalFeatures: ds.additionalFeatures || '', additionalFeatures2: ds.additionalFeatures2 || '',
+      totalNonConsumableMagicItems: ds.totalNonConsumableMagicItems || '', treasure: ds.treasure || '', treasure2: ds.treasure2 || '',
+      spellcastingClass: ds.spellcastingClass || '', preparedSpellsTotal: ds.preparedSpellsTotal || '', spellSaveDC: ds.spellSaveDC || '', spellAttackBonus: ds.spellAttackBonus || ''
+    };
+    SKILL_KEYS.forEach(function(k){ var v=sk[k]||{}; var key='skill'+k.charAt(0).toUpperCase()+k.slice(1); fd[key]=String(v.mod||0); fd[key+'Checked']=!!v.proficient; });
+    var attacks = pa.attacks || ds.attacks || [];
+    fd.attacks = Array.isArray(attacks) ? attacks : [];
+    for (var i = 0; i < 3; i++) fd.attacks[i] = fd.attacks[i] || {};
+    ['cantrips','lvl1Spells','lvl2Spells','lvl3Spells','lvl4Spells','lvl5Spells','lvl6Spells','lvl7Spells','lvl8Spells','lvl9Spells'].forEach(function(k){
+      var v = ds[k] || []; fd[k] = Array.isArray(v) ? v : [];
+    });
+    for (var lv = 1; lv <= 9; lv++) {
+      var k = 'lvl'+lv+'SpellSlotsTotal'; fd[k] = ds[k] || '';
+      k = 'lvl'+lv+'SpellSlotsUsed'; fd[k] = ds[k] != null ? ds[k] : 0;
+    }
+    return fd;
+  }
+
+  function fromFormData(fd) {
+    var inv = (fd.equipment||'').split(/\r?\n/).map(function(line){
+      line = line.trim(); if(!line) return null;
+      var m = line.match(/^(.+?)\s*x\s*(\d+)$/i);
+      return { definition: { name: m ? m[1].trim() : line }, quantity: m ? parseInt(m[2],10) : 1 };
+    }).filter(Boolean);
+    var ab = ['str','dex','con','int','wis','cha'];
+    var savingThrows = {}; ab.forEach(function(a){ savingThrows[a] = { proficient: !!fd[a+'SaveChecked'], mod: parseInt(fd[a+'Save']||0,10)||0 }; });
+    var skills = {}; SKILL_KEYS.forEach(function(k){ var key='skill'+k.charAt(0).toUpperCase()+k.slice(1); skills[k] = { proficient: !!fd[key+'Checked'], mod: parseInt(fd[key]||0,10)||0 }; });
+    var stats = [fd.str,fd.dex,fd.con,fd.int,fd.wis,fd.cha].map(function(v){ return { value: parseInt(String(v||10),10)||10 }; });
+    var clParts = String(fd.classLevel||'').trim().split(/\s+/);
+    var level = parseInt(clParts[clParts.length-1],10) || 1;
+    var className = clParts.slice(0,-1).join(' ') || '';
+    var dndsheets = {
+      playerName: fd.playerName||'', faction: fd.faction||'', dciNo: fd.dciNo||'', passivePerception: fd.passivePerception||'',
+      strMod: fd.strMod||'', dexMod: fd.dexMod||'', conMod: fd.conMod||'', intMod: fd.intMod||'', wisMod: fd.wisMod||'', chaMod: fd.chaMod||'',
+      equipment2: fd.equipment2||'', attacks: (fd.attacks||[]).slice(0,3),
+      age: fd.age||'', height: fd.height||'', weight: fd.weight||'', eyes: fd.eyes||'', skin: fd.skin||'', hair: fd.hair||'',
+      appearance: fd.appearance||'', backstory: fd.backstory||'', factionRank: fd.factionRank||'', factionImg: fd.factionImg||'',
+      allies: fd.allies||'', allies2: fd.allies2||'', additionalFeatures: fd.additionalFeatures||'', additionalFeatures2: fd.additionalFeatures2||'',
+      totalNonConsumableMagicItems: fd.totalNonConsumableMagicItems||'', treasure: fd.treasure||'', treasure2: fd.treasure2||'',
+      spellcastingClass: fd.spellcastingClass||'', preparedSpellsTotal: fd.preparedSpellsTotal||'', spellSaveDC: fd.spellSaveDC||'', spellAttackBonus: fd.spellAttackBonus||''
+    };
+    for (var lv = 1; lv <= 9; lv++) { dndsheets['lvl'+lv+'SpellSlotsTotal'] = fd['lvl'+lv+'SpellSlotsTotal']||''; dndsheets['lvl'+lv+'SpellSlotsUsed'] = fd['lvl'+lv+'SpellSlotsUsed']!= null ? fd['lvl'+lv+'SpellSlotsUsed'] : 0; }
+    ['cantrips','lvl1Spells','lvl2Spells','lvl3Spells','lvl4Spells','lvl5Spells','lvl6Spells','lvl7Spells','lvl8Spells','lvl9Spells'].forEach(function(k){ dndsheets[k] = fd[k] || []; });
+    return {
+      name: String(fd.name||'').trim(),
+      classes: [{ definition: { name: className }, subclassDefinition: null, level: level }],
+      race: { baseName: fd.race||'', fullName: fd.race||'', weightSpeeds: { normal: { walk: parseInt(fd.speed||30,10)||30 } } },
+      background: { definition: { name: fd.background||'' } },
+      alignmentId: fd.alignment ? parseInt(fd.alignment,10) : null,
+      currentXp: parseInt(fd.xp||0,10)||0,
+      inspiration: fd.inspiration === '1',
+      baseHitPoints: parseInt(fd.maxHp||0,10)||0,
+      currentHitPoints: parseInt(fd.hp||0,10)||0,
+      temporaryHitPoints: parseInt(fd.tempHp||0,10)||0,
+      stats: stats,
+      traits: { personalityTraits: fd.personalityTraits||'', ideals: fd.ideals||'', bonds: fd.bonds||'', flaws: fd.flaws||'' },
+      currencies: { cp: parseInt(fd.cp||0,10)||0, sp: parseInt(fd.sp||0,10)||0, ep: parseInt(fd.ep||0,10)||0, gp: parseInt(fd.gp||0,10)||0, pp: parseInt(fd.pp||0,10)||0 },
+      inventory: inv,
+      dndsheets: dndsheets,
+      planarally: {
+        armorClass: parseInt(fd.ac||10,10)||10,
+        initiative: parseInt(fd.init||0,10)||0,
+        passivePerception: fd.passivePerception||'',
+        hitDiceTotal: fd.hitDiceMax||'',
+        hitDiceRemaining: fd.hitDice||'',
+        deathSaveSuccesses: parseInt(fd.deathsaveSuccesses||0,10)||0,
+        deathSaveFailures: parseInt(fd.deathsaveFailures||0,10)||0,
+        savingThrows: savingThrows,
+        skills: skills,
+        attacks: dndsheets.attacks,
+        attacksText: fd.attacksText||'',
+        features: fd.featuresTraits||'',
+        proficiencies: fd.otherProficiencies||''
+      }
+    };
+  }
+
+  function mod(val) { var n = parseInt(String(val||10),10); if(isNaN(n)) return ''; var m = Math.floor((n-10)/2); return m >= 0 ? '+' + m : String(m); }
+
+  function injectQeLinksHtml(text, names) {
+    if (!text) return text;
+    var esc = function(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
+    var safe = esc(text);
+    var placeholders = [];
+    var ph = function() { var id = '\x01QE' + placeholders.length + '\x02'; placeholders.push(null); return id; };
+    safe = safe.replace(/\[([^\]]*)\]\(qe:([^)]+)\)/gi, function(_, linkText, path) {
+      var parts = path.split('/');
+      var comp = parts.length >= 3 ? parts[0] : '';
+      var coll = parts.length >= 3 ? parts[1] : parts[0];
+      var slug = parts.length >= 3 ? parts[2] : parts[1];
+      var attrs = 'data-qe-collection="' + esc(coll) + '" data-qe-slug="' + esc(slug) + '"';
+      if (comp) attrs = 'data-qe-compendium="' + esc(comp) + '" ' + attrs;
+      var link = '<a href="#" ' + attrs + ' class="qe-internal-link">' + esc(linkText) + '</a>';
+      var id = ph(); placeholders[placeholders.length - 1] = link; return id;
+    });
+    if (names.length) {
+      names = names.slice().sort(function(a,b){ return (b.name||'').length - (a.name||'').length; });
+      for (var i = 0; i < names.length; i++) {
+        var e = names[i];
+        if (!e || !e.name) continue;
+        var escName = e.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        var attrs = 'data-qe-collection="' + esc(e.collectionSlug||'') + '" data-qe-slug="' + esc(e.itemSlug||'') + '"';
+        if (e.compendiumSlug) attrs = 'data-qe-compendium="' + esc(e.compendiumSlug) + '" ' + attrs;
+        var link = '<a href="#" ' + attrs + ' class="qe-internal-link">' + esc(e.name) + '</a>';
+        safe = safe.replace(new RegExp('"(' + escName + ')"', 'gi'), function() { var id = ph(); placeholders[placeholders.length-1]='"'+link+'"'; return id; });
+        safe = safe.replace(new RegExp('\\(' + escName + '\\)', 'gi'), function() { var id = ph(); placeholders[placeholders.length-1]='('+link+')'; return id; });
+        safe = safe.replace(new RegExp('\\b(' + escName + ')\\b', 'gi'), function() { var id = ph(); placeholders[placeholders.length-1]=link; return id; });
+      }
+    }
+    for (var j = 0; j < placeholders.length; j++) {
+      safe = safe.replace('\x01QE' + j + '\x02', placeholders[j] || '');
+    }
+    return safe.replace(/\*\*([\s\S]*?)\*\*/g, '<strong>$1</strong>');
+  }
+
+  function renderAll(formData) {
+    var f = formData || {};
+    var isView = !editingEnabled;
+    var esc = function(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
+    var formatMarkdownBold = function(s) {
+      if (!s) return '';
+      var safe = esc(s);
+      return safe.replace(/\*\*([\s\S]*?)\*\*/g, '<strong>$1</strong>');
+    };
+    var deathCircle = function(name, val) {
+      var v = parseInt(val,10)||0;
+      var circles = '';
+      for (var i = 1; i <= 3; i++) {
+        var active = v >= i ? ' active' : '';
+        circles += '<span class="d-and-d-skill-circle' + active + '" data-death="' + name + '" data-val="' + i + '"></span>' + (i < 3 ? '=' : '');
+      }
+      return circles;
+    };
+    var inp = function(field, val, attrs) {
+      var ro = isView ? ' readonly' : '';
+      return '<input type="text" data-field="' + field + '" value="' + esc(val) + '"' + (attrs || '') + ro + ' />';
+    };
+    var inpSpellName = function(field, val) {
+      if (isView && qeEnabled) {
+        var raw = esc(val || '');
+        var content = injectQeLinksHtml(val || '', qeNamesCache);
+        return '<input type="hidden" data-field="' + field + '" value="' + raw + '" /><div class="cs-view-inline cs-markdown cs-spell-name-view">' + content + '</div>';
+      }
+      return inp(field, val);
+    };
+    var txt = function(field, val, rows) {
+      if (isView) {
+        var raw = esc(val || '');
+        var minH = Math.max(2, (rows || 2)) * 25;
+        var content = qeEnabled ? injectQeLinksHtml(val || '', qeNamesCache) : formatMarkdownBold(val || '');
+        return '<input type="hidden" data-field="' + field + '" value="' + raw + '" /><div class="cs-view-multiline cs-markdown cs-txt-view" style="white-space:pre-wrap;min-height:' + minH + 'px">' + content + '</div>';
+      }
+      return '<textarea data-field="' + field + '" rows="' + (rows||2) + '" style="width:100%">' + esc(val || '') + '</textarea>';
+    };
+    var skillRow = function(name, label) {
+      var key = 'skill'+name.charAt(0).toUpperCase()+name.slice(1);
+      var checked = f[key+'Checked'] ? ' active' : '';
+      var val = f[key] || '0';
+      var hint = SKILL_HINTS[name] ? '<span class="d-and-d-skill-hint">' + SKILL_HINTS[name] + '</span>' : '';
+      return '<div class="d-and-d-skill"><span class="d-and-d-skill-circle' + checked + '" data-skill-check="' + name + '"></span>' + inp(key, val, ' style="width:25px"') + '<label>' + t(label) + '</label>' + hint + '</div>';
+    };
+    var attackRow = function(i) {
+      var r = (f.attacks||[])[i] || {};
+      return '<tr><td>' + inp('attacks_'+i+'_name', r.name) + '</td><td>' + inp('attacks_'+i+'_bonus', r.bonus, ' style="width:70px"') + '</td><td>' + inp('attacks_'+i+'_damage', r.damage) + '</td></tr>';
+    };
+    var imgEl = function(field, val) {
+      var bg = val ? 'background-image:url(' + (val.indexOf('data:')===0 ? val : esc(val)) + ');' : '';
+      if (isView) return '<div class="d-and-d-image' + (field==='factionImg'?' faction':'') + '" style="' + bg + ' min-height:200px' + (field==='factionImg'?'; border-radius:50%':'') + '"></div>';
+      return '<div class="d-and-d-image' + (field==='factionImg'?' faction':'') + '" data-img="' + field + '" style="' + bg + ' min-height:200px; cursor:pointer' + (field==='factionImg'?'; border-radius:50%':'') + '"><input type="file" accept="image/*" data-img-upload="' + field + '" style="display:none" /></div>';
+    };
+
+    var html = '';
+
+    /* === STATS PAGE === */
+    html += '<div class="cs-page cs-stats' + (currentTab === 'stats' ? ' active' : '') + '"><div class="row mb-4">';
+    html += '<div class="col-md-3 pr-2 pl-2"><div class="d-and-d-page-title"></div><div class="d-and-d-attribute-collection char-name pr-3 pl-3">' + inp('name', f.name) + '</div><label style="width:100%;text-align:right;text-transform:uppercase;font-size:11px">' + t('name') + '</label></div>';
+    html += '<div class="col-md-9 pr-2 pl-2"><div class="d-and-d-attribute-collection pr-3 pl-3"><div class="row pl-3 pr-3">';
+    html += '<div class="col-md-3 col-6 pl-0 pr-0">' + inp('classLevel', f.classLevel) + '<label>' + t('classLevel') + '</label></div>';
+    html += '<div class="col-md-3 col-6 pl-0 pr-0">' + inp('background', f.background) + '<label>' + t('background') + '</label></div>';
+    html += '<div class="col-md-3 col-6 pl-0 pr-0">' + inp('playerName', f.playerName) + '<label>' + t('playerName') + '</label></div>';
+    html += '<div class="col-md-3 col-6 pl-0 pr-0">' + inp('faction', f.faction) + '<label>' + t('faction') + '</label></div></div><div class="row pl-3 pr-3">';
+    html += '<div class="col-md-3 col-6 pl-0 pr-0">' + inp('race', f.race) + '<label>' + t('race') + '</label></div>';
+    html += '<div class="col-md-3 col-6 pl-0 pr-0">' + inp('alignment', f.alignment) + '<label>' + t('alignment') + '</label></div>';
+    html += '<div class="col-md-3 col-6 pl-0 pr-0">' + inp('xp', f.xp) + '<label>' + t('xp') + '</label></div>';
+    html += '<div class="col-md-3 col-6 pl-0 pr-0">' + inp('dciNo', f.dciNo) + '<label>' + t('dciNo') + '</label></div></div></div></div></div>';
+
+    html += '<div class="row"><div class="col-md-4"><div class="row"><div class="col-4 pr-1"><div class="d-and-d-box gray">';
+    ['str','dex','con','int','wis','cha'].forEach(function(a){
+      var modVal = (f[a+'Mod'] !== '' && f[a+'Mod'] != null) ? String(f[a+'Mod']) : mod(f[a]);
+      html += '<div class="d-and-d-statbox"><label>' + t(a) + '</label><div class="d-and-d-statbox-modifier">' + inp(a+'Mod', modVal, ' style="width:42px;font-size:24px;text-align:center"') + '</div></div><div class="d-and-d-statbox-value">' + inp(a, f[a]) + '</div>';
+    });
+    html += '</div></div><div class="col-8">';
+    html += '<div class="d-and-d-statrow"><div class="d-and-d-statrow-value">' + inp('inspiration', f.inspiration) + '</div><div class="d-and-d-statrow-label"><label>' + t('inspiration') + '</label></div></div>';
+    html += '<div class="d-and-d-statrow rounded"><div class="d-and-d-statrow-value">' + inp('proficiencyBonus', f.proficiencyBonus) + '</div><div class="d-and-d-statrow-label"><label>' + t('proficiencyBonus') + '</label></div></div>';
+    html += '<div class="d-and-d-box"><div style="text-align:left">';
+    ['str','dex','con','int','wis','cha'].forEach(function(a){
+      var ck = f[a+'SaveChecked'] ? ' active' : '';
+      html += '<div class="d-and-d-skill"><span class="d-and-d-skill-circle' + ck + '" data-save-check="' + a + '"></span>' + inp(a+'Save', f[a+'Save'], ' style="width:25px"') + '<label>' + t(a) + '</label></div>';
+    });
+    html += '</div><label class="d-and-d-title" style="margin-top:10px">' + t('savingThrows') + '</label></div>';
+    html += '<div class="d-and-d-box"><div style="text-align:left">';
+    SKILL_KEYS.forEach(function(k){ html += skillRow(k, k); });
+    html += '</div><label class="d-and-d-title" style="margin-top:10px">' + t('skills') + '</label></div></div></div>';
+    html += '<div class="mt-2"><div class="d-and-d-statrow rounded rounded-sides"><div class="d-and-d-statrow-value">' + inp('passivePerception', f.passivePerception) + '</div><div class="d-and-d-statrow-label"><label>' + t('passivePerception') + '</label></div></div></div>';
+    html += '<div class="d-and-d-box mt-4">' + txt('otherProficiencies', f.otherProficiencies, 12) + '<label class="d-and-d-title" style="margin-top:10px">' + t('otherProficiencies') + '</label></div></div>';
+
+    html += '<div class="col-md-4"><div class="d-and-d-box gray"><div class="row"><div class="col-4 pr-2">';
+    html += '<div class="d-and-d-statbox type2 shield"><div class="d-and-d-statbox-modifier">' + inp('ac', f.ac) + '</div><label class="label-top">' + t('armourClass') + '</label><label>' + t('ac') + '</label></div></div>';
+    html += '<div class="col-4 pr-2 pl-2"><div class="d-and-d-statbox type2"><div class="d-and-d-statbox-modifier">' + inp('init', f.init) + '</div><label>' + t('initiative') + '</label></div></div>';
+    html += '<div class="col-4 pl-2"><div class="d-and-d-statbox type2"><div class="d-and-d-statbox-modifier">' + inp('speed', f.speed) + '</div><label>' + t('speed') + '</label></div></div></div>';
+    html += '<div class="d-and-d-box white" style="border-radius:8px 8px 0 0;margin-bottom:5px;padding-bottom:5px"><div class="d-and-d-gray-text"><label style="width:95px">' + t('maxHp') + '</label>' + inp('maxHp', f.maxHp, ' style="width:calc(100% - 95px)" class="d-and-d-linput"') + '</div>' + inp('hp', f.hp, ' class="d-and-d-cinput"') + '<label class="d-and-d-title" style="margin-top:5px">' + t('hp') + '</label></div>';
+    html += '<div class="d-and-d-box white mb-2" style="border-radius:0 0 8px 8px;padding-bottom:5px">' + inp('tempHp', f.tempHp, ' class="d-and-d-cinput"') + '<label class="d-and-d-title" style="margin-top:5px">' + t('tempHp') + '</label></div>';
+    html += '<div class="row mt-1"><div class="col-6 pr-1"><div class="d-and-d-box white mb-0" style="padding-bottom:5px"><div class="d-and-d-gray-text"><label style="width:25px">Total</label>' + inp('hitDiceMax', f.hitDiceMax, ' style="width:calc(100% - 25px)" class="d-and-d-linput"') + '</div>' + inp('hitDice', f.hitDice, ' class="d-and-d-cinput"') + '<label class="d-and-d-title" style="margin-top:5px">' + t('hitDice') + '</label></div></div>';
+    html += '<div class="col-6 pl-1"><div class="d-and-d-box white mb-0" style="padding-bottom:5px"><div class="d-and-d-deathsave d-and-d-save-success"><label>' + t('successes') + '</label><div style="display:inline-block">' + deathCircle('deathsaveSuccesses', f.deathsaveSuccesses) + '</div></div><div class="d-and-d-deathsave d-and-d-save-failure"><label>' + t('failures') + '</label><div style="display:inline-block">' + deathCircle('deathsaveFailures', f.deathsaveFailures) + '</div></div><label class="d-and-d-title" style="margin-top:6px">' + t('deathSaves') + '</label></div></div></div></div>';
+    html += '<div class="d-and-d-box mt-3"><table class="d-and-d-table"><thead><tr><th>' + t('attackName') + '</th><th style="width:70px">' + t('atkBonus') + '</th><th>' + t('damageType') + '</th></tr></thead><tbody>' + attackRow(0) + attackRow(1) + attackRow(2) + '</tbody></table>' + txt('attacksText', f.attacksText, 6) + '<label class="d-and-d-title" style="margin-top:10px">' + t('attacks') + '</label></div>';
+    html += '<div class="d-and-d-box mt-4"><div class="row"><div style="width:100px">';
+    ['cp','sp','ep','gp','pp'].forEach(function(c){ html += '<div class="d-and-d-currency"><div class="d-and-d-currency-label"><label>' + t(c) + '</label></div><div class="d-and-d-currency-value">' + inp(c, f[c]) + '</div></div>'; });
+    html += '</div><div class="col"><div class="d-and-d-equipment-indent">' + txt('equipment', f.equipment, 10) + '</div></div><div class="col-md-12">' + txt('equipment2', f.equipment2, 4) + '</div></div><label class="d-and-d-title" style="margin-top:10px">' + t('equipment') + '</label></div></div>';
+
+    html += '<div class="col-md-4"><div class="d-and-d-box gray" style="margin-bottom:17px">';
+    html += '<div class="d-and-d-box white" style="border-radius:8px 8px 0 0;margin-bottom:5px;padding-top:1px;padding-bottom:5px">' + txt('personalityTraits', f.personalityTraits, 3) + '<label class="d-and-d-title">' + t('personalityTraits') + '</label></div>';
+    html += '<div class="d-and-d-box white" style="border-radius:0;margin-bottom:5px;padding-top:1px;padding-bottom:5px">' + txt('ideals', f.ideals, 3) + '<label class="d-and-d-title">' + t('ideals') + '</label></div>';
+    html += '<div class="d-and-d-box white" style="border-radius:0;margin-bottom:5px;padding-top:1px;padding-bottom:5px">' + txt('bonds', f.bonds, 2) + '<label class="d-and-d-title">' + t('bonds') + '</label></div>';
+    html += '<div class="d-and-d-box white" style="border-radius:0 0 8px 8px;margin-bottom:0;padding-top:1px;padding-bottom:4px">' + txt('flaws', f.flaws, 2) + '<label class="d-and-d-title">' + t('flaws') + '</label></div></div>';
+    html += '<div class="d-and-d-box mt-3">' + txt('featuresTraits', f.featuresTraits, 27) + '<label class="d-and-d-title" style="margin-top:10px">' + t('featuresTraits') + '</label></div></div></div></div>';
+
+    /* === PROFILE PAGE === */
+    html += '<div class="cs-page cs-profile' + (currentTab === 'profile' ? ' active' : '') + '"><div class="row mb-4"><div class="col-md-3 pr-2 pl-2"><div class="d-and-d-page-title"></div><div class="d-and-d-attribute-collection char-name pr-3 pl-3">' + inp('name', f.name) + '</div><label style="width:100%;text-align:right;text-transform:uppercase;font-size:11px">' + t('name') + '</label></div>';
+    html += '<div class="col-md-9 pr-2 pl-2"><div class="d-and-d-attribute-collection pr-3 pl-3"><div class="row pl-3 pr-3"><div class="col-md-4 col-6 pl-0 pr-0">' + inp('age', f.age) + '<label>' + t('age') + '</label></div><div class="col-md-4 col-6 pl-0 pr-0">' + inp('height', f.height) + '<label>' + t('height') + '</label></div><div class="col-md-4 col-6 pl-0 pr-0">' + inp('weight', f.weight) + '<label>' + t('weight') + '</label></div></div><div class="row pl-3 pr-3"><div class="col-md-4 col-6 pl-0 pr-0">' + inp('eyes', f.eyes) + '<label>' + t('eyes') + '</label></div><div class="col-md-4 col-6 pl-0 pr-0">' + inp('skin', f.skin) + '<label>' + t('skin') + '</label></div><div class="col-md-4 col-6 pl-0 pr-0">' + inp('hair', f.hair) + '<label>' + t('hair') + '</label></div></div></div></div></div>';
+    html += '<div class="row"><div class="col-md-4"><div class="d-and-d-box square">' + imgEl('appearance', f.appearance) + '<label class="d-and-d-title" style="margin-top:10px">' + t('appearance') + '</label></div>';
+    html += '<div class="d-and-d-box mt-3">' + txt('backstory', f.backstory, 26) + '<label class="d-and-d-title" style="margin-top:10px">' + t('backstory') + '</label></div></div>';
+    html += '<div class="col-md-8"><div class="d-and-d-box"><div class="row"><div class="col-md-6 border-right"><div class="d-and-d-gray-text" style="padding-bottom:1px"><label style="width:70px">' + t('factionRank') + '</label>' + inp('factionRank', f.factionRank, ' style="width:calc(100% - 70px)" class="d-and-d-linput"') + '</div>' + txt('allies', f.allies, 16) + '</div><div class="col-md-6"><div class="d-and-d-box gray noborder" style="margin-bottom:13px"><div class="d-and-d-faction-input"><label>' + t('faction') + '</label>' + inp('faction', f.faction) + '</div>' + imgEl('factionImg', f.factionImg) + '</div>' + txt('allies2', f.allies2, 3) + '</div></div><label class="d-and-d-title" style="margin-top:10px">' + t('allies') + '</label></div>';
+    html += '<div class="d-and-d-box mt-3"><div class="row"><div class="col-md-6 border-right">' + txt('additionalFeatures', f.additionalFeatures, 13) + '</div><div class="col-md-6">' + txt('additionalFeatures2', f.additionalFeatures2, 13) + '</div></div><label class="d-and-d-title" style="margin-top:10px">' + t('additionalFeatures') + '</label></div>';
+    html += '<div class="d-and-d-box mt-3"><div class="row"><div class="col-md-6 border-right"><div class="d-and-d-statrow m-2 rounded rounded-sides wide-input"><div class="d-and-d-statrow-value">' + inp('totalNonConsumableMagicItems', f.totalNonConsumableMagicItems) + '</div><div class="d-and-d-statrow-label"><label>' + t('totalNonConsumableMagicItems') + '</label></div></div>' + txt('treasure', f.treasure, 8) + '</div><div class="col-md-6">' + txt('treasure2', f.treasure2, 10) + '</div></div><label class="d-and-d-title" style="margin-top:4px">' + t('treasure') + '</label></div></div></div></div>';
+
+    /* === SPELLS PAGE === */
+    html += '<div class="cs-page cs-spells' + (currentTab === 'spells' ? ' active' : '') + '"><div class="row mb-4"><div class="col-md-3 pr-2 pl-2"><div class="d-and-d-page-title"></div><div class="d-and-d-attribute-collection char-name pr-3 pl-3">' + inp('spellcastingClass', f.spellcastingClass) + '</div><label style="width:100%;text-align:right;text-transform:uppercase;font-size:11px">' + t('spellcastingClass') + '</label></div>';
+    html += '<div class="col-md-9 pr-2 pl-2" style="margin-top:18px"><div class="d-and-d-attribute-collection gray pr-3 pl-3"><div class="row pl-3 pr-3"><div class="col-4 pr-4 pl-4"><div class="d-and-d-statbox type2"><div class="d-and-d-statbox-modifier">' + inp('preparedSpellsTotal', f.preparedSpellsTotal) + '</div></div><label style="text-transform:none;width:100%;text-align:center;margin-bottom:0">' + t('preparedSpellsTotalLabel') + '</label></div><div class="col-4 pr-4 pl-4"><div class="d-and-d-statbox type2"><div class="d-and-d-statbox-modifier">' + inp('spellSaveDC', f.spellSaveDC) + '</div></div><label style="text-transform:none;width:100%;text-align:center;margin-bottom:0">' + t('spellSaveDC') + '</label></div><div class="col-4 pr-4 pl-4"><div class="d-and-d-statbox type2"><div class="d-and-d-statbox-modifier">' + inp('spellAttackBonus', f.spellAttackBonus) + '</div></div><label style="text-transform:none;width:100%;text-align:center;margin-bottom:0">' + t('spellAttackBonus') + '</label></div></div></div></div></div>';
+    html += '<div class="row"><div class="col-md-4">' + renderSpellTable(f, 0, 9, 'cantrips', null, null, isView, inp, esc) + renderSpellTable(f, 1, 12, 'lvl1Spells', 'lvl1SpellSlotsTotal', 'lvl1SpellSlotsUsed', isView, inp, esc) + renderSpellTable(f, 2, 13, 'lvl2Spells', 'lvl2SpellSlotsTotal', 'lvl2SpellSlotsUsed', isView, inp, esc) + '</div>';
+    html += '<div class="col-md-4">' + renderSpellTable(f, 3, 13, 'lvl3Spells', 'lvl3SpellSlotsTotal', 'lvl3SpellSlotsUsed', isView, inp, esc) + renderSpellTable(f, 4, 13, 'lvl4Spells', 'lvl4SpellSlotsTotal', 'lvl4SpellSlotsUsed', isView, inp, esc) + renderSpellTable(f, 5, 9, 'lvl5Spells', 'lvl5SpellSlotsTotal', 'lvl5SpellSlotsUsed', isView, inp, esc) + '</div>';
+    html += '<div class="col-md-4">' + renderSpellTable(f, 6, 9, 'lvl6Spells', 'lvl6SpellSlotsTotal', 'lvl6SpellSlotsUsed', isView, inp, esc) + renderSpellTable(f, 7, 9, 'lvl7Spells', 'lvl7SpellSlotsTotal', 'lvl7SpellSlotsUsed', isView, inp, esc) + renderSpellTable(f, 8, 7, 'lvl8Spells', 'lvl8SpellSlotsTotal', 'lvl8SpellSlotsUsed', isView, inp, esc) + renderSpellTable(f, 9, 7, 'lvl9Spells', 'lvl9SpellSlotsTotal', 'lvl9SpellSlotsUsed', isView, inp, esc) + '</div></div></div>';
+
+    function renderSpellTable(f, level, rows, name, slotsName, slotsUsedName, isView, inp, esc) {
+      var vals = f[name] || [];
+      while (vals.length < rows) vals.push({});
+      var slotsTotal = (slotsName ? (f[slotsName] || '') : '') || '';
+      var slotsUsed = slotsUsedName != null ? (f[slotsUsedName] != null ? f[slotsUsedName] : 0) : 0;
+      var slotCount = Math.max(6, parseInt(slotsTotal, 10) || 6);
+      var h = '<div class="d-and-d-box"><div class="d-and-d-spelllist">';
+      if (level > 0) h += '<div class="d-and-d-spell-header-labels"><label style="width:20px">' + t('spellLevel') + '</label><label style="width:80px">' + t('slotsTotal') + '</label><label style="width:calc(100% - 100px)">' + t('slotsRemaining') + '</label></div>';
+      h += '<div class="d-and-d-spell-header"><div class="d-and-d-spell-level">' + level + '</div>';
+      if (level === 0) h += '<div class="d-and-d-spell-slots"><label>' + t('cantrips') + '</label></div>';
+      else {
+        h += '<div class="d-and-d-spell-slots"><div class="d-and-d-spell-slots-total">' + inp(slotsName, slotsTotal) + '</div><div class="d-and-d-spell-slots-remaining">';
+        for (var i = 1; i <= slotCount; i++) {
+          var ac = (slotsUsed >= i) ? ' active' : '';
+          h += '<span class="d-and-d-skill-circle' + ac + '" data-spell-slot="' + slotsUsedName + '" data-val="' + i + '"></span>';
+        }
+        h += '</div></div>';
+      }
+      h += '</div><table>' + (level > 0 ? '<thead><tr><th style="width:30px;position:absolute;left:-7px">' + t('prepared') + '</th><th>' + t('spellName') + '</th></tr></thead>' : '') + '<tbody>';
+      for (var r = 0; r < rows; r++) {
+        var v = vals[r] || {};
+        h += '<tr>' + (level > 0 ? '<td class="d-and-d-spell-prepared"><span class="d-and-d-skill-circle' + (v.prepared ? ' active' : '') + '" data-spell-prepared="' + name + '" data-idx="' + r + '"></span></td>' : '') + '<td>' + inpSpellName(name + '_' + r, v.name) + '</td></tr>';
+      }
+      h += '</tbody></table></div></div>';
+      return h;
+    }
+
+    editForm.innerHTML = html;
+    editForm.classList.toggle('cs-sheet-disabled', !editingEnabled);
+
+    editForm.querySelectorAll('a.qe-internal-link').forEach(function(a) {
+      a.onclick = function(ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        var comp = a.getAttribute('data-qe-compendium');
+        var coll = a.getAttribute('data-qe-collection');
+        var slug = a.getAttribute('data-qe-slug');
+        if (coll && slug) {
+          var target = window.top || window.parent;
+          var msg = { type: 'planarally-open-qe', collection: coll, slug: slug };
+          if (comp) msg.compendium = comp;
+          target.postMessage(msg, '*');
+        }
+        return false;
+      };
+      a.addEventListener('mouseenter', function() {
+        var comp = a.getAttribute('data-qe-compendium');
+        var coll = a.getAttribute('data-qe-collection');
+        var slug = a.getAttribute('data-qe-slug');
+        if (coll && slug) {
+          var target = window.top || window.parent;
+          var rect = a.getBoundingClientRect();
+          target.postMessage({ type: 'planarally-qe-hover', collection: coll, slug: slug, compendium: comp || undefined, clientX: rect.left, clientY: rect.bottom }, '*');
+        }
+      });
+      a.addEventListener('mouseleave', function() {
+        var target = window.top || window.parent;
+        target.postMessage({ type: 'planarally-qe-hover-end' }, '*');
+      });
+    });
+
+    if (editingEnabled) {
+      editForm.querySelectorAll('[data-field]').forEach(function(el){
+        var field = el.dataset.field;
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.oninput = el.onchange = function() {
+          f[field] = el.value;
+          if (['str','dex','con','int','wis','cha'].indexOf(field) >= 0) { f[field+'Mod'] = ''; renderAll(f); }
+        };
+      });
+      editForm.querySelectorAll('[data-save-check]').forEach(function(el){ el.onclick = function() { var a = el.dataset.saveCheck; f[a+'SaveChecked'] = !f[a+'SaveChecked']; renderAll(f); }; });
+      editForm.querySelectorAll('[data-skill-check]').forEach(function(el){ el.onclick = function() { var k = el.dataset.skillCheck; var key = 'skill'+k.charAt(0).toUpperCase()+k.slice(1); f[key+'Checked'] = !f[key+'Checked']; renderAll(f); }; });
+      editForm.querySelectorAll('[data-death]').forEach(function(el){ el.onclick = function() { var name = el.dataset.death; var target = parseInt(el.dataset.val,10); var v = parseInt(f[name],10)||0; f[name] = v >= target ? target - 1 : target; renderAll(f); }; });
+      editForm.querySelectorAll('[data-img]').forEach(function(el){ var fid = el.dataset.img; el.onclick = function() { var up = editForm.querySelector('[data-img-upload="' + fid + '"]'); if (up) up.click(); }; });
+      editForm.querySelectorAll('[data-img-upload]').forEach(function(el){ var fid = el.dataset.imgUpload; el.onchange = function(ev){ var file = ev.target.files[0]; if (!file || file.size > 2000000) { if (file) toast('Immagine troppo grande (max 2MB)', true); return; } var r = new FileReader(); r.onload = function() { f[fid] = r.result; var img = editForm.querySelector('[data-img="' + fid + '"]'); if (img) img.style.backgroundImage = 'url(' + r.result + ')'; }; r.readAsDataURL(file); }; });
+      editForm.querySelectorAll('[data-spell-slot]').forEach(function(el){ el.onclick = function() { var name = el.dataset.spellSlot; var target = parseInt(el.dataset.val,10); var v = f[name] != null ? f[name] : 0; f[name] = (v >= target ? target - 1 : target); renderAll(f); }; });
+      editForm.querySelectorAll('[data-spell-prepared]').forEach(function(el){ el.onclick = function() { var name = el.dataset.spellPrepared; var idx = parseInt(el.dataset.idx,10); var arr = (f[name] || []).slice(); while (arr.length <= idx) arr.push({}); arr[idx] = arr[idx] || {}; arr[idx].prepared = !arr[idx].prepared; f[name] = arr; el.classList.toggle('active', arr[idx].prepared); }; });
+    }
+  }
+
+  function isVisible(el) {
+    if (el.type === 'hidden') return true;
+    var p = el;
+    while (p) { var s = window.getComputedStyle(p); if (s.display === 'none' || s.visibility === 'hidden') return false; p = p.parentElement; }
+    return true;
+  }
+  function getFormData() {
+    var f = {};
+    editForm.querySelectorAll('[data-field]').forEach(function(el){
+      var field = el.dataset.field;
+      if (!field) return;
+      var val = (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') ? el.value : (el.textContent || '').trim();
+      var m = field.match(/^attacks_(\d)_(name|bonus|damage)$/);
+      if (m) {
+        var i = parseInt(m[1],10); var k = m[2];
+        f.attacks = f.attacks || [{},{},{}]; f.attacks[i] = f.attacks[i] || {};
+        f.attacks[i][k] = val;
+      } else if (!field.match(/^(cantrips|lvl\dSpells)_\d+$/)) {
+        if (isVisible(el) || f[field] === undefined) f[field] = val;
+      }
+    });
+    editForm.querySelectorAll('[data-field]').forEach(function(el){
+      var field = el.dataset.field;
+      var m = field && field.match(/^(cantrips|lvl\dSpells)_(\d+)$/);
+      if (m) {
+        var name = m[1], r = parseInt(m[2],10);
+        f[name] = f[name] || [];
+        f[name][r] = f[name][r] || {};
+        f[name][r].name = el.value || (el.textContent || '');
+        var prep = editForm.querySelector('[data-spell-prepared="' + name + '"][data-idx="' + r + '"]');
+        if (prep) f[name][r].prepared = prep.classList.contains('active');
+      }
+    });
+    editForm.querySelectorAll('[data-spell-slot]').forEach(function(el){
+      var name = el.dataset.spellSlot; if (!name) return;
+      if (el.classList.contains('active')) f[name] = Math.max(f[name]||0, parseInt(el.dataset.val,10)||0);
+    });
+    editForm.querySelectorAll('[data-save-check]').forEach(function(el){ f[el.dataset.saveCheck + 'SaveChecked'] = el.classList.contains('active'); });
+    editForm.querySelectorAll('[data-skill-check]').forEach(function(el){ var k = el.dataset.skillCheck; f['skill'+k.charAt(0).toUpperCase()+k.slice(1)+'Checked'] = el.classList.contains('active'); });
+    editForm.querySelectorAll('[data-img]').forEach(function(el){ var fid = el.dataset.img; var bg = (el.style.backgroundImage || '').match(/url\(["']?([^"')]+)["']?\)/); if (bg && bg[1]) f[fid] = bg[1]; });
+    editForm.querySelectorAll('[data-death]').forEach(function(el){ var name = el.dataset.death; if (!name) return; if (el.classList.contains('active')) f[name] = Math.max(f[name]||0, parseInt(el.dataset.val,10)||0); });
+    f.deathsaveSuccesses = f.deathsaveSuccesses != null ? f.deathsaveSuccesses : 0;
+    f.deathsaveFailures = f.deathsaveFailures != null ? f.deathsaveFailures : 0;
+    f.attacks = f.attacks || [{},{},{}];
+    return f;
+  }
+
+  function collectFormData() { return fromFormData(getFormData()); }
+
+  function renderSheetList(openId) {
+    var searchVal = (document.getElementById('sheetSearchInput').value || '').trim().toLowerCase();
+    var filtered = searchVal ? sheets.filter(function(s){ return (s.name || '').toLowerCase().indexOf(searchVal) >= 0; }) : sheets;
+    sheetList.innerHTML = '';
+      var trashSvg = '<svg viewBox="0 0 448 512" fill="currentColor"><path d="M135.2 17.69L128 32H32C14.33 32 0 46.33 0 64v384c0 17.67 14.33 32 32 32h384c17.67 0 32-14.33 32-32V64c0-17.67-14.33-32-32-32h-96l-7.2-14.31A32 32 0 0 0 276.8 0H171.2a32 32 0 0 0-36 17.69zM64 96h384v352H64V96zm32 32v288h64V128H96zm128 0v288h64V128h-64zm128 0v288h64V128h-64z"/></svg>';
+      var eyeSvg = '<svg viewBox="0 0 576 512" fill="currentColor"><path d="M572.52 241.4C518.29 135.59 410.93 64 288 64S57.68 135.64 3.48 241.41a32 32 0 0 0 0 29.19C57.71 376.41 165.07 448 288 448s230.32-71.64 284.52-177.41a32 32 0 0 0 0-29.19zM288 400c-98.65 0-189.09-55-237.93-144C98.91 167 189.34 112 288 112s189.09 55 237.93 144C477.1 345 386.66 400 288 400zM288 160a160 160 0 1 0 0 320 160 160 0 0 0 0-320zm0 288a128 128 0 1 1 0-256 128 128 0 0 1 0 256z"/></svg>';
+      var eyeSlashSvg = '<svg viewBox="0 0 640 512" fill="currentColor"><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2L-3.1 38.8c-4.2 8.2-1.2 18.3 7 22.5l591.1 463.5c8.2 4.2 18.3 1.2 22.5-7l10.2-29.6c4.2-8.2 1.2-18.3-7-22.5L38.8 5.1zM288 160c-70.7 0-128 57.3-128 128c0 12.4 1.8 24.3 5.1 35.4l-94.5-74.1C57.68 135.64 165.07 64 288 64c123.2 0 230.3 71.6 284.5 177.4a32 32 0 0 1 0 29.19l-40.8 31.9C507.4 312.3 512 262.2 512 208c0-123.7-100.3-224-224-224zM96 288c0-35.3 28.7-64 64-64l46.1 36.1c-2.2 6.9-3.4 14.2-3.4 21.7 0 70.7 57.3 128 128 128 7.5 0 14.8-1.2 21.7-3.4L416 416c-70.7 0-128-57.3-128-128z"/></svg>';
+      filtered.forEach(function(s){
+        var li = document.createElement('li');
+        li.className = 'ext-ui-list-item' + (selectedId === s.id ? ' selected' : '');
+        var content = document.createElement('div');
+        content.className = 'ext-ui-list-item-content';
+        var span = document.createElement('span');
+        span.className = 'ext-ui-list-item-name';
+        span.textContent = s.name || '—';
+        content.appendChild(span);
+        var actions = document.createElement('div');
+        actions.className = 'ext-item-actions';
+        if (s.canToggleVisibility) {
+          var visBtn = document.createElement('button');
+          visBtn.className = 'ext-action-btn visibility' + (s.visibleToPlayers ? ' visibility-on' : '');
+          visBtn.type = 'button';
+          visBtn.title = s.visibleToPlayers ? t('visibleToPlayers') : t('hiddenFromPlayers');
+          visBtn.innerHTML = s.visibleToPlayers ? eyeSvg : eyeSlashSvg;
+          visBtn.onclick = function(e) { e.stopPropagation(); toggleVisibility(s.id); };
+          actions.appendChild(visBtn);
+        }
+        var delBtn = document.createElement('button');
+        delBtn.className = 'ext-action-btn delete';
+        delBtn.type = 'button';
+        delBtn.title = t('delete');
+        delBtn.innerHTML = trashSvg;
+        delBtn.onclick = function(e) { e.stopPropagation(); deleteSheet(s.id); };
+        actions.appendChild(delBtn);
+        li.appendChild(content);
+        li.appendChild(actions);
+        li.onclick = function() { selectedId = s.id; loadSheet(s.id); loadList(); };
+        sheetList.appendChild(li);
+      });
+    var toOpen = openId || openSheetId;
+    if (toOpen && sheets.some(function(s){ return s.id === toOpen; })) {
+      loadSheet(toOpen);
+    }
+  }
+
+  function loadList(openId) {
+    if (!roomCreator || !roomName) { loading.style.display = 'none'; noRoom.style.display = 'block'; return; }
+    noRoom.style.display = 'none'; loading.style.display = 'block'; sheetList.style.display = 'none';
+    qs('/api/extensions/character-sheet/list').then(function(r){ return r.json(); }).then(function(data){
+      loading.style.display = 'none'; sheets = data.sheets || []; characters = data.characters || [];
+      sheetList.style.display = 'block';
+      renderSheetList(openId);
+    }).catch(function(){ loading.style.display = 'none'; noRoom.style.display = 'block'; });
+  }
+
+  function mergeQeLinksFromData(data) {
+    if (!qeEnabled || !data) return;
+    var fromData = [];
+    extractQeLinksFromObj(data, fromData);
+    var existingKeys = {};
+    qeNamesCache.forEach(function(e) {
+      var k = (e.name || '') + '|' + (e.collectionSlug || '') + '|' + (e.itemSlug || '') + '|' + (e.compendiumSlug || '');
+      existingKeys[k] = true;
+    });
+    fromData.forEach(function(e) {
+      var k = (e.name || '') + '|' + (e.collectionSlug || '') + '|' + (e.itemSlug || '') + '|' + (e.compendiumSlug || '');
+      if (!existingKeys[k]) { existingKeys[k] = true; qeNamesCache.push(e); }
+    });
+    qeNamesCache.sort(function(a,b){ return (b.name || '').length - (a.name || '').length; });
+  }
+
+  function loadSheet(id) {
+    if (!roomCreator || !roomName) return;
+    qs('/api/extensions/character-sheet/sheet/' + id).then(function(r){ return r.json(); }).then(function(data){
+      selectedId = id; currentData = data.sheet || {}; currentTab = 'stats'; editingEnabled = false;
+      mergeQeLinksFromData(currentData);
+      updateEditToggleBtn();
+      selectPrompt.style.display = 'none'; sheetPanel.style.display = 'flex';
+      renderAll(toFormData(currentData));
+      refreshCharSelect();
+    });
+  }
+
+  function refreshCharSelect() {
+    var sel = document.getElementById('charSelect');
+    sel.innerHTML = '<option value="">— ' + t('none') + ' —</option>';
+    var cur = sheets.find(function(s){ return s.id === selectedId; });
+    characters.forEach(function(c){
+      var opt = document.createElement('option');
+      opt.value = c.id; opt.textContent = c.name;
+      if (cur && cur.characterId === c.id) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
+  document.querySelectorAll('.cs-tab').forEach(function(tab){
+    tab.textContent = t(tab.dataset.tab);
+    tab.onclick = function() {
+      currentTab = this.dataset.tab;
+      document.querySelectorAll('.cs-tab').forEach(function(t){ t.classList.toggle('active', t.dataset.tab === currentTab); });
+      document.querySelectorAll('.cs-page').forEach(function(p){ p.classList.toggle('active', p.classList.contains('cs-' + currentTab)); });
+    };
+  });
+
+  document.getElementById('sheetSearchInput').addEventListener('input', function() {
+    if (sheets.length) renderSheetList();
+  });
+
+  document.getElementById('newBtn').onclick = function() {
+    if (!roomCreator || !roomName) return;
+    fetch(api('/api/extensions/character-sheet/sheet'), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomCreator: roomCreator, roomName: roomName }) })
+      .then(function(r){ return r.json(); }).then(function(d){ toast('Scheda creata'); loadList(); if (d.sheetId) setTimeout(function(){ loadSheet(d.sheetId); loadList(); }, 200); });
+  };
+
+  var autoSaveTimer = null;
+  function scheduleAutoSave() {
+    if (!editingEnabled || !roomCreator || !roomName) return;
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(function() {
+      autoSaveTimer = null;
+      var payload = collectFormData();
+      var payloadClean = cleanSpellArrays(JSON.parse(JSON.stringify(payload)));
+      if (selectedId) {
+        fetch(api('/api/extensions/character-sheet/sheet/' + selectedId), { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sheet: payloadClean, roomCreator: roomCreator, roomName: roomName }) })
+          .then(function(r){ if (r.ok) { currentData = payloadClean; loadList(); } else r.text().then(function(txt){ toast(txt || 'Errore', true); }); });
+      } else {
+        fetch(api('/api/extensions/character-sheet/sheet'), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomCreator: roomCreator, roomName: roomName, name: payload.name || 'Nuova scheda' }) })
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            if (d.sheetId) {
+              return fetch(api('/api/extensions/character-sheet/sheet/' + d.sheetId), { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sheet: payloadClean, roomCreator: roomCreator, roomName: roomName }) })
+                .then(function(r2){ if (r2.ok) { toast('Scheda creata'); selectedId = d.sheetId; currentData = payloadClean; loadList(); refreshCharSelect(); } else toast('Errore aggiornamento', true); });
+            } else { toast('Errore creazione', true); }
+          }).catch(function(){ toast('Errore creazione', true); });
+      }
+    }, 1000);
+  }
+  editForm.addEventListener('input', scheduleAutoSave);
+  editForm.addEventListener('change', scheduleAutoSave);
+  editForm.addEventListener('click', scheduleAutoSave);
+
+  function toggleVisibility(id) {
+    if (!id || !roomCreator || !roomName) return;
+    fetch(api('/api/extensions/character-sheet/sheet/' + id + '/visibility'), {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomCreator: roomCreator, roomName: roomName })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (d.ok) { toast(d.visibleToPlayers ? (locale === 'it' ? 'Visibile a tutti' : 'Visible to all') : (locale === 'it' ? 'Nascosta ai giocatori' : 'Hidden from players')); loadList(); }
+    }).catch(function(){ toast(locale === 'it' ? 'Errore' : 'Error', true); });
+  }
+
+  async function deleteSheet(id) {
+    if (!id) return;
+    var msg = locale === 'it' ? 'Eliminare questa scheda?' : 'Delete this sheet?';
+    var ok = typeof parentConfirm === 'function' ? await parentConfirm(locale === 'it' ? 'Elimina' : 'Delete', msg) : confirm(msg);
+    if (!ok) return;
+    qs('/api/extensions/character-sheet/sheet/' + id, { method: 'DELETE'     }).then(function(r){
+      if (r.ok) { toast(locale === 'it' ? 'Eliminata' : 'Deleted'); if (selectedId === id) { selectedId = null; sheetPanel.style.display = 'none'; selectPrompt.style.display = 'block'; } loadList(); }
+    });
+  }
+
+  document.getElementById('charSelect').onchange = function() {
+    var v = this.value;
+    if (!selectedId) return;
+    var path = '/api/extensions/character-sheet/sheet/' + selectedId + (v ? '/associate' : '/dissociate');
+    var url = api(path) + '?room_creator=' + encodeURIComponent(roomCreator) + '&room_name=' + encodeURIComponent(roomName);
+    var opts = { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' } };
+    if (v) opts.body = JSON.stringify({ characterId: parseInt(v,10), roomCreator: roomCreator, roomName: roomName });
+    fetch(url, opts).then(function(r){
+      if (r.ok) {
+        toast(v ? 'Associata' : 'Dissociata');
+        var cur = sheets.find(function(s){ return s.id === selectedId; });
+        if (cur) cur.characterId = v ? parseInt(v,10) : null;
+        refreshCharSelect();
+        return v ? r.json() : null;
+      }
+      return null;
+    }).then(function(res){
+      if (res && res.appearanceUrl) {
+        var fd = toFormData(currentData);
+        fd.appearance = res.appearanceUrl;
+        currentData = fromFormData(fd);
+        renderAll(fd);
+      } else if (!v) {
+        var fd = toFormData(currentData);
+        fd.appearance = '';
+        currentData = fromFormData(fd);
+        renderAll(fd);
+      }
+      loadList();
+    });
+  };
+
+  function updateEditToggleBtn() {
+    var btn = document.getElementById('editToggle');
+    var lockOpen = '<svg class="cs-lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+    var lockClosed = '<svg class="cs-lock-icon" viewBox="0 0 448 512" fill="currentColor"><path d="M400 224h-24v-72C376 68.2 307.8 0 224 0S72 68.2 72 152v72H48c-26.5 0-48 21.5-48 48v192c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V272c0-26.5-21.5-48-48-48zM264 392c0 22.1-17.9 40-40 40s-40-17.9-40-40v-48c0-22.1 17.9-40 40-40s40 17.9 40 40v48zm32-168H152v-72c0-39.7 32.3-72 72-72s72 32.3 72 72v72z"/></svg>';
+    btn.innerHTML = (editingEnabled ? lockOpen + ' ' + t('disableEdits') : lockClosed + ' ' + t('enableEdits'));
+    btn.classList.toggle('cs-edit-enabled', editingEnabled);
+    btn.classList.toggle('cs-edit-disabled', !editingEnabled);
+  }
+  document.getElementById('editToggle').onclick = function() {
+    editingEnabled = !editingEnabled;
+    var fd = getFormData();
+    renderAll(fd);
+    updateEditToggleBtn();
+  };
+
+  function cleanSpellArrays(data) {
+    var ds = data && data.dndsheets;
+    if (!ds) return data;
+    ['cantrips','lvl1Spells','lvl2Spells','lvl3Spells','lvl4Spells','lvl5Spells','lvl6Spells','lvl7Spells','lvl8Spells','lvl9Spells'].forEach(function(k){
+      var arr = ds[k];
+      if (Array.isArray(arr)) ds[k] = arr.filter(function(el){ return el && typeof el === 'object' && (el.name || '').trim(); });
+    });
+    return data;
+  }
+  document.getElementById('exportJsonBtn').onclick = function() {
+    if (!currentData || Object.keys(currentData).length === 0) { toast('Nessuna scheda da esportare', true); return; }
+    var toExport = cleanSpellArrays(JSON.parse(JSON.stringify(currentData)));
+    var blob = new Blob([JSON.stringify(toExport, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (currentData.name || 'scheda') + '.json'; a.click(); URL.revokeObjectURL(a.href);
+    toast('Esportato');
+  };
+
+  document.getElementById('importJsonBtn').onclick = function() { document.getElementById('importJsonInput').click(); };
+
+  document.getElementById('importJsonInput').onchange = function(ev) {
+    var file = ev.target.files[0]; if (!file) return;
+    var r = new FileReader();
+    r.onload = function() {
+      try {
+        var data = JSON.parse(r.result);
+        if (!data || typeof data !== 'object') throw new Error('JSON non valido');
+        currentData = data; selectedId = null; editingEnabled = false;
+        mergeQeLinksFromData(data);
+        updateEditToggleBtn();
+        selectPrompt.style.display = 'none'; sheetPanel.style.display = 'flex';
+        renderAll(toFormData(currentData));
+        toast('Importato. Abilita modifiche e salva per creare una nuova scheda.');
+      } catch (e) { toast('File JSON non valido: ' + (e.message || 'errore'), true); }
+    };
+    r.readAsText(file); ev.target.value = '';
+  };
+
+  document.getElementById('exportPdfBtn').onclick = function() {
+    var fd = getFormData();
+    var pages = editForm.querySelectorAll('.cs-page.cs-stats, .cs-page.cs-profile, .cs-page.cs-spells');
+    if (pages.length === 0) { toast('Nessun contenuto da stampare', true); return; }
+    var wasEditing = editingEnabled;
+    editingEnabled = false;
+    renderAll(fd);
+    if (window !== window.top) {
+      var printWin = window.open('', '_blank');
+      if (printWin) {
+        var links = Array.prototype.map.call(document.querySelectorAll('link[rel="stylesheet"]'), function(l){ return '<link rel="stylesheet" href="' + (l.href || '') + '">'; }).join('');
+        var styles = Array.prototype.map.call(document.querySelectorAll('style'), function(s){ return '<style>' + (s.textContent || '') + '</style>'; }).join('');
+        printWin.document.write('<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>' + (fd.name || 'Scheda') + '</title>' + links + styles + '</head><body class="ext-ui-root" style="margin:0;padding:0"><div style="padding:0.5rem">' + editForm.outerHTML + '</div></body></html>');
+        printWin.document.close();
+        setTimeout(function() { try { printWin.print(); } catch(e) {} printWin.close(); }, 400);
+      } else { window.print(); }
+    } else { window.print(); }
+    editingEnabled = wasEditing;
+    updateEditToggleBtn();
+    renderAll(getFormData());
+  };
+
+  document.getElementById('sheetSearchInput').placeholder = t('searchSheets');
+  document.getElementById('newBtn').innerHTML = '+';
+  document.getElementById('newBtn').title = t('newSheet');
+  document.getElementById('linkToCharacterLabel').textContent = t('linkToCharacter');
+  updateEditToggleBtn();
+  document.getElementById('exportJsonBtn').textContent = t('export');
+  document.getElementById('importJsonBtn').textContent = t('import');
+  document.getElementById('exportPdfBtn').textContent = t('print');
+  var sidebarVisible = true;
+  var sidebarEl = document.getElementById('sidebar');
+  document.getElementById('sidebarToggle').onclick = function() {
+    sidebarVisible = !sidebarVisible;
+    document.body.classList.toggle('cs-sidebar-hidden', !sidebarVisible);
+    sidebarEl.classList.toggle('ext-sidebar-collapsed', !sidebarVisible);
+    this.textContent = sidebarVisible ? '◀' : '▶';
+    this.title = sidebarVisible ? (locale === 'it' ? 'Nascondi elenco' : 'Hide list') : (locale === 'it' ? 'Mostra elenco' : 'Show list');
+  };
+  loadList(openSheetId);
+})();
+  </script>
+</body>
+</html>

@@ -9,7 +9,7 @@ from aiohttp_session.cookie_storage import EncryptedCookieStorage
 
 from . import auth
 from .config import cfg
-from .json import PydanticJson
+from .json_utils import PydanticJson
 from .logs import handle_async_exception
 from .typed import TypedAsyncServer
 

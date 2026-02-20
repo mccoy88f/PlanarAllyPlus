@@ -7,6 +7,7 @@ export type PromptFunction = (
     question: string,
     title: string,
     validation?: validationFunc,
+    defaultValue?: string,
 ) => Promise<string | undefined>;
 
 export interface PromptModal {
@@ -14,6 +15,7 @@ export interface PromptModal {
     question: Ref<string>;
     title: Ref<string>;
     error: Ref<string>;
+    defaultAnswer: Ref<string>;
     ask: PromptFunction;
     close: () => void;
     submit: (answer: string) => void;
@@ -29,6 +31,7 @@ export function usePrompt(): PromptModal {
         question: "",
         title: "",
         error: "",
+        defaultAnswer: "",
     });
 
     let validationFunction = defaultValidationFunction;
@@ -36,11 +39,17 @@ export function usePrompt(): PromptModal {
     // oxlint-disable-next-line unicorn/consistent-function-scoping
     let resolve: (value: string | undefined) => void = (_value: string | undefined) => {};
 
-    async function ask(question: string, title: string, validation?: validationFunc): Promise<string | undefined> {
+    async function ask(
+        question: string,
+        title: string,
+        validation?: validationFunc,
+        defaultValue = "",
+    ): Promise<string | undefined> {
         data.visible = true;
         data.question = question;
         data.title = title;
         data.error = "";
+        data.defaultAnswer = defaultValue;
         if (validation) validationFunction = validation;
         else validationFunction = defaultValidationFunction;
         return new Promise((res) => (resolve = res));

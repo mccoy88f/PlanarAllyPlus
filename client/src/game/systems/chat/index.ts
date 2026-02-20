@@ -2,7 +2,7 @@ import { registerSystem } from "../../../core/systems";
 import type { System, SystemClearReason } from "../../../core/systems/models";
 
 import { sendChatMessage } from "./emits";
-import { chatMarkDown } from "./md";
+import { renderChatMarkdown } from "./md";
 import { chatState } from "./state";
 
 const { mutableReactive: $ } = chatState;
@@ -16,7 +16,7 @@ class ChatSystem implements System {
         const message = {
             id,
             author,
-            content: chatMarkDown.render(data.join("")),
+            content: renderChatMarkdown(data.join("")),
         };
 
         if (sync) sendChatMessage({ id, author, data });
@@ -27,7 +27,7 @@ class ChatSystem implements System {
     updateImage(id: string, content: string): void {
         const message = $.messages.findLast((m) => m.id === id);
         if (message) {
-            message.content = chatMarkDown.render(content);
+            message.content = renderChatMarkdown(content);
         }
     }
 }

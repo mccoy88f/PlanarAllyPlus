@@ -14,7 +14,8 @@ from ....state.admin import admin_state
 
 
 def is_admin(user: User) -> bool:
-    return user.name == cfg().general.admin_user
+    admin_name = (cfg().general.admin_user or "admin").strip()
+    return admin_name and user.name.lower() == admin_name.lower()
 
 
 @sio.on("connect", namespace=ADMIN_NS)

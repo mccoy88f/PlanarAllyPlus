@@ -44,21 +44,41 @@ async function loadDocuments(): Promise<void> {
 }
 
 async function onFileSelected(): Promise<void> {
-    const file = uploadInput.value?.files?.[0];
-    if (!file || !file.name.toLowerCase().endsWith(".pdf")) return;
+    const files = uploadInput.value?.files;
+    if (!files || files.length === 0) return;
+
+    const pdfs = Array.from(files).filter((f) => f.name.toLowerCase().endsWith(".pdf"));
+    if (pdfs.length === 0) return;
 
     uploading.value = true;
+    let okCount = 0;
+    let errCount = 0;
     try {
-        const formData = new FormData();
-        formData.append("file", file);
-        const response = await http.post("/api/extensions/documents/upload", formData);
-        if (response.ok) {
-            const data = (await response.json()) as DocumentItem;
-            documents.value = [...documents.value, data];
-            toast.success(t("game.ui.extensions.DocumentsModal.upload_success"));
-        } else {
-            const text = await response.text();
-            toast.error(text || t("game.ui.extensions.DocumentsModal.upload_error"));
+        for (const file of pdfs) {
+            const formData = new FormData();
+            formData.append("file", file);
+            const response = await http.post("/api/extensions/documents/upload", formData);
+            if (response.ok) {
+                const data = (await response.json()) as DocumentItem;
+                documents.value = [...documents.value, data];
+                okCount++;
+            } else {
+                errCount++;
+            }
+        }
+        if (okCount > 0) {
+            toast.success(
+                okCount === 1
+                    ? t("game.ui.extensions.DocumentsModal.upload_success")
+                    : t("game.ui.extensions.DocumentsModal.upload_multi_success", { count: okCount }),
+            );
+        }
+        if (errCount > 0) {
+            toast.error(
+                errCount === pdfs.length
+                    ? t("game.ui.extensions.DocumentsModal.upload_error")
+                    : t("game.ui.extensions.DocumentsModal.upload_partial", { ok: okCount, err: errCount }),
+            );
         }
     } catch (e) {
         toast.error(t("game.ui.extensions.DocumentsModal.upload_error"));
@@ -113,21 +133,21 @@ onMounted(() => {
     <Modal v-if="visible" :visible="visible" :mask="false" @close="onClose">
         <template #header="{ dragStart, dragEnd, toggleFullscreen, fullscreen }">
             <div
-                class="modal-header documents-modal-header"
+                class="ext-modal-header"
                 draggable="true"
                 @dragstart="dragStart"
                 @dragend="dragEnd"
             >
-                <h2>{{ t("game.ui.extensions.DocumentsModal.title") }}</h2>
-                <div class="modal-header-actions">
+                <h2 class="ext-modal-title">{{ t("game.ui.extensions.DocumentsModal.title") }}</h2>
+                <div class="ext-modal-actions">
                     <font-awesome-icon
                         :icon="fullscreen ? 'compress' : 'expand'"
                         :title="fullscreen ? t('common.fullscreen_exit') : t('common.fullscreen')"
-                        class="header-btn"
+                        class="ext-modal-btn"
                         @click.stop="toggleFullscreen?.()"
                     />
                     <font-awesome-icon
-                        class="header-btn"
+                        class="ext-modal-close"
                         :icon="['far', 'window-close']"
                         :title="t('common.close')"
                         @click="onClose"
@@ -135,39 +155,48 @@ onMounted(() => {
                 </div>
             </div>
         </template>
-        <div class="documents-modal-body">
-            <div v-if="loading" class="documents-loading">
+        <div class="documents-modal-body ext-body">
+            <div v-if="loading" class="ext-ui-loading">
                 {{ t("game.ui.extensions.DocumentsModal.loading") }}
             </div>
-            <div v-else-if="documents.length === 0" class="documents-empty">
+            <div v-else-if="documents.length === 0" class="ext-ui-empty">
                 {{ t("game.ui.extensions.DocumentsModal.no_documents") }}
             </div>
-            <ul v-else class="documents-list">
+            <ul v-else class="ext-ui-list documents-list">
                 <li
                     v-for="doc in documents"
                     :key="doc.id"
-                    class="documents-list-item"
+                    class="ext-ui-list-item documents-list-item"
                 >
-                    <div class="documents-list-item-content" @click="openPdf(doc)">
+                    <div class="ext-ui-list-item-content" @click="openPdf(doc)">
                         <font-awesome-icon icon="file-pdf" class="doc-icon" />
-                        <span class="doc-name">{{ doc.name }}</span>
+                        <span class="ext-ui-list-item-name">{{ doc.name }}</span>
                     </div>
-                    <font-awesome-icon
-                        class="doc-delete"
-                        icon="trash-alt"
-                        :title="t('common.remove')"
-                        @click.stop="deleteDocument(doc)"
-                    />
+                    <div class="ext-item-actions">
+                        <font-awesome-icon
+                            class="ext-action-btn delete"
+                            icon="trash-alt"
+                            :title="t('common.remove')"
+                            @click.stop="deleteDocument(doc)"
+                        />
+                    </div>
                 </li>
             </ul>
-            <div class="documents-upload-bar">
+            <div class="ext-bottom-bar">
                 <input
                     ref="uploadInput"
                     type="file"
                     accept=".pdf,application/pdf"
+                    multiple
+                    class="ext-ui-file-input"
                     @change="onFileSelected"
                 />
-                <button :disabled="uploading" @click="triggerUpload">
+                <button
+                    type="button"
+                    class="ext-ui-btn ext-ui-btn-primary"
+                    :disabled="uploading"
+                    @click="triggerUpload"
+                >
                     {{ uploading ? t("game.ui.extensions.DocumentsModal.uploading") : t("common.upload") }}
                 </button>
             </div>
@@ -176,127 +205,21 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-.documents-modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.5rem 1rem;
-    cursor: grab;
-    border-bottom: 1px solid #eee;
-    background: #f9f9f9;
-
-    h2 {
-        margin: 0;
-        font-size: 1.1rem;
-        font-weight: 600;
-    }
-
-    .modal-header-actions {
-        display: flex;
-        gap: 0.5rem;
-        align-items: center;
-    }
-
-    .header-btn {
-        font-size: 1.1rem;
-        cursor: pointer;
-        flex-shrink: 0;
-
-        &:hover {
-            opacity: 0.7;
-        }
-    }
-}
-
 .documents-modal-body {
-    padding: 1rem;
     min-width: 320px;
     max-width: 480px;
     max-height: 60vh;
-    overflow-y: auto;
 }
 
-.documents-upload-bar {
+
+.documents-list .ext-ui-list-item-content {
     display: flex;
-    gap: 0.5rem;
     align-items: center;
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid #eee;
-
-    input[type="file"] {
-        display: none;
-    }
-
-    button {
-        padding: 0.5rem 1rem;
-        border-radius: 0.25rem;
-        cursor: pointer;
-        white-space: nowrap;
-
-        &:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-    }
+    gap: 0.5rem;
 }
 
-.documents-loading,
-.documents-empty {
-    font-style: italic;
-    color: #666;
-    padding: 1rem 0;
-}
-
-.documents-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-
-    .documents-list-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.5rem;
-        padding: 0.5rem 0.75rem;
-        border-radius: 0.25rem;
-        border: 1px solid transparent;
-
-        &:hover {
-            background: #f5f5f5;
-            border-color: #ddd;
-        }
-
-        .documents-list-item-content {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            flex: 1;
-            min-width: 0;
-            cursor: pointer;
-        }
-
-        .doc-icon {
-            color: #c00;
-            flex-shrink: 0;
-        }
-
-        .doc-name {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .doc-delete {
-            padding: 0.25rem;
-            cursor: pointer;
-            color: #999;
-            flex-shrink: 0;
-
-            &:hover {
-                color: #c00;
-            }
-        }
-    }
+.doc-icon {
+    color: #c00;
+    flex-shrink: 0;
 }
 </style>

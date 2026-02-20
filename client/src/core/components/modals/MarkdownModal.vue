@@ -3,6 +3,8 @@ import { ref } from "vue";
 import { useI18n } from "vue-i18n";
 import VueMarkdown from "vue-markdown-render";
 
+import { preprocessQeLinksToHtml, qeLinkPlugin } from "../../../game/systems/extensions/compendium";
+
 import Modal from "./Modal.vue";
 
 defineProps<{ title: string; source: string }>();
@@ -27,7 +29,7 @@ function close(): void {
             </div>
         </template>
         <div class="modal-body">
-            <VueMarkdown :source="source" />
+            <VueMarkdown :source="preprocessQeLinksToHtml(source)" :options="{ html: true }" :plugins="[qeLinkPlugin]" />
         </div>
     </Modal>
 </template>

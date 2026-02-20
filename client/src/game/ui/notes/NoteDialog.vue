@@ -3,6 +3,8 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, type Ref } f
 import { useI18n } from "vue-i18n";
 import VueMarkdown from "vue-markdown-render";
 
+import { preprocessQeLinksToHtml, qeLinkPlugin } from "../../systems/extensions/compendium";
+
 import Modal from "../../../core/components/modals/Modal.vue";
 import { coreStore } from "../../../store/core";
 import { modalSystem } from "../../systems/modals";
@@ -189,7 +191,7 @@ function windowToggle(windowed: boolean): void {
         </template>
 
         <div v-if="!collapsed.active" class="note-body">
-            <VueMarkdown v-if="!editing" :source="note.text" :options="{ html: true }" />
+            <VueMarkdown v-if="!editing" :source="preprocessQeLinksToHtml(note.text)" :options="{ html: true }" :plugins="[qeLinkPlugin]" />
             <textarea
                 v-else
                 v-model="note.text"

@@ -5,7 +5,7 @@ import { useI18n } from "vue-i18n";
 import { uuidv4 } from "../../core/utils";
 import { chatSystem } from "../systems/chat";
 import { chatState } from "../systems/chat/state";
-import { openDocumentsPdfViewer, openQuintaedizioneModalForItem } from "../systems/extensions/ui";
+import { openDocumentsPdfViewer, openCompendiumModalForItem } from "../systems/extensions/ui";
 import { playerSystem } from "../systems/players";
 
 const { t } = useI18n();
@@ -103,34 +103,53 @@ function* parseMessage(data: string): Generator<string> {
 }
 
 function handleContainerClick(event: MouseEvent): void {
-    const target = (event.target as HTMLElement).closest("a[href^='qe:'], a[href^='doc:']");
+    const target = (event.target as HTMLElement).closest(
+        "a[href^='qe:'], a[data-qe-collection], a[href^='doc:']",
+    );
     if (target instanceof HTMLAnchorElement) {
         const href = target.getAttribute("href");
+        const dataComp = target.getAttribute("data-qe-compendium");
+        const dataColl = target.getAttribute("data-qe-collection");
+        const dataSlug = target.getAttribute("data-qe-slug");
+        if (dataColl && dataSlug) {
+            event.preventDefault();
+            openCompendiumModalForItem(
+                dataColl,
+                dataSlug,
+                dataComp || undefined,
+            );
+            return;
+        }
         if (!href) return;
         event.preventDefault();
         if (href.startsWith("qe:")) {
             const rest = href.slice(3);
-            const slashIdx = rest.indexOf("/");
-            if (slashIdx > 0) {
-                const collectionSlug = rest.slice(0, slashIdx);
-                const itemSlug = rest.slice(slashIdx + 1);
+            const parts = rest.split("/");
+            if (parts.length >= 2) {
+                const collectionSlug = parts.length >= 3 ? parts[1] : parts[0];
+                const itemSlug = parts.length >= 3 ? parts[2] : parts[1];
+                const compendiumSlug = parts.length >= 3 ? parts[0] : undefined;
                 if (collectionSlug && itemSlug) {
-                    openQuintaedizioneModalForItem(collectionSlug, itemSlug);
+                    openCompendiumModalForItem(
+                        collectionSlug,
+                        itemSlug,
+                        compendiumSlug,
+                    );
                 }
             }
         } else if (href.startsWith("doc:")) {
-            const rest = href.slice(4);
+            const rest = href.slice(4).trim();
             const hashIdx = rest.indexOf("#");
-            const fileHash = hashIdx >= 0 ? rest.slice(0, hashIdx) : rest;
+            const fileHash = (hashIdx >= 0 ? rest.slice(0, hashIdx) : rest).trim();
             let page: number | undefined;
             if (hashIdx >= 0) {
                 const fragment = rest.slice(hashIdx + 1);
-                const pageMatch = /^page=(\d+)$/i.exec(fragment);
+                const pageMatch = /page=(\d+)/i.exec(fragment);
                 if (pageMatch) page = parseInt(pageMatch[1], 10);
             }
             const name = target.textContent?.trim() || "";
             if (fileHash) {
-                openDocumentsPdfViewer(fileHash, name || "Document", page);
+                openDocumentsPdfViewer(fileHash, name || t("game.ui.extensions.DocumentsPdfViewer.document_fallback"), page);
             }
         }
     }

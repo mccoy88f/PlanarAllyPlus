@@ -2,6 +2,8 @@
 import { computed, reactive, watch } from "vue";
 import VueMarkdown from "vue-markdown-render";
 
+import { preprocessQeLinksToHtml, qeLinkPlugin } from "../../../game/systems/extensions/compendium";
+
 import { i18n } from "../../../i18n";
 import { map } from "../../iter";
 import type { SelectionBoxOptions } from "../../plugins/modals/selectionBox";
@@ -101,7 +103,7 @@ function selectAll(): void {
             </div>
         </template>
         <div class="modal-body">
-            <VueMarkdown :source="text" />
+            <VueMarkdown :source="preprocessQeLinksToHtml(text)" :options="{ html: true }" :plugins="[qeLinkPlugin]" />
             <div v-if="state.error.length > 0" id="error">{{ state.error }}</div>
             <template v-if="choices.length > 0">
                 <div id="selectionbox">

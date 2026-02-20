@@ -1,6 +1,7 @@
 import "../style.css";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { createApp } from "vue";
+import { watch } from "vue";
 import Toast, { POSITION } from "vue-toastification";
 import type { PluginOptions } from "vue-toastification";
 
@@ -15,6 +16,11 @@ import { bootstrapRouter } from "./router/bootstrap";
 bootstrapRouter();
 
 loadFontAwesome();
+
+// Sincronizza html lang per componenti che lo leggono (es. viewer PDF)
+watch(() => i18n.global.locale.value, (locale) => {
+    document.documentElement.lang = locale;
+}, { immediate: true });
 
 const toastOptions: PluginOptions = {
     position: POSITION.BOTTOM_RIGHT,

@@ -1,0 +1,7 @@
+[extension]
+id = "assets-installer"
+name = "Assets Installer"
+version = "1.0.0"
+description = "Upload ZIP files to extract assets into the assets folder. Install and uninstall asset packs."
+author = "PlanarAlly"
+entry = "ui/index.html"

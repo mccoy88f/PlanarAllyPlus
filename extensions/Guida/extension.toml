@@ -1,0 +1,8 @@
+[extension]
+id = "guida"
+name = "Guida"
+version = "1.0.0"
+description = "Documentazione e guida all'uso di PlanarAlly."
+author = "PlanarAlly"
+entry = "ui/index.html"
+titleBarColor = "#2e7d32"

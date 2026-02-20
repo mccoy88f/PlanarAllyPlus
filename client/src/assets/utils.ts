@@ -15,9 +15,10 @@ export function getImageSrcFromHash(
     fileHash: string,
     options?: { addBaseUrl?: boolean; thumbnailFormat?: string },
 ): string {
-    let path = `/static/assets/${fileHash.slice(0, 2)}/${fileHash.slice(2, 4)}/${fileHash}`;
-    if (options?.thumbnailFormat !== undefined) {
-        path = `${path}.thumb.${options.thumbnailFormat}`;
-    }
+    const hashPath = `${fileHash.slice(0, 2)}/${fileHash.slice(2, 4)}/${fileHash}`;
+    const path =
+        options?.thumbnailFormat !== undefined
+            ? `/static/thumbnails/${hashPath}.thumb.${options.thumbnailFormat}`
+            : `/static/assets/${hashPath}`;
     return (options?.addBaseUrl ?? true) ? baseAdjust(path) : path;
 }

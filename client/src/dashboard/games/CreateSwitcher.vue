@@ -1,20 +1,21 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 
 const router = useRouter();
+const { t } = useI18n();
 
 const selected = ref(0);
 const modes = [
     {
-        type: "Start from scratch",
-        description: "This gives you an empty canvas. Allowing you to imagine your campaigns however you please.",
+        typeKey: "dashboard.CreateSwitcher.start_scratch",
+        descKey: "dashboard.CreateSwitcher.start_scratch_desc",
         target: "create-blank-game",
     },
     {
-        type: "Import a game",
-        description:
-            "This allows you to transfer your files from another server, import a public template from another creator or import games you exported yourself!",
+        typeKey: "dashboard.CreateSwitcher.import_game",
+        descKey: "dashboard.CreateSwitcher.import_game_desc",
         target: "import-game",
     },
 ];
@@ -28,27 +29,27 @@ async function create(): Promise<void> {
 
 <template>
     <div id="content">
-        <div class="title">Create a new campaign</div>
+        <div class="title">{{ t("dashboard.CreateSwitcher.title") }}</div>
         <div id="switch">
             <div
                 v-for="[i, mode] of modes.entries()"
-                :key="mode.type"
+                :key="mode.target"
                 :class="{ selected: i === selected }"
                 @click="selected = i"
             >
-                <div class="type">{{ mode.type }}</div>
+                <div class="type">{{ t(mode.typeKey) }}</div>
                 <div class="desc">
-                    {{ mode.description }}
+                    {{ t(mode.descKey) }}
                 </div>
             </div>
         </div>
         <div class="action">
             <button class="go" @click="router.push({ name: 'games' })">
                 <font-awesome-icon icon="chevron-left" />
-                <span>BACK</span>
+                <span>{{ t("dashboard.CreateSwitcher.back") }}</span>
             </button>
             <button class="go" @click="create">
-                <span>CONTINUE</span>
+                <span>{{ t("dashboard.CreateSwitcher.continue") }}</span>
                 <font-awesome-icon icon="play" />
             </button>
         </div>

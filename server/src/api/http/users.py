@@ -31,7 +31,8 @@ async def delete_account(request: web.Request):
 
 async def set_extensions_enabled(request: web.Request):
     user = await get_authorized_user(request)
-    if cfg().general.admin_user != user.name:
+    admin_name = (cfg().general.admin_user or "admin").strip()
+    if not admin_name or user.name.lower() != admin_name.lower():
         raise web.HTTPForbidden(reason="Only the server administrator can enable extensions.")
     data = await request.json()
     enabled = bool(data["enabled"])

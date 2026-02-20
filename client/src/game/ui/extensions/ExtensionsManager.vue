@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref, useTemplateRef, watch } from "vue";
+import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { useToast } from "vue-toastification";
@@ -24,6 +24,19 @@ const route = useRoute();
 const uploadInput = useTemplateRef<HTMLInputElement>("uploadInput");
 const installUrl = ref("");
 const installing = ref(false);
+const searchQuery = ref("");
+
+const filteredExtensions = computed(() => {
+    const q = searchQuery.value.trim().toLowerCase();
+    const exts = extensionsState.reactive.extensions;
+    if (!q) return exts;
+    return exts.filter(
+        (e) =>
+            e.name.toLowerCase().includes(q) ||
+            (e.description?.toLowerCase().includes(q) ?? false) ||
+            (e.folder?.toLowerCase().includes(q) ?? false),
+    );
+});
 
 function extensionsUrl(): string {
     let url = "/api/extensions";
@@ -49,7 +62,9 @@ async function loadExtensions(): Promise<void> {
                     visibleToPlayers?: boolean;
                 }[];
             };
-            extensionsState.mutableReactive.extensions = data.extensions ?? [];
+            const exts = data.extensions ?? [];
+            exts.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+            extensionsState.mutableReactive.extensions = exts;
         }
     } catch {
         extensionsState.mutableReactive.extensions = [];
@@ -191,6 +206,32 @@ async function uninstallExtension(ext: { folder: string; name: string }): Promis
         uninstalling.value = false;
     }
 }
+
+async function onAddClick(): Promise<void> {
+    if (installing.value) return;
+    const uploadZipLabel = t("game.ui.extensions.ExtensionsManager.upload_zip");
+    const fromUrlLabel = t("game.ui.extensions.ExtensionsManager.install_from_url");
+    const choices = await modals.selectionBox(
+        t("game.ui.extensions.ExtensionsManager.install_how"),
+        [uploadZipLabel, fromUrlLabel],
+    );
+    if (choices === undefined || choices.length === 0) return;
+    const choice = choices[0];
+    if (choice === uploadZipLabel) {
+        uploadInput.value?.click();
+    } else if (choice === fromUrlLabel) {
+        const url = await modals.prompt(
+            t("game.ui.extensions.ExtensionsManager.url_prompt"),
+            t("game.ui.extensions.ExtensionsManager.install_from_url"),
+            undefined,
+            "https://",
+        );
+        if (url?.trim()) {
+            installUrl.value = url.trim();
+            await installFromUrl();
+        }
+    }
+}
 </script>
 
 <template>
@@ -203,27 +244,27 @@ async function uninstallExtension(ext: { folder: string; name: string }): Promis
     >
         <template #header="{ dragStart, dragEnd, toggleWindow, toggleFullscreen, fullscreen }">
             <div
-                class="extensions-manager-header"
+                class="ext-modal-header"
                 draggable="true"
                 @dragstart="dragStart"
                 @dragend="dragEnd"
             >
-                <h2 class="extensions-manager-title">{{ t("game.ui.extensions.ExtensionsManager.title") }}</h2>
-                <div class="extensions-manager-actions">
+                <h2 class="ext-modal-title">{{ t("game.ui.extensions.ExtensionsManager.title") }}</h2>
+                <div class="ext-modal-actions">
                     <font-awesome-icon
                         :icon="['far', 'square']"
                         :title="t('game.ui.extensions.ExtensionModal.window')"
-                        class="extensions-manager-btn"
+                        class="ext-modal-btn"
                         @click.stop="toggleWindow?.()"
                     />
                     <font-awesome-icon
                         :icon="fullscreen ? 'compress' : 'expand'"
                         :title="fullscreen ? t('common.fullscreen_exit') : t('common.fullscreen')"
-                        class="extensions-manager-btn"
+                        class="ext-modal-btn"
                         @click.stop="toggleFullscreen?.()"
                     />
                     <font-awesome-icon
-                        class="extensions-manager-close"
+                        class="ext-modal-close"
                         :icon="['far', 'window-close']"
                         :title="t('common.close')"
                         @click="close"
@@ -231,20 +272,45 @@ async function uninstallExtension(ext: { folder: string; name: string }): Promis
                 </div>
             </div>
         </template>
-        <div id="extensions-body" @click="$emit('focus')">
+        <div class="ext-toolbar-bar ext-search-bar">
+            <font-awesome-icon icon="search" class="ext-search-icon" />
+            <input
+                v-model="searchQuery"
+                type="text"
+                class="ext-search-input"
+                :placeholder="t('game.ui.extensions.ExtensionsManager.search_placeholder')"
+            />
+            <button
+                type="button"
+                class="ext-search-add-btn"
+                :disabled="installing"
+                :title="t('game.ui.extensions.ExtensionsManager.add_extension')"
+                @click="onAddClick"
+            >
+                <font-awesome-icon icon="plus" />
+            </button>
+        </div>
+        <div id="extensions-body" class="ext-body" @click="$emit('focus')">
                 <section class="extensions-list">
                     <div class="section-header">{{ t("game.ui.extensions.ExtensionsManager.installed") }}</div>
-                    <div v-if="extensionsState.reactive.extensions.length === 0" class="empty-message">
-                        {{ t("game.ui.extensions.ExtensionsManager.no_extensions") }}
+                    <div v-if="filteredExtensions.length === 0" class="empty-message">
+                        {{
+                            extensionsState.reactive.extensions.length === 0
+                                ? t("game.ui.extensions.ExtensionsManager.no_extensions")
+                                : t("game.ui.extensions.ExtensionsManager.no_search_results")
+                        }}
                     </div>
                     <div
-                        v-for="ext in extensionsState.reactive.extensions"
+                        v-for="ext in filteredExtensions"
                         :key="ext.folder ?? ext.id"
-                        class="extension-item"
+                        class="ext-ui-list-item extension-item"
                     >
-                        <span class="extension-name">{{ ext.name }}</span>
-                        <span class="extension-version">v{{ ext.version }}</span>
-                        <span v-if="ext.description" class="extension-desc">{{ ext.description }}</span>
+                        <div class="ext-ui-list-item-content">
+                            <span class="ext-ui-list-item-name extension-name">{{ ext.name }}</span>
+                            <span class="extension-version">v{{ ext.version }}</span>
+                            <span v-if="ext.description" class="extension-desc ext-ui-muted">{{ ext.description }}</span>
+                        </div>
+                        <div class="ext-item-actions extension-item-actions">
                         <font-awesome-icon
                             v-if="ext.folder"
                             class="extension-visibility"
@@ -268,31 +334,17 @@ async function uninstallExtension(ext: { folder: string; name: string }): Promis
                             :title="t('game.ui.extensions.ExtensionsManager.uninstall')"
                             @click="!uninstalling && ext.folder && uninstallExtension({ folder: ext.folder, name: ext.name })"
                         />
-                    </div>
-                </section>
-
-                <section class="install-section">
-                    <div class="section-header">{{ t("game.ui.extensions.ExtensionsManager.install") }}</div>
-                    <div class="install-row">
-                        <label>{{ t("game.ui.extensions.ExtensionsManager.upload_zip") }}</label>
-                        <div class="install-controls">
-                            <input ref="uploadInput" type="file" accept=".zip" />
-                            <button :disabled="installing" @click="installFromZip">
-                                {{ t("common.upload") }}
-                            </button>
-                        </div>
-                    </div>
-                    <div class="install-row">
-                        <label>{{ t("game.ui.extensions.ExtensionsManager.install_from_url") }}</label>
-                        <div class="install-controls">
-                            <input v-model="installUrl" type="url" :placeholder="t('game.ui.extensions.ExtensionsManager.url_placeholder')" />
-                            <button :disabled="installing || !installUrl.trim()" @click="installFromUrl">
-                                {{ t("game.ui.extensions.ExtensionsManager.install_btn") }}
-                            </button>
                         </div>
                     </div>
                 </section>
             </div>
+        <input
+            ref="uploadInput"
+            type="file"
+            accept=".zip"
+            style="display: none"
+            @change="installFromZip"
+        />
     </Modal>
 </template>
 
@@ -311,47 +363,15 @@ async function uninstallExtension(ext: { folder: string; name: string }): Promis
 </style>
 
 <style lang="scss" scoped>
-.extensions-manager-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.5rem 1rem;
-    cursor: grab;
-    border-bottom: 1px solid #eee;
-    background: #f9f9f9;
-
-    .extensions-manager-title {
-        margin: 0;
-        font-size: 1.25rem;
-        font-weight: bold;
-    }
-
-    .extensions-manager-actions {
-        display: flex;
-        gap: 0.5rem;
-        align-items: center;
-    }
-
-    .extensions-manager-btn,
-    .extensions-manager-close {
-        font-size: 1.1rem;
-        cursor: pointer;
-        flex-shrink: 0;
-
-        &:hover {
-            opacity: 0.7;
-        }
-    }
+.extensions-manager-modal .ext-modal-title {
+    font-size: 1.25rem;
+    font-weight: bold;
 }
 
 #extensions-body {
-    flex: 1;
-    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
-    overflow-y: auto;
-    padding: 1rem 1.5rem;
 }
 
 .section-header {
@@ -368,17 +388,10 @@ async function uninstallExtension(ext: { folder: string; name: string }): Promis
     }
 
     .extension-item {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.5rem;
-        border: 1px solid #eee;
-        border-radius: 0.25rem;
-        margin-bottom: 0.25rem;
-
-        .extension-name {
-            font-weight: 500;
+        .ext-ui-list-item-content {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.15rem;
         }
 
         .extension-version {
@@ -387,15 +400,18 @@ async function uninstallExtension(ext: { folder: string; name: string }): Promis
         }
 
         .extension-desc {
-            width: 100%;
             font-size: 0.9em;
-            color: #888;
+        }
+
+        .extension-item-actions {
+            display: flex;
+            gap: 0.35rem;
+            align-items: center;
         }
 
         .extension-visibility {
             cursor: pointer;
             color: #999;
-            margin-left: auto;
 
             &:hover:not(.disabled) {
                 color: #069;
@@ -427,42 +443,4 @@ async function uninstallExtension(ext: { folder: string; name: string }): Promis
     }
 }
 
-.install-section {
-    .install-row {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-        margin-bottom: 1rem;
-
-        label {
-            font-weight: 500;
-        }
-
-        .install-controls {
-            display: flex;
-            gap: 0.5rem;
-            align-items: center;
-
-            input[type="file"],
-            input[type="url"] {
-                flex: 1;
-                padding: 0.5rem;
-                border: 1px solid #ccc;
-                border-radius: 0.25rem;
-            }
-
-            button {
-                padding: 0.5rem 1rem;
-                border-radius: 0.25rem;
-                cursor: pointer;
-                white-space: nowrap;
-
-                &:disabled {
-                    opacity: 0.6;
-                    cursor: not-allowed;
-                }
-            }
-        }
-    }
-}
 </style>

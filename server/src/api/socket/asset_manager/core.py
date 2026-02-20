@@ -13,7 +13,7 @@ from ....db.models.user import User
 from ....logs import logger
 from ....state.asset import asset_state
 from ....transform.to_api.asset import transform_asset
-from ....utils import ASSETS_DIR, get_asset_hash_subpath
+from ....utils import ASSETS_DIR, THUMBNAILS_DIR, get_asset_hash_subpath
 from ...models.asset import (
     ApiAsset,
     ApiAssetAdd,
@@ -225,6 +225,10 @@ def clean_filehash(file_hash: str):
         if no_assets and no_shapes:
             logger.info(f"No asset maps to file {file_hash}, removing from server")
             (ASSETS_DIR / full_hash_path).unlink()
+    for ext in (".thumb.webp", ".thumb.jpeg"):
+        thumb_path = THUMBNAILS_DIR / f"{full_hash_path}{ext}"
+        if thumb_path.exists():
+            thumb_path.unlink()
 
 
 def cleanup_assets(assets: list[ApiAsset]):

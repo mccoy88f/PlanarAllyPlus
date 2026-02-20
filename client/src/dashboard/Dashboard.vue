@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, type ComputedRef } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 
 import { getStaticImg } from "../core/http";
 import { coreStore } from "../store/core";
@@ -9,34 +10,35 @@ import { dashboardState } from "./state";
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 
 interface Section {
-    nav: string;
+    navKey: string;
     routerPath: string;
     routerName?: string;
     visible?: ComputedRef<boolean>;
 }
 const sections: Section[] = [
     {
-        nav: "GAMES",
+        navKey: "dashboard.Dashboard.nav_games",
         routerPath: "games",
     },
     {
-        nav: "ASSETS",
+        navKey: "dashboard.Dashboard.nav_assets",
         routerPath: "assets",
     },
     {
-        nav: "EXTENSIONS",
+        navKey: "dashboard.Dashboard.nav_extensions",
         routerPath: "extensions",
         visible: computed(() => coreStore.state.extensionsEnabled),
     },
     {
-        nav: "SETTINGS",
+        navKey: "dashboard.Dashboard.nav_settings",
         routerPath: "settings",
         routerName: "dashboard-settings",
     },
     {
-        nav: "ADMIN",
+        navKey: "dashboard.Dashboard.nav_admin",
         routerPath: "admin",
         routerName: "admin-users",
         visible: computed(() => dashboardState.adminEnabled),
@@ -69,22 +71,22 @@ async function logout(): Promise<void> {
             <section id="sidebar">
                 <img id="icon" :src="getStaticImg('pa_game_icon.png')" alt="PlanarAlly logo" />
                 <nav>
-                    <template v-for="section of visibleSections" :key="section.nav">
+                    <template v-for="section of visibleSections" :key="section.routerPath">
                         <div
                             class="nav-item"
                             :class="{
                                 'nav-active': isActiveSection(section),
-                                [`nav-${section.nav.toLowerCase()}`]: true,
+                                [`nav-${section.routerPath}`]: true,
                             }"
                             @click="activate(section)"
                         >
-                            {{ section.nav }}
+                            {{ t(section.navKey) }}
                         </div>
                     </template>
                     <div style="flex-grow: 1; height: 10.4rem"></div>
                     <button @click="logout">
                         <img :src="getStaticImg('cross.svg')" alt="Cross" />
-                        LOG OUT
+                        {{ t("dashboard.Dashboard.nav_logout") }}
                     </button>
                 </nav>
             </section>

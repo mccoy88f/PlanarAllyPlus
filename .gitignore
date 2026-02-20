@@ -1,4 +1,9 @@
 *.zip
+.DS_Store
+**/.DS_Store
+docs/DIFF_ORIGINAL.md
+server/static/thumbnails/
+
 # editors
 .idea/**
 .vscode/**

@@ -176,6 +176,34 @@
                     "no_players": "尚无在线玩家"
                 }
             },
+            "extensions": {
+                "DocumentsModal": {
+                    "title": "文档",
+                    "loading": "加载中...",
+                    "no_documents": "暂无文档。上传 PDF 以开始。",
+                    "upload_success": "文档上传成功",
+                    "upload_multi_success": "已上传 {count} 个文档",
+                    "upload_partial": "{ok} 成功，{err} 失败",
+                    "upload_error": "文档上传失败",
+                    "uploading": "上传中...",
+                    "delete_success": "文档已删除",
+                    "delete_error": "删除文档失败"
+                },
+                "DocumentsPdfViewer": {
+                    "search": "在文档中搜索",
+                    "search_placeholder": "搜索文本...",
+                    "search_not_found": "未找到匹配项",
+                    "search_hint": "使用 Ctrl+F（或 Mac 上 Cmd+F）在 PDF 中搜索",
+                    "copy_link": "复制链接",
+                    "copy_success": "链接已复制",
+                    "share_chat": "分享到聊天",
+                    "share_success": "已分享到聊天",
+                    "load_error": "找不到文档",
+                    "document_fallback": "文档",
+                    "pdf_viewer_title": "PDF 查看器",
+                    "thumbnails": "页面缩略图"
+                }
+            },
             "NoteDialog": {
                 "warning_msg": "你确认要移除这个吗？",
                 "edit_title": "编辑标题",

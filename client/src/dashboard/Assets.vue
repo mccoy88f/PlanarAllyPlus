@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, watch } from "vue";
 import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 
 import { assetSystem } from "../assets";
 import { socket } from "../assets/socket";
@@ -12,6 +13,7 @@ import { ctrlOrCmdPressed } from "../core/utils";
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 
 watch(assetState.currentFilePath, async (newPath) => {
     await router.push(`/assets${newPath}`);
@@ -51,7 +53,7 @@ function emptySelection(event: MouseEvent): void {
 <template>
     <div id="content" @click="emptySelection">
         <div class="content-title">
-            <span>MANAGE ASSETS</span>
+            <span>{{ t("dashboard.Assets.manage_assets") }}</span>
             <AssetListCoreActions />
         </div>
 

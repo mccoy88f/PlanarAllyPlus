@@ -194,6 +194,34 @@
                     "no_players": "Aucun joueur connecté"
                 }
             },
+            "extensions": {
+                "DocumentsModal": {
+                    "title": "Documents",
+                    "loading": "Chargement...",
+                    "no_documents": "Aucun document. Téléchargez un PDF pour commencer.",
+                    "upload_success": "Document téléchargé",
+                    "upload_multi_success": "{count} documents téléchargés",
+                    "upload_partial": "{ok} téléchargés, {err} en échec",
+                    "upload_error": "Échec du téléchargement du document",
+                    "uploading": "Téléchargement...",
+                    "delete_success": "Document supprimé",
+                    "delete_error": "Échec de la suppression du document"
+                },
+                "DocumentsPdfViewer": {
+                    "search": "Rechercher dans le document",
+                    "search_placeholder": "Rechercher du texte...",
+                    "search_not_found": "Aucune correspondance trouvée",
+                    "search_hint": "Utilisez Ctrl+F (ou Cmd+F sur Mac) pour rechercher dans le PDF",
+                    "copy_link": "Copier le lien",
+                    "copy_success": "Lien copié",
+                    "share_chat": "Partager dans le chat",
+                    "share_success": "Partagé dans le chat",
+                    "load_error": "Document introuvable",
+                    "document_fallback": "Document",
+                    "pdf_viewer_title": "Visionneuse PDF",
+                    "thumbnails": "Aperçu des pages"
+                }
+            },
             "NoteDialog": {
                 "warning_msg": "Êtes-vous sûr de vouloir supprimer ceci ?",
                 "edit_title": "Modifier le titre",

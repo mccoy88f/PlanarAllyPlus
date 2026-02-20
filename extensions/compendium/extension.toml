@@ -1,0 +1,6 @@
+[extension]
+id = "compendium"
+name = "Compendium"
+version = "2.0.0"
+description = "Compendio di conoscenza: installa più JSON nello stesso formato, cerca nella scheda personaggio e altrove"
+author = "McCoy88f"

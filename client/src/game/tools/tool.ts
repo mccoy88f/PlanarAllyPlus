@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import type { LocalPoint } from "../../core/geometry";
 import { onKeyDown } from "../input/keyboard/down";
 import { onKeyUp } from "../input/keyboard/up";
+import { handlePinchEnd, handlePinchMove, handlePinchStart } from "../input/pinch";
 import { getLocalPointFromEvent } from "../input/mouse";
 import type { ToolFeatures, ITool, ToolMode, ToolName, ToolPermission } from "../models/tools";
 
@@ -59,9 +60,15 @@ export abstract class Tool implements ITool {
     }
 
     onThreeTouchMove(_event: TouchEvent, _features: ToolFeatures): void {}
-    onPinchStart(_event: TouchEvent, _features: ToolFeatures): void {}
-    onPinchMove(_event: TouchEvent, _features: ToolFeatures): void {}
-    onPinchEnd(_event: TouchEvent, _features: ToolFeatures): void {}
+    onPinchStart(event: TouchEvent, _features: ToolFeatures): void {
+        handlePinchStart(event);
+    }
+    onPinchMove(event: TouchEvent, _features: ToolFeatures): void {
+        handlePinchMove(event);
+    }
+    onPinchEnd(_event: TouchEvent, _features: ToolFeatures): void {
+        handlePinchEnd();
+    }
     onContextMenu(_event: MouseEvent, _features: ToolFeatures): Promise<boolean> {
         return Promise.resolve(true);
     }

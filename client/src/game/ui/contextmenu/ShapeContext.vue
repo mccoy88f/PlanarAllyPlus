@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, toRef, unref } from "vue";
+import { computed, ref, toRef, unref, watch } from "vue";
 import type { ComputedRef } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -22,8 +22,12 @@ import { compositeState } from "../../layers/state";
 import type { Floor, LayerName } from "../../models/floor";
 import { fromSystemForm, instantiateCompactForm } from "../../shapes/transformations";
 import { deleteShapes } from "../../shapes/utils";
+import { http } from "../../../core/http";
 import { accessSystem } from "../../systems/access";
 import { sendCreateCharacter } from "../../systems/characters/emits";
+import { characterSystem } from "../../systems/characters";
+import { extensionsState } from "../../systems/extensions/state";
+import { openExtensionModal } from "../../systems/extensions/ui";
 import { floorSystem } from "../../systems/floors";
 import { floorState } from "../../systems/floors/state";
 import { gameState } from "../../systems/game/state";
@@ -46,6 +50,26 @@ import { layerTranslationMapping } from "../translations";
 import { shapeContextLeft, shapeContextTop, showShapeContextMenu } from "./state";
 
 const { t } = useI18n();
+
+const sheetIdForSelectedCharacter = ref<string | null>(null);
+watch(showShapeContextMenu, async (visible) => {
+    sheetIdForSelectedCharacter.value = null;
+    if (!visible) return;
+    const sel = [...selectedState.raw.selected];
+    if (sel.length !== 1) return;
+    const shape = getShape(sel[0]!);
+    const characterId = shape?.character;
+    if (characterId === undefined) return;
+    const creator = gameState.reactive.roomCreator ?? "";
+    const room = gameState.reactive.roomName ?? "";
+    if (!creator || !room) return;
+    const url = `/api/extensions/character-sheet/sheet-for-character/${characterId}?room_creator=${encodeURIComponent(creator)}&room_name=${encodeURIComponent(room)}`;
+    const resp = await http.get(url);
+    if (resp.ok) {
+        const data = (await resp.json()) as { sheetId: string };
+        sheetIdForSelectedCharacter.value = data.sheetId ?? null;
+    }
+});
 const modals = useModal();
 
 const selectionIncludesSpawnToken = computed(() =>
@@ -362,6 +386,31 @@ function createCharacter(): boolean {
     return true;
 }
 
+const canShowSheet = computed(
+    () =>
+        sheetIdForSelectedCharacter.value !== null &&
+        selectedState.reactive.selected.size === 1,
+);
+
+function showSheet(): boolean {
+    const sheetId = sheetIdForSelectedCharacter.value;
+    if (!sheetId) return false;
+    const ext = extensionsState.reactive.extensions.find(
+        (e) => e.id === "character-sheet" || e.folder === "character-sheet",
+    );
+    if (!ext?.uiUrl || !ext.folder) return false;
+    openExtensionModal({
+        id: ext.id,
+        name: ext.name,
+        folder: ext.folder,
+        uiUrl: ext.uiUrl,
+        titleBarColor: ext.titleBarColor,
+        icon: ext.icon,
+        openSheetId: sheetId,
+    });
+    return true;
+}
+
 // GROUPS
 
 const groups = computed(() => {
@@ -613,8 +662,14 @@ const sections = computed(() => {
 
         if (isOwned.value && canHaveCharacter.value) {
             rootGroupB.push({
-                title: "Create character",
+                title: t("game.ui.selection.ShapeContext.create_character"),
                 action: createCharacter,
+            });
+        }
+        if (canShowSheet.value) {
+            rootGroupB.push({
+                title: t("game.ui.selection.ShapeContext.show_sheet"),
+                action: showSheet,
             });
         }
     }
@@ -636,7 +691,7 @@ const sections = computed(() => {
                 action: openEditDialog,
             },
             {
-                title: "Open notes",
+                title: t("game.ui.selection.ShapeContext.open_notes"),
                 action: openNotes,
             },
         ]);

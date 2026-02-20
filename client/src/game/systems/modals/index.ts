@@ -4,6 +4,7 @@ import type { Component } from "vue";
 import { registerSystem } from "../../../core/systems";
 import type { System, SystemClearReason } from "../../../core/systems/models";
 
+import { focusStackModal } from "../extensions/ui";
 import { modalState } from "./state";
 import type { FullModal, IndexedModal, Modal, ModalIndex } from "./types";
 
@@ -41,6 +42,7 @@ class ModalSystem implements System {
         if ($.poppedModals.has(index)) return;
 
         $.openModals.add(index);
+        focusStackModal();
         if (raw.modalOrder.at(-1) === index) return;
         const orderId = raw.modalOrder.findIndex((m) => m === index);
         if (orderId === undefined) {

@@ -6,7 +6,13 @@ import { i18n } from "../../../i18n";
 import Modal from "./Modal.vue";
 
 const emit = defineEmits(["close", "submit"]);
-const props = defineProps<{ visible: boolean; title: string; question: string; error?: string }>();
+const props = defineProps<{
+    visible: boolean;
+    title: string;
+    question: string;
+    error?: string;
+    defaultAnswer?: string;
+}>();
 
 const { t } = i18n.global;
 
@@ -17,6 +23,7 @@ watch(
     () => props.visible,
     async (visible) => {
         if (visible) {
+            answer.value = props.defaultAnswer ?? "";
             await nextTick(() => input.value?.focus());
         }
     },

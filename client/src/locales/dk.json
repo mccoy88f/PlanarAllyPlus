@@ -130,6 +130,34 @@
                     "client_settings": "Klient instillinger"
                 }
             },
+            "extensions": {
+                "DocumentsModal": {
+                    "title": "Dokumenter",
+                    "loading": "Indlæser...",
+                    "no_documents": "Ingen dokumenter endnu. Upload en PDF for at komme i gang.",
+                    "upload_success": "Dokument uploadet",
+                    "upload_multi_success": "{count} dokumenter uploadet",
+                    "upload_partial": "{ok} uploadet, {err} fejlede",
+                    "upload_error": "Kunne ikke uploade dokument",
+                    "uploading": "Uploader...",
+                    "delete_success": "Dokument slettet",
+                    "delete_error": "Kunne ikke slette dokument"
+                },
+                "DocumentsPdfViewer": {
+                    "search": "Søg i dokument",
+                    "search_placeholder": "Søg tekst...",
+                    "search_not_found": "Ingen resultater fundet",
+                    "search_hint": "Brug Ctrl+F (eller Cmd+F på Mac) til at søge i PDF'en",
+                    "copy_link": "Kopier link til udklipsholder",
+                    "copy_success": "Link kopieret til udklipsholder",
+                    "share_chat": "Del i chat",
+                    "share_success": "Delt i chat",
+                    "load_error": "Dokument ikke fundet",
+                    "document_fallback": "Dokument",
+                    "pdf_viewer_title": "PDF-fremviser",
+                    "thumbnails": "Sideminiaturer"
+                }
+            },
             "NoteDialog": {
                 "warning_msg": "Er du sikker på at du vil fjerne dette?",
                 "edit_title": "Ændrer titel",

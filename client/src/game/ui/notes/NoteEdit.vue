@@ -2,6 +2,8 @@
 import { computed, onActivated, ref, watch, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import VueMarkdown from "vue-markdown-render";
+
+import { preprocessQeLinksToHtml, qeLinkPlugin } from "../../systems/extensions/compendium";
 import { useToast } from "vue-toastification";
 
 import type { LocalId } from "../../../core/id";
@@ -372,7 +374,7 @@ function searchTag(tag: string): void {
             </div>
         </div>
         <div v-if="activeTab === TabLabel.View" id="editor" class="tab-container">
-            <VueMarkdown :source="note.text" :options="{ html: true }" />
+            <VueMarkdown :source="preprocessQeLinksToHtml(note.text)" :options="{ html: true }" :plugins="[qeLinkPlugin]" />
         </div>
         <div v-else-if="activeTab === TabLabel.Edit" id="editor" class="tab-container">
             <em>{{ t("game.ui.notes.NoteEdit.md_aware") }}</em>

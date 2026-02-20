@@ -6,17 +6,28 @@ import { useRoute } from "vue-router";
 import { http } from "../../../core/http";
 import { gameState } from "../../systems/game/state";
 import { extensionsState } from "../../systems/extensions/state";
+
 import {
+    closeExtension,
+    isExtensionOpen,
     openDungeongenModal,
     openExtensionModal,
     openOpenRouterModal,
-    openQuintaedizioneModal,
+    openCompendiumModal,
     toggleExtensionsManager,
 } from "../../systems/extensions/ui";
 
-
 const { t } = useI18n();
 const route = useRoute();
+
+/** In fake player mode, show only extensions visible to players */
+const visibleExtensions = computed(() => {
+    const exts = extensionsState.reactive.extensions;
+    if (gameState.reactive.isFakePlayer) {
+        return exts.filter((ext) => ext.visibleToPlayers === true);
+    }
+    return exts;
+});
 
 async function loadExtensions(): Promise<void> {
     try {
@@ -37,9 +48,12 @@ async function loadExtensions(): Promise<void> {
                     folder?: string;
                     titleBarColor?: string;
                     icon?: string | [string, string];
+                    visibleToPlayers?: boolean;
                 }[];
             };
-            extensionsState.mutableReactive.extensions = data.extensions ?? [];
+            const exts = data.extensions ?? [];
+            exts.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+            extensionsState.mutableReactive.extensions = exts;
         }
     } catch {
         extensionsState.mutableReactive.extensions = [];
@@ -57,7 +71,13 @@ function onExtensionClick(ext: {
     name: string;
     folder?: string;
     uiUrl?: string;
+    titleBarColor?: string;
+    icon?: string | [string, string];
 }): void {
+    if (isExtensionOpen(ext)) {
+        closeExtension(ext);
+        return;
+    }
     if (ext.uiUrl && ext.folder) {
         openExtensionModal({
             id: ext.id,
@@ -69,8 +89,8 @@ function onExtensionClick(ext: {
         });
     } else if (ext.id === "dungeongen") {
         openDungeongenModal();
-    } else if (ext.id === "quintaedizione.online") {
-        openQuintaedizioneModal();
+    } else if (ext.id === "compendium") {
+        openCompendiumModal();
     } else if (ext.id === "openrouter") {
         openOpenRouterModal();
     }
@@ -83,20 +103,21 @@ onMounted(loadExtensions);
     <button class="menu-accordion">{{ t("common.extensions") }}</button>
     <div class="menu-accordion-panel">
         <div class="menu-accordion-subpanel">
-            <template v-for="ext in extensionsState.reactive.extensions" :key="ext.id">
-                <div style="cursor: pointer">
-                    <div class="menu-accordion-subpanel-text" @click="onExtensionClick(ext)">
-                        {{ extensionDisplayName(ext) }}
-                    </div>
+            <template v-for="ext in visibleExtensions" :key="ext.id">
+                <div class="menu-accordion-subpanel-text" style="cursor: pointer" @click="onExtensionClick(ext)">
+                    {{ extensionDisplayName(ext) }}
                 </div>
             </template>
             <div
-                v-if="extensionsState.reactive.extensions.length === 0"
+                v-if="visibleExtensions.length === 0"
                 style="font-style: italic; color: #666"
             >
                 {{ t("game.ui.menu.Extensions.no_extensions") }}
             </div>
-            <div v-if="gameState.isDmOrFake.value" style="cursor: pointer">
+            <div
+                v-if="gameState.isDmOrFake.value && !gameState.reactive.isFakePlayer"
+                style="cursor: pointer"
+            >
                 <div class="menu-accordion-subpanel-text" @click="toggleExtensionsManager">
                     {{ t("game.ui.menu.Extensions.manage_extensions") }}
                 </div>
@@ -104,4 +125,3 @@ onMounted(loadExtensions);
         </div>
     </div>
 </template>
-

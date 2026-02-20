@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, useTemplateRef } from "vue";
+import { computed, onMounted, ref, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useToast } from "vue-toastification";
 
@@ -15,6 +15,19 @@ const uploadInput = useTemplateRef<HTMLInputElement>("uploadInput");
 const installUrl = ref("");
 const installing = ref(false);
 const uninstalling = ref(false);
+const searchQuery = ref("");
+
+const filteredExtensions = computed(() => {
+    const q = searchQuery.value.trim().toLowerCase();
+    const exts = extensionsState.mutableReactive.extensions;
+    if (!q) return exts;
+    return exts.filter(
+        (e) =>
+            e.name.toLowerCase().includes(q) ||
+            (e.description?.toLowerCase().includes(q) ?? false) ||
+            (e.folder?.toLowerCase().includes(q) ?? false),
+    );
+});
 
 async function loadExtensions(): Promise<void> {
     try {
@@ -110,6 +123,32 @@ async function uninstallExtension(ext: { folder: string; name: string }): Promis
         uninstalling.value = false;
     }
 }
+
+async function onAddClick(): Promise<void> {
+    if (installing.value) return;
+    const uploadZipLabel = t("game.ui.extensions.ExtensionsManager.upload_zip");
+    const fromUrlLabel = t("game.ui.extensions.ExtensionsManager.install_from_url");
+    const choices = await modals.selectionBox(
+        t("game.ui.extensions.ExtensionsManager.install_how"),
+        [uploadZipLabel, fromUrlLabel],
+    );
+    if (choices === undefined || choices.length === 0) return;
+    const choice = choices[0];
+    if (choice === uploadZipLabel) {
+        uploadInput.value?.click();
+    } else if (choice === fromUrlLabel) {
+        const url = await modals.prompt(
+            t("game.ui.extensions.ExtensionsManager.url_prompt"),
+            t("game.ui.extensions.ExtensionsManager.install_from_url"),
+            undefined,
+            "https://",
+        );
+        if (url?.trim()) {
+            installUrl.value = url.trim();
+            await installFromUrl();
+        }
+    }
+}
 </script>
 
 <template>
@@ -118,13 +157,34 @@ async function uninstallExtension(ext: { folder: string; name: string }): Promis
             <span>MANAGE EXTENSIONS</span>
         </div>
 
+        <div class="extensions-toolbar">
+            <input
+                v-model="searchQuery"
+                type="text"
+                class="extensions-search"
+                :placeholder="t('game.ui.extensions.ExtensionsManager.search_placeholder')"
+            />
+            <button
+                class="extensions-add-btn"
+                :disabled="installing"
+                :title="t('game.ui.extensions.ExtensionsManager.add_extension')"
+                @click="onAddClick"
+            >
+                <font-awesome-icon icon="plus" />
+            </button>
+        </div>
+
         <section class="extensions-section">
             <div class="section-header">{{ t("game.ui.extensions.ExtensionsManager.installed") }}</div>
-            <div v-if="extensionsState.reactive.extensions.length === 0" class="empty-message">
-                {{ t("game.ui.extensions.ExtensionsManager.no_extensions") }}
+            <div v-if="filteredExtensions.length === 0" class="empty-message">
+                {{
+                    extensionsState.reactive.extensions.length === 0
+                        ? t("game.ui.extensions.ExtensionsManager.no_extensions")
+                        : t("game.ui.extensions.ExtensionsManager.no_search_results")
+                }}
             </div>
             <div
-                v-for="ext in extensionsState.reactive.extensions"
+                v-for="ext in filteredExtensions"
                 :key="ext.folder ?? ext.id"
                 class="extension-item"
             >
@@ -142,31 +202,13 @@ async function uninstallExtension(ext: { folder: string; name: string }): Promis
             </div>
         </section>
 
-        <section class="install-section">
-            <div class="section-header">{{ t("game.ui.extensions.ExtensionsManager.install") }}</div>
-            <div class="install-row">
-                <label>{{ t("game.ui.extensions.ExtensionsManager.upload_zip") }}</label>
-                <div class="install-controls">
-                    <input ref="uploadInput" type="file" accept=".zip" />
-                    <button :disabled="installing" @click="installFromZip">
-                        {{ t("common.upload") }}
-                    </button>
-                </div>
-            </div>
-            <div class="install-row">
-                <label>{{ t("game.ui.extensions.ExtensionsManager.install_from_url") }}</label>
-                <div class="install-controls">
-                    <input
-                        v-model="installUrl"
-                        type="url"
-                        :placeholder="t('game.ui.extensions.ExtensionsManager.url_placeholder')"
-                    />
-                    <button :disabled="installing || !installUrl.trim()" @click="installFromUrl">
-                        {{ t("game.ui.extensions.ExtensionsManager.install_btn") }}
-                    </button>
-                </div>
-            </div>
-        </section>
+        <input
+            ref="uploadInput"
+            type="file"
+            accept=".zip"
+            style="display: none"
+            @change="installFromZip"
+        />
     </div>
 </template>
 
@@ -192,8 +234,51 @@ async function uninstallExtension(ext: { folder: string; name: string }): Promis
     }
 }
 
-.extensions-section,
-.install-section {
+.extensions-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+
+    .extensions-search {
+        flex: 1;
+        padding: 0.6rem 1rem;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 0.5rem;
+        background: rgba(0, 0, 0, 0.2);
+        color: white;
+        font-size: 1rem;
+
+        &::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+    }
+
+    .extensions-add-btn {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.5rem;
+        height: 2.5rem;
+        padding: 0;
+        border: 2px solid rgba(255, 168, 191, 1);
+        border-radius: 0.5rem;
+        background: rgba(219, 0, 59, 1);
+        cursor: pointer;
+        color: white;
+
+        &:hover:not(:disabled) {
+            background: rgba(255, 168, 191, 0.3);
+        }
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    }
+}
+
+.extensions-section {
     .section-header {
         font-weight: bold;
         font-size: 1.5em;
@@ -247,62 +332,6 @@ async function uninstallExtension(ext: { folder: string; name: string }): Promis
             &.disabled {
                 opacity: 0.5;
                 cursor: not-allowed;
-            }
-        }
-    }
-}
-
-.install-section {
-    .install-row {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        margin-bottom: 1.5rem;
-
-        label {
-            font-weight: 500;
-            color: white;
-            font-size: 1.1em;
-        }
-
-        .install-controls {
-            display: flex;
-            gap: 0.75rem;
-            align-items: center;
-
-            input[type="file"],
-            input[type="url"] {
-                flex: 1;
-                padding: 0.6rem 1rem;
-                border: 2px solid rgba(255, 255, 255, 0.3);
-                border-radius: 0.5rem;
-                background: rgba(0, 0, 0, 0.2);
-                color: white;
-                font-size: 1rem;
-
-                &::placeholder {
-                    color: rgba(255, 255, 255, 0.4);
-                }
-            }
-
-            button {
-                padding: 0.6rem 1.25rem;
-                border-radius: 0.5rem;
-                cursor: pointer;
-                white-space: nowrap;
-                font-weight: 600;
-                background-color: rgba(219, 0, 59, 1);
-                border: 2px solid rgba(255, 168, 191, 1);
-                color: white;
-
-                &:hover:not(:disabled) {
-                    background-color: rgba(255, 168, 191, 0.3);
-                }
-
-                &:disabled {
-                    opacity: 0.6;
-                    cursor: not-allowed;
-                }
             }
         }
     }

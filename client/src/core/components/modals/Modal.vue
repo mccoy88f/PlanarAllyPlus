@@ -151,7 +151,7 @@ function dragEnd(event: DragEvent): void {
 
         setHorizontalAxis(containerX);
         container.value!.style.top = `${containerY}px`;
-        container.value!.style.display = "block";
+        container.value!.style.removeProperty("display");
     }
 }
 

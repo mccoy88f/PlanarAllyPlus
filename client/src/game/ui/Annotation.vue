@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import VueMarkdown from "vue-markdown-render";
 
+import { preprocessQeLinksToHtml, qeLinkPlugin } from "../systems/extensions/compendium";
 import { uiState } from "../systems/ui/state";
 </script>
 
@@ -8,8 +9,9 @@ import { uiState } from "../systems/ui/state";
     <VueMarkdown
         v-show="uiState.reactive.annotationText.length > 0"
         id="annotation"
-        :source="uiState.reactive.annotationText"
+        :source="preprocessQeLinksToHtml(uiState.reactive.annotationText)"
         :options="{ html: true }"
+        :plugins="[qeLinkPlugin]"
     />
 </template>
 

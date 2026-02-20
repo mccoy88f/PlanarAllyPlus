@@ -55,7 +55,7 @@ RUN uv sync --frozen --no-cache
 
 # Copy the final server files
 COPY --from=BUILDER --chown=9000:9000 /usr/src/server/ .
-# Copy extensions (documents, dungeongen, openrouter, quintaedizione)
+# Copy extensions (documents, dungeongen, openrouter, compendium)
 COPY --from=BUILDER --chown=9000:9000 /usr/src/extensions ./extensions
 
 ARG PA_BASEPATH="/"

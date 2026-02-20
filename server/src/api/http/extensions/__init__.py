@@ -4,10 +4,13 @@ import io
 import json
 import shutil
 
+from . import ambient_music
+from . import assets_installer
+from . import character_sheet
 from . import documents
 from . import dungeongen
 from . import openrouter
-from . import quintaedizione
+from . import compendium
 from zipfile import BadZipFile, ZipFile
 
 import aiohttp
@@ -119,7 +122,7 @@ async def list_extensions(request: web.Request) -> web.Response:
             continue
         ext_result = {**ext, "visibleToPlayers": visible_to_players}
         if ext.get("entry"):
-            ext_result["uiUrl"] = f"/api/extensions/{ext['folder']}/ui"
+            ext_result["uiUrl"] = f"/api/extensions/{ext['folder']}/ui/"
         result.append(ext_result)
 
     return web.json_response({"extensions": result})
@@ -252,7 +255,7 @@ async def set_visibility(request: web.Request) -> web.Response:
 
 
 async def serve_extension_ui(request: web.Request) -> web.Response:
-    """Serve extension UI file (e.g. ui/index.html). Requires auth."""
+    """Serve extension UI file (e.g. ui/index.html) or UI assets. Requires auth."""
     await get_authorized_user(request)
     folder = request.match_info.get("folder", "").strip()
     if not folder or ".." in folder or "/" in folder or "\\" in folder:
@@ -262,6 +265,7 @@ async def serve_extension_ui(request: web.Request) -> web.Response:
     if not ext_dir.exists() or not ext_dir.is_dir():
         return web.HTTPNotFound(text="Extension not found")
 
+    subpath = request.match_info.get("path", "").strip()
     manifest = ext_dir / "extension.toml"
     entry = "ui/index.html"
     if manifest.exists():
@@ -273,11 +277,29 @@ async def serve_extension_ui(request: web.Request) -> web.Response:
         except Exception:
             pass
 
+    if subpath:
+        # Serve asset: ui_path = ext_dir / "ui" / subpath
+        ui_dir = ext_dir / "ui"
+        if ".." in subpath or subpath.startswith("/"):
+            return web.HTTPForbidden(text="Invalid path")
+        file_path = (ui_dir / subpath).resolve()
+        try:
+            file_path.relative_to(ext_dir.resolve())
+        except ValueError:
+            return web.HTTPForbidden(text="Invalid path")
+        if not file_path.exists():
+            return web.HTTPNotFound(text="Asset not found")
+        if file_path.is_dir():
+            index_path = file_path / "index.html"
+            if index_path.is_file():
+                return web.FileResponse(index_path)
+            return web.HTTPNotFound(text="Asset not found")
+        return web.FileResponse(file_path)
+
     ui_path = ext_dir / entry
     if not ui_path.exists() or not ui_path.is_file():
         return web.HTTPNotFound(text="Extension UI not found")
 
-    # Security: ensure path is inside extension dir
     try:
         ui_path.resolve().relative_to(ext_dir.resolve())
     except ValueError:

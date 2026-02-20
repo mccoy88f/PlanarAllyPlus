@@ -2,6 +2,7 @@
 import { computed, ref, toRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
+import QRCode from "qrcode";
 
 import InputCopyElement from "../../../../core/components/InputCopyElement.vue";
 import { baseAdjust } from "../../../../core/http";
@@ -32,6 +33,27 @@ watch(
 
 const invitationUrl = computed(
     () => `${gameState.reactive.clientUrl}${baseAdjust("/invite/")}${gameState.reactive.invitationCode}`,
+);
+
+const qrCodeDataUrl = ref<string>("");
+
+watch(
+    invitationUrl,
+    async (url) => {
+        if (!url) {
+            qrCodeDataUrl.value = "";
+            return;
+        }
+        try {
+            qrCodeDataUrl.value = await QRCode.toDataURL(url, {
+                width: 160,
+                margin: 1,
+            });
+        } catch {
+            qrCodeDataUrl.value = "";
+        }
+    },
+    { immediate: true },
 );
 
 const creator = computed(() => route.params.creator);
@@ -119,6 +141,12 @@ const toggleLock = (): void => gameSystem.setIsLocked(!gameState.raw.isLocked, t
                 <InputCopyElement :value="invitationUrl" />
             </template>
         </div>
+        <div v-if="qrCodeDataUrl && !showRefreshState" class="row invite-qr-row">
+            <div></div>
+            <div class="invite-qr-wrap">
+                <img :src="qrCodeDataUrl" alt="QR code" class="invite-qr" />
+            </div>
+        </div>
         <div class="row" @click="refreshInviteCode">
             <div></div>
             <div>
@@ -165,5 +193,23 @@ const toggleLock = (): void => gameSystem.setIsLocked(!gameState.raw.isLocked, t
     select {
         margin-right: 20%;
     }
+}
+
+.invite-qr-row {
+    margin-top: 0.5rem;
+}
+
+.invite-qr-wrap {
+    padding: 0.5rem;
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 0.25rem;
+    display: inline-block;
+}
+
+.invite-qr {
+    display: block;
+    width: 160px;
+    height: 160px;
 }
 </style>

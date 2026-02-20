@@ -136,6 +136,34 @@
                     "client_settings": "客戶端選項"
                 }
             },
+            "extensions": {
+                "DocumentsModal": {
+                    "title": "文件",
+                    "loading": "載入中...",
+                    "no_documents": "尚無文件。上傳 PDF 以開始。",
+                    "upload_success": "文件上傳成功",
+                    "upload_multi_success": "已上傳 {count} 個文件",
+                    "upload_partial": "{ok} 上傳成功，{err} 失敗",
+                    "upload_error": "文件上傳失敗",
+                    "uploading": "上傳中...",
+                    "delete_success": "文件已刪除",
+                    "delete_error": "刪除文件失敗"
+                },
+                "DocumentsPdfViewer": {
+                    "search": "在文件中搜尋",
+                    "search_placeholder": "搜尋文字...",
+                    "search_not_found": "找不到符合的項目",
+                    "search_hint": "使用 Ctrl+F（或 Mac 上 Cmd+F）在 PDF 中搜尋",
+                    "copy_link": "複製連結",
+                    "copy_success": "連結已複製",
+                    "share_chat": "分享至聊天",
+                    "share_success": "已分享至聊天",
+                    "load_error": "找不到文件",
+                    "document_fallback": "文件",
+                    "pdf_viewer_title": "PDF 檢視器",
+                    "thumbnails": "頁面縮圖"
+                }
+            },
             "NoteDialog": {
                 "warning_msg": "你確認要移除這個嗎？",
                 "edit_title": "編輯標題",

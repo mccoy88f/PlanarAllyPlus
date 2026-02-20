@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Assets Installer</title>
+    <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=2" />
+    <script src="../../../../static/extensions/ext-bridge.js"></script>
+    <style>
+        .ai-root { max-width: none; width: 100%; overflow-y: auto; min-height: 0; padding: 1rem 1.5rem; }
+        .ai-section { margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 0.5rem; border: 1px solid #e9ecef; }
+        .ai-tree-container { max-height: 12rem; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.35rem; background: #fff; padding: 0.25rem 0; }
+        .ai-tree { list-style: none; margin: 0; padding: 0; }
+        .ai-tree-item { margin: 0; }
+        .ai-tree-row { display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; cursor: pointer; border-radius: 0.25rem; font-size: 0.9rem; }
+        .ai-tree-row:hover { background: #e9ecef; }
+        .ai-tree-row.selected { background: #cce5ff; color: #004085; }
+        .ai-tree-toggle { width: 1.2em; flex-shrink: 0; color: #6c757d; font-size: 0.75rem; }
+        .ai-tree-toggle.empty { visibility: hidden; }
+        .ai-tree-icon { flex-shrink: 0; color: #6c757d; }
+        .ai-tree-row .ai-tree-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ai-tree-children { list-style: none; margin: 0; padding-left: 1.25rem; }
+        .ai-tree-children.collapsed { display: none; }
+        .ai-selected-path { font-size: 0.8rem; color: #6c757d; margin-top: 0.35rem; }
+        .ai-list { list-style: none; padding: 0; margin: 0; }
+        .ai-item { margin-bottom: 0.4rem; background: #fff; border: 1px solid #e9ecef; border-radius: 0.35rem; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+        .ai-item:hover { border-color: #ced4da; }
+        .ai-item .ext-ui-list-item-content { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
+        .ai-item-name { font-weight: 600; color: #212529; }
+        .ai-item-meta { font-size: 0.8rem; color: #6c757d; margin-top: 0.15rem; }
+        .ai-item-actions { flex-shrink: 0; }
+        .ai-item:hover .ext-item-actions { opacity: 1; }
+        .ai-empty { padding: 1.5rem; text-align: center; color: #6c757d; font-size: 0.95rem; background: #f8f9fa; border-radius: 0.35rem; border: 1px dashed #dee2e6; }
+        .ai-list-container { max-height: 50vh; overflow-y: auto; min-height: 4rem; }
+    </style>
+</head>
+<body class="ext-ui-root ai-root">
+    <section class="ext-ui-section ai-section">
+        <h3 class="ext-ui-section-title" id="uploadSectionTitle"></h3>
+        <label id="folderLabel" class="ext-ui-label"></label>
+        <div class="ai-tree-container">
+            <ul id="folderTree" class="ai-tree"></ul>
+        </div>
+        <div id="selectedPath" class="ai-selected-path"></div>
+        <div style="margin-top: 0.75rem;">
+            <input type="file" id="fileInput" class="ext-ui-file-input" accept=".zip,application/zip" />
+            <button type="button" id="uploadBtn" class="ext-ui-btn ext-ui-btn-primary"></button>
+        </div>
+    </section>
+
+    <section class="ext-ui-section ai-section">
+        <h3 class="ext-ui-section-title" id="installedTitle"></h3>
+        <div class="ai-list-container">
+            <div id="loading" class="ext-ui-loading"></div>
+            <div id="empty" class="ai-empty ext-ui-empty" style="display:none"></div>
+            <ul id="list" class="ai-list ext-ui-list" style="display:none"></ul>
+        </div>
+    </section>
+
+    <div id="msg"></div>
+
+    <script>
+        (function() {
+            var TRANSLATIONS = {
+                en: {
+                    title: "Assets Installer",
+                    upload_zip: "Upload ZIP",
+                    upload_section: "Upload ZIP file",
+                    folder: "Destination folder (click to select)",
+                    loading: "Loading...",
+                    no_installs: "No asset packs installed. Upload a ZIP file above.",
+                    file_count: "{{n}} file(s)",
+                    uninstall: "Uninstall",
+                    upload_success: "Asset pack installed successfully.",
+                    upload_failed: "Upload failed.",
+                    uninstall_success: "Asset pack uninstalled.",
+                    uninstall_failed: "Uninstall failed.",
+                    error_loading: "Error loading list.",
+                    confirm_uninstall: "Uninstall \"{{name}}\"? Files will be removed.",
+                    root: "(root)",
+                    installed_title: "Installed packs",
+                    installed_on: "Installed on {{date}}"
+                },
+                it: {
+                    title: "Assets Installer",
+                    upload_zip: "Carica ZIP",
+                    upload_section: "Carica file ZIP",
+                    folder: "Cartella di destinazione (clicca per selezionare)",
+                    loading: "Caricamento...",
+                    no_installs: "Nessun pacchetto installato. Carica un file ZIP sopra.",
+                    file_count: "{{n}} file",
+                    uninstall: "Disinstalla",
+                    upload_success: "Pacchetto installato correttamente.",
+                    upload_failed: "Caricamento fallito.",
+                    uninstall_success: "Pacchetto disinstallato.",
+                    uninstall_failed: "Disinstallazione fallita.",
+                    error_loading: "Errore nel caricamento.",
+                    confirm_uninstall: "Disinstallare \"{{name}}\"? I file saranno rimossi.",
+                    root: "(root)",
+                    installed_title: "Pacchetti installati",
+                    installed_on: "Installato il {{date}}"
+                }
+            };
+
+            function getLocale() {
+                var params = new URLSearchParams(window.location.search);
+                var loc = params.get('locale') || 'en';
+                return TRANSLATIONS[loc] ? loc : 'en';
+            }
+
+            var locale = getLocale();
+            var L = TRANSLATIONS[locale] || TRANSLATIONS.en;
+            document.documentElement.lang = locale;
+
+            function t(key, vars) {
+                var s = L[key] || TRANSLATIONS.en[key] || key;
+                if (vars) {
+                    for (var k in vars) s = s.replace(new RegExp('{{' + k + '}}', 'g'), vars[k]);
+                }
+                return s;
+            }
+
+            function base() {
+                var p = window.location.pathname;
+                var i = p.indexOf('/api/');
+                return i >= 0 ? p.slice(0, i) : '';
+            }
+            function api(path) { return base() + path; }
+
+            document.getElementById('uploadBtn').textContent = t('upload_zip');
+            document.getElementById('uploadSectionTitle').textContent = t('upload_section');
+            document.getElementById('folderLabel').textContent = t('folder');
+            document.getElementById('installedTitle').textContent = t('installed_title');
+
+            var listEl = document.getElementById('list');
+            var loadingEl = document.getElementById('loading');
+            var emptyEl = document.getElementById('empty');
+            var fileInput = document.getElementById('fileInput');
+            var uploadBtn = document.getElementById('uploadBtn');
+            var folderTreeEl = document.getElementById('folderTree');
+            var selectedPathEl = document.getElementById('selectedPath');
+            var msgEl = document.getElementById('msg');
+
+            var selectedPath = '';
+
+            function showMsg(text, isError) {
+                msgEl.textContent = text;
+                msgEl.className = 'ext-ui-msg ' + (isError ? 'ext-ui-msg-error' : 'ext-ui-msg-success');
+                msgEl.style.display = 'block';
+                setTimeout(function() { msgEl.style.display = 'none'; }, 4000);
+            }
+
+            function selectPath(path) {
+                selectedPath = path;
+                folderTreeEl.querySelectorAll('.ai-tree-row').forEach(function(row) {
+                    row.classList.toggle('selected', row.dataset.path === path);
+                });
+                selectedPathEl.textContent = path ? path : t('root');
+            }
+
+            function renderTreeRow(node, depth) {
+                var path = node.path || '';
+                var name = node.name === '/' ? t('root') : node.name;
+                var hasChildren = node.children && node.children.length > 0;
+                var toggleChar = hasChildren ? '\u25BC' : '';
+                var toggleCls = hasChildren ? '' : ' empty';
+                var icon = '\uD83D\uDCC1';
+                var row = '<div class="ai-tree-row" data-path="' + (path ? path.replace(/"/g, '&quot;') : '') + '">' +
+                    '<span class="ai-tree-toggle' + toggleCls + '">' + toggleChar + '</span>' +
+                    '<span class="ai-tree-icon">' + icon + '</span>' +
+                    '<span class="ai-tree-name">' + (name ? name.replace(/</g, '&lt;') : '') + '</span></div>';
+                var childrenHtml = '';
+                if (hasChildren) {
+                    childrenHtml = '<ul class="ai-tree-children">';
+                    node.children.forEach(function(child) {
+                        childrenHtml += '<li class="ai-tree-item">' + renderTreeRow(child, depth + 1) + '</li>';
+                    });
+                    childrenHtml += '</ul>';
+                }
+                return row + childrenHtml;
+            }
+
+            function bindTreeEvents() {
+                folderTreeEl.querySelectorAll('.ai-tree-row').forEach(function(row) {
+                    row.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        var path = row.dataset.path || '';
+                        selectPath(path);
+                    });
+                });
+                folderTreeEl.querySelectorAll('.ai-tree-toggle:not(.empty)').forEach(function(toggle) {
+                    toggle.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        var row = toggle.closest('.ai-tree-row');
+                        var li = row && row.parentElement;
+                        if (!li) return;
+                        var children = li.querySelector(':scope > .ai-tree-children');
+                        if (children) {
+                            children.classList.toggle('collapsed');
+                            toggle.textContent = children.classList.contains('collapsed') ? '\u25B6' : '\u25BC';
+                        }
+                    });
+                });
+            }
+
+            function loadFolders() {
+                fetch(api('/api/extensions/assets-installer/folders'), { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        var tree = data.tree || { name: '/', path: '', children: [] };
+                        folderTreeEl.innerHTML = '';
+                        var rootRow = '<li class="ai-tree-item">' + renderTreeRow(tree, 0) + '</li>';
+                        folderTreeEl.innerHTML = rootRow;
+                        selectPath('');
+                        bindTreeEvents();
+                    })
+                    .catch(function() {
+                        folderTreeEl.innerHTML = '<li class="ai-tree-item"><div class="ai-tree-row" data-path=""><span class="ai-tree-toggle empty"></span><span class="ai-tree-icon">&#128194;</span><span class="ai-tree-name">' + t('root') + '</span></div></li>';
+                        bindTreeEvents();
+                        selectPath('');
+                    });
+            }
+
+            var trashSvg = '<svg viewBox="0 0 448 512" fill="currentColor"><path d="M135.2 17.69L128 32H32C14.33 32 0 46.33 0 64v384c0 17.67 14.33 32 32 32h384c17.67 0 32-14.33 32-32V64c0-17.67-14.33-32-32-32h-96l-7.2-14.31A32 32 0 0 0 276.8 0H171.2a32 32 0 0 0-36 17.69zM64 96h384v352H64V96zm32 32v288h64V128H96zm128 0v288h64V128h-64zm128 0v288h64V128h-64z"/></svg>';
+            function formatInstallDate(isoStr) {
+                if (!isoStr) return '';
+                try {
+                    var d = new Date(isoStr);
+                    return isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+                } catch (e) { return ''; }
+            }
+            function renderItem(it) {
+                var nameEsc = (it.name || it.id || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+                var meta = t('file_count', { n: it.fileCount || 0 });
+                var path = (it.basePath || '').trim();
+                meta += ' &middot; ' + (path ? path : t('root'));
+                if (it.installedAt) {
+                    var dateStr = formatInstallDate(it.installedAt);
+                    if (dateStr) meta += ' &middot; ' + t('installed_on', { date: dateStr });
+                }
+                return '<li class="ext-ui-list-item ai-item" data-id="' + it.id + '">' +
+                    '<div class="ext-ui-list-item-content"><span class="ext-ui-list-item-name ai-item-name">' + nameEsc + '</span><div class="ext-ui-muted ai-item-meta">' + meta + '</div></div>' +
+                    '<div class="ext-item-actions ai-item-actions">' +
+                    '<button type="button" class="ext-action-btn delete uninstall-btn" data-id="' + it.id + '" data-name="' + nameEsc + '" title="' + t('uninstall') + '">' + trashSvg + '</button>' +
+                    '</div></li>';
+            }
+
+            function render(installs) {
+                if (!installs || installs.length === 0) {
+                    listEl.style.display = 'none';
+                    emptyEl.style.display = 'block';
+                    emptyEl.textContent = t('no_installs');
+                } else {
+                    emptyEl.style.display = 'none';
+                    listEl.innerHTML = installs.map(renderItem).join('');
+                    listEl.style.display = 'block';
+                    listEl.querySelectorAll('.uninstall-btn').forEach(function(btn) {
+                        btn.addEventListener('click', async function() {
+                            var id = btn.dataset.id;
+                            var name = btn.dataset.name || id;
+                            var ok = typeof parentConfirm === 'function' ? await parentConfirm(t('uninstall'), t('confirm_uninstall', { name: name })) : confirm(t('confirm_uninstall', { name: name }));
+                            if (ok) uninstall(id);
+                        });
+                    });
+                }
+            }
+
+            function loadList() {
+                loadingEl.style.display = 'block';
+                loadingEl.textContent = t('loading');
+                listEl.style.display = 'none';
+                emptyEl.style.display = 'none';
+                fetch(api('/api/extensions/assets-installer/list'), { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        loadingEl.style.display = 'none';
+                        render(data.installs || []);
+                    })
+                    .catch(function() {
+                        loadingEl.style.display = 'none';
+                        emptyEl.style.display = 'block';
+                        emptyEl.textContent = t('error_loading');
+                        showMsg(t('error_loading'), true);
+                    });
+            }
+
+            function uninstall(id) {
+                fetch(api('/api/extensions/assets-installer/uninstall'), {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                })
+                    .then(function(r) {
+                        if (r.ok) {
+                            showMsg(t('uninstall_success'), false);
+                            loadList();
+                            loadFolders();
+                        } else {
+                            return r.text().then(function(txt) { throw new Error(txt || t('uninstall_failed')); });
+                        }
+                    })
+                    .catch(function(e) {
+                        showMsg(e.message || t('uninstall_failed'), true);
+                    });
+            }
+
+            uploadBtn.addEventListener('click', function() { fileInput.click(); });
+
+            fileInput.addEventListener('change', function() {
+                var file = fileInput.files && fileInput.files[0];
+                if (!file) return;
+                var formData = new FormData();
+                formData.append('file', file);
+                formData.append('targetPath', selectedPath);
+                loadingEl.style.display = 'block';
+                loadingEl.textContent = t('loading');
+                fetch(api('/api/extensions/assets-installer/upload'), {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData
+                })
+                    .then(function(r) {
+                        if (r.ok) {
+                            showMsg(t('upload_success'), false);
+                            loadList();
+                            loadFolders();
+                        } else {
+                            return r.text().then(function(txt) { throw new Error(txt || t('upload_failed')); });
+                        }
+                    })
+                    .catch(function(e) {
+                        showMsg(e.message || t('upload_failed'), true);
+                    })
+                    .finally(function() {
+                        loadingEl.style.display = 'none';
+                        fileInput.value = '';
+                    });
+            });
+
+            loadFolders();
+            loadList();
+        })();
+    </script>
+</body>
+</html>

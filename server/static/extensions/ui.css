@@ -18,7 +18,7 @@
 }
 .ext-ui-root {
     margin: 0;
-    padding: 1rem;
+    padding: 0;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     font-size: 14px;
     line-height: 1.5;
@@ -86,11 +86,23 @@
 .ext-ui-btn-danger:hover:not(:disabled) {
     background: #ffebee;
 }
+.ext-ui-btn-success {
+    background: #2e7d32;
+    border-color: #2e7d32;
+    color: #fff;
+}
+.ext-ui-btn-success:hover:not(:disabled) {
+    background: #1b5e20;
+    border-color: #1b5e20;
+}
 
 /* Inputs */
 .ext-ui-input,
 .ext-ui-select,
-.ext-ui-textarea {
+.ext-ui-textarea,
+.ext-ui-date,
+.ext-ui-dropdown,
+.ext-ui-multiselect {
     padding: 0.4rem 0.6rem;
     font-size: 0.95rem;
     font-family: inherit;
@@ -100,13 +112,19 @@
 }
 .ext-ui-input:focus,
 .ext-ui-select:focus,
-.ext-ui-textarea:focus {
+.ext-ui-textarea:focus,
+.ext-ui-date:focus,
+.ext-ui-dropdown:focus,
+.ext-ui-multiselect:focus {
     outline: none;
     border-color: #888;
 }
 .ext-ui-input:disabled,
 .ext-ui-select:disabled,
-.ext-ui-textarea:disabled {
+.ext-ui-textarea:disabled,
+.ext-ui-date:disabled,
+.ext-ui-dropdown:disabled,
+.ext-ui-multiselect:disabled {
     background: #f5f5f5;
     cursor: not-allowed;
 }
@@ -120,6 +138,130 @@
     font-size: 0.85rem;
     font-weight: 500;
     color: #555;
+}
+
+/* Field wrapper - label + input + hint/error */
+.ext-ui-field {
+    margin-bottom: 1rem;
+}
+.ext-ui-field .ext-ui-label {
+    margin-bottom: 0.35rem;
+}
+.ext-ui-field .ext-ui-hint {
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    color: #666;
+}
+.ext-ui-field.has-error .ext-ui-input,
+.ext-ui-field.has-error .ext-ui-select,
+.ext-ui-field.has-error .ext-ui-textarea,
+.ext-ui-field.has-error .ext-ui-date,
+.ext-ui-field.has-error .ext-ui-dropdown,
+.ext-ui-field.has-error .ext-ui-multiselect {
+    border-color: #c62828;
+}
+.ext-ui-field .ext-ui-field-error {
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    color: #c62828;
+}
+
+/* Date / datetime - use type="date" or type="datetime-local" */
+.ext-ui-date {
+    min-width: 140px;
+}
+
+/* Dropdown - use with <select>, min-width for consistency */
+.ext-ui-dropdown {
+    cursor: pointer;
+    min-width: 120px;
+}
+
+/* Checkbox - inline label */
+.ext-ui-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+    user-select: none;
+}
+.ext-ui-checkbox input[type="checkbox"] {
+    width: 1.1em;
+    height: 1.1em;
+    accent-color: #2196f3;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.ext-ui-checkbox:has(input:disabled) {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Checkbox group - vertical stack */
+.ext-ui-checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.ext-ui-checkbox-group .ext-ui-label {
+    margin-bottom: 0.35rem;
+}
+.ext-ui-checkbox-group .ext-ui-checkbox {
+    margin: 0;
+}
+
+/* Multi-select - native select multiple */
+.ext-ui-multiselect {
+    min-height: 4rem;
+}
+
+/* Multi-select list - custom list with checkboxes */
+.ext-ui-multiselect-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid #ddd;
+    border-radius: 0.25rem;
+    background: #fff;
+    max-height: 12rem;
+    overflow-y: auto;
+}
+.ext-ui-multiselect-list-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+}
+.ext-ui-multiselect-list-item:last-child {
+    border-bottom: none;
+}
+.ext-ui-multiselect-list-item:hover {
+    background: #f5f5f5;
+}
+.ext-ui-multiselect-list-item input[type="checkbox"] {
+    width: 1.1em;
+    height: 1.1em;
+    accent-color: #2196f3;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.ext-ui-multiselect-list-item label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+    margin: 0;
+}
+.ext-ui-multiselect-list-item span,
+.ext-ui-multiselect-list-item label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Lists */
@@ -150,6 +292,24 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Stacked list item: subtitle (small) above, title (main) below */
+.ext-ui-list-item-content.ext-ui-stacked {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+}
+.ext-ui-list-item-content.ext-ui-stacked .ext-ui-list-item-subtitle {
+    font-size: 0.75rem;
+    color: #666;
+    text-transform: capitalize;
+}
+.ext-ui-list-item-content.ext-ui-stacked .ext-ui-list-item-name {
+    font-weight: 500;
+    white-space: normal;
+    word-break: break-word;
 }
 
 /* Messages (success, error, info) */
@@ -193,12 +353,255 @@
     color: #666;
 }
 
+/* ==========================================================================
+   Extension modal header - standard header for extension modals
+   (close, fullscreen, window buttons; draggable)
+   ========================================================================== */
+.ext-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 1rem;
+    cursor: grab;
+    border-bottom: 1px solid #eee;
+    background: #f9f9f9;
+}
+.ext-modal-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.ext-modal-icon {
+    flex-shrink: 0;
+}
+.ext-modal-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+.ext-modal-btn,
+.ext-modal-close {
+    font-size: 1.1rem;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.ext-modal-btn:hover,
+.ext-modal-close:hover {
+    opacity: 0.7;
+}
+
+/* ==========================================================================
+   Extension body - standard content margins (use for main scrollable area)
+   ========================================================================== */
+.ext-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 1rem 1.5rem;
+}
+
+/* ==========================================================================
+   Two-column layout - form/sidebar left, main content right
+   Use with .ext-two-col as container, .ext-two-col-side and .ext-two-col-main
+   ========================================================================== */
+.ext-two-col {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: row;
+    gap: 1.5rem;
+    overflow: auto;
+}
+/* First-level sections in two-col: no top border/margin (avoids double gray lines) */
+.ext-two-col > .ext-ui-section {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+.ext-two-col-side {
+    flex: 1;
+    min-width: 220px;
+    max-width: 320px;
+    position: relative;
+    z-index: 1;
+}
+.ext-two-col-main {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+    z-index: 0;
+}
+/* Side column with 2-col form grid (labels + inputs) */
+.ext-two-col-side.ext-two-col-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1rem;
+    align-content: start;
+}
+.ext-two-col-form .ext-ui-section-title {
+    grid-column: 1 / -1;
+    margin: 0 0 0.75rem;
+}
+.ext-two-col-form .ext-ui-field,
+.ext-two-col-form .ext-ui-field.ext-two-col-checkbox {
+    grid-column: span 1;
+}
+.ext-two-col-form .ext-ui-field.ext-two-col-full {
+    grid-column: 1 / -1;
+}
+.ext-two-col-form.ext-ui-section {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+/* Side column single-column layout (no grid) - avoids dropdown overlap with main */
+.ext-two-col-side.ext-two-col-single {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.ext-two-col-single.ext-ui-section {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+.ext-two-col-single .ext-ui-section-title {
+    margin: 0 0 0.25rem;
+}
+/* Wrapper for modal body + bottom bar (flex column) */
+.ext-modal-body-wrapper {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ==========================================================================
+   Extension bars - top toolbars and bottom bars (unified aesthetic)
+   Same horizontal padding (1.5rem), same min-height (2.75rem), same icon/btn sizes
+   ========================================================================== */
+.ext-toolbar-bar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    min-height: 2.75rem;
+    padding: 0.625rem 1.5rem;
+    border-bottom: 1px solid #eee;
+    background: #fafafa;
+}
+.ext-toolbar-bar .ext-toolbar-btn,
+.ext-toolbar-bar .ext-ui-btn,
+.ext-toolbar-bar .ext-search-add-btn {
+    flex-shrink: 0;
+}
+.ext-bottom-bar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.625rem 1.5rem;
+    margin: 0;
+    border-top: 1px solid #eee;
+    border-radius: 0;
+    background: #fafafa;
+}
+.ext-bottom-bar .ext-toolbar-btn,
+.ext-bottom-bar .ext-ui-btn {
+    flex-shrink: 0;
+}
+
+/* Search bar with + button - unified across extensions */
+.ext-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    margin-bottom: 0.5rem;
+    background: #f5f5f5;
+    border-radius: 0.25rem;
+    border: 1px solid #eee;
+}
+/* When search bar is the toolbar bar (same element), keep standard bar padding */
+.ext-toolbar-bar.ext-search-bar {
+    padding: 0.625rem 1.5rem;
+    margin-bottom: 0;
+}
+/* When search bar is a child of toolbar bar, let it grow and blend in (no separate box) */
+.ext-toolbar-bar > .ext-search-bar {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+}
+.ext-search-icon {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0;
+    overflow: hidden;
+    /* Standard SVG search icon - replaces emoji/FA for consistency */
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23666'%3E%3Cpath d='M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z'/%3E%3C/svg%3E") no-repeat center;
+    background-size: 18px 18px;
+}
+.ext-search-icon > * {
+    display: none;
+}
+.ext-search-bar .ext-search-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid #ddd;
+    border-radius: 0.25rem;
+    font-size: 0.95rem;
+}
+.ext-search-bar .ext-search-input:focus {
+    outline: none;
+    border-color: #888;
+}
+.ext-search-bar .ext-ui-select {
+    min-width: 140px;
+    flex-shrink: 0;
+}
+.ext-search-bar .ext-search-add-btn {
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid #2e7d32;
+    border-radius: 0.25rem;
+    background: #fff;
+    cursor: pointer;
+    color: #2e7d32;
+    font-size: 1.1rem;
+    font-weight: bold;
+    min-width: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ext-search-bar .ext-search-add-btn:hover {
+    background: #e8f5e9;
+}
+
 /* File input (hidden, use with .ext-ui-btn) */
 .ext-ui-file-input {
     display: none;
 }
 
-/* Icon/action buttons (small) */
+/* Icon/action buttons (small) - matches assets-installer style */
 .ext-ui-icon-btn {
     padding: 0.25rem;
     border: none;
@@ -212,4 +615,215 @@
 }
 .ext-ui-icon-btn-danger:hover {
     color: #c62828;
+}
+
+/* Action buttons - 24x24 icon style, show only on parent hover */
+.ext-action-btn {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #999;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.ext-action-btn:hover {
+    background: #e9ecef;
+    color: #333;
+}
+.ext-action-btn.delete:hover {
+    background: #dc3545;
+    color: #fff;
+}
+.ext-action-btn.visibility {
+    color: #555;
+}
+.ext-action-btn.visibility:hover {
+    background: #e8f4fc;
+    color: #069;
+}
+.ext-action-btn.visibility.visibility-on {
+    background: #e8f4fc;
+    color: #069;
+}
+.ext-action-btn.visibility.visibility-on:hover {
+    background: #d0e8f7;
+    color: #047;
+}
+.ext-action-btn.star {
+    color: #ccc;
+}
+.ext-action-btn.star:hover {
+    background: transparent;
+    color: #f9a825;
+}
+.ext-action-btn.star.active {
+    color: #f9a825;
+    cursor: default;
+}
+.ext-action-btn.star.active:hover {
+    background: transparent;
+    color: #f9a825;
+}
+.ext-action-btn svg {
+    width: 14px;
+    height: 14px;
+}
+.ext-item-actions {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.ext-ui-list-item:hover .ext-item-actions,
+.ext-ui-list-item:focus-within .ext-item-actions {
+    opacity: 1;
+}
+
+/* ==========================================================================
+   Extension base layout - collapsible side panels
+   Use .ext-sidebar for left/right panels. Add .ext-sidebar-left or .ext-sidebar-right.
+   Slot: .ext-sidebar-content for the panel content, .ext-sidebar-toggle for collapse button.
+   ========================================================================== */
+.ext-sidebar {
+    display: flex;
+    flex-direction: column;
+    background: #f8f9fa;
+    border: 1px solid #eee;
+    border-radius: 0.25rem;
+    overflow: hidden;
+    transition: width 0.2s ease, min-width 0.2s ease, padding 0.2s ease;
+}
+.ext-sidebar.ext-sidebar-left {
+    border-right: 1px solid #dee2e6;
+}
+.ext-sidebar.ext-sidebar-right {
+    border-left: 1px solid #dee2e6;
+}
+.ext-sidebar-content {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.5rem;
+}
+.ext-sidebar.ext-sidebar-collapsed .ext-sidebar-content {
+    display: none;
+}
+.ext-sidebar-toggle {
+    flex-shrink: 0;
+    width: 24px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: 0 4px 4px 0;
+    background: #e9ecef;
+    color: #666;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    transition: background 0.15s, color 0.15s;
+}
+.ext-sidebar-toggle:hover {
+    background: #dee2e6;
+    color: #333;
+}
+.ext-sidebar.ext-sidebar-right .ext-sidebar-toggle {
+    border-radius: 4px 0 0 4px;
+}
+/* Default widths - override in your extension */
+.ext-sidebar.ext-sidebar-left:not(.ext-sidebar-collapsed) {
+    width: 220px;
+    min-width: 180px;
+}
+.ext-sidebar.ext-sidebar-right:not(.ext-sidebar-collapsed) {
+    width: 260px;
+    min-width: 200px;
+}
+.ext-sidebar.ext-sidebar-collapsed {
+    width: 0;
+    min-width: 0;
+    padding: 0;
+    border-left: none;
+    border-right: none;
+}
+.ext-sidebar.ext-sidebar-collapsed .ext-sidebar-toggle {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+/* ==========================================================================
+   Toolbar buttons - uniform size and color (32x32, same style)
+   Use .ext-toolbar-btn for icon-only buttons in toolbars.
+   ========================================================================== */
+.ext-toolbar-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid #ddd;
+    border-radius: 0.25rem;
+    background: #fff;
+    color: #666;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.ext-toolbar-btn:hover {
+    background: #f5f5f5;
+    border-color: #999;
+    color: #333;
+}
+.ext-toolbar-btn svg,
+.ext-toolbar-btn .fa-icon {
+    width: 16px;
+    height: 16px;
+}
+/* Add button (create/upload) - green accent */
+.ext-toolbar-btn.ext-toolbar-btn-add {
+    border-color: #2e7d32;
+    color: #2e7d32;
+}
+.ext-toolbar-btn.ext-toolbar-btn-add:hover {
+    background: #e8f5e9;
+    border-color: #1b5e20;
+    color: #1b5e20;
+}
+/* More/overflow button */
+.ext-toolbar-btn.ext-toolbar-btn-more {
+    border-color: #ddd;
+}
+/* Standard icon/button sizes in toolbars - 32x32 for icon-only buttons */
+.ext-toolbar-bar .ext-search-add-btn,
+.ext-toolbar-bar .ext-toolbar-btn,
+.ext-bottom-bar .ext-toolbar-btn {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ext-toolbar-bar .ext-search-add-btn svg,
+.ext-toolbar-bar .ext-toolbar-btn svg,
+.ext-toolbar-bar .ext-search-add-btn .fa-icon,
+.ext-toolbar-bar .ext-toolbar-btn .fa-icon,
+.ext-bottom-bar .ext-toolbar-btn svg,
+.ext-bottom-bar .ext-toolbar-btn .fa-icon {
+    width: 16px;
+    height: 16px;
 }

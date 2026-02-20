@@ -19,6 +19,7 @@ services:
     volumes:
       - planarally_assets:/planarally/static/assets
       - planarally_data:/planarally/data
+      - planarally_temp:/planarally/static/temp
     networks:
       - planarally-net
     command: uv run planarally.py
@@ -27,6 +28,7 @@ services:
 volumes:
   planarally_assets:
   planarally_data:
+  planarally_temp:
 
 networks:
   planarally-net:
