@@ -44,18 +44,23 @@ if ! command -v npm &> /dev/null; then
 fi
 echo -e "${GREEN}npm: $(npm -v)${NC}"
 
-# Verifica Python (richiesto 3.13+)
-if ! command -v python3 &> /dev/null && ! command -v python &> /dev/null; then
+# Verifica Python (3.13 raccomandato - 3.14 ha problemi con skia-python)
+if ! command -v python3.13 &> /dev/null && ! command -v python3 &> /dev/null && ! command -v python &> /dev/null; then
     echo -e "${RED}Python non trovato.${NC}"
-    echo "Installa Python 3.13+ da: https://www.python.org/"
+    echo "Installa Python 3.13 da: https://www.python.org/ (3.14 non supportato da skia-python)"
     exit 1
 fi
-PYTHON_CMD=$(command -v python3 2>/dev/null || command -v python)
+# Preferisci 3.13 (skia-python ha solo wheel per cp313)
+PYTHON_CMD=$(command -v python3.13 2>/dev/null || command -v python3 2>/dev/null || command -v python)
 PYTHON_VER=$("$PYTHON_CMD" -c "import sys; v=sys.version_info; print(f'{v.major}.{v.minor}')" 2>/dev/null || echo "0")
 PY_MAJOR=$(echo "$PYTHON_VER" | cut -d. -f1)
 PY_MINOR=$(echo "$PYTHON_VER" | cut -d. -f2)
 if [ "$PY_MAJOR" -lt 3 ] 2>/dev/null || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 13 ]; }; then
-    echo -e "${RED}Python $PYTHON_VER trovato. Richiesto 3.13+.${NC}"
+    echo -e "${RED}Python $PYTHON_VER trovato. Richiesto 3.13.${NC}"
+    exit 1
+fi
+if [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -ge 14 ] 2>/dev/null; then
+    echo -e "${RED}Python $PYTHON_VER: skia-python non supporta 3.14+. Usa Python 3.13.${NC}"
     exit 1
 fi
 echo -e "${GREEN}Python: $PYTHON_VER${NC}"
