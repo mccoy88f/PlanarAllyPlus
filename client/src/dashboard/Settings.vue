@@ -123,7 +123,7 @@ async function deleteAccount(): Promise<void> {
             <label for="name">{{ t("settings.AccountSettings.username") }}</label>
             <input id="name" type="text" :value="username" readonly />
         </div>
-        <div v-if="dashboardState.adminEnabled" class="entry">
+        <div class="entry">
             <label for="extensions-enabled">{{ t("settings.AccountSettings.enable_extensions") }}</label>
             <div class="checkbox-wrapper">
                 <input

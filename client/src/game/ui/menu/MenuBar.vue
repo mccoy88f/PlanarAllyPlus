@@ -93,8 +93,8 @@ const openClientSettings = (): void => uiSystem.showClientSettings(!uiState.raw.
             <button class="menu-accordion" @click="toggleNoteManager">
                 {{ t("common.notes") }}
             </button>
-            <!-- EXTENSIONS: DM sees all, players see only extensions made visible by room owner -->
-            <Extensions v-if="coreStore.state.extensionsEnabled" />
+            <!-- EXTENSIONS: DM sees all (if enabled), players always see menu (filtered to visible extensions) -->
+            <Extensions v-if="coreStore.state.extensionsEnabled || !gameState.isDmOrFake.value" />
             <template v-if="gameState.isDmOrFake.value">
                 <!-- DM SETTINGS -->
                 <button class="menu-accordion" @click="openDmSettings">
