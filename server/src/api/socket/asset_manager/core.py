@@ -35,7 +35,10 @@ async def update_live_game(user: User):
 
 @sio.on("connect", namespace=ASSET_NS)
 async def assetmgmt_connect(sid: str, environ):
-    user = await auth.get_authorized_user(environ["aiohttp.request"])
+    try:
+        user = await auth.get_authorized_user(environ["aiohttp.request"])
+    except web.HTTPUnauthorized:
+        return False
     if user is None:
         await sio.emit("redirect", "/", room=sid, namespace=ASSET_NS)
     else:

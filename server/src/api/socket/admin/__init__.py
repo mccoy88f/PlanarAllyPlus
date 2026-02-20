@@ -1,6 +1,8 @@
 import secrets
 from uuid import uuid4
 
+from aiohttp import web
+
 from ....api.models.notification import NotificationShow
 from ....api.socket.constants import ADMIN_NS
 from ....app import sio
@@ -20,7 +22,10 @@ def is_admin(user: User) -> bool:
 
 @sio.on("connect", namespace=ADMIN_NS)
 async def admin_connect(sid: str, environ):
-    user = await get_authorized_user(environ["aiohttp.request"])
+    try:
+        user = await get_authorized_user(environ["aiohttp.request"])
+    except web.HTTPUnauthorized:
+        return False
     if user is None:
         await sio.disconnect(sid, ADMIN_NS)
         return

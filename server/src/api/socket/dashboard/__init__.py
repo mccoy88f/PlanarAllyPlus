@@ -1,3 +1,5 @@
+from aiohttp import web
+
 from ....api.socket.constants import DASHBOARD_NS
 from ....app import sio
 from ....auth import get_authorized_user
@@ -9,7 +11,10 @@ from . import campaign  # noqa: F401
 
 @sio.on("connect", namespace=DASHBOARD_NS)
 async def dashboard_connect(sid: str, environ):
-    user = await get_authorized_user(environ["aiohttp.request"])
+    try:
+        user = await get_authorized_user(environ["aiohttp.request"])
+    except web.HTTPUnauthorized:
+        return False
     if user is not None:
         await dashboard_state.add_sid(sid, user)
         config = cfg()

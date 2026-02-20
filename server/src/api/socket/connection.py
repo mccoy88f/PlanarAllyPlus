@@ -23,7 +23,7 @@ async def connect(sid, environ):
         user = await get_authorized_user(environ["aiohttp.request"])
     except web.HTTPUnauthorized:
         await _send_game("redirect", "/", room=sid)
-        return
+        return False
 
     # note: ensure that the & split happens before the unquote
     # or campaign names with & will not work
