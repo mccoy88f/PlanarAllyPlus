@@ -4,6 +4,14 @@
 
 set -e
 
+# Carica profilo utente (nvm, fnm, mise, ecc.) - necessario quando lanciato da app GUI
+for f in "$HOME/.zprofile" "$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.bashrc"; do
+    [ -f "$f" ] && . "$f" 2>/dev/null
+done
+# Percorsi comuni per node/npm
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$HOME/.local/share/fnm/current/bin:$HOME/.volta/bin:$HOME/.asdf/shims:$PATH"
+[ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh" 2>/dev/null
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
