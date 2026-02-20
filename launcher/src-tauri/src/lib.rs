@@ -157,6 +157,22 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
     }
 
     let zip_url = get_zip_url();
+
+    // Backup user data BEFORE download (if not first install)
+    let backup_dir = if app_dir.exists() {
+        if let Ok(project_root) = get_project_root() {
+            app.emit("download-progress", "Creating user data backup...").ok();
+            match backup_user_data(&base, &project_root) {
+                Ok(b) => Some(b),
+                Err(e) => return Err(e),
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     app.emit("download-progress", "Downloading app...").ok();
 
     let response = reqwest::get(&zip_url)
@@ -177,20 +193,6 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
     std::fs::write(&zip_path, &bytes).map_err(|e| e.to_string())?;
 
     app.emit("download-progress", "Extracting archive...").ok();
-
-    let backup_dir = if app_dir.exists() {
-        if let Ok(project_root) = get_project_root() {
-            app.emit("download-progress", "Creating user data backup...").ok();
-            match backup_user_data(&base, &project_root) {
-                Ok(b) => Some(b),
-                Err(e) => return Err(e),
-            }
-        } else {
-            None
-        }
-    } else {
-        None
-    };
 
     if app_dir.exists() {
         std::fs::remove_dir_all(&app_dir).map_err(|e| e.to_string())?;
