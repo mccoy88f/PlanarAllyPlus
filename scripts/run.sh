@@ -75,24 +75,34 @@ fi
 echo -e "${GREEN}uv: $(uv --version 2>/dev/null | head -1)${NC}"
 
 echo ""
-echo "=== Installazione dipendenze ==="
+# Skip full install if already set up (faster restarts, preserves user data)
+NEED_INSTALL=false
+if [ ! -d "$ROOT/client/node_modules" ] || [ ! -d "$ROOT/server/.venv" ]; then
+    NEED_INSTALL=true
+fi
+if [ ! -d "$ROOT/server/static/vite" ] || [ -z "$(ls -A "$ROOT/server/static/vite" 2>/dev/null)" ]; then
+    NEED_INSTALL=true
+fi
 
-# Client
-echo "Installo dipendenze client..."
-cd "$ROOT/client"
-npm ci
-
-echo "Build client..."
-npm run build
-
-# Server: --python forces 3.13 (uv otherwise may pick 3.14 -> skia-python fails)
-echo "Installo dipendenze server..."
-cd "$ROOT/server"
-uv sync --python "$PYTHON_CMD" --no-group dev
+if [ "$NEED_INSTALL" = true ]; then
+    echo "=== Installazione dipendenze ==="
+    echo "Installo dipendenze client..."
+    cd "$ROOT/client"
+    npm ci
+    echo "Build client..."
+    npm run build
+    echo "Installo dipendenze server..."
+    cd "$ROOT/server"
+    uv sync --python "$PYTHON_CMD" --no-group dev
+    cd "$ROOT"
+else
+    echo "=== Dipendenze già presenti, avvio diretto ==="
+fi
 
 echo ""
 echo -e "${GREEN}=== Avvio server PlanarAlly Plus ===${NC}"
 echo "Apri http://localhost:8000 nel browser"
 echo ""
 
+cd "$ROOT/server"
 exec uv run --python "$PYTHON_CMD" planarally.py

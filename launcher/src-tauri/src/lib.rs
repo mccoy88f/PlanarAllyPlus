@@ -64,12 +64,15 @@ fn backup_user_data(base: &Path, project_root: &Path) -> Result<PathBuf, String>
         std::fs::remove_dir_all(&backup_dir).map_err(|e| e.to_string())?;
     }
     std::fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
+    let mut opts = fs_extra::dir::CopyOptions::new();
+    opts.copy_inside = true;
+    opts.overwrite = true;
     for rel in PRESERVE_PATHS {
         let src = project_root.join(rel);
         if src.exists() && src.is_dir() {
             let dst = backup_dir.join(rel);
-            if let Err(e) = fs_extra::dir::copy(src, &dst, &fs_extra::dir::CopyOptions::new().copy_inside(true)) {
-                // Non bloccare l'update se una cartella fallisce (es. permessi)
+            std::fs::create_dir_all(dst.parent().unwrap()).map_err(|e| e.to_string())?;
+            if let Err(e) = fs_extra::dir::copy(&src, &dst, &opts) {
                 let _ = std::fs::remove_dir_all(&backup_dir);
                 return Err(format!("Backup fallito per {}: {}", rel, e));
             }
@@ -79,6 +82,9 @@ fn backup_user_data(base: &Path, project_root: &Path) -> Result<PathBuf, String>
 }
 
 fn restore_user_data(backup_dir: &Path, project_root: &Path) -> Result<(), String> {
+    let mut opts = fs_extra::dir::CopyOptions::new();
+    opts.copy_inside = true;
+    opts.overwrite = true;
     for rel in PRESERVE_PATHS {
         let src = backup_dir.join(rel);
         let dst = project_root.join(rel);
@@ -87,7 +93,7 @@ fn restore_user_data(backup_dir: &Path, project_root: &Path) -> Result<(), Strin
                 std::fs::remove_dir_all(&dst).map_err(|e| e.to_string())?;
             }
             std::fs::create_dir_all(&dst).map_err(|e| e.to_string())?;
-            fs_extra::dir::copy(&src, &dst, &fs_extra::dir::CopyOptions::new().copy_inside(true))
+            fs_extra::dir::copy(&src, &dst, &opts)
                 .map_err(|e| format!("Restore fallito per {}: {}", rel, e))?;
         }
     }
