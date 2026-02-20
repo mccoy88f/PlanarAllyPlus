@@ -59,33 +59,49 @@ const PRESERVE_PATHS: &[&str] = &[
     "extensions/compendium/db",
 ];
 
+/// Recursively copy directory contents (files and subdirs) from src to dst.
+fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), String> {
+    if !src.is_dir() {
+        return Err(format!("Source is not a directory: {}", src.display()));
+    }
+    std::fs::create_dir_all(dst).map_err(|e| format!("{}", e))?;
+    for entry in std::fs::read_dir(src).map_err(|e| format!("{}", e))? {
+        let entry = entry.map_err(|e| format!("{}", e))?;
+        let path = entry.path();
+        let name = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| "Invalid filename")?;
+        let dst_path = dst.join(&name);
+        if path.is_dir() {
+            copy_dir_all(&path, &dst_path)?;
+        } else {
+            std::fs::copy(&path, &dst_path).map_err(|e| {
+                format!("Failed to copy {} to {}: {}", path.display(), dst_path.display(), e)
+            })?;
+        }
+    }
+    Ok(())
+}
+
 fn backup_user_data(base: &Path, project_root: &Path) -> Result<PathBuf, String> {
     let backup_dir = base.join("pa_update_backup");
     if backup_dir.exists() {
         std::fs::remove_dir_all(&backup_dir).map_err(|e| e.to_string())?;
     }
     std::fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
-    let mut opts = fs_extra::dir::CopyOptions::new();
-    opts.copy_inside = true;
-    opts.overwrite = true;
     for rel in PRESERVE_PATHS {
         let src = project_root.join(rel);
         if src.exists() && src.is_dir() {
             let dst = backup_dir.join(rel);
             std::fs::create_dir_all(dst.parent().unwrap()).map_err(|e| e.to_string())?;
-            if let Err(e) = fs_extra::dir::copy(&src, &dst, &opts) {
-                let _ = std::fs::remove_dir_all(&backup_dir);
-                return Err(format!("Backup failed for {}: {}", rel, e));
-            }
+            copy_dir_all(&src, &dst).map_err(|e| format!("Backup failed for {}: {}", rel, e))?;
         }
     }
     Ok(backup_dir)
 }
 
 fn restore_user_data(backup_dir: &Path, project_root: &Path) -> Result<(), String> {
-    let mut opts = fs_extra::dir::CopyOptions::new();
-    opts.copy_inside = true;
-    opts.overwrite = true;
     for rel in PRESERVE_PATHS {
         let src = backup_dir.join(rel);
         let dst = project_root.join(rel);
@@ -93,9 +109,8 @@ fn restore_user_data(backup_dir: &Path, project_root: &Path) -> Result<(), Strin
             if dst.exists() {
                 std::fs::remove_dir_all(&dst).map_err(|e| e.to_string())?;
             }
-            std::fs::create_dir_all(&dst).map_err(|e| e.to_string())?;
-            fs_extra::dir::copy(&src, &dst, &opts)
-                .map_err(|e| format!("Restore failed for {}: {}", rel, e))?;
+            std::fs::create_dir_all(dst.parent().unwrap()).map_err(|e| e.to_string())?;
+            copy_dir_all(&src, &dst).map_err(|e| format!("Restore failed for {}: {}", rel, e))?;
         }
     }
     std::fs::remove_dir_all(backup_dir).map_err(|e| e.to_string())?;
@@ -213,6 +228,14 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
     if let Some(ref b) = backup_dir {
         app.emit("download-progress", "Restoring user data backup...").ok();
         restore_user_data(b, &root).map_err(|e| e.to_string())?;
+        // Verify key file exists
+        let db_path = root.join("server/data/planar.sqlite");
+        if !db_path.exists() {
+            let _ = app.emit(
+                "download-progress",
+                "Warning: planar.sqlite not found after restore",
+            );
+        }
     }
 
     app.emit("download-progress", "Completed").ok();
