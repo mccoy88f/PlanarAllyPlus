@@ -59,5 +59,9 @@ docs/.doctrees
 # Intellij
 **/.idea/**
 
-# Launcher (Tauri app - non pushare)
-launcher/
+# Launcher - build artifacts (source is tracked)
+launcher/dist/
+launcher/node_modules/
+launcher/src-tauri/target/
+launcher/src-tauri/gen/
+launcher/*.png

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PlanarAlly Plus Launcher</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="container">
+    <h1 data-i18n="appTitle">PlanarAlly Plus Launcher</h1>
+    <p class="subtitle" data-i18n="subtitle">Server launcher</p>
+
+    <div class="url-area hidden" id="url-area">
+      <span class="url-label" id="url-label"></span>
+      <a id="app-link" href="#" class="url-link">http://localhost:8000</a>
+    </div>
+
+    <div class="progress-area" id="progress-area">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <div class="progress-status" id="progress-status"></div>
+    </div>
+
+    <div class="status" id="status" data-i18n="loading">Loading...</div>
+    <div class="buttons">
+      <button id="btn-update" class="btn btn-secondary" data-i18n="btnUpdate">Update app</button>
+      <button id="btn-start" class="btn btn-primary" data-i18n="btnStart">Start server</button>
+      <button id="btn-stop" class="btn btn-danger" data-i18n="btnStop" disabled>Stop</button>
+      <button id="btn-restart" class="btn btn-secondary" data-i18n="btnRestart" disabled>Restart</button>
+      <button id="btn-close" class="btn btn-danger" data-i18n="btnClose">Close application</button>
+    </div>
+
+    <div class="log-section">
+      <button type="button" class="log-toggle" id="log-toggle" aria-expanded="false">
+        <span class="log-toggle-icon">▼</span>
+        <span class="log-toggle-text" data-i18n="logShow">Show log</span>
+      </button>
+      <div class="log-container collapsed" id="log-container">
+        <pre id="log" class="log"></pre>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

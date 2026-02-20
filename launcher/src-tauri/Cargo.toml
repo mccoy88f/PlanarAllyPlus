@@ -1,0 +1,24 @@
+[package]
+name = "planarally-plus-launcher"
+version = "1.0.0"
+description = "PlanarAlly Plus server launcher"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5.4", features = [] }
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri = { version = "2.10.0", features = [] }
+tokio = { version = "1", features = ["rt", "sync", "io-util", "process", "fs"] }
+local-ip-address = "0.6"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+zip = "2.2"
+dirs = "5"
+tauri-plugin-opener = "2"
