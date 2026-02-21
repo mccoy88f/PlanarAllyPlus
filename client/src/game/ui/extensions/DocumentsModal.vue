@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { useToast } from "vue-toastification";
 
 import { http } from "../../../core/http";
+import LoadingBar from "../../../core/components/LoadingBar.vue";
 import { openDocumentsPdfViewer } from "../../systems/extensions/ui";
 import { gameState } from "../../systems/game/state";
 
@@ -24,6 +25,8 @@ interface DocumentItem {
 const documents = ref<DocumentItem[]>([]);
 const loading = ref(false);
 const uploading = ref(false);
+const uploadProgress = ref(0);
+const uploadingFilename = ref("");
 const deleting = ref(false);
 const uploadInput = useTemplateRef<HTMLInputElement>("uploadInput");
 
@@ -61,19 +64,51 @@ async function onFileSelected(): Promise<void> {
     uploading.value = true;
     let okCount = 0;
     let errCount = 0;
+    
     try {
         for (const file of pdfs) {
-            const formData = new FormData();
-            formData.append("file", file);
-            const response = await http.post("/api/extensions/documents/upload", formData);
-            if (response.ok) {
-                const data = (await response.json()) as DocumentItem;
-                documents.value = [...documents.value, data];
-                okCount++;
-            } else {
-                errCount++;
-            }
+            uploadingFilename.value = file.name;
+            uploadProgress.value = 0;
+            
+            await new Promise<void>((resolve, reject) => {
+                const formData = new FormData();
+                formData.append("file", file);
+                
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", "/api/extensions/documents/upload");
+                
+                xhr.upload.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        uploadProgress.value = (event.loaded / event.total) * 100;
+                    }
+                };
+                
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            const data = JSON.parse(xhr.responseText) as DocumentItem;
+                            documents.value = [...documents.value, data];
+                            okCount++;
+                            resolve();
+                        } catch {
+                            errCount++;
+                            resolve();
+                        }
+                    } else {
+                        errCount++;
+                        resolve();
+                    }
+                };
+                
+                xhr.onerror = () => {
+                    errCount++;
+                    resolve();
+                };
+                
+                xhr.send(formData);
+            });
         }
+        
         if (okCount > 0) {
             toast.success(
                 okCount === 1
@@ -93,7 +128,11 @@ async function onFileSelected(): Promise<void> {
         console.error(e);
     } finally {
         uploading.value = false;
-        uploadInput.value!.value = "";
+        uploadProgress.value = 0;
+        uploadingFilename.value = "";
+        if (uploadInput.value) {
+            uploadInput.value.value = "";
+        }
     }
 }
 
@@ -191,6 +230,14 @@ onMounted(() => {
                 </li>
             </ul>
             <div class="ext-bottom-bar">
+                <LoadingBar
+                    v-if="uploading"
+                    :progress="uploadProgress"
+                    :label="`${t('game.ui.extensions.DocumentsModal.uploading')} ${uploadingFilename}...`"
+                    height="6px"
+                    style="margin-bottom: 8px"
+                />
+                
                 <input
                     ref="uploadInput"
                     type="file"
@@ -205,7 +252,7 @@ onMounted(() => {
                     :disabled="uploading"
                     @click="triggerUpload"
                 >
-                    {{ uploading ? t("game.ui.extensions.DocumentsModal.uploading") : t("common.upload") }}
+                    {{ t("common.upload") }}
                 </button>
             </div>
         </div>

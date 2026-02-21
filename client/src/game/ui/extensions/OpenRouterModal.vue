@@ -130,8 +130,8 @@ function getDefaultTasks(lang: "it" | "en"): TaskDef[] {
 }
 
 const activeTab = ref<"settings" | "tasks">("tasks");
-const provider = ref<"openrouter" | "google">("openrouter");
 const apiKey = ref("");
+const googleApiKey = ref("");
 const selectedModel = ref("openrouter/free");
 const selectedImageModel = ref("sourceful/riverflow-v2-fast");
 const models = ref<{ id: string; name: string; is_free: boolean; output_modalities?: string[] }[]>([]);
@@ -156,51 +156,50 @@ const visible = computed(() => props.visible);
 const imageModelsList = ref<
     { id: string; name: string; is_free: boolean; output_modalities?: string[] }[]
 >([]);
-const freeModels = computed(() => models.value.filter((m) => m.is_free));
-const paidModels = computed(() => models.value.filter((m) => !m.is_free));
-const imageModels = computed(() =>
-    provider.value === "openrouter"
-        ? models.value.filter((m) => (m.output_modalities ?? []).includes("image"))
-        : imageModelsList.value.filter((m) => (m.output_modalities ?? []).includes("image")),
-);
+const freeModels = computed(() => models.value.filter((m) => m.is_free && !m.id.startsWith("gemini")));
+const paidModels = computed(() => models.value.filter((m) => !m.is_free && !m.id.startsWith("gemini")));
+
+const openRouterImageModels = computed(() => models.value.filter((m) => (m.output_modalities ?? []).includes("image") && !m.id.startsWith("gemini")));
+const googleImageModels = computed(() => imageModelsList.value.filter((m) => (m.output_modalities ?? []).includes("image")));
 
 async function loadModels(): Promise<void> {
     loadingModels.value = true;
     try {
-        const resp = await http.get(
-            `/api/extensions/openrouter/models?provider=${provider.value}`,
-        );
+        const resp = await http.get("/api/extensions/openrouter/models");
         if (resp.ok) {
             const data = (await resp.json()) as {
-                models: { id: string; name: string; is_free: boolean; output_modalities?: string[] }[];
+                openrouter_models: { id: string; name: string; is_free: boolean; output_modalities?: string[] }[];
+                google_models: { id: string; name: string; is_free: boolean; output_modalities?: string[] }[];
             };
-            models.value = data.models ?? [];
+            
+            
+            // Merge OpenRouter and Google models into one flat list internally
+            models.value = [...(data.openrouter_models ?? []), ...(data.google_models ?? [])];
+            
             if (models.value.length > 0) {
-                const currentInList = models.value.some((m) => m.id === selectedModel.value);
-                if (!currentInList) {
-                    selectedModel.value = models.value[0]!.id;
+                const currentInBoth = models.value.some((m) => m.id === selectedModel.value);
+                if (!currentInBoth) {
+                    selectedModel.value = data.google_models?.length ? data.google_models[0]!.id : models.value[0]!.id;
                 }
             }
         }
-        if (provider.value === "google") {
-            const imgResp = await http.get(
-                "/api/extensions/openrouter/models?provider=google&type=image",
-            );
-            if (imgResp.ok) {
-                const imgData = (await imgResp.json()) as {
-                    models: { id: string; name: string }[];
-                };
-                const list = (imgData.models ?? []).map((m) => ({
-                    ...m,
-                    is_free: false,
-                    output_modalities: ["image"],
-                }));
-                imageModelsList.value = list;
-                if (list.length > 0 && !list.some((m) => m.id === selectedImageModel.value)) {
-                    selectedImageModel.value = list[0]!.id;
-                }
-            } else {
-                imageModelsList.value = [];
+        
+        // Fetch google image models
+        const imgResp = await http.get("/api/extensions/openrouter/models?type=image");
+        if (imgResp.ok) {
+            const imgData = (await imgResp.json()) as {
+                google_models: { id: string; name: string }[];
+            };
+            const list = (imgData.google_models ?? []).map((m) => ({
+                ...m,
+                is_free: false,
+                output_modalities: ["image"],
+            }));
+            imageModelsList.value = list;
+            
+            const currentImgInBoth = openRouterImageModels.value.some((m) => m.id === selectedImageModel.value) || list.some((m) => m.id === selectedImageModel.value);
+            if (!currentImgInBoth) {
+                selectedImageModel.value = list.length > 0 ? list[0]!.id : (openRouterImageModels.value.length > 0 ? openRouterImageModels.value[0]!.id : "");
             }
         } else {
             imageModelsList.value = [];
@@ -218,8 +217,8 @@ async function loadSettings(): Promise<void> {
         const resp = await http.get("/api/extensions/openrouter/settings");
         if (resp.ok) {
             const data = (await resp.json()) as {
-                provider?: string;
                 hasApiKey: boolean;
+                hasGoogleKey: boolean;
                 model: string;
                 basePrompt?: string;
                 tasks?: TaskDef[];
@@ -227,15 +226,10 @@ async function loadSettings(): Promise<void> {
                 defaultLanguage?: string;
                 maxTokens?: number;
             };
-            provider.value =
-                data.provider === "google" ? "google" : "openrouter";
             apiKey.value = data.hasApiKey ? "********" : "";
-            selectedModel.value =
-                data.model ||
-                (provider.value === "google" ? "gemini-1.5-flash" : "openrouter/free");
-            selectedImageModel.value =
-                data.imageModel ||
-                (provider.value === "google" ? "gemini-2.5-flash-image" : "sourceful/riverflow-v2-fast");
+            googleApiKey.value = data.hasGoogleKey ? "********" : "";
+            selectedModel.value = data.model || "gemini-2.0-flash";
+            selectedImageModel.value = data.imageModel || "gemini-2.5-flash-image";
             defaultLanguage.value =
                 data.defaultLanguage === "en" ? "en" : "it";
             maxTokens.value = data.maxTokens ?? 8192;
@@ -271,8 +265,8 @@ async function saveSettings(): Promise<void> {
     savingSettings.value = true;
     try {
         const body: {
-            provider?: string;
             apiKey?: string;
+            googleApiKey?: string;
             model: string;
             basePrompt: string;
             tasks: TaskDef[];
@@ -280,7 +274,6 @@ async function saveSettings(): Promise<void> {
             defaultLanguage: string;
             maxTokens: number;
         } = {
-            provider: provider.value,
             model: selectedModel.value,
             basePrompt: basePrompt.value.trim(),
             tasks: tasks.value,
@@ -291,11 +284,17 @@ async function saveSettings(): Promise<void> {
         if (apiKey.value && apiKey.value !== "********") {
             body.apiKey = apiKey.value;
         }
+        if (googleApiKey.value && googleApiKey.value !== "********") {
+            body.googleApiKey = googleApiKey.value;
+        }
         const resp = await http.postJson("/api/extensions/openrouter/settings", body);
         if (resp.ok) {
             toast.success(t("game.ui.extensions.OpenRouterModal.settings_saved"));
             if (apiKey.value && apiKey.value !== "********") {
                 apiKey.value = "********";
+            }
+            if (googleApiKey.value && googleApiKey.value !== "********") {
+                googleApiKey.value = "********";
             }
         } else {
             const err = await resp.json().catch(() => ({}));
@@ -594,9 +593,6 @@ watch(visible, async (v) => {
     }
 });
 
-watch(provider, () => {
-    if (visible.value) loadModels();
-});
 
 onMounted(() => {
     if (visible.value) {
@@ -651,20 +647,22 @@ onMounted(() => {
         <div class="ext-modal-body-wrapper openrouter-body">
             <div v-show="activeTab === 'settings'" class="ext-body openrouter-settings">
                 <div class="ext-ui-section openrouter-settings-section">
-                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.provider") }}</h4>
-                    <div class="ext-ui-field openrouter-field">
-                        <select v-model="provider" class="ext-ui-select">
-                            <option value="openrouter">{{ t("game.ui.extensions.OpenRouterModal.provider_openrouter") }}</option>
-                            <option value="google">{{ t("game.ui.extensions.OpenRouterModal.provider_google") }}</option>
-                        </select>
-                        <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.provider_hint") }}</p>
-                    </div>
-                </div>
-                <div class="ext-ui-section openrouter-settings-section">
+
                     <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.api_key") }}</h4>
                     <div class="ext-ui-field openrouter-field">
                         <input
                             v-model="apiKey"
+                            type="password"
+                            class="ext-ui-input"
+                            :placeholder="t('game.ui.extensions.OpenRouterModal.api_key_placeholder')"
+                            autocomplete="off"
+                        />
+                    </div>
+                    
+                    <h4 class="ext-ui-section-title" style="margin-top: 15px;">{{ t("game.ui.extensions.OpenRouterModal.provider_google") }} API Key</h4>
+                    <div class="ext-ui-field openrouter-field">
+                        <input
+                            v-model="googleApiKey"
                             type="password"
                             class="ext-ui-input"
                             :placeholder="t('game.ui.extensions.OpenRouterModal.api_key_placeholder')"
@@ -677,6 +675,17 @@ onMounted(() => {
                     <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.model") }}</h4>
                     <div class="ext-ui-field openrouter-field">
                         <select v-model="selectedModel" class="ext-ui-select" :disabled="loadingModels">
+                        <optgroup
+                            label="Google AI Studio"
+                        >
+                            <option
+                                v-for="m in models.filter(x => x.id.startsWith('gemini'))"
+                                :key="m.id"
+                                :value="m.id"
+                            >
+                                {{ m.name }}
+                            </option>
+                        </optgroup>
                         <optgroup
                             v-if="freeModels.length > 0"
                             :label="t('game.ui.extensions.OpenRouterModal.model_free')"
@@ -703,9 +712,9 @@ onMounted(() => {
                         </optgroup>
                         <option
                             v-if="models.length === 0 && !loadingModels"
-                            :value="provider === 'google' ? 'gemini-2.0-flash' : 'openrouter/free'"
+                            value="openrouter/free"
                         >
-                            {{ provider === "google" ? "gemini-2.0-flash (default)" : "openrouter/free (default)" }}
+                            openrouter/free (default)
                         </option>
                         </select>
                     </div>
@@ -735,11 +744,23 @@ onMounted(() => {
                     <div class="ext-ui-field openrouter-field">
                         <select v-model="selectedImageModel" class="ext-ui-select" :disabled="loadingModels">
                             <optgroup
-                                v-if="imageModels.length > 0"
-                                :label="t('game.ui.extensions.OpenRouterModal.image_model_label')"
+                                v-if="googleImageModels.length > 0"
+                                label="Google AI Studio"
                             >
                                 <option
-                                    v-for="m in imageModels"
+                                    v-for="m in googleImageModels"
+                                    :key="m.id"
+                                    :value="m.id"
+                                >
+                                    {{ m.name }}
+                                </option>
+                            </optgroup>
+                            <optgroup
+                                v-if="openRouterImageModels.length > 0"
+                                label="OpenRouter"
+                            >
+                                <option
+                                    v-for="m in openRouterImageModels"
                                     :key="m.id"
                                     :value="m.id"
                                 >
@@ -747,14 +768,10 @@ onMounted(() => {
                                 </option>
                             </optgroup>
                             <option
-                                v-if="imageModels.length === 0 && !loadingModels"
-                                :value="provider === 'google' ? 'gemini-2.5-flash-image' : 'sourceful/riverflow-v2-fast'"
+                                v-if="googleImageModels.length === 0 && openRouterImageModels.length === 0 && !loadingModels"
+                                value="sourceful/riverflow-v2-fast"
                             >
-                                {{
-                                    provider === "google"
-                                        ? "Gemini 2.5 Flash Image (default)"
-                                        : "sourceful/riverflow-v2-fast (default)"
-                                }}
+                                sourceful/riverflow-v2-fast (default)
                             </option>
                         </select>
                         <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.image_model_hint") }}</p>

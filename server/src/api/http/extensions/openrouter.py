@@ -29,12 +29,11 @@ GOOGLE_IMAGE_MODEL_IDS = {m["id"] for m in GOOGLE_IMAGE_MODELS}
 
 
 def _resolve_image_model(opts) -> str:
-    """Return the image model to use based on provider and saved settings."""
-    provider = (opts.ai_provider or "openrouter").strip().lower()
+    """Return the image model to use based on saved settings."""
     saved = (opts.openrouter_image_model or "").strip()
-    if provider == "google":
-        return saved if saved in GOOGLE_IMAGE_MODEL_IDS else DEFAULT_GOOGLE_IMAGE_MODEL
-    return saved or DEFAULT_IMAGE_MODEL
+    if not saved:
+        return DEFAULT_IMAGE_MODEL
+    return saved
 
 
 # Well-known Gemini models (used when API key not set for Google)
@@ -82,20 +81,21 @@ async def _get_google_models(api_key: str) -> list[dict]:
 
 
 async def get_models(request: web.Request) -> web.Response:
-    """Fetch available models from OpenRouter or Google AI Studio."""
+    """Fetch available models from OpenRouter and Google AI Studio simultaneously."""
     user = await get_authorized_user(request)
     opts = UserOptions.get_by_id(user.default_options)
-    provider = (request.query.get("provider") or opts.ai_provider or "openrouter").strip().lower()
 
-    if provider == "google":
-        model_type = (request.query.get("type") or "").strip().lower()
-        if model_type == "image":
-            return web.json_response({"models": GOOGLE_IMAGE_MODELS})
+    model_type = (request.query.get("type") or "").strip().lower()
+
+    google_models = []
+    if model_type == "image":
+        google_models = GOOGLE_IMAGE_MODELS
+    else:
         api_key = (opts.google_ai_api_key or "").strip()
         if api_key:
-            models = await _get_google_models(api_key)
+            google_models = await _get_google_models(api_key)
         else:
-            models = [{
+            google_models = [{
                 "id": m["id"],
                 "name": m["name"],
                 "context_length": None,
@@ -103,36 +103,37 @@ async def get_models(request: web.Request) -> web.Response:
                 "input_modalities": ["text"],
                 "output_modalities": ["text"],
             } for m in GOOGLE_DEFAULT_MODELS]
-        return web.json_response({"models": models})
 
     # OpenRouter
+    openrouter_models = []
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{OPENROUTER_API}/models") as resp:
-                if resp.status != 200:
-                    return web.json_response({"error": "Failed to fetch models"}, status=502)
-                data = await resp.json()
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=502)
+                if resp.status == 200:
+                    data = await resp.json()
+                    raw = data.get("data", [])
+                    for m in raw:
+                        model_id = m.get("id", "")
+                        pricing = m.get("pricing", {}) or {}
+                        prompt_cost = float(pricing.get("prompt", 1) or 1)
+                        completion_cost = float(pricing.get("completion", 1) or 1)
+                        is_free = prompt_cost == 0 and completion_cost == 0
+                        inp_mod, out_mod = _get_modalities(m)
+                        openrouter_models.append({
+                            "id": model_id,
+                            "name": m.get("name", model_id),
+                            "context_length": m.get("context_length"),
+                            "is_free": is_free,
+                            "input_modalities": inp_mod,
+                            "output_modalities": out_mod,
+                        })
+    except Exception:
+        pass  # Just return what we have (e.g. at least Google models)
 
-    raw = data.get("data", [])
-    result = []
-    for m in raw:
-        model_id = m.get("id", "")
-        pricing = m.get("pricing", {}) or {}
-        prompt_cost = float(pricing.get("prompt", 1) or 1)
-        completion_cost = float(pricing.get("completion", 1) or 1)
-        is_free = prompt_cost == 0 and completion_cost == 0
-        inp_mod, out_mod = _get_modalities(m)
-        result.append({
-            "id": model_id,
-            "name": m.get("name", model_id),
-            "context_length": m.get("context_length"),
-            "is_free": is_free,
-            "input_modalities": inp_mod,
-            "output_modalities": out_mod,
-        })
-    return web.json_response({"models": result})
+    return web.json_response({
+        "google_models": google_models,
+        "openrouter_models": openrouter_models
+    })
 
 
 def _messages_to_gemini(messages: list) -> tuple[str | None, list]:
@@ -195,7 +196,7 @@ async def _chat_google(api_key: str, model: str, messages: list, max_tokens: int
 
 
 async def chat(request: web.Request) -> web.Response:
-    """Proxy chat completion to OpenRouter or Google AI Studio."""
+    """Proxy chat completion to OpenRouter or Google AI Studio based on selected model."""
     user = await get_authorized_user(request)
 
     try:
@@ -208,16 +209,18 @@ async def chat(request: web.Request) -> web.Response:
         return web.HTTPBadRequest(text="messages is required")
 
     opts = UserOptions.get_by_id(user.default_options)
-    provider = (opts.ai_provider or "openrouter").strip().lower()
+    
+    # Infer provider from model name rather than global toggle
+    model = body.get("model", DEFAULT_FREE_MODEL)
+    is_google = model.startswith("gemini")
 
-    if provider == "google":
+    if is_google:
         api_key = (opts.google_ai_api_key or "").strip()
         if not api_key:
             return web.json_response(
                 {"error": "Google AI API key not configured. Set it in the AI Generator settings."},
                 status=400,
             )
-        model = body.get("model", DEFAULT_GOOGLE_MODEL)
         max_tokens = body.get("max_tokens") if "max_tokens" in body else (opts.openrouter_max_tokens or 8192)
         temperature = float(body.get("temperature", 0.7))
         result = await _chat_google(api_key, model, messages, max_tokens, temperature)
@@ -229,7 +232,6 @@ async def chat(request: web.Request) -> web.Response:
         return web.json_response(result)
 
     # OpenRouter
-    model = body.get("model", DEFAULT_FREE_MODEL)
     max_tokens = body.get("max_tokens") if "max_tokens" in body else (opts.openrouter_max_tokens or 8192)
     temperature = body.get("temperature", 0.7)
     api_key = (opts.openrouter_api_key or "").strip()
@@ -273,17 +275,12 @@ async def chat(request: web.Request) -> web.Response:
 
 
 async def get_settings(request: web.Request) -> web.Response:
-    """Get AI Generator settings (provider, API keys masked, model, etc)."""
+    """Get AI Generator settings (provider API keys masked, mapped models, etc)."""
     user = await get_authorized_user(request)
     opts = UserOptions.get_by_id(user.default_options)
 
-    provider = (opts.ai_provider or "openrouter").strip().lower()
-    if provider not in ("openrouter", "google"):
-        provider = "openrouter"
-
     has_openrouter = bool((opts.openrouter_api_key or "").strip())
     has_google = bool((opts.google_ai_api_key or "").strip())
-    has_key = has_openrouter if provider == "openrouter" else has_google
 
     tasks = []
     if opts.openrouter_tasks:
@@ -292,19 +289,15 @@ async def get_settings(request: web.Request) -> web.Response:
         except (json.JSONDecodeError, TypeError):
             pass
 
-    default_model = DEFAULT_FREE_MODEL if provider == "openrouter" else DEFAULT_GOOGLE_MODEL
-    model = opts.openrouter_model or default_model
-    if provider == "google":
-        if model.startswith("openrouter/"):
-            model = default_model
-        elif model == "gemini-1.5-flash":
-            model = "gemini-2.0-flash"
-            opts.openrouter_model = model
-            opts.save()
+    model = opts.openrouter_model or DEFAULT_FREE_MODEL
+    if model == "gemini-1.5-flash":
+        model = "gemini-2.0-flash"
+        opts.openrouter_model = model
+        opts.save()
 
     return web.json_response({
-        "provider": provider,
-        "hasApiKey": has_key,
+        "hasApiKey": has_openrouter,
+        "hasGoogleKey": has_google,
         "model": model,
         "basePrompt": opts.openrouter_base_prompt or "",
         "tasks": tasks,
@@ -325,21 +318,13 @@ async def set_settings(request: web.Request) -> web.Response:
 
     opts = UserOptions.get_by_id(user.default_options)
 
-    if "provider" in body:
-        p = (body.get("provider") or "openrouter").strip().lower()
-        if p in ("openrouter", "google"):
-            opts.ai_provider = p
-
     if "apiKey" in body:
-        provider = (opts.ai_provider or "openrouter").strip().lower()
         key = (body.get("apiKey") or "").strip()
-        if provider == "google":
-            opts.google_ai_api_key = key or None
-        else:
-            opts.openrouter_api_key = key or None
+        opts.openrouter_api_key = key or None
 
     if "googleApiKey" in body:
-        opts.google_ai_api_key = (body.get("googleApiKey") or "").strip() or None
+        gkey = (body.get("googleApiKey") or "").strip()
+        opts.google_ai_api_key = gkey or None
 
     if "model" in body:
         opts.openrouter_model = (body.get("model") or "").strip() or None
@@ -437,7 +422,10 @@ async def transform_image(request: web.Request) -> web.Response:
         return web.HTTPBadRequest(text="imageUrl is required")
 
     opts = UserOptions.get_by_id(user.default_options)
-    provider = (opts.ai_provider or "openrouter").strip().lower()
+
+    # Infer provider from image model name
+    image_model = _resolve_image_model(opts)
+    is_google = image_model in GOOGLE_IMAGE_MODEL_IDS
 
     # Resolve image path
     if image_url.startswith("/static/"):
@@ -484,14 +472,13 @@ async def transform_image(request: web.Request) -> web.Response:
 
     result_data_url = None
 
-    if provider == "google":
+    if is_google:
         api_key = (opts.google_ai_api_key or "").strip()
         if not api_key:
             return web.json_response(
                 {"error": "Google AI API key not configured. Set it in the AI Generator settings."},
                 status=400,
             )
-        image_model = _resolve_image_model(opts)
         try:
             result_data_url = await _transform_image_google(
                 api_key, base64_image, prompt, model=image_model
@@ -506,7 +493,6 @@ async def transform_image(request: web.Request) -> web.Response:
                 {"error": "OpenRouter API key not configured. Set it in the AI Generator settings."},
                 status=400,
             )
-        image_model = opts.openrouter_image_model or DEFAULT_IMAGE_MODEL
         data_url = f"data:image/png;base64,{base64_image}"
         payload = {
             "model": image_model,

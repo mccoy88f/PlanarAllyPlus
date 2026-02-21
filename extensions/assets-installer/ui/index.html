@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,33 +8,196 @@
     <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=2" />
     <script src="../../../../static/extensions/ext-bridge.js"></script>
     <style>
-        .ai-root { max-width: none; width: 100%; overflow-y: auto; min-height: 0; padding: 1rem 1.5rem; }
-        .ai-section { margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 0.5rem; border: 1px solid #e9ecef; }
-        .ai-tree-container { max-height: 12rem; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.35rem; background: #fff; padding: 0.25rem 0; }
-        .ai-tree { list-style: none; margin: 0; padding: 0; }
-        .ai-tree-item { margin: 0; }
-        .ai-tree-row { display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; cursor: pointer; border-radius: 0.25rem; font-size: 0.9rem; }
-        .ai-tree-row:hover { background: #e9ecef; }
-        .ai-tree-row.selected { background: #cce5ff; color: #004085; }
-        .ai-tree-toggle { width: 1.2em; flex-shrink: 0; color: #6c757d; font-size: 0.75rem; }
-        .ai-tree-toggle.empty { visibility: hidden; }
-        .ai-tree-icon { flex-shrink: 0; color: #6c757d; }
-        .ai-tree-row .ai-tree-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .ai-tree-children { list-style: none; margin: 0; padding-left: 1.25rem; }
-        .ai-tree-children.collapsed { display: none; }
-        .ai-selected-path { font-size: 0.8rem; color: #6c757d; margin-top: 0.35rem; }
-        .ai-list { list-style: none; padding: 0; margin: 0; }
-        .ai-item { margin-bottom: 0.4rem; background: #fff; border: 1px solid #e9ecef; border-radius: 0.35rem; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
-        .ai-item:hover { border-color: #ced4da; }
-        .ai-item .ext-ui-list-item-content { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
-        .ai-item-name { font-weight: 600; color: #212529; }
-        .ai-item-meta { font-size: 0.8rem; color: #6c757d; margin-top: 0.15rem; }
-        .ai-item-actions { flex-shrink: 0; }
-        .ai-item:hover .ext-item-actions { opacity: 1; }
-        .ai-empty { padding: 1.5rem; text-align: center; color: #6c757d; font-size: 0.95rem; background: #f8f9fa; border-radius: 0.35rem; border: 1px dashed #dee2e6; }
-        .ai-list-container { max-height: 50vh; overflow-y: auto; min-height: 4rem; }
+        .ai-root {
+            max-width: none;
+            width: 100%;
+            overflow-y: auto;
+            min-height: 0;
+            padding: 1rem 1.5rem;
+        }
+
+        .ai-section {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 0.5rem;
+            border: 1px solid #e9ecef;
+        }
+
+        .ai-tree-container {
+            max-height: 12rem;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.35rem;
+            background: #fff;
+            padding: 0.25rem 0;
+        }
+
+        .ai-tree {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .ai-tree-item {
+            margin: 0;
+        }
+
+        .ai-tree-row {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.35rem 0.5rem;
+            cursor: pointer;
+            border-radius: 0.25rem;
+            font-size: 0.9rem;
+        }
+
+        .ai-tree-row:hover {
+            background: #e9ecef;
+        }
+
+        .ai-tree-row.selected {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .ai-tree-toggle {
+            width: 1.2em;
+            flex-shrink: 0;
+            color: #6c757d;
+            font-size: 0.75rem;
+        }
+
+        .ai-tree-toggle.empty {
+            visibility: hidden;
+        }
+
+        .ai-tree-icon {
+            flex-shrink: 0;
+            color: #6c757d;
+        }
+
+        .ai-tree-row .ai-tree-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .ai-tree-children {
+            list-style: none;
+            margin: 0;
+            padding-left: 1.25rem;
+        }
+
+        .ai-tree-children.collapsed {
+            display: none;
+        }
+
+        .ai-selected-path {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 0.35rem;
+        }
+
+        .ai-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .ai-item {
+            margin-bottom: 0.4rem;
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 0.35rem;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+        }
+
+        .ai-item:hover {
+            border-color: #ced4da;
+        }
+
+        .ai-item .ext-ui-list-item-content {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.15rem;
+        }
+
+        .ai-item-name {
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .ai-item-meta {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 0.15rem;
+        }
+
+        .ai-item-actions {
+            flex-shrink: 0;
+        }
+
+        .ai-item:hover .ext-item-actions {
+            opacity: 1;
+        }
+
+        .ai-empty {
+            padding: 1.5rem;
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.95rem;
+            background: #f8f9fa;
+            border-radius: 0.35rem;
+            border: 1px dashed #dee2e6;
+        }
+
+        .ai-list-container {
+            max-height: 50vh;
+            overflow-y: auto;
+            min-height: 4rem;
+        }
+
+        .pa-loading-bar-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+
+        .pa-loading-bar-label {
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .pa-loading-bar-track {
+            width: 100%;
+            background-color: var(--primary-bg, #2c3e50);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid var(--primary-border, #455a64);
+            height: 6px;
+        }
+
+        .pa-loading-bar-fill {
+            height: 100%;
+            background-color: var(--primary-accent, #42b983);
+            border-radius: 4px;
+            transition: width 0.3s ease-out;
+        }
+
+        .pa-loading-bar-text {
+            font-size: 0.8em;
+            align-self: flex-end;
+            color: var(--primary-text, #ffffff);
+        }
     </style>
 </head>
+
 <body class="ext-ui-root ai-root">
     <section class="ext-ui-section ai-section">
         <h3 class="ext-ui-section-title" id="uploadSectionTitle"></h3>
@@ -43,6 +207,15 @@
         </div>
         <div id="selectedPath" class="ai-selected-path"></div>
         <div style="margin-top: 0.75rem;">
+
+            <div id="uploadProgressContainer" class="pa-loading-bar-wrapper" style="display: none;">
+                <label id="uploadProgressLabel" class="pa-loading-bar-label">Uploading...</label>
+                <div class="pa-loading-bar-track">
+                    <div id="uploadProgressBar" class="pa-loading-bar-fill" style="width: 0%"></div>
+                </div>
+                <div id="uploadProgressText" class="pa-loading-bar-text">0%</div>
+            </div>
+
             <input type="file" id="fileInput" class="ext-ui-file-input" accept=".zip,application/zip" />
             <button type="button" id="uploadBtn" class="ext-ui-btn ext-ui-btn-primary"></button>
         </div>
@@ -60,7 +233,7 @@
     <div id="msg"></div>
 
     <script>
-        (function() {
+        (function () {
             var TRANSLATIONS = {
                 en: {
                     title: "Assets Installer",
@@ -147,12 +320,12 @@
                 msgEl.textContent = text;
                 msgEl.className = 'ext-ui-msg ' + (isError ? 'ext-ui-msg-error' : 'ext-ui-msg-success');
                 msgEl.style.display = 'block';
-                setTimeout(function() { msgEl.style.display = 'none'; }, 4000);
+                setTimeout(function () { msgEl.style.display = 'none'; }, 4000);
             }
 
             function selectPath(path) {
                 selectedPath = path;
-                folderTreeEl.querySelectorAll('.ai-tree-row').forEach(function(row) {
+                folderTreeEl.querySelectorAll('.ai-tree-row').forEach(function (row) {
                     row.classList.toggle('selected', row.dataset.path === path);
                 });
                 selectedPathEl.textContent = path ? path : t('root');
@@ -172,7 +345,7 @@
                 var childrenHtml = '';
                 if (hasChildren) {
                     childrenHtml = '<ul class="ai-tree-children">';
-                    node.children.forEach(function(child) {
+                    node.children.forEach(function (child) {
                         childrenHtml += '<li class="ai-tree-item">' + renderTreeRow(child, depth + 1) + '</li>';
                     });
                     childrenHtml += '</ul>';
@@ -181,15 +354,15 @@
             }
 
             function bindTreeEvents() {
-                folderTreeEl.querySelectorAll('.ai-tree-row').forEach(function(row) {
-                    row.addEventListener('click', function(e) {
+                folderTreeEl.querySelectorAll('.ai-tree-row').forEach(function (row) {
+                    row.addEventListener('click', function (e) {
                         e.stopPropagation();
                         var path = row.dataset.path || '';
                         selectPath(path);
                     });
                 });
-                folderTreeEl.querySelectorAll('.ai-tree-toggle:not(.empty)').forEach(function(toggle) {
-                    toggle.addEventListener('click', function(e) {
+                folderTreeEl.querySelectorAll('.ai-tree-toggle:not(.empty)').forEach(function (toggle) {
+                    toggle.addEventListener('click', function (e) {
                         e.stopPropagation();
                         var row = toggle.closest('.ai-tree-row');
                         var li = row && row.parentElement;
@@ -205,8 +378,8 @@
 
             function loadFolders() {
                 fetch(api('/api/extensions/assets-installer/folders'), { credentials: 'include' })
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
                         var tree = data.tree || { name: '/', path: '', children: [] };
                         folderTreeEl.innerHTML = '';
                         var rootRow = '<li class="ai-tree-item">' + renderTreeRow(tree, 0) + '</li>';
@@ -214,7 +387,7 @@
                         selectPath('');
                         bindTreeEvents();
                     })
-                    .catch(function() {
+                    .catch(function () {
                         folderTreeEl.innerHTML = '<li class="ai-tree-item"><div class="ai-tree-row" data-path=""><span class="ai-tree-toggle empty"></span><span class="ai-tree-icon">&#128194;</span><span class="ai-tree-name">' + t('root') + '</span></div></li>';
                         bindTreeEvents();
                         selectPath('');
@@ -254,8 +427,8 @@
                     emptyEl.style.display = 'none';
                     listEl.innerHTML = installs.map(renderItem).join('');
                     listEl.style.display = 'block';
-                    listEl.querySelectorAll('.uninstall-btn').forEach(function(btn) {
-                        btn.addEventListener('click', async function() {
+                    listEl.querySelectorAll('.uninstall-btn').forEach(function (btn) {
+                        btn.addEventListener('click', async function () {
                             var id = btn.dataset.id;
                             var name = btn.dataset.name || id;
                             var ok = typeof parentConfirm === 'function' ? await parentConfirm(t('uninstall'), t('confirm_uninstall', { name: name })) : confirm(t('confirm_uninstall', { name: name }));
@@ -271,12 +444,12 @@
                 listEl.style.display = 'none';
                 emptyEl.style.display = 'none';
                 fetch(api('/api/extensions/assets-installer/list'), { credentials: 'include' })
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
                         loadingEl.style.display = 'none';
                         render(data.installs || []);
                     })
-                    .catch(function() {
+                    .catch(function () {
                         loadingEl.style.display = 'none';
                         emptyEl.style.display = 'block';
                         emptyEl.textContent = t('error_loading');
@@ -291,51 +464,75 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: id })
                 })
-                    .then(function(r) {
+                    .then(function (r) {
                         if (r.ok) {
                             showMsg(t('uninstall_success'), false);
                             loadList();
                             loadFolders();
                         } else {
-                            return r.text().then(function(txt) { throw new Error(txt || t('uninstall_failed')); });
+                            return r.text().then(function (txt) { throw new Error(txt || t('uninstall_failed')); });
                         }
                     })
-                    .catch(function(e) {
+                    .catch(function (e) {
                         showMsg(e.message || t('uninstall_failed'), true);
                     });
             }
 
-            uploadBtn.addEventListener('click', function() { fileInput.click(); });
+            var uploadProgressContainer = document.getElementById('uploadProgressContainer');
+            var uploadProgressBar = document.getElementById('uploadProgressBar');
+            var uploadProgressText = document.getElementById('uploadProgressText');
+            var uploadProgressLabel = document.getElementById('uploadProgressLabel');
 
-            fileInput.addEventListener('change', function() {
+            uploadBtn.addEventListener('click', function () { fileInput.click(); });
+
+            fileInput.addEventListener('change', function () {
                 var file = fileInput.files && fileInput.files[0];
                 if (!file) return;
                 var formData = new FormData();
                 formData.append('file', file);
                 formData.append('targetPath', selectedPath);
-                loadingEl.style.display = 'block';
-                loadingEl.textContent = t('loading');
-                fetch(api('/api/extensions/assets-installer/upload'), {
-                    method: 'POST',
-                    credentials: 'include',
-                    body: formData
-                })
-                    .then(function(r) {
-                        if (r.ok) {
-                            showMsg(t('upload_success'), false);
-                            loadList();
-                            loadFolders();
-                        } else {
-                            return r.text().then(function(txt) { throw new Error(txt || t('upload_failed')); });
-                        }
-                    })
-                    .catch(function(e) {
-                        showMsg(e.message || t('upload_failed'), true);
-                    })
-                    .finally(function() {
-                        loadingEl.style.display = 'none';
-                        fileInput.value = '';
-                    });
+
+                uploadBtn.disabled = true;
+                uploadProgressContainer.style.display = 'flex';
+                uploadProgressBar.style.width = '0%';
+                uploadProgressText.textContent = '0%';
+                uploadProgressLabel.textContent = t('loading') + ' ' + file.name + '...';
+
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', api('/api/extensions/assets-installer/upload'), true);
+                xhr.withCredentials = true;
+
+                xhr.upload.onprogress = function (event) {
+                    if (event.lengthComputable) {
+                        var percent = Math.round((event.loaded / event.total) * 100);
+                        uploadProgressBar.style.width = percent + '%';
+                        uploadProgressText.textContent = percent + '%';
+                    }
+                };
+
+                xhr.onload = function () {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        showMsg(t('upload_success'), false);
+                        loadList();
+                        loadFolders();
+                    } else {
+                        showMsg(xhr.responseText || t('upload_failed'), true);
+                    }
+                    finalizeUpload();
+                };
+
+                xhr.onerror = function () {
+                    showMsg(t('upload_failed'), true);
+                    finalizeUpload();
+                };
+
+                function finalizeUpload() {
+                    uploadProgressContainer.style.display = 'none';
+                    uploadBtn.disabled = false;
+                    fileInput.value = '';
+                }
+
+                xhr.send(formData);
             });
 
             loadFolders();
@@ -343,4 +540,5 @@
         })();
     </script>
 </body>
+
 </html>
