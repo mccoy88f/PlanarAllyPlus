@@ -196,6 +196,31 @@ async def generate(request: web.Request) -> web.Response:
     filepath = temp_dir / filename
     filepath.write_bytes(png_bytes)
 
+    # Extract walls from occupancy grid
+    wall_lines = []
+    try:
+        from dungeongen.layout.occupancy import CellType
+        grid = generator.occupancy
+        for y in range(bounds[1] - 1, bounds[3] + 2):
+            for x in range(bounds[0] - 1, bounds[2] + 2):
+                cell = grid.get(x, y)
+                if cell.cell_type in (CellType.ROOM, CellType.PASSAGE, CellType.DOOR):
+                    bx, by = x - bounds[0], y - bounds[1]
+                    # North
+                    if grid.get(x, y - 1).cell_type not in (CellType.ROOM, CellType.PASSAGE, CellType.DOOR):
+                        wall_lines.append([[bx, by], [bx + 1, by]])
+                    # South
+                    if grid.get(x, y + 1).cell_type not in (CellType.ROOM, CellType.PASSAGE, CellType.DOOR):
+                        wall_lines.append([[bx, by + 1], [bx + 1, by + 1]])
+                    # West
+                    if grid.get(x - 1, y).cell_type not in (CellType.ROOM, CellType.PASSAGE, CellType.DOOR):
+                        wall_lines.append([[bx, by], [bx, by + 1]])
+                    # East
+                    if grid.get(x + 1, y).cell_type not in (CellType.ROOM, CellType.PASSAGE, CellType.DOOR):
+                        wall_lines.append([[bx + 1, by], [bx + 1, by + 1]])
+    except ImportError:
+        pass
+
     url = f"/static/temp/dungeons/{filename}"
     return web.json_response(
         {
@@ -205,5 +230,8 @@ async def generate(request: web.Request) -> web.Response:
             "imageHeight": canvas_height,
             "syncSquareSize": GRID_SIZE,
             "seed": seed,
+            "walls": {
+                "lines": wall_lines,
+            },
         }
     )

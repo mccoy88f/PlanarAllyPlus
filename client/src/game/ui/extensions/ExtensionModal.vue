@@ -80,27 +80,6 @@ async function handleMessage(event: MessageEvent): Promise<void> {
         }
     } else if (data?.type === "ambient-music-playing" && typeof data.playing === "boolean") {
         extensionsState.mutableReactive.ambientMusicPlaying = data.playing;
-    } else if (data?.type === "planarally-intercepted-download" && data.data) {
-        const result = await modals.confirm(
-            t("game.ui.extensions.watabou.confirm_import_title"),
-            t("game.ui.extensions.watabou.confirm_import_message"),
-            {
-                yes: t("common.confirm"),
-                no: t("common.cancel"),
-            },
-        );
-        if (result === true) {
-            const toastId = toast.info(t("game.ui.extensions.watabou.importing"), { timeout: false });
-            try {
-                await addDungeonToMap(data.data, { width: 40, height: 40 });
-                toast.dismiss(toastId);
-                toast.success(t("game.ui.extensions.watabou.added_to_map"));
-            } catch (e) {
-                toast.dismiss(toastId);
-                toast.error("Failed to process intercepted download.");
-                console.error(e);
-            }
-        }
     }
 }
 

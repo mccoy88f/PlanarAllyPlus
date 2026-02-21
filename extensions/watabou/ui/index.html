@@ -155,7 +155,6 @@
         <div id="toolbar" class="wb-toolbar" style="display: none;">
             <button type="button" id="backBtn" class="wb-back-btn">← Back</button>
             <div class="wb-export-group">
-                <button type="button" id="exportMapBtn" class="wb-export-btn" style="display: none;">Add to Map</button>
                 <button type="button" id="regenBtn" class="wb-regen-btn"></button>
             </div>
         </div>
@@ -176,7 +175,7 @@
                 { url: "https://watabou.github.io/one-page-dungeon", name: "Dungeon Generator", nameKey: "dungeon" },
                 { url: "https://watabou.github.io/dwellings/", name: "Dwellings Building Generator", nameKey: "dwellings" }
             ];
- 
+
             var TRANSLATIONS = {
                 en: { back: "Back", regen: "Random", import: "Add to Map", region: "Region Generator", city: "City Generator", village: "Village Generator", cave: "Cave/Glade Generator", dungeon: "Dungeon Generator", dwellings: "Dwellings Building Generator" },
                 it: { back: "Indietro", regen: "Casuale", import: "Aggiungi alla Mappa", region: "Generatore Regioni", city: "Generatore Città", village: "Generatore Villaggi", cave: "Generatore Caverne", dungeon: "Generatore Dungeon", dwellings: "Generatore Edifici" },
@@ -184,36 +183,35 @@
                 fr: { back: "Retour", regen: "Aléatoire", import: "Ajouter alla carte", region: "Region Generator", city: "City Generator", village: "Village Generator", cave: "Cave/Glade Generator", dungeon: "Dungeon Generator", dwellings: "Dwellings Building Generator" },
                 es: { back: "Volver", regen: "Aleatorio", import: "Añadir al Mapa", region: "Region Generator", city: "City Generator", village: "Village Generator", cave: "Cave/Glade Generator", dungeon: "Dungeon Generator", dwellings: "Dwellings Building Generator" }
             };
- 
+
             function getLocale() {
                 var params = new URLSearchParams(window.location.search);
                 var loc = (params.get("locale") || "en").slice(0, 2);
                 return TRANSLATIONS[loc] ? loc : "en";
             }
- 
+
             var locale = getLocale();
             var L = TRANSLATIONS[locale] || TRANSLATIONS.en;
- 
+
             function t(key) {
                 return L[key] || TRANSLATIONS.en[key] || key;
             }
- 
+
             var listView = document.getElementById("listView");
             var iframeView = document.getElementById("iframeView");
             var toolbar = document.getElementById("toolbar");
             var backBtn = document.getElementById("backBtn");
             var regenBtn = document.getElementById("regenBtn");
-            var exportMapBtn = document.getElementById("exportMapBtn");
             var frame = document.getElementById("generatorFrame");
             var listEl = document.getElementById("generatorList");
             var currentGeneratorUrl = "";
- 
+
             function renderList() {
                 listEl.innerHTML = GENERATORS.map(function (g) {
                     var name = (L[g.nameKey] || g.name);
                     return '<a class="wb-card" href="#" data-url="' + g.url.replace(/"/g, "&quot;") + '" data-name="' + name.replace(/"/g, "&quot;") + '"><span class="wb-card-title">' + name.replace(/</g, "&lt;") + '</span><span class="wb-card-desc">watabou.github.io</span></a>';
                 }).join("");
- 
+
                 listEl.querySelectorAll(".wb-card").forEach(function (el) {
                     el.addEventListener("click", function (e) {
                         e.preventDefault();
@@ -221,43 +219,32 @@
                     });
                 });
             }
- 
+
             function openGenerator(url, name) {
                 currentGeneratorUrl = url;
-                var proxyUrl = "/api/extensions/proxy?url=" + encodeURIComponent(url);
-                frame.src = proxyUrl;
+                frame.src = url;
                 listView.style.display = "none";
                 iframeView.classList.add("active");
                 toolbar.style.display = "flex";
-                exportMapBtn.style.display = "flex";
             }
- 
+
             function regenerate() {
                 if (!currentGeneratorUrl) return;
                 var sep = currentGeneratorUrl.indexOf("?") >= 0 ? "&" : "?";
                 frame.src = currentGeneratorUrl + sep + "_=" + Date.now();
             }
- 
+
             function showList() {
                 frame.src = "about:blank";
                 iframeView.classList.remove("active");
                 listView.style.display = "block";
                 toolbar.style.display = "none";
-                exportMapBtn.style.display = "none";
             }
- 
+
             backBtn.addEventListener("click", showList);
             backBtn.textContent = t("back");
             regenBtn.textContent = t("regen");
             regenBtn.addEventListener("click", regenerate);
-            
-            exportMapBtn.textContent = t("import");
-            exportMapBtn.addEventListener("click", function() {
-                if (frame.contentWindow) {
-                    frame.contentWindow.postMessage("planarally-trigger-export", "*");
-                }
-            });
-
             renderList();
         })();
     </script>

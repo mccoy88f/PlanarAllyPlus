@@ -1,16 +1,13 @@
-/**
- * Add a generated dungeon image to the map as an Asset.
- * Uses sync square (1 cell = syncSquareSize px in image) to scale to PlanarAlly's grid.
- */
-import type { LocalId } from "../core/id";
-import { type GlobalPoint, toGP } from "../core/geometry";
+import { type GlobalPoint, toGP, addP, Vector } from "../core/geometry";
 import { DEFAULT_GRID_SIZE, snapPointToGrid } from "../core/grid";
 import { baseAdjust } from "../core/http";
+import type { LocalId } from "../core/id";
 import { SyncMode, InvalidationMode, SERVER_SYNC, UI_SYNC } from "../core/models/types";
 import { uuidv4 } from "../core/utils";
 
 import { getGlobalId } from "./id";
 import { Asset } from "./shapes/variants/asset";
+import { Polygon } from "./shapes/variants/polygon";
 import { customDataSystem } from "./systems/customData";
 import { accessSystem } from "./systems/access";
 import { floorState } from "./systems/floors/state";
@@ -20,6 +17,7 @@ import { playerSystem } from "./systems/players";
 import { propertiesSystem } from "./systems/properties";
 import { locationSettingsState } from "./systems/settings/location/state";
 import { playerSettingsState } from "./systems/settings/players/state";
+import { VisionBlock } from "./systems/properties/types";
 
 export const DUNGEON_ASSET_SRC_PREFIX = "/static/temp/dungeons/";
 
@@ -41,11 +39,16 @@ export interface DungeonGenParams {
     seed: string;
 }
 
+export interface WallData {
+    lines: [[number, number], [number, number]][];
+}
+
 export interface DungeonGenStoredData {
     params: DungeonGenParams;
     seed: string;
     gridCells?: { width: number; height: number };
     dungeonMeta?: { imageWidth: number; imageHeight: number; syncSquareSize: number };
+    walls?: WallData;
 }
 
 export async function addDungeonToMap(
@@ -53,11 +56,12 @@ export async function addDungeonToMap(
     gridCells: { width: number; height: number },
     position: GlobalPoint = toGP(0, 0),
     options?: {
-        imageWidth: number;
-        imageHeight: number;
-        syncSquareSize: number;
+        imageWidth?: number;
+        imageHeight?: number;
+        syncSquareSize?: number;
         params: DungeonGenParams;
         seed: string;
+        walls?: WallData;
     },
 ): Promise<Asset | undefined> {
     if (!imageUrl.startsWith("/static") && !imageUrl.startsWith("data:") && !imageUrl.startsWith("blob:")) return undefined;
@@ -67,6 +71,8 @@ export async function addDungeonToMap(
 
     const layer = floorSystem.getLayer(floor, LayerName.Map);
     if (!layer) return undefined;
+
+    const fowLayer = floorSystem.getLayer(floor, LayerName.Lighting);
 
     const gridSize = playerSettingsState.gridSize.value ?? DEFAULT_GRID_SIZE;
     let width: number;
@@ -121,6 +127,33 @@ export async function addDungeonToMap(
             const seed = options?.seed ?? "";
             propertiesSystem.setName(asset.id, seed, SERVER_SYNC);
 
+            const walls = options?.walls;
+            console.log("DungeonGen - addDungeonToMap walls:", walls);
+            console.log("DungeonGen - fowLayer:", fowLayer?.name);
+
+            if (walls && fowLayer) {
+                const wallOffset = addP(refPoint, new Vector(40, 40)); // PADDING is 40
+                console.log("DungeonGen - wallOffset:", wallOffset);
+
+                // Add wall lines
+                for (const line of walls.lines) {
+                    const vertices = line.map(v => addP(wallOffset, new Vector(v[0] * gridSize, v[1] * gridSize)));
+                    const wallShape = new Polygon(
+                        vertices[0]!,
+                        vertices.slice(1),
+                        { openPolygon: true, lineWidth: [10], uuid: uuidv4() },
+                        {
+                            blocksMovement: true,
+                            blocksVision: VisionBlock.Complete,
+                            strokeColour: ["#00ff00"]
+                        }
+                    );
+                    fowLayer.addShape(wallShape, SyncMode.FULL_SYNC, InvalidationMode.WITH_LIGHT);
+                }
+                console.log(`DungeonGen - Added ${walls.lines.length} wall lines to ${fowLayer.name}`);
+                fowLayer.invalidate(false);
+            }
+
             if (options?.params) {
                 const shapeId = getGlobalId(asset.id);
                 if (shapeId) {
@@ -129,6 +162,7 @@ export async function addDungeonToMap(
                         seed,
                         gridCells,
                         dungeonMeta: dungeonMeta ?? undefined,
+                        walls,
                     };
                     customDataSystem.addElement(
                         {

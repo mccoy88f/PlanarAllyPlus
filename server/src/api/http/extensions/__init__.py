@@ -12,7 +12,6 @@ from . import dungeongen
 from . import openrouter
 from . import compendium
 from . import watabou
-from . import proxy
 from zipfile import BadZipFile, ZipFile
 
 import aiohttp

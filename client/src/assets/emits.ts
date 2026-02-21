@@ -5,6 +5,7 @@ import type {
     ApiAssetInodeMove,
     ApiAssetRemoveShare,
     ApiAssetRename,
+    AssetOptionsSet,
 } from "../apiTypes";
 import { generateSocketHelpers } from "../core/socket";
 
@@ -22,4 +23,5 @@ export const sendCreateFolder = wrapSocket<ApiAssetCreateFolder>("Folder.Create"
 export const sendRemoveShare = wrapSocket<ApiAssetRemoveShare>("Asset.Share.Remove");
 export const sendEditShareRight = wrapSocket<ApiAssetCreateShare>("Asset.Share.Edit");
 export const sendCreateShare = wrapSocket<ApiAssetCreateShare>("Asset.Share.Create");
+export const sendSetAssetOptions = wrapSocket<AssetOptionsSet>("Asset.Options.Set");
 export const getFolderPath = wrapSocketWithDataAck<AssetId, { id: AssetId; name: string }[]>("Asset.FolderPath");

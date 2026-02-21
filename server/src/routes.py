@@ -158,7 +158,6 @@ main_app.router.add_post(f"{subpath}/api/extensions/character-sheet/default", ex
 main_app.router.add_get(f"{subpath}/api/extensions/character-sheet/default", extensions.character_sheet.get_default)
 main_app.router.add_post(f"{subpath}/api/extensions/dungeongen/generate", extensions.dungeongen.generate)
 main_app.router.add_post(f"{subpath}/api/extensions/watabou/import", extensions.watabou.import_image)
-main_app.router.add_get(f"{subpath}/api/extensions/proxy", extensions.proxy.proxy_handler)
 main_app.router.add_get(
     f"{subpath}/api/extensions/compendium/db",
     extensions.compendium.get_db,
