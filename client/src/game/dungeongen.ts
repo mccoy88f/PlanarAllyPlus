@@ -134,7 +134,7 @@ export async function addDungeonToMap(
 
             if (walls && fowLayer) {
                 const scale = dungeonMeta ? (gridSize / dungeonMeta.syncSquareSize) : 1;
-                const basePadding = dungeonMeta?.padding ?? 40;
+                const basePadding = dungeonMeta?.padding ?? 50;
                 const scaledPadding = basePadding * scale;
                 const wallOffset = addP(refPoint, new Vector(scaledPadding, scaledPadding));
                 console.log("DungeonGen - wallOffset:", wallOffset);
