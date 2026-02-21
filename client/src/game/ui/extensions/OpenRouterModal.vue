@@ -518,7 +518,7 @@ async function importCharacterToSheet(): Promise<void> {
             sheet: parsed,
         });
         if (resp.ok) {
-            const data = (await resp.json()) as { sheetId?: string };
+            await resp.json();
             toast.success(t("game.ui.extensions.OpenRouterModal.import_success"));
             const charSheetExt = extensionsState.reactive.extensions.find(
                 (e) => e.id === "character-sheet" || e.folder === "character-sheet",
@@ -529,8 +529,8 @@ async function importCharacterToSheet(): Promise<void> {
                     name: charSheetExt.name,
                     folder: charSheetExt.folder,
                     uiUrl: charSheetExt.uiUrl,
-                    titleBarColor: charSheetExt.titleBarColor,
-                    icon: charSheetExt.icon,
+                    titleBarColor: (charSheetExt as any).titleBarColor,
+                    icon: (charSheetExt as any).icon,
                 });
             }
         } else {
@@ -544,11 +544,6 @@ async function importCharacterToSheet(): Promise<void> {
     }
 }
 
-const canImportToSheet = computed(
-    () =>
-        currentTask.value?.id === "generate_character_json" &&
-        !!result.value.trim(),
-);
 
 const showImportToSheetButton = computed(
     () => currentTask.value?.id === "generate_character_json",

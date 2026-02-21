@@ -80,7 +80,6 @@ const selectedItem = ref<{
     item: ItemFull;
 } | null>(null);
 const itemLoading = ref(false);
-const modalRef = ref<{ container: HTMLDivElement } | null>(null);
 
 const installDialogOpen = ref(false);
 const installName = ref("");
@@ -650,6 +649,7 @@ onMounted(() => {
                     />
                 </div>
             </div>
+        </template>
         <div class="ext-modal-body-wrapper">
             <div v-if="installLoading" class="ext-progress-top-container">
                 <LoadingBar :progress="100" indeterminate height="6px" />
@@ -882,7 +882,8 @@ onMounted(() => {
                 </div>
             </div>
         </div>
-    </Modal>
+    </div>
+</Modal>
 
     <Teleport to="body">
         <div v-if="installDialogOpen" class="qe-install-overlay" @click.self="installDialogOpen = false">
