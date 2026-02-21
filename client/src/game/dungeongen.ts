@@ -47,7 +47,7 @@ export interface DungeonGenStoredData {
     params: DungeonGenParams;
     seed: string;
     gridCells?: { width: number; height: number };
-    dungeonMeta?: { imageWidth: number; imageHeight: number; syncSquareSize: number };
+    dungeonMeta?: { imageWidth: number; imageHeight: number; syncSquareSize: number; padding?: number };
     walls?: WallData;
 }
 
@@ -59,6 +59,7 @@ export async function addDungeonToMap(
         imageWidth?: number;
         imageHeight?: number;
         syncSquareSize?: number;
+        padding?: number;
         params: DungeonGenParams;
         seed: string;
         walls?: WallData;
@@ -79,7 +80,7 @@ export async function addDungeonToMap(
     let height: number;
 
     const dungeonMeta = options?.imageWidth != null && options?.imageHeight != null && options?.syncSquareSize != null
-        ? { imageWidth: options.imageWidth, imageHeight: options.imageHeight, syncSquareSize: options.syncSquareSize }
+        ? { imageWidth: options.imageWidth, imageHeight: options.imageHeight, syncSquareSize: options.syncSquareSize, padding: options.padding }
         : undefined;
     if (dungeonMeta) {
         const scale = gridSize / dungeonMeta.syncSquareSize;
@@ -132,7 +133,10 @@ export async function addDungeonToMap(
             console.log("DungeonGen - fowLayer:", fowLayer?.name);
 
             if (walls && fowLayer) {
-                const wallOffset = addP(refPoint, new Vector(40, 40)); // PADDING is 40
+                const scale = dungeonMeta ? (gridSize / dungeonMeta.syncSquareSize) : 1;
+                const basePadding = dungeonMeta?.padding ?? 40;
+                const scaledPadding = basePadding * scale;
+                const wallOffset = addP(refPoint, new Vector(scaledPadding, scaledPadding));
                 console.log("DungeonGen - wallOffset:", wallOffset);
 
                 // Add wall lines

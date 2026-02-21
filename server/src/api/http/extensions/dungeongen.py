@@ -10,7 +10,7 @@ from ....utils import STATIC_DIR
 
 # PlanarAlly grid: 1 cell = 50 pixels
 GRID_SIZE = 50
-PADDING = 40
+PADDING = 50
 
 
 async def generate(request: web.Request) -> web.Response:
@@ -177,7 +177,8 @@ async def generate(request: web.Request) -> web.Response:
             Color=skia.Color(180, 180, 180),
             StrokeWidth=2,
         )
-        canvas.drawRect(skia.Rect(0, 0, GRID_SIZE, GRID_SIZE), sync_paint)
+        # Draw strictly inside to prevent stroke from extending past GRID_SIZE
+        canvas.drawRect(skia.Rect(1, 1, GRID_SIZE - 1, GRID_SIZE - 1), sync_paint)
 
         image = surface.makeImageSnapshot()
         png_data = image.encodeToData()
@@ -229,6 +230,7 @@ async def generate(request: web.Request) -> web.Response:
             "imageWidth": canvas_width,
             "imageHeight": canvas_height,
             "syncSquareSize": GRID_SIZE,
+            "padding": PADDING,
             "seed": seed,
             "walls": {
                 "lines": wall_lines,
