@@ -7,78 +7,79 @@ from ....auth import get_authorized_user
 from ....utils import FILE_DIR
 
 # The interceptor script that will be injected into proxied HTML
-INTERCEPTOR_JS = """
+# It will be formatted with the target_url as the base
+INTERCEPTOR_JS_TEMPLATE = """
 (function() {
     console.log("[PlanarAlly Agent] Interceptor active");
     
     const PROXY_BASE = "/api/extensions/proxy?url=";
+    const ORIGINAL_BASE = "{base_url}";
 
-    function wrapUrl(url) {
+    function wrapUrl(url) {{
         if (!url || typeof url !== 'string') return url;
         if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('mailto:')) return url;
         if (url.startsWith(window.location.origin + PROXY_BASE)) return url;
         
-        try {
-            const absoluteUrl = new URL(url, window.location.href).href;
-            // Only proxy if it's external or relative mapping to external
+        try {{
+            // Resolve relative to the ORIGINAL base, not the proxy URL
+            const absoluteUrl = new URL(url, ORIGINAL_BASE).href;
             return PROXY_BASE + encodeURIComponent(absoluteUrl);
-        } catch(e) {
+        }} catch(e) {{
             return url;
-        }
-    }
+        }}
+    }}
 
     // 1. Intercept fetch
     const originalFetch = window.fetch;
-    window.fetch = function(input, init) {
-        if (typeof input === 'string') {
+    window.fetch = function(input, init) {{
+        if (typeof input === 'string') {{
             input = wrapUrl(input);
-        } else if (input instanceof Request) {
-            // Complex to clone and wrap, but let's try a simple version
+        }} else if (input instanceof Request) {{
             const newUrl = wrapUrl(input.url);
             input = new Request(newUrl, input);
-        }
+        }}
         return originalFetch(input, init);
-    };
+    }};
 
     // 2. Intercept XMLHttpRequest
     const originalOpen = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function(method, url, ...args) {
+    XMLHttpRequest.prototype.open = function(method, url, ...args) {{
         return originalOpen.apply(this, [method, wrapUrl(url), ...args]);
-    };
+    }};
 
     // 3. Intercept Blob creations (for downloads)
     const originalCreateObjectURL = URL.createObjectURL;
     const blobMap = new Map();
-    URL.createObjectURL = function(obj) {
+    URL.createObjectURL = function(obj) {{
         const url = originalCreateObjectURL(obj);
-        if (obj instanceof Blob) {
+        if (obj instanceof Blob) {{
             blobMap.set(url, obj);
-        }
+        }}
         return url;
-    };
+    }};
 
     // 4. Intercept clicks on links (for downloads)
-    document.addEventListener("click", function(e) {
+    document.addEventListener("click", function(e) {{
         const target = e.target.closest("a");
         if (!target || !target.download) return;
         const href = target.href;
         const filename = target.download || "download.png";
-        if (blobMap.has(href)) {
+        if (blobMap.has(href)) {{
             e.preventDefault();
             e.stopPropagation();
             const blob = blobMap.get(href);
             const reader = new FileReader();
-            reader.onload = function() {
-                window.parent.postMessage({
+            reader.onload = function() {{
+                window.parent.postMessage({{
                     type: "planarally-intercepted-download",
                     filename: filename,
                     data: reader.result,
                     contentType: blob.type
-                }, "*");
-            };
+                }}, "*");
+            }};
             reader.readAsDataURL(blob);
-        }
-    }, true);
+        }}
+    }}, true);
 })();
 """
 
@@ -132,20 +133,21 @@ async def proxy_handler(request: web.Request) -> web.Response:
                             head.append(base_tag)
                             soup.insert(0, head)
 
-                    # 2. Rewrite attributes in HTML (aggressive)
-                    # We rewrite typical tags so they go through our proxy immediately
+                    # 2. Rewrite attributes in HTML
+                    # We MUST rewrite them because <base> doesn't prevent mixed-content or CORS issues 
+                    # when the page is served from a different origin.
+                    proxy_path = "/api/extensions/proxy?url="
                     for tag in soup.find_all(['script', 'link', 'img', 'source', 'iframe']):
                         for attr in ['src', 'href']:
                             if tag.has_attr(attr):
                                 val = tag[attr]
-                                if not val.startswith(('http', '//', 'data:', 'blob:')):
-                                    # Don't rewrite here yet if we use <base>, 
-                                    # but some JS doesn't respect <base>
-                                    pass
+                                if not val.startswith(('http', '//', 'data:', 'blob:', 'mailto:')):
+                                    abs_val = urljoin(base_url, val)
+                                    tag[attr] = f"{proxy_path}{abs_val}"
 
                     # 3. Inject PlanarAlly Agent
                     script_tag = soup.new_tag("script")
-                    script_tag.string = INTERCEPTOR_JS
+                    script_tag.string = INTERCEPTOR_JS_TEMPLATE.format(base_url=base_url)
                     if soup.body:
                         soup.body.insert(0, script_tag) # Insert at start for fetch override
                     else:
@@ -156,9 +158,10 @@ async def proxy_handler(request: web.Request) -> web.Response:
                 else:
                     # Pass through other resources with CORS
                     res_headers = {"Content-Type": content_type, **cors_headers}
-                    # Small optimization: rewrite CSS imports if they are relative? 
-                    # Complex, let's stick to CORS and base tag for now.
                     return web.Response(body=body, headers=res_headers)
+
+    except Exception as e:
+        return web.HTTPInternalServerError(text=f"Proxy error: {str(e)}")
 
     except Exception as e:
         return web.HTTPInternalServerError(text=f"Proxy error: {str(e)}")
