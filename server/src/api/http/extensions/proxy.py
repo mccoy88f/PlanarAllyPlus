@@ -63,11 +63,17 @@ INTERCEPTOR_JS_TEMPLATE = """
         const target = e.target.closest("a");
         if (!target || !target.download) return;
         const href = target.href;
-        const filename = target.download || "download.png";
+        let filename = target.download || "map";
+        
         if (blobMap.has(href)) {{
             e.preventDefault();
             e.stopPropagation();
             const blob = blobMap.get(href);
+            // Ensure extension
+            const ext = blob.type.split("/")[1] || "png";
+            if (!filename.toLowerCase().endsWith("." + ext)) {{
+                filename += "." + ext;
+            }}
             const reader = new FileReader();
             reader.onload = function() {{
                 console.log("[PlanarAlly Agent] Intercepted download:", filename, "(", blob.type, ")");
@@ -81,6 +87,26 @@ INTERCEPTOR_JS_TEMPLATE = """
             reader.readAsDataURL(blob);
         }}
     }}, true);
+
+    // 5. Listen for triggers from parent
+    window.addEventListener("message", function(e) {{
+        if (e.data === "planarally-trigger-export") {{
+            console.log("[PlanarAlly Agent] Triggering export via shortcut simulation");
+            // Most Watabou generators use 'e' or 'p' for PNG export
+            ['e', 'p'].forEach(key => {{
+                ['keydown', 'keyup'].forEach(type => {{
+                    document.dispatchEvent(new KeyboardEvent(type, {{
+                        key: key,
+                        code: 'Key' + key.toUpperCase(),
+                        keyCode: key === 'e' ? 69 : 80,
+                        which: key === 'e' ? 69 : 80,
+                        bubbles: true,
+                        cancelable: true
+                    }}));
+                }});
+            }});
+        }}
+    }});
 }})();
 """
 

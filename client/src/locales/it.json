@@ -345,7 +345,9 @@
                     "importing": "Importazione...",
                     "added_to_map": "Mappa aggiunta con successo",
                     "import_failed": "Importazione diretta fallita. Watabou richiede un passaggio manuale.",
-                    "import_guide": "Clicca su 'Export PNG' nel generatore, quindi trascina il file scaricato sulla mappa."
+                    "import_guide": "Clicca su 'Export PNG' nel generatore, quindi trascina il file scaricato sulla mappa.",
+                    "confirm_import_title": "Mappa Intercettata",
+                    "confirm_import_message": "Vuoi importare questa mappa nella sessione di gioco attuale?"
                 },
                 "DungeongenSettings": {
                     "tab": "DungeonGen",

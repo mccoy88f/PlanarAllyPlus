@@ -60,7 +60,7 @@ export async function addDungeonToMap(
         seed: string;
     },
 ): Promise<Asset | undefined> {
-    if (!imageUrl.startsWith("/static")) return undefined;
+    if (!imageUrl.startsWith("/static") && !imageUrl.startsWith("data:") && !imageUrl.startsWith("blob:")) return undefined;
 
     const floor = floorState.currentFloor.value ?? floorState.reactive.floors[0];
     if (!floor) return undefined;
