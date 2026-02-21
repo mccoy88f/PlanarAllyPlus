@@ -202,42 +202,43 @@ onMounted(() => {
                 </div>
             </div>
         </template>
-        <div class="documents-modal-body ext-body">
-            <div v-if="loading" class="ext-ui-loading">
-                {{ t("game.ui.extensions.DocumentsModal.loading") }}
-            </div>
-            <div v-else-if="documents.length === 0" class="ext-ui-empty">
-                {{ t("game.ui.extensions.DocumentsModal.no_documents") }}
-            </div>
-            <ul v-else class="ext-ui-list documents-list">
-                <li
-                    v-for="doc in documents"
-                    :key="doc.id"
-                    class="ext-ui-list-item documents-list-item"
-                >
-                    <div class="ext-ui-list-item-content" @click="openPdf(doc)">
-                        <font-awesome-icon icon="file-pdf" class="doc-icon" />
-                        <span class="ext-ui-list-item-name">{{ doc.name }}</span>
-                    </div>
-                    <div class="ext-item-actions">
-                        <font-awesome-icon
-                            class="ext-action-btn delete"
-                            icon="trash-alt"
-                            :title="t('common.remove')"
-                            @click.stop="deleteDocument(doc)"
-                        />
-                    </div>
-                </li>
-            </ul>
-            <div class="ext-bottom-bar">
+        <div class="ext-modal-body-wrapper">
+            <div v-if="uploading" class="ext-progress-top-container">
                 <LoadingBar
-                    v-if="uploading"
                     :progress="uploadProgress"
                     :label="`${t('game.ui.extensions.DocumentsModal.uploading')} ${uploadingFilename}...`"
                     height="6px"
-                    style="margin-bottom: 8px"
                 />
-                
+            </div>
+            <div class="documents-modal-body ext-body">
+                <div v-if="loading" class="ext-ui-loading">
+                    {{ t("game.ui.extensions.DocumentsModal.loading") }}
+                </div>
+                <div v-else-if="documents.length === 0" class="ext-ui-empty">
+                    {{ t("game.ui.extensions.DocumentsModal.no_documents") }}
+                </div>
+                <ul v-else class="ext-ui-list documents-list">
+                    <li
+                        v-for="doc in documents"
+                        :key="doc.id"
+                        class="ext-ui-list-item documents-list-item"
+                    >
+                        <div class="ext-ui-list-item-content" @click="openPdf(doc)">
+                            <font-awesome-icon icon="file-pdf" class="doc-icon" />
+                            <span class="ext-ui-list-item-name">{{ doc.name }}</span>
+                        </div>
+                        <div class="ext-item-actions">
+                            <font-awesome-icon
+                                class="ext-action-btn delete"
+                                icon="trash-alt"
+                                :title="t('common.remove')"
+                                @click.stop="deleteDocument(doc)"
+                            />
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            <div class="ext-bottom-bar">
                 <input
                     ref="uploadInput"
                     type="file"
@@ -260,12 +261,28 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
+.ext-modal-body-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
 .documents-modal-body {
-    min-width: 320px;
-    max-width: 480px;
+    min-width: 380px;
+    max-width: 500px;
     max-height: 60vh;
 }
 
+.ext-bottom-section {
+    flex-shrink: 0;
+    border-top: 1px solid #eee;
+    background: #fafafa;
+}
+
+.upload-progress-container {
+    padding: 0.75rem 1.5rem 0.25rem;
+}
 
 .documents-list .ext-ui-list-item-content {
     display: flex;

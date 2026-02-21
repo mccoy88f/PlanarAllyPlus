@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useToast } from "vue-toastification";
 
+import LoadingBar from "../../../core/components/LoadingBar.vue";
 import Modal from "../../../core/components/modals/Modal.vue";
 import { baseAdjust } from "../../../core/http";
 import { http } from "../../../core/http";
@@ -379,6 +380,9 @@ async function makeRealisticWithAI(): Promise<void> {
             </div>
         </template>
         <div class="ext-modal-body-wrapper">
+            <div v-if="generating || makingRealistic" class="ext-progress-top-container">
+                <LoadingBar :progress="100" indeterminate height="6px" />
+            </div>
             <div class="ext-body ext-two-col">
                 <section class="ext-ui-section ext-two-col-side ext-two-col-single">
                     <h3 class="ext-ui-section-title">{{ t("game.ui.extensions.DungeongenModal.settings") }}</h3>
@@ -552,7 +556,6 @@ async function makeRealisticWithAI(): Promise<void> {
                     </div>
                 </div>
             </div>
-
         </div>
     </Modal>
 </template>

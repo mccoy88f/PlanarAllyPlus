@@ -885,3 +885,14 @@
         background-position: -200% 0;
     }
 }
+
+.ext-progress-top-container {
+    flex-shrink: 0;
+    padding: 0.5rem 1.5rem;
+    background: #fafafa;
+    border-bottom: 1px solid #eee;
+}
+
+.ext-progress-top-container .pa-loading-bar-wrapper {
+    margin: 0;
+}

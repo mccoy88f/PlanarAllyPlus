@@ -13,6 +13,7 @@ import { noteSystem } from "../../systems/notes";
 import { noteState } from "../../systems/notes/state";
 import type { NoteId } from "../../systems/notes/types";
 import { extensionsState } from "../../systems/extensions/state";
+import LoadingBar from "../../../core/components/LoadingBar.vue";
 import { closeOpenRouterModal, focusExtension, openExtensionModal } from "../../systems/extensions/ui";
 
 export interface TaskDef {
@@ -647,6 +648,9 @@ onMounted(() => {
             </div>
         </template>
         <div class="ext-modal-body-wrapper openrouter-body">
+            <div v-if="runningTask || savingSettings" class="ext-progress-top-container">
+                <LoadingBar :progress="100" indeterminate height="6px" />
+            </div>
             <div v-show="activeTab === 'settings'" class="ext-body openrouter-settings">
                 <div class="ext-ui-section openrouter-settings-section">
 

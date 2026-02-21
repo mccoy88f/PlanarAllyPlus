@@ -16,6 +16,7 @@ import {
 import { chatSystem } from "../../systems/chat";
 import { focusExtension } from "../../systems/extensions/ui";
 import { extensionsState } from "../../systems/extensions/state";
+import LoadingBar from "../../../core/components/LoadingBar.vue";
 import { playerSystem } from "../../systems/players";
 
 const props = defineProps<{
@@ -649,8 +650,11 @@ onMounted(() => {
                     />
                 </div>
             </div>
-        </template>
-        <div class="qe-body">
+        <div class="ext-modal-body-wrapper">
+            <div v-if="installLoading" class="ext-progress-top-container">
+                <LoadingBar :progress="100" indeterminate height="6px" />
+            </div>
+            <div class="qe-body">
             <div class="ext-toolbar-bar ext-search-bar">
                 <font-awesome-icon icon="search" class="ext-search-icon" />
                 <select
