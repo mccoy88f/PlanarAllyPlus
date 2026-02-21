@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
+import traceback
 
 from aiohttp import web
 
@@ -275,6 +276,22 @@ async def uninstall(request: web.Request) -> web.Response:
         asset_ids = record.get("assetIds", [])
         file_hashes = record.get("fileHashes", [])
         if asset_ids:
+            # Pre-flight check: ensure no asset is locked by a Character RESTRICT constraint
+            in_use = []
+            for aid in asset_ids:
+                try:
+                    asset = Asset.get_by_id(aid)
+                    if asset.characters.count() > 0:
+                        in_use.append(asset.name)
+                except Asset.DoesNotExist:
+                    pass
+            
+            if in_use:
+                locked_names = ", ".join(in_use[:3])
+                if len(in_use) > 3:
+                    locked_names += " and others"
+                return web.HTTPBadRequest(text=f"Cannot uninstall: Assets are in use by Characters ({locked_names})")
+
             for aid in asset_ids:
                 try:
                     asset = Asset.get_by_id(aid)
@@ -321,5 +338,5 @@ async def uninstall(request: web.Request) -> web.Response:
         _save_manifest(installs)
 
         return web.json_response({"ok": True})
-    except OSError as e:
-        return web.HTTPInternalServerError(text=f"Failed to uninstall: {e}")
+    except Exception as e:
+        return web.HTTPInternalServerError(text=f"Failed to uninstall: {e}\n{traceback.format_exc()}")
