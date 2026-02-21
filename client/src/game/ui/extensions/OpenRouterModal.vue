@@ -296,6 +296,8 @@ async function saveSettings(): Promise<void> {
             if (googleApiKey.value && googleApiKey.value !== "********") {
                 googleApiKey.value = "********";
             }
+            // Add reloading models on save
+            await loadModels();
         } else {
             const err = await resp.json().catch(() => ({}));
             toast.error((err as { error?: string }).error || t("game.ui.extensions.OpenRouterModal.save_error"));
