@@ -48,6 +48,9 @@ const replacing = ref(false);
 const makingRealistic = ref(false);
 const openRouterAvailable = ref(false);
 
+const showPromptModal = ref(false);
+const extraAiPrompt = ref("");
+
 const params = ref({
     size: "medium",
     archetype: "classic",
@@ -300,13 +303,21 @@ async function checkOpenRouter(): Promise<void> {
     }
 }
 
+function promptMakeRealisticWithAI(): void {
+    if (!previewUrl.value) return;
+    showPromptModal.value = true;
+    extraAiPrompt.value = "";
+}
+
 async function makeRealisticWithAI(): Promise<void> {
     if (!previewUrl.value) return;
     makingRealistic.value = true;
+    showPromptModal.value = false;
     try {
         const resp = await http.postJson("/api/extensions/openrouter/transform-image", {
             imageUrl: previewUrl.value,
             archetype: params.value.archetype,
+            extraPrompt: extraAiPrompt.value,
         });
         if (resp.ok) {
             const data = (await resp.json()) as { imageUrl?: string };
@@ -493,7 +504,7 @@ async function makeRealisticWithAI(): Promise<void> {
                             v-if="openRouterAvailable"
                             class="ext-ui-btn ext-ui-btn-success realistic-btn"
                             :disabled="makingRealistic"
-                            @click="makeRealisticWithAI"
+                            @click="promptMakeRealisticWithAI"
                         >
                             {{ makingRealistic ? "..." : t("game.ui.extensions.DungeongenModal.make_realistic") }}
                         </button>
@@ -527,6 +538,21 @@ async function makeRealisticWithAI(): Promise<void> {
                     {{ t("game.ui.extensions.DungeongenModal.generate_new") }}
                 </button>
             </div>
+
+            <div v-if="showPromptModal" class="ai-prompt-overlay" @click="showPromptModal = false">
+                <div class="ai-prompt-box" @click.stop>
+                    <h3>{{ t("game.ui.extensions.DungeongenModal.ai_prompt_title") }}</h3>
+                    <p>{{ t("game.ui.extensions.DungeongenModal.ai_prompt_desc") }}</p>
+                    <textarea v-model="extraAiPrompt" class="ext-ui-textarea" rows="3"></textarea>
+                    <div class="ai-prompt-actions">
+                        <button class="ext-ui-btn" @click="showPromptModal = false">{{ t("common.cancel") }}</button>
+                        <button class="ext-ui-btn ext-ui-btn-success ai-prompt-send" @click="makeRealisticWithAI">
+                            {{ extraAiPrompt.trim() ? t("game.ui.extensions.DungeongenModal.ai_prompt_send") : t("game.ui.extensions.DungeongenModal.ai_prompt_send_empty") }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </Modal>
 </template>
@@ -619,4 +645,28 @@ async function makeRealisticWithAI(): Promise<void> {
         }
     }
 }
+
+.ai-prompt-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+.ai-prompt-box {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    width: 80%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    color: #333;
+}
+.ai-prompt-box h3 { margin: 0; font-size: 1.2rem; font-weight: bold; }
+.ai-prompt-box p { margin: 0; font-size: 0.9rem; color: #555; }
+.ai-prompt-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 </style>

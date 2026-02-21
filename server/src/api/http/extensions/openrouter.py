@@ -418,6 +418,7 @@ async def transform_image(request: web.Request) -> web.Response:
 
     image_url = (body.get("imageUrl") or "").strip()
     archetype = (body.get("archetype") or "classic").strip().lower()
+    extra_prompt = (body.get("extraPrompt") or "").strip()
     if not image_url:
         return web.HTTPBadRequest(text="imageUrl is required")
 
@@ -469,6 +470,8 @@ async def transform_image(request: web.Request) -> web.Response:
         "Keep the exact same layout, room positions, corridors, and structure. "
         "Make it look like a real tabletop RPG battle map with proper lighting and atmospheric details."
     )
+    if extra_prompt:
+        prompt += f"\n\nAdditional instructions from user: {extra_prompt}"
 
     result_data_url = None
 
