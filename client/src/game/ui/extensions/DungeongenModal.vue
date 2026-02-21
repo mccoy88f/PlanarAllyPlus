@@ -141,6 +141,11 @@ watch(
                 gridCells.value = stored.gridCells ?? null;
                 dungeonMeta.value = stored.dungeonMeta ?? null;
                 dungeonWalls.value = stored.walls ?? null;
+                
+                const shape = getShape(shapeId);
+                if (shape && "src" in shape) {
+                    previewUrl.value = (shape as Asset).src;
+                }
             }
         }
     },
