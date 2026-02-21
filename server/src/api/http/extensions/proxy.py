@@ -9,7 +9,7 @@ from ....utils import FILE_DIR
 # The interceptor script that will be injected into proxied HTML
 # It will be formatted with the target_url as the base
 INTERCEPTOR_JS_TEMPLATE = """
-(function() {
+(function() {{
     console.log("[PlanarAlly Agent] Interceptor active");
     
     const PROXY_BASE = "/api/extensions/proxy?url=";
@@ -80,7 +80,7 @@ INTERCEPTOR_JS_TEMPLATE = """
             reader.readAsDataURL(blob);
         }}
     }}, true);
-})();
+}})();
 """
 
 async def proxy_handler(request: web.Request) -> web.Response:
@@ -159,9 +159,6 @@ async def proxy_handler(request: web.Request) -> web.Response:
                     # Pass through other resources with CORS
                     res_headers = {"Content-Type": content_type, **cors_headers}
                     return web.Response(body=body, headers=res_headers)
-
-    except Exception as e:
-        return web.HTTPInternalServerError(text=f"Proxy error: {str(e)}")
 
     except Exception as e:
         return web.HTTPInternalServerError(text=f"Proxy error: {str(e)}")
