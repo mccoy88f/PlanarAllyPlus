@@ -3,7 +3,7 @@ from aiohttp import web
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 
-from ....auth import get_user
+from ....auth import get_authorized_user
 from ....utils import FILE_DIR
 
 # The interceptor script that will be injected into proxied HTML

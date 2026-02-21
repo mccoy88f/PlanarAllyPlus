@@ -21,6 +21,7 @@ dependencies = [
     "rtoml==0.13.0",
     "typing-extensions==4.15.0",
     "watchdog==6.0.0",
+    "beautifulsoup4==4.13.3",
     # Dungeongen extension
     "dungeongen>=0.1.14",
 ]
