@@ -120,36 +120,31 @@ async def proxy_handler(request: web.Request) -> web.Response:
                     if not base_url.endswith("/") and "." not in base_url.split("/")[-1]:
                         base_url += "/"
 
-                    # 1. Update/Add <base> tag
-                    base_tag = soup.find("base")
-                    if base_tag:
-                        base_tag["href"] = base_url
-                    else:
-                        base_tag = soup.new_tag("base", href=base_url)
-                        if soup.head:
-                            soup.head.insert(0, base_tag)
-                        else:
-                            head = soup.new_tag("head")
-                            head.append(base_tag)
-                            soup.insert(0, head)
+                    # 1. REMOVE any existing <base> tag to avoid interference
+                    for b in soup.find_all("base"):
+                        b.decompose()
 
                     # 2. Rewrite attributes in HTML
-                    # We MUST rewrite them because <base> doesn't prevent mixed-content or CORS issues 
-                    # when the page is served from a different origin.
+                    # We rewrite them to be absolute and then proxy them
                     proxy_path = "/api/extensions/proxy?url="
-                    for tag in soup.find_all(['script', 'link', 'img', 'source', 'iframe']):
+                    for tag in soup.find_all(['script', 'link', 'img', 'source', 'iframe', 'a']):
                         for attr in ['src', 'href']:
                             if tag.has_attr(attr):
                                 val = tag[attr]
-                                if not val.startswith(('http', '//', 'data:', 'blob:', 'mailto:')):
+                                if not val.startswith(('http', '//', 'data:', 'blob:', 'mailto:', '#')):
+                                    # Make absolute relative to original target
                                     abs_val = urljoin(base_url, val)
                                     tag[attr] = f"{proxy_path}{abs_val}"
+                                elif val.startswith(('http', '//')) and not val.startswith(request.host):
+                                    # Also proxy external absolute links if they are assets?
+                                    # Careful with external links, but for Watabou they are often on same domain
+                                    pass
 
                     # 3. Inject PlanarAlly Agent
                     script_tag = soup.new_tag("script")
                     script_tag.string = INTERCEPTOR_JS_TEMPLATE.format(base_url=base_url)
                     if soup.body:
-                        soup.body.insert(0, script_tag) # Insert at start for fetch override
+                        soup.body.insert(0, script_tag)
                     else:
                         soup.append(script_tag)
 
