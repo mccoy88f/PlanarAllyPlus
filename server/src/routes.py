@@ -133,6 +133,10 @@ main_app.router.add_post(
     f"{subpath}/api/extensions/documents/generate-thumbnails",
     extensions.documents.generate_thumbnails,
 )
+main_app.router.add_patch(
+    f"{subpath}/api/extensions/documents/visibility",
+    extensions.documents.toggle_document_visibility,
+)
 main_app.router.add_get(f"{subpath}/api/extensions/assets-installer/list", extensions.assets_installer.list_installs)
 main_app.router.add_get(f"{subpath}/api/extensions/assets-installer/folders", extensions.assets_installer.list_folders)
 main_app.router.add_post(f"{subpath}/api/extensions/assets-installer/upload", extensions.assets_installer.upload_zip)
@@ -153,6 +157,7 @@ main_app.router.add_post(f"{subpath}/api/extensions/character-sheet/sheet/{{shee
 main_app.router.add_post(f"{subpath}/api/extensions/character-sheet/default", extensions.character_sheet.set_default)
 main_app.router.add_get(f"{subpath}/api/extensions/character-sheet/default", extensions.character_sheet.get_default)
 main_app.router.add_post(f"{subpath}/api/extensions/dungeongen/generate", extensions.dungeongen.generate)
+main_app.router.add_post(f"{subpath}/api/extensions/watabou/import", extensions.watabou.import_image)
 main_app.router.add_get(
     f"{subpath}/api/extensions/compendium/db",
     extensions.compendium.get_db,

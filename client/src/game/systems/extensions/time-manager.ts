@@ -186,7 +186,7 @@ export function timeManagerHandleMessage(data: unknown, source: Window | null): 
             if (d.name !== undefined) item.name = String(d.name);
             if (d.mode !== undefined) item.mode = d.mode as "countdown" | "timer";
             if (d.targetMs !== undefined) item.targetMs = Math.max(0, Number(d.targetMs));
-            if (!item.running && d.mode === "countdown") item.valueMs = item.targetMs;
+            if (!item.running && item.mode === "countdown") item.valueMs = item.targetMs;
             saveState();
             broadcastState();
         }

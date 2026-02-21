@@ -161,19 +161,21 @@ const openClientSettings = (): void => uiSystem.showClientSettings(!uiState.raw.
                 {{ t("game.ui.menu.MenuBar.client_settings") }}
             </button>
         </div>
-        <div
-            class="menu-accordion"
-            style="width: 12.5rem; box-sizing: border-box; text-decoration: none; display: inline-block"
-            @click="toggleFullscreen"
-        >
-            {{ isFullscreen ? t("common.fullscreen_exit") : t("common.fullscreen") }}
-        </div>
-        <div
-            class="menu-accordion"
-            style="width: 12.5rem; box-sizing: border-box; text-decoration: none; display: inline-block"
-            @click="exit"
-        >
-            {{ t("common.exit") }}
+        <div class="menu-bottom-buttons">
+            <div
+                class="menu-accordion"
+                style="width: 12.5rem; box-sizing: border-box; text-decoration: none; display: inline-block"
+                @click="toggleFullscreen"
+            >
+                {{ isFullscreen ? t("common.fullscreen_exit") : t("common.fullscreen") }}
+            </div>
+            <div
+                class="menu-accordion"
+                style="width: 12.5rem; box-sizing: border-box; text-decoration: none; display: inline-block"
+                @click="exit"
+            >
+                {{ t("common.exit") }}
+            </div>
         </div>
     </div>
 </template>
@@ -234,6 +236,13 @@ DIRECTORY.CSS changes
     overflow: auto;
     pointer-events: auto;
     touch-action: none;
+}
+
+.menu-bottom-buttons {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    margin-top: auto;
 }
 
 .actionButton {

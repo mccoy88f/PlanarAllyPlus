@@ -6,9 +6,10 @@ import { useToast } from "vue-toastification";
 
 import Modal from "../../../core/components/modals/Modal.vue";
 import { useModal } from "../../../core/plugins/modals/plugin";
-import { baseAdjust } from "../../../core/http";
+import { baseAdjust, http } from "../../../core/http";
 import { extensionsState } from "../../systems/extensions/state";
 import { gameState } from "../../systems/game/state";
+import { addDungeonToMap } from "../../dungeongen";
 import {
     requestCloseExtensionModal,
     focusExtension,
@@ -40,6 +41,30 @@ async function handleMessage(event: MessageEvent): Promise<void> {
     if (data?.type === "planarally-prompt" && data.id && ext && source) {
         const result = await modals.prompt(data.question || "", data.title || "", undefined, data.defaultValue ?? "");
         source.postMessage({ type: "planarally-prompt-response", id: data.id, result }, "*");
+        return;
+    }
+
+    if (data?.type === "planarally-import-image" && data.url) {
+        const toastId = toast.info(t("game.ui.extensions.watabou.importing"), { timeout: false });
+        try {
+            const response = await http.postJson("/api/extensions/watabou/import", { url: data.url });
+            if (response.ok) {
+                const resData = (await response.json()) as { url: string; gridCells: { width: number; height: number } };
+                await addDungeonToMap(resData.url, resData.gridCells);
+                toast.dismiss(toastId);
+                toast.success(t("game.ui.extensions.watabou.added_to_map"));
+            } else {
+                toast.dismiss(toastId);
+                toast.error(t("game.ui.extensions.watabou.import_failed"), { timeout: 10000 });
+                setTimeout(() => {
+                    toast.info(t("game.ui.extensions.watabou.import_guide"), { timeout: 15000 });
+                }, 1000);
+            }
+        } catch (e) {
+            toast.dismiss(toastId);
+            toast.error("An unexpected error occurred during import.");
+            console.error(e);
+        }
         return;
     }
 

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Watabou Generators</title>
+    <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=2" />
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, sans-serif;
+            font-size: 14px;
+        }
+
+        .wb-root {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .wb-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid #e0e0e0;
+            background: #fafafa;
+            flex-shrink: 0;
+        }
+
+        .wb-back-btn,
+        .wb-regen-btn,
+        .wb-export-btn {
+            padding: 0.4rem 0.8rem;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            background: #fff;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .wb-back-btn:hover,
+        .wb-regen-btn:hover,
+        .wb-export-btn:hover {
+            background: #eee;
+        }
+
+        .wb-export-group {
+            display: flex;
+            gap: 0.35rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .wb-permalink-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            flex: 1;
+            min-width: 0;
+            max-width: 400px;
+        }
+
+        .wb-permalink-input {
+            flex: 1;
+            min-width: 120px;
+            padding: 0.35rem 0.5rem;
+            font-size: 0.8rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .wb-permalink-input::placeholder {
+            color: #999;
+        }
+
+        .wb-content {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 1rem 1.5rem;
+        }
+
+        .wb-iframe-wrap {
+            flex: 1;
+            min-height: 0;
+            display: none;
+            position: relative;
+        }
+
+        .wb-iframe-wrap.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .wb-iframe-wrap iframe {
+            flex: 1;
+            width: 100%;
+            border: none;
+            min-height: 400px;
+        }
+
+        .wb-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+
+        .wb-card {
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fff;
+            cursor: pointer;
+            transition: box-shadow 0.2s, border-color 0.2s;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .wb-card:hover {
+            border-color: #5c6bc0;
+            box-shadow: 0 4px 12px rgba(92, 107, 192, 0.2);
+        }
+
+        .wb-card-title {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .wb-card-desc {
+            font-size: 0.8rem;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body class="ext-ui-root">
+    <div class="wb-root ext-modal-body-wrapper">
+        <div id="toolbar" class="wb-toolbar" style="display: none;">
+            <button type="button" id="backBtn" class="wb-back-btn">← Back</button>
+            <div class="wb-export-group">
+                <button type="button" id="regenBtn" class="wb-regen-btn"></button>
+            </div>
+        </div>
+        <div id="listView" class="wb-content">
+            <div class="wb-list" id="generatorList"></div>
+        </div>
+        <div id="iframeView" class="wb-iframe-wrap">
+            <iframe id="generatorFrame" title="Watabou Generator"></iframe>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var GENERATORS = [
+                { url: "https://watabou.github.io/perilous-shores", name: "Region Generator", nameKey: "region" },
+                { url: "https://watabou.github.io/city-generator", name: "City Generator", nameKey: "city" },
+                { url: "https://watabou.github.io/village-generator/", name: "Village Generator", nameKey: "village" },
+                { url: "https://watabou.github.io/cave-generator", name: "Cave/Glade Generator", nameKey: "cave" },
+                { url: "https://watabou.github.io/one-page-dungeon", name: "Dungeon Generator", nameKey: "dungeon" },
+                { url: "https://watabou.github.io/dwellings/", name: "Dwellings Building Generator", nameKey: "dwellings" }
+            ];
+
+            var TRANSLATIONS = {
+                en: { back: "Back", regen: "Random", region: "Region Generator", city: "City Generator", village: "Village Generator", cave: "Cave/Glade Generator", dungeon: "Dungeon Generator", dwellings: "Dwellings Building Generator" },
+                it: { back: "Indietro", regen: "Casuale", region: "Generatore Regioni", city: "Generatore Città", village: "Generatore Villaggi", cave: "Generatore Caverne", dungeon: "Generatore Dungeon", dwellings: "Generatore Edifici" },
+                de: { back: "Zurück", regen: "Zufällig", region: "Region Generator", city: "City Generator", village: "Village Generator", cave: "Cave/Glade Generator", dungeon: "Dungeon Generator", dwellings: "Dwellings Building Generator" },
+                fr: { back: "Retour", regen: "Aléatoire", region: "Region Generator", city: "City Generator", village: "Village Generator", cave: "Cave/Glade Generator", dungeon: "Dungeon Generator", dwellings: "Dwellings Building Generator" },
+                es: { back: "Volver", regen: "Aleatorio", region: "Region Generator", city: "City Generator", village: "Village Generator", cave: "Cave/Glade Generator", dungeon: "Dungeon Generator", dwellings: "Dwellings Building Generator" }
+            };
+
+            function getLocale() {
+                var params = new URLSearchParams(window.location.search);
+                var loc = (params.get("locale") || "en").slice(0, 2);
+                return TRANSLATIONS[loc] ? loc : "en";
+            }
+
+            var locale = getLocale();
+            var L = TRANSLATIONS[locale] || TRANSLATIONS.en;
+
+            function t(key) {
+                return L[key] || TRANSLATIONS.en[key] || key;
+            }
+
+            var listView = document.getElementById("listView");
+            var iframeView = document.getElementById("iframeView");
+            var toolbar = document.getElementById("toolbar");
+            var backBtn = document.getElementById("backBtn");
+            var regenBtn = document.getElementById("regenBtn");
+            var frame = document.getElementById("generatorFrame");
+            var listEl = document.getElementById("generatorList");
+            var currentGeneratorUrl = "";
+
+            function renderList() {
+                listEl.innerHTML = GENERATORS.map(function (g) {
+                    var name = (L[g.nameKey] || g.name);
+                    return '<a class="wb-card" href="#" data-url="' + g.url.replace(/"/g, "&quot;") + '" data-name="' + name.replace(/"/g, "&quot;") + '"><span class="wb-card-title">' + name.replace(/</g, "&lt;") + '</span><span class="wb-card-desc">watabou.github.io</span></a>';
+                }).join("");
+
+                listEl.querySelectorAll(".wb-card").forEach(function (el) {
+                    el.addEventListener("click", function (e) {
+                        e.preventDefault();
+                        openGenerator(el.dataset.url, el.dataset.name);
+                    });
+                });
+            }
+
+            function openGenerator(url, name) {
+                currentGeneratorUrl = url;
+                frame.src = url;
+                listView.style.display = "none";
+                iframeView.classList.add("active");
+                toolbar.style.display = "flex";
+            }
+
+            function regenerate() {
+                if (!currentGeneratorUrl) return;
+                var sep = currentGeneratorUrl.indexOf("?") >= 0 ? "&" : "?";
+                frame.src = currentGeneratorUrl + sep + "_=" + Date.now();
+            }
+
+            function showList() {
+                frame.src = "about:blank";
+                iframeView.classList.remove("active");
+                listView.style.display = "block";
+                toolbar.style.display = "none";
+            }
+
+            backBtn.addEventListener("click", showList);
+            backBtn.textContent = t("back");
+            regenBtn.textContent = t("regen");
+            regenBtn.addEventListener("click", regenerate);
+            renderList();
+        })();
+    </script>
+</body>
+
+</html>

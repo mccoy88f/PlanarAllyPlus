@@ -1,0 +1,12 @@
+{
+  "compendiums": [
+    {
+      "id": "42e9630d",
+      "name": "Quinta Edizione",
+      "slug": "quinta-edizione",
+      "jsonFile": "quintaedizione-export.json",
+      "isDefault": true
+    }
+  ],
+  "defaultId": "42e9630d"
+}

@@ -266,7 +266,8 @@
                         "compendium": "Compendium",
                         "guida": "Guide",
                         "ambient-music": "Ambient Music",
-                        "time-manager": "Time Manager"
+                        "time-manager": "Time Manager",
+                        "watabou": "Watabou Generators"
                     }
                 }
             },
@@ -338,6 +339,13 @@
                     "symmetry_break_low": "Low",
                     "symmetry_break_med": "Medium",
                     "symmetry_break_high": "High"
+                },
+                "watabou": {
+                    "add_to_map": "Add to map",
+                    "importing": "Importing...",
+                    "added_to_map": "Map added successfully",
+                    "import_failed": "Direct import failed. Watabou requires a manual step.",
+                    "import_guide": "Click 'Export PNG' in the generator, then drag the downloaded file onto the map."
                 },
                 "DungeongenSettings": {
                     "tab": "DungeonGen",

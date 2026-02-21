@@ -1,0 +1,8 @@
+[extension]
+id = "watabou"
+name = "Watabou Generators"
+version = "1.0.0"
+description = "Procedural map generators by Watabou: Region, City, Village, Cave, Dungeon, Dwellings."
+author = "PlanarAlly"
+entry = "ui/index.html"
+titleBarColor = "#5c6bc0"

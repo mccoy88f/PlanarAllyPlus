@@ -42,6 +42,7 @@
         .doc-list.doc-grid .ext-ui-list-item-name { white-space: normal; word-break: break-word; width: 100%; }
         .doc-list.doc-grid .ext-item-actions { justify-content: center; margin-top: 0.25rem; width: 100%; }
         .doc-rename-input { width: 100%; max-width: 200px; padding: 0.2rem 0.4rem; font-size: 0.9rem; }
+        .visibility-btn.on { color: #2196f3; font-weight: bold; }
         .doc-move-select { font-size: 0.85rem; padding: 0.2rem 0.4rem; }
         @media (max-width: 480px) {
             .doc-list.doc-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 0.4rem; }
@@ -120,7 +121,9 @@
                     documents_uploaded_count: "documents uploaded",
                     upload_failed: "Upload failed.",
                     view_list: "List view",
-                    view_grid: "Grid view"
+                    view_grid: "Grid view",
+                    shared_with_me: "Shared with me",
+                    visible_to_players: "Visible to players"
                 },
                 it: {
                     documents: "Documenti",
@@ -150,7 +153,9 @@
                     documents_uploaded_count: "documenti caricati",
                     upload_failed: "Caricamento fallito.",
                     view_list: "Vista elenco",
-                    view_grid: "Vista griglia"
+                    view_grid: "Vista griglia",
+                    shared_with_me: "Condivisi con me",
+                    visible_to_players: "Visibili ai giocatori"
                 },
                 de: {
                     documents: "Dokumente",
@@ -180,7 +185,9 @@
                     documents_uploaded_count: "Dokumente hochgeladen",
                     upload_failed: "Hochladen fehlgeschlagen.",
                     view_list: "Listenansicht",
-                    view_grid: "Rasteransicht"
+                    view_grid: "Rasteransicht",
+                    shared_with_me: "Mit mir geteilt",
+                    visible_to_players: "Für Spieler sichtbar"
                 },
                 dk: {
                     documents: "Dokumenter",
@@ -210,7 +217,9 @@
                     documents_uploaded_count: "dokumenter uploadet",
                     upload_failed: "Upload mislykkedes.",
                     view_list: "Listevisning",
-                    view_grid: "Gittervisning"
+                    view_grid: "Gittervisning",
+                    shared_with_me: "Delt med mig",
+                    visible_to_players: "Synlig for spillere"
                 },
                 es: {
                     documents: "Documentos",
@@ -240,7 +249,9 @@
                     documents_uploaded_count: "documentos subidos",
                     upload_failed: "Error al subir.",
                     view_list: "Vista de lista",
-                    view_grid: "Vista de cuadrícula"
+                    view_grid: "Vista de cuadrícula",
+                    shared_with_me: "Compartido conmigo",
+                    visible_to_players: "Visible para jugadores"
                 },
                 fr: {
                     documents: "Documents",
@@ -270,7 +281,9 @@
                     documents_uploaded_count: "documents téléversés",
                     upload_failed: "Échec du téléversement.",
                     view_list: "Vue liste",
-                    view_grid: "Vue grille"
+                    view_grid: "Vue grille",
+                    shared_with_me: "Partagé avec moi",
+                    visible_to_players: "Visible aux joueurs"
                 },
                 ru: {
                     documents: "Документы",
@@ -300,7 +313,9 @@
                     documents_uploaded_count: "документов загружено",
                     upload_failed: "Ошибка загрузки.",
                     view_list: "Вид списка",
-                    view_grid: "Вид сетки"
+                    view_grid: "Вид сетки",
+                    shared_with_me: "Поделились со мной",
+                    visible_to_players: "Видно игрокам"
                 },
                 tw: {
                     documents: "文件",
@@ -330,7 +345,9 @@
                     documents_uploaded_count: "個文件已上傳",
                     upload_failed: "上傳失敗。",
                     view_list: "清單檢視",
-                    view_grid: "網格檢視"
+                    view_grid: "網格檢視",
+                    shared_with_me: "與我分享",
+                    visible_to_players: "對玩家可見"
                 },
                 zh: {
                     documents: "文档",
@@ -360,7 +377,9 @@
                     documents_uploaded_count: "个文档已上传",
                     upload_failed: "上传失败。",
                     view_list: "列表视图",
-                    view_grid: "网格视图"
+                    view_grid: "网格视图",
+                    shared_with_me: "与我分享",
+                    visible_to_players: "对玩家可见"
                 }
             };
 
@@ -464,7 +483,7 @@
             }
 
             function displayName(it) {
-                var n = it.name || '';
+                var n = (it.nameKey && t(it.nameKey)) ? t(it.nameKey) : (it.name || '');
                 return it.type === 'folder' ? n : n.replace(/\.[^.]+$/, '');
             }
             function renderItem(it, opts) {
@@ -481,6 +500,10 @@
                     iconHtml = '<span class="doc-icon">📄</span>';
                 }
                 let actions = '';
+                if (opts.visibilityToggle) {
+                    var eyeTitle = it.visibleToPlayers ? t('visible_to_players') + ' (on)' : t('visible_to_players') + ' (off)';
+                    actions += '<button type="button" class="ext-action-btn visibility-btn' + (it.visibleToPlayers ? ' on' : '') + '" data-id="' + it.id + '" title="' + eyeTitle + '">&#128065;</button>';
+                }
                 if (opts.rename) {
                     actions += '<button type="button" class="ext-action-btn rename-btn" data-id="' + it.id + '" title="' + t('rename') + '">' + pencilSvg + '</button>';
                 }
@@ -504,6 +527,9 @@
 
                 renderBreadcrumb();
                 topBarEl.style.display = 'flex';
+                var inSharedFolder = currentFolderId === -1;
+                uploadBtn.style.display = inSharedFolder ? 'none' : '';
+                newFolderBtn.style.display = inSharedFolder ? 'none' : '';
 
                 if (current.length === 0) {
                     listEl.style.display = 'none';
@@ -514,11 +540,13 @@
                     folders.sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }); });
                     docs.sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }); });
                     let html = '';
+                    var canEdit = function(it) { return !it.shared; };
+                    var visToggle = function(it) { return !!it.canToggleVisibility; };
                     folders.forEach(function(f) {
-                        html += renderItem(f, { rename: true, move: true, delete: true });
+                        html += renderItem(f, { rename: canEdit(f), move: canEdit(f), delete: canEdit(f), visibilityToggle: visToggle(f) });
                     });
                     docs.forEach(function(d) {
-                        html += renderItem(d, { rename: true, move: true, delete: true });
+                        html += renderItem(d, { rename: canEdit(d), move: canEdit(d), delete: canEdit(d), visibilityToggle: visToggle(d) });
                     });
                     listEl.innerHTML = html;
                     listEl.style.display = viewMode === 'grid' ? 'grid' : 'block';
@@ -548,6 +576,9 @@
                             }
                         });
                     });
+                    listEl.querySelectorAll('.visibility-btn').forEach(function(el) {
+                        el.addEventListener('click', async function(e) { e.stopPropagation(); await toggleVisibility(parseInt(el.dataset.id, 10)); });
+                    });
                     listEl.querySelectorAll('.rename-btn').forEach(function(el) {
                         el.addEventListener('click', function(e) { e.stopPropagation(); renameItem(parseInt(el.dataset.id, 10)); });
                     });
@@ -576,6 +607,32 @@
                 listEl.classList.add('doc-grid');
                 if (listEl.style.display !== 'none') listEl.style.display = 'grid';
             });
+
+            async function toggleVisibility(id) {
+                var params = new URLSearchParams(window.location.search);
+                var rc = params.get('room_creator');
+                var rn = params.get('room_name');
+                if (!rc || !rn) { showMsg(t('error_loading'), true); return; }
+                try {
+                    var r = await fetch(api('/api/extensions/documents/visibility'), {
+                        method: 'PATCH',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: id, roomCreator: rc, roomName: rn })
+                    });
+                    if (r.ok) {
+                        var data = await r.json();
+                        var it = items.find(function(x) { return x.id === id; });
+                        if (it) it.visibleToPlayers = data.visibleToPlayers;
+                        showMsg(data.visibleToPlayers ? t('visible_to_players') + ' ON' : t('visible_to_players') + ' OFF');
+                        render();
+                    } else {
+                        showMsg(await r.text() || t('failed'), true);
+                    }
+                } catch (e) {
+                    showMsg(t('failed'), true);
+                }
+            }
 
             async function renameItem(id) {
                 const it = items.find(function(x) { return x.id === id; });
@@ -635,7 +692,14 @@
                 breadcrumbEl.style.display = 'none';
                 topBarEl.style.display = 'none';
                 try {
-                    const r = await fetch(api('/api/extensions/documents/list'), { credentials: 'include' });
+                    var listUrl = api('/api/extensions/documents/list');
+                    var params = new URLSearchParams(window.location.search);
+                    var rc = params.get('room_creator');
+                    var rn = params.get('room_name');
+                    if (rc && rn) {
+                        listUrl += '?room_creator=' + encodeURIComponent(rc) + '&room_name=' + encodeURIComponent(rn);
+                    }
+                    const r = await fetch(listUrl, { credentials: 'include' });
                     const data = r.ok ? await r.json() : { documents: [], rootId: null };
                     items = data.documents || [];
                     rootId = data.rootId;

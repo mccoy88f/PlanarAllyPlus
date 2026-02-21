@@ -118,7 +118,7 @@
             display.className = "tm-display" + (item.running ? " running" : "");
             if (isCountdown) {
                 display.type = "text";
-                display.value = formatMs(item.valueMs);
+                display.value = formatMs(!item.running ? item.targetMs : item.valueMs);
                 display.dataset.id = item.id;
                 display.readOnly = item.running;
                 display.placeholder = "HH:MM:SS";
@@ -206,7 +206,7 @@
                 if (el._display instanceof HTMLInputElement) {
                     el._display.readOnly = item.running;
                     if (document.activeElement !== el._display) {
-                        el._display.value = formatMs(item.mode === "countdown" ? item.valueMs : item.valueMs);
+                        el._display.value = formatMs(item.mode === "countdown" && !item.running ? item.targetMs : item.valueMs);
                     }
                 } else {
                     el._display.textContent = formatMs(item.valueMs);
@@ -272,7 +272,7 @@
                 if (el._display instanceof HTMLInputElement) {
                     el._display.readOnly = item.running;
                     if (document.activeElement !== el._display) {
-                        el._display.value = formatMs(item.mode === "countdown" ? item.valueMs : item.valueMs);
+                        el._display.value = formatMs(item.mode === "countdown" && !item.running ? item.targetMs : item.valueMs);
                     }
                 } else {
                     el._display.textContent = formatMs(item.valueMs);

@@ -201,10 +201,10 @@
                 "add_new_floor": "Aggiungi nuovo piano",
                 "toggle_visibility": "Cambia la visibilità per i giocatori",
                 "rename_icon_hover": "Rinomina piano",
-            "rename_header_title": "Rinominando il piano",
-            "title": "Selezione piano"
-        },
-        "initiative": {
+                "rename_header_title": "Rinominando il piano",
+                "title": "Selezione piano"
+            },
+            "initiative": {
                 "new_effect": "Nuovo effetto",
                 "add_timed_effect": "Aggiungi un effetto temporale",
                 "toggle_group": "Cambia iniziativa individuale / gruppo",
@@ -212,27 +212,27 @@
                 "round_N": "Round {n}",
                 "vision_log_msg": "Blocca visuale automaticamente (mostra solo la visuale del segnalino attivo)",
                 "camera_log_msg": "Blocca la camera sul segnalino attivo",
-            "reset_round": "Azzera round/turni",
-            "next": "Prossimo",
-            "add_effect": "Aggiungi effetto",
-            "delete_effect": "Elimina effetto",
-            "previous": "Precedente",
-            "next_round": "Round successivo",
-            "previous_round": "Round precedente",
-            "clear": "Svuota iniziative",
-            "clear_entries": "Svuota voci",
-            "change_sort": "Cambia ordinamento",
-            "settings": "Impostazioni",
-            "remove_group_msg": "Sei sicuro di voler rimuovere questo gruppo dall'ordine di iniziativa?",
-            "clear_entries_msg": "Sei sicuro di voler cancellare tutte le voci di iniziativa?",
-            "clear_initiatives_msg": "Sei sicuro di voler cancellare tutti i numeri di iniziativa?",
-            "empty_initiative": "Nessuna voce visibile",
-            "infinite_toggle": "Infinito?",
-            "infinite_toggle_hint": "L'effetto deve avere durata infinita?",
-            "effect_duration_hint": "Numero di round in cui l'effetto durerà",
-            "effect_name_hint": "Nome dell'effetto"
-        },
-        "menu": {
+                "reset_round": "Azzera round/turni",
+                "next": "Prossimo",
+                "add_effect": "Aggiungi effetto",
+                "delete_effect": "Elimina effetto",
+                "previous": "Precedente",
+                "next_round": "Round successivo",
+                "previous_round": "Round precedente",
+                "clear": "Svuota iniziative",
+                "clear_entries": "Svuota voci",
+                "change_sort": "Cambia ordinamento",
+                "settings": "Impostazioni",
+                "remove_group_msg": "Sei sicuro di voler rimuovere questo gruppo dall'ordine di iniziativa?",
+                "clear_entries_msg": "Sei sicuro di voler cancellare tutte le voci di iniziativa?",
+                "clear_initiatives_msg": "Sei sicuro di voler cancellare tutti i numeri di iniziativa?",
+                "empty_initiative": "Nessuna voce visibile",
+                "infinite_toggle": "Infinito?",
+                "infinite_toggle_hint": "L'effetto deve avere durata infinita?",
+                "effect_duration_hint": "Numero di round in cui l'effetto durerà",
+                "effect_name_hint": "Nome dell'effetto"
+            },
+            "menu": {
                 "LocationBar": {
                     "new_location_name": "Nuova location:",
                     "create_new_location": "Crea una nuova location",
@@ -247,13 +247,13 @@
                     "delete_marker": "Elimina indicatore",
                     "no_notes": "Nessuna nota",
                     "dm_settings": "Opzioni DM",
-            "no_markers": "Nessun indicatore",
-            "client_settings": "Opzioni client",
-            "characters": "Personaggi",
-            "no_characters": "Nessun personaggio",
-            "no_players": "Nessun giocatore connesso"
-        },
-        "Extensions": {
+                    "no_markers": "Nessun indicatore",
+                    "client_settings": "Opzioni client",
+                    "characters": "Personaggi",
+                    "no_characters": "Nessun personaggio",
+                    "no_players": "Nessun giocatore connesso"
+                },
+                "Extensions": {
                     "no_extensions": "Nessuna estensione installata",
                     "manage_extensions": "Gestisci estensioni",
                     "ambient_music_playing": "Audio in riproduzione",
@@ -266,7 +266,8 @@
                         "compendium": "Compendium",
                         "guida": "Guida",
                         "ambient-music": "Musica d'ambiente",
-                        "time-manager": "Gestione del tempo"
+                        "time-manager": "Gestione del tempo",
+                        "watabou": "Generatori Watabou"
                     }
                 }
             },
@@ -338,6 +339,13 @@
                     "symmetry_break_low": "Basso",
                     "symmetry_break_med": "Medio",
                     "symmetry_break_high": "Alto"
+                },
+                "watabou": {
+                    "add_to_map": "Aggiungi alla mappa",
+                    "importing": "Importazione...",
+                    "added_to_map": "Mappa aggiunta con successo",
+                    "import_failed": "Importazione diretta fallita. Watabou richiede un passaggio manuale.",
+                    "import_guide": "Clicca su 'Export PNG' nel generatore, quindi trascina il file scaricato sulla mappa."
                 },
                 "DungeongenSettings": {
                     "tab": "DungeonGen",
@@ -552,8 +560,15 @@
                         "character_set": "Set caratteri",
                         "custom_charset": "Charset personalizzato",
                         "creation_order": "Ordine di creazione",
-                        "charset": { "numbers": "numeri", "latin": "caratteri latini", "custom": "personalizzato" },
-                        "order": { "incrementing": "incrementale", "random": "casuale" },
+                        "charset": {
+                            "numbers": "numeri",
+                            "latin": "caratteri latini",
+                            "custom": "personalizzato"
+                        },
+                        "order": {
+                            "incrementing": "incrementale",
+                            "random": "casuale"
+                        },
                         "members": "Membri",
                         "show_badge_on_all_members": "Mostra medaglia su tutti i membri:",
                         "badge": "Medaglia",
@@ -867,17 +882,39 @@
                     "open_options_title": "Mostra opzioni aggiuntive",
                     "toggle_advanced": "Modalità avanzata",
                     "toggle_breakdown": "Scomposizione",
-                    "3D_options": { "off": "Off", "on": "On", "box": "Scatola" },
-                    "share_options": { "all": "Tutti", "dm": "DM", "none": "Nessuno" },
-                    "breakdown_options": { "detailed": "Dettagliato", "simple": "Semplice" },
+                    "3D_options": {
+                        "off": "Off",
+                        "on": "On",
+                        "box": "Scatola"
+                    },
+                    "share_options": {
+                        "all": "Tutti",
+                        "dm": "DM",
+                        "none": "Nessuno"
+                    },
+                    "breakdown_options": {
+                        "detailed": "Dettagliato",
+                        "simple": "Semplice"
+                    },
                     "advanced": "Avanzate",
-                    "advanced_options": { "operators": "Operatori", "selectors": "Selettori" },
+                    "advanced_options": {
+                        "operators": "Operatori",
+                        "selectors": "Selettori"
+                    },
                     "clear_selection_title": "Cancella selezione",
                     "roll": "Lancia!",
                     "reroll_previous_title": "Rilancia precedente",
-                    "limit_operator_options": { "keep": "mantieni", "drop": "scarta", "min": "min", "max": "max" },
+                    "limit_operator_options": {
+                        "keep": "mantieni",
+                        "drop": "scarta",
+                        "min": "min",
+                        "max": "max"
+                    },
                     "reroll": "Rilancia",
-                    "selection_option_names": { "highest": "più alto", "lowest": "più basso" }
+                    "selection_option_names": {
+                        "highest": "più alto",
+                        "lowest": "più basso"
+                    }
                 },
                 "NoteTool": {
                     "header": "Allega nota",

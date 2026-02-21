@@ -5,6 +5,7 @@ import { useToast } from "vue-toastification";
 
 import { http } from "../../../core/http";
 import { openDocumentsPdfViewer } from "../../systems/extensions/ui";
+import { gameState } from "../../systems/game/state";
 
 const props = defineProps<{
     visible: boolean;
@@ -29,10 +30,17 @@ const uploadInput = useTemplateRef<HTMLInputElement>("uploadInput");
 async function loadDocuments(): Promise<void> {
     loading.value = true;
     try {
-        const response = await http.get("/api/extensions/documents/list");
+        let url = "/api/extensions/documents/list";
+        const creator = gameState.reactive.roomCreator;
+        const room = gameState.reactive.roomName;
+        if (creator && room) {
+            url += `?room_creator=${encodeURIComponent(creator)}&room_name=${encodeURIComponent(room)}`;
+        }
+        const response = await http.get(url);
         if (response.ok) {
             const data = (await response.json()) as { documents: DocumentItem[] };
-            documents.value = data.documents ?? [];
+            const all = data.documents ?? [];
+            documents.value = all.filter((d) => "fileHash" in d && d.fileHash) as DocumentItem[];
         } else {
             documents.value = [];
         }
