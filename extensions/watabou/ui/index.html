@@ -222,7 +222,8 @@
 
             function openGenerator(url, name) {
                 currentGeneratorUrl = url;
-                frame.src = url;
+                var proxyUrl = "/api/extensions/proxy?url=" + encodeURIComponent(url);
+                frame.src = proxyUrl;
                 listView.style.display = "none";
                 iframeView.classList.add("active");
                 toolbar.style.display = "flex";
