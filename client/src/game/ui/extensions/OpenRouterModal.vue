@@ -648,7 +648,7 @@ onMounted(() => {
             <div v-show="activeTab === 'settings'" class="ext-body openrouter-settings">
                 <div class="ext-ui-section openrouter-settings-section">
 
-                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.api_key") }}</h4>
+                    <h4 class="ext-ui-section-title">OpenRouter API Key</h4>
                     <div class="ext-ui-field openrouter-field">
                         <input
                             v-model="apiKey"
@@ -659,7 +659,7 @@ onMounted(() => {
                         />
                     </div>
                     
-                    <h4 class="ext-ui-section-title" style="margin-top: 15px;">{{ t("game.ui.extensions.OpenRouterModal.provider_google") }} API Key</h4>
+                    <h4 class="ext-ui-section-title" style="margin-top: 15px;">Google AI Studio API Key</h4>
                     <div class="ext-ui-field openrouter-field">
                         <input
                             v-model="googleApiKey"
@@ -675,17 +675,6 @@ onMounted(() => {
                     <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.model") }}</h4>
                     <div class="ext-ui-field openrouter-field">
                         <select v-model="selectedModel" class="ext-ui-select" :disabled="loadingModels">
-                        <optgroup
-                            label="Google AI Studio"
-                        >
-                            <option
-                                v-for="m in models.filter(x => x.id.startsWith('gemini'))"
-                                :key="m.id"
-                                :value="m.id"
-                            >
-                                {{ m.name }}
-                            </option>
-                        </optgroup>
                         <optgroup
                             v-if="freeModels.length > 0"
                             :label="t('game.ui.extensions.OpenRouterModal.model_free')"
@@ -704,6 +693,30 @@ onMounted(() => {
                         >
                             <option
                                 v-for="m in paidModels"
+                                :key="m.id"
+                                :value="m.id"
+                            >
+                                {{ m.name }}
+                            </option>
+                        </optgroup>
+                        <optgroup
+                            v-if="models.filter(x => x.id.startsWith('gemini') && x.is_free).length > 0"
+                            label="Google AI Studio (Gratuito)"
+                        >
+                            <option
+                                v-for="m in models.filter(x => x.id.startsWith('gemini') && x.is_free)"
+                                :key="m.id"
+                                :value="m.id"
+                            >
+                                {{ m.name }}
+                            </option>
+                        </optgroup>
+                        <optgroup
+                            v-if="models.filter(x => x.id.startsWith('gemini') && !x.is_free).length > 0"
+                            label="Google AI Studio (A pagamento)"
+                        >
+                            <option
+                                v-for="m in models.filter(x => x.id.startsWith('gemini') && !x.is_free)"
                                 :key="m.id"
                                 :value="m.id"
                             >
@@ -744,11 +757,11 @@ onMounted(() => {
                     <div class="ext-ui-field openrouter-field">
                         <select v-model="selectedImageModel" class="ext-ui-select" :disabled="loadingModels">
                             <optgroup
-                                v-if="googleImageModels.length > 0"
-                                label="Google AI Studio"
+                                v-if="openRouterImageModels.length > 0"
+                                label="OpenRouter"
                             >
                                 <option
-                                    v-for="m in googleImageModels"
+                                    v-for="m in openRouterImageModels"
                                     :key="m.id"
                                     :value="m.id"
                                 >
@@ -756,11 +769,23 @@ onMounted(() => {
                                 </option>
                             </optgroup>
                             <optgroup
-                                v-if="openRouterImageModels.length > 0"
-                                label="OpenRouter"
+                                v-if="googleImageModels.filter(m => m.is_free).length > 0"
+                                label="Google AI Studio (Gratuito)"
                             >
                                 <option
-                                    v-for="m in openRouterImageModels"
+                                    v-for="m in googleImageModels.filter(m => m.is_free)"
+                                    :key="m.id"
+                                    :value="m.id"
+                                >
+                                    {{ m.name }}
+                                </option>
+                            </optgroup>
+                            <optgroup
+                                v-if="googleImageModels.filter(m => !m.is_free).length > 0"
+                                label="Google AI Studio (A pagamento)"
+                            >
+                                <option
+                                    v-for="m in googleImageModels.filter(m => !m.is_free)"
                                     :key="m.id"
                                     :value="m.id"
                                 >
