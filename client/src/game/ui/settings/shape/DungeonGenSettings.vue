@@ -10,6 +10,7 @@ function editInDungeongen(): void {
     const shapeId = activeShapeStore.isComposite.value ? activeShapeStore.state.parentUuid : activeShapeStore.state.id;
     if (shapeId) {
         openDungeongenModalForEdit(shapeId);
+        activeShapeStore.setShowEditDialog(false);
     }
 }
 </script>
