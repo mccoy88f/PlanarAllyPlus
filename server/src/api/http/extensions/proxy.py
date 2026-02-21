@@ -70,6 +70,7 @@ INTERCEPTOR_JS_TEMPLATE = """
             const blob = blobMap.get(href);
             const reader = new FileReader();
             reader.onload = function() {{
+                console.log("[PlanarAlly Agent] Intercepted download:", filename, "(", blob.type, ")");
                 window.parent.postMessage({{
                     type: "planarally-intercepted-download",
                     filename: filename,
