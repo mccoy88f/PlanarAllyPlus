@@ -191,48 +191,31 @@ async def upload_zip(request: web.Request) -> web.Response:
         return web.HTTPInternalServerError(text=f"Upload error: {e}")
 
 
-def _is_hash_prefix_dir(name: str) -> bool:
-    """True if folder name looks like hash prefix (2 hex chars)."""
-    return (
-        len(name) == 2
-        and all(c in "0123456789abcdef" for c in name.lower())
-    )
-
-
-def _scan_folder_tree(base: Path, rel_path: Path, max_depth: int) -> dict | None:
-    """Recursively build folder tree. Returns {name, path, children} or None."""
-    if max_depth <= 0:
-        return None
-    children: list[dict] = []
-    full = base / rel_path if rel_path.parts else base
-    if not full.exists() or not full.is_dir():
-        return None
-    try:
-        for item in sorted(full.iterdir()):
-            if not item.is_dir() or item.name.startswith("."):
-                continue
-            if _is_hash_prefix_dir(item.name):
-                continue
-            child_rel = rel_path / item.name if rel_path.parts else Path(item.name)
-            child_node = _scan_folder_tree(base, child_rel, max_depth - 1)
-            path_str = child_rel.as_posix()
-            children.append({
-                "name": item.name,
-                "path": path_str,
-                "children": child_node["children"] if child_node else [],
-            })
-    except OSError:
-        pass
-    path_str = rel_path.as_posix() if rel_path.parts else ""
-    return {"name": path_str or "/", "path": path_str, "children": children}
+def _scan_db_folder_tree(user, parent_id: int | None, rel_path: str) -> list[dict]:
+    """Recursively build folder tree from DB."""
+    folders = Asset.select().where((Asset.owner == user) & (Asset.parent == parent_id) & (Asset.file_hash == None)).order_by(Asset.name)
+    children = []
+    for f in folders:
+        path = f"{rel_path}/{f.name}" if rel_path else f.name
+        children.append({
+            "name": f.name,
+            "path": path,
+            "children": _scan_db_folder_tree(user, f.id, path)
+        })
+    return children
 
 
 async def list_folders(request: web.Request) -> web.Response:
     """List folder tree for upload target selection."""
-    await get_authorized_user(request)
-    tree = _scan_folder_tree(ASSETS_DIR, Path(""), max_depth=8)
-    root = {"name": "/", "path": "", "children": tree["children"] if tree else []}
-    return web.json_response({"tree": root})
+    user = await get_authorized_user(request)
+    root_folder = Asset.get_root_folder(user)
+    
+    tree = {
+        "name": "/",
+        "path": "",
+        "children": _scan_db_folder_tree(user, root_folder.id, "")
+    }
+    return web.json_response({"tree": tree})
 
 
 async def list_installs(request: web.Request) -> web.Response:
