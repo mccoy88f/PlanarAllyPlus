@@ -115,37 +115,59 @@
 
         .wb-list {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 1rem;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
         }
 
         .wb-card {
             display: flex;
             flex-direction: column;
-            padding: 1rem;
             border: 1px solid #ddd;
-            border-radius: 8px;
+            border-radius: 12px;
             background: #fff;
             cursor: pointer;
-            transition: box-shadow 0.2s, border-color 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
             text-decoration: none;
             color: inherit;
+            overflow: hidden;
         }
 
         .wb-card:hover {
             border-color: #5c6bc0;
-            box-shadow: 0 4px 12px rgba(92, 107, 192, 0.2);
+            box-shadow: 0 8px 24px rgba(92, 107, 192, 0.2);
+            transform: translateY(-4px);
+        }
+
+        .wb-card-img {
+            width: 100%;
+            height: 160px;
+            background-size: cover;
+            background-position: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        .wb-card-body {
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
         }
 
         .wb-card-title {
             font-weight: 600;
-            font-size: 1rem;
-            margin-bottom: 0.25rem;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: #333;
         }
 
         .wb-card-desc {
-            font-size: 0.8rem;
+            font-size: 0.85rem;
+            line-height: 1.4;
             color: #666;
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
     </style>
 </head>
@@ -168,17 +190,33 @@
     <script>
         (function () {
             var GENERATORS = [
-                { url: "https://watabou.github.io/perilous-shores", name: "Region Generator", nameKey: "region" },
-                { url: "https://watabou.github.io/city-generator", name: "City Generator", nameKey: "city" },
-                { url: "https://watabou.github.io/village-generator/", name: "Village Generator", nameKey: "village" },
-                { url: "https://watabou.github.io/cave-generator", name: "Cave/Glade Generator", nameKey: "cave" },
-                { url: "https://watabou.github.io/one-page-dungeon", name: "Dungeon Generator", nameKey: "dungeon" },
-                { url: "https://watabou.github.io/dwellings/", name: "Dwellings Building Generator", nameKey: "dwellings" }
+                { url: "https://watabou.github.io/perilous-shores", name: "Region Generator", nameKey: "region", img: "card_realm.jpg", descKey: "regionDesc" },
+                { url: "https://watabou.github.io/city-generator", name: "City Generator", nameKey: "city", img: "card_city.jpg", descKey: "cityDesc" },
+                { url: "https://watabou.github.io/village-generator/", name: "Village Generator", nameKey: "village", img: "card_village.jpg", descKey: "villageDesc" },
+                { url: "https://watabou.github.io/cave-generator", name: "Cave/Glade Generator", nameKey: "cave", img: "card_cave.jpg", descKey: "caveDesc" },
+                { url: "https://watabou.github.io/one-page-dungeon", name: "Dungeon Generator", nameKey: "dungeon", img: "card_dungeon.jpg", descKey: "dungeonDesc" },
+                { url: "https://watabou.github.io/dwellings/", name: "Dwellings Building Generator", nameKey: "dwellings", img: "card_dwelling.jpg", descKey: "dwellingsDesc" }
             ];
 
             var TRANSLATIONS = {
-                en: { back: "Back", regen: "Random", import: "Add to Map", region: "Region Generator", city: "City Generator", village: "Village Generator", cave: "Cave/Glade Generator", dungeon: "Dungeon Generator", dwellings: "Dwellings Building Generator" },
-                it: { back: "Indietro", regen: "Casuale", import: "Aggiungi alla Mappa", region: "Generatore Regioni", city: "Generatore Città", village: "Generatore Villaggi", cave: "Generatore Caverne", dungeon: "Generatore Dungeon", dwellings: "Generatore Edifici" },
+                en: {
+                    back: "Back", regen: "Random", import: "Add to Map", region: "Region Generator", city: "City Generator", village: "Village Generator", cave: "Cave/Glade Generator", dungeon: "Dungeon Generator", dwellings: "Dwellings Building Generator",
+                    regionDesc: "Perilous Shores is a fantasy region generator with the scale of resulting maps ranging from an area around a single town to a small continent. While the maps are built on a hexagonal grid, the generator tries to be subtle about that underlying geometry. It was designed to produce hand-drawn looking maps, but now it is capable of displaying them in a variety of styles.",
+                    cityDesc: "Medieval Fantasy City Generator (MFCG) is the most developed and most popular generator of this set. Its initial version was crteated for the Montly Challenge on Reddit and back then maps it produced weren't much more than city-shaped Voronoi diagrams. Todays MFCG is capable of generating much more detailed and realistic maps with a lot of customization options.",
+                    villageDesc: "Unlike cities in the city generator, villages in the Village Generator are made of roads, not buildings. Houses are placed sparsely along these winding roads and complemented by fields and lots of trees to make resulting maps look rural.",
+                    caveDesc: "Cave/Glade generator was designed as an analogue of 1PDG for such natural locations as caves and burrows. However, later I realized that by changing the way maps are drawn, the same maps could be used to portray groups of connected clearings i.e. small passable areas of dense woods.",
+                    dungeonDesc: "One Page Dungeon Generator is inspired by the contest of the same name. The idea is not only to generate a meaningful dungeon plan, but also provide short descriptions for some of its locations. This is supposed to induce the feeling of the place having a story, even if a very vague one.",
+                    dwellingsDesc: "Dwellings is a generator of residential buildings ranging from simple cabins to mansions and small castles. Unlike its predicessor Procgen Mansion, the focus here is on meaningful floor plans (not exteriors) with most rooms assigned a specific purpose e.g. kitchen, armoury etc. The resulting floor plans are accompanied by elevation views of the building."
+                },
+                it: {
+                    back: "Indietro", regen: "Casuale", import: "Aggiungi alla Mappa", region: "Generatore Regioni", city: "Generatore Città", village: "Generatore Villaggi", cave: "Generatore Caverne", dungeon: "Generatore Dungeon", dwellings: "Generatore Edifici",
+                    regionDesc: "Perilous Shores è un generatore di regioni fantasy con mappe che variano da un'area intorno a una singola città a un piccolo continente. Sebbene le mappe siano costruite su una griglia esagonale, il generatore cerca di essere sottile riguardo a tale geometria sottostante. È stato progettato per produrre mappe dall'aspetto disegnato a mano, ma ora è in grado di visualizzarle in una varietà di stili.",
+                    cityDesc: "Medieval Fantasy City Generator (MFCG) è il generatore più sviluppato e popolare di questo set. La sua versione iniziale è stata creata per la sfida mensile su Reddit e all'epoca le mappe prodotte non erano molto più di diagrammi di Voronoi a forma di città. L'attuale MFCG è in grado di generare mappe molto più dettagliate e realistiche con molte opzioni di personalizzazione.",
+                    villageDesc: "A differenza delle città nel generatore di città, i villaggi nel Village Generator sono fatti di strade, non di edifici. Le case sono posizionate in modo sparso lungo queste strade tortuose e completate da campi e molti alberi per far sembrare le mappe rurali.",
+                    caveDesc: "Il generatore di caverne/radure è stato progettato come un analogo di 1PDG per luoghi naturali come caverne e tane. Tuttavia, in seguito mi sono reso conto che cambiandone la rappresentazione, le stesse mappe potrebbero essere utilizzate per ritrarre gruppi di radure collegate, ovvero piccole aree percorribili di fitti boschi.",
+                    dungeonDesc: "One Page Dungeon Generator è ispirato al concorso omonimo. L'idea non è solo quella di generare una planimetria significativa per un dungeon, ma anche di fornire brevi descrizioni per alcune delle sue posizioni. Questo dovrebbe indurre la sensazione che il luogo abbia una storia, anche se molto vaga.",
+                    dwellingsDesc: "Dwellings è un generatore di edifici residenziali che spaziano da semplici capanne a palazzi e piccoli castelli. A differenza del suo predecessore Procgen Mansion, qui l'attenzione è rivolta a planimetrie significative (non agli esterni) con la maggior parte delle stanze assegnate a uno scopo specifico, ad esempio cucina, armeria, ecc. Le planimetrie risultanti sono accompagnate da viste prospettiche dell'edificio."
+                },
                 de: { back: "Zurück", regen: "Zufällig", import: "Zur Karte hinzufügen", region: "Region Generator", city: "City Generator", village: "Village Generator", cave: "Cave/Glade Generator", dungeon: "Dungeon Generator", dwellings: "Dwellings Building Generator" },
                 fr: { back: "Retour", regen: "Aléatoire", import: "Ajouter alla carte", region: "Region Generator", city: "City Generator", village: "Village Generator", cave: "Cave/Glade Generator", dungeon: "Dungeon Generator", dwellings: "Dwellings Building Generator" },
                 es: { back: "Volver", regen: "Aleatorio", import: "Añadir al Mapa", region: "Region Generator", city: "City Generator", village: "Village Generator", cave: "Cave/Glade Generator", dungeon: "Dungeon Generator", dwellings: "Dwellings Building Generator" }
@@ -208,8 +246,16 @@
 
             function renderList() {
                 listEl.innerHTML = GENERATORS.map(function (g) {
-                    var name = (L[g.nameKey] || g.name);
-                    return '<a class="wb-card" href="#" data-url="' + g.url.replace(/"/g, "&quot;") + '" data-name="' + name.replace(/"/g, "&quot;") + '"><span class="wb-card-title">' + name.replace(/</g, "&lt;") + '</span><span class="wb-card-desc">watabou.github.io</span></a>';
+                    var name = t(g.nameKey);
+                    var desc = t(g.descKey);
+                    var imgUrl = 'images/' + g.img;
+                    return '<a class="wb-card" href="#" data-url="' + g.url.replace(/"/g, "&quot;") + '" data-name="' + name.replace(/"/g, "&quot;") + '">' +
+                        '<div class="wb-card-img" style="background-image: url(' + imgUrl + ')"></div>' +
+                        '<div class="wb-card-body">' +
+                        '<span class="wb-card-title">' + name.replace(/</g, "&lt;") + '</span>' +
+                        '<span class="wb-card-desc">' + desc.replace(/</g, "&lt;") + '</span>' +
+                        '</div>' +
+                        '</a>';
                 }).join("");
 
                 listEl.querySelectorAll(".wb-card").forEach(function (el) {
