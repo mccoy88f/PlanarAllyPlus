@@ -334,7 +334,8 @@
                 var path = node.path || '';
                 var name = node.name === '/' ? t('root') : node.name;
                 var hasChildren = node.children && node.children.length > 0;
-                var toggleChar = hasChildren ? '\u25BC' : '';
+                var isCollapsed = depth > 0;
+                var toggleChar = hasChildren ? (isCollapsed ? '\u25B6' : '\u25BC') : '';
                 var toggleCls = hasChildren ? '' : ' empty';
                 var icon = '\uD83D\uDCC1';
                 var row = '<div class="ai-tree-row" data-path="' + (path ? path.replace(/"/g, '&quot;') : '') + '">' +
@@ -343,7 +344,8 @@
                     '<span class="ai-tree-name">' + (name ? name.replace(/</g, '&lt;') : '') + '</span></div>';
                 var childrenHtml = '';
                 if (hasChildren) {
-                    childrenHtml = '<ul class="ai-tree-children">';
+                    var childrenCls = 'ai-tree-children' + (isCollapsed ? ' collapsed' : '');
+                    childrenHtml = '<ul class="' + childrenCls + '">';
                     node.children.forEach(function (child) {
                         childrenHtml += '<li class="ai-tree-item">' + renderTreeRow(child, depth + 1) + '</li>';
                     });

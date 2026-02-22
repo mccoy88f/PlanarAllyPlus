@@ -189,6 +189,10 @@ Le estensioni con `entry` in `extension.toml` vengono caricate in un iframe. Per
 | `planarally-open-document` | `{ fileHash, name, page? }` | Apre il visualizzatore PDF (est. Documents) |
 | `planarally-qe-hover` | `{ collection, slug, compendium?, clientX, clientY }` | Mostra tooltip compendio in hover |
 | `planarally-qe-hover-end` | — | Nasconde tooltip compendio |
+| `planarally-close-extension` | — | Chiede al client di chiudere l'estensione (usato per ESC) |
+
+**Note sul tasto ESC:**
+PlanarAlly chiude automaticamente l'estensione focalizzata quando viene premuto il tasto ESC. Se l'estensione usa un iframe, `ext-bridge.js` invia automaticamente il messaggio `planarally-close-extension` al client.
 
 **Funzioni helper (ext-bridge.js):**
 - `parentConfirm(title, message)` → `Promise<boolean>`

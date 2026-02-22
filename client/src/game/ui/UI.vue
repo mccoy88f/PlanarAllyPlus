@@ -15,6 +15,7 @@ import {
     closeOpenRouterModal,
     closeCompendiumModal,
     openCompendiumModalForItem,
+    requestCloseExtensionModal,
 } from "../systems/extensions/ui";
 import {
     timeManagerHandleMessage,
@@ -99,6 +100,42 @@ function handleCountdownComplete(e: CustomEvent<{ name: string }>): void {
     toast.info(t("game.ui.extensions.time-manager.countdown_complete", { name }));
 }
 
+function checkEscape(event: KeyboardEvent): void {
+    if (event.key === "Escape") {
+        const lf = extensionsState.reactive.lastFocusedModal;
+        if (lf?.type === "extension") {
+            const extId = lf.id;
+            if (extId === "dungeongen") {
+                if (extensionsState.raw.dungeongenModalOpen) {
+                    closeDungeongenModal();
+                    event.stopImmediatePropagation();
+                }
+            } else if (extId === "compendium") {
+                if (extensionsState.raw.compendiumModalOpen) {
+                    closeCompendiumModal();
+                    event.stopImmediatePropagation();
+                }
+            } else if (extId === "openrouter") {
+                if (extensionsState.raw.openrouterModalOpen) {
+                    closeOpenRouterModal();
+                    event.stopImmediatePropagation();
+                }
+            } else if (extId === "documents-pdf") {
+                if (extensionsState.raw.documentsPdfViewer) {
+                    closeDocumentsPdfViewer();
+                    event.stopImmediatePropagation();
+                }
+            } else {
+                const ext = extensionsState.raw.extensionModalsOpen.find((m) => m.id === extId);
+                if (ext) {
+                    requestCloseExtensionModal(extId);
+                    event.stopImmediatePropagation();
+                }
+            }
+        }
+    }
+}
+
 onMounted(() => {
     // hide all UI elements that were previously open
     activeShapeStore.setShowEditDialog(false);
@@ -108,11 +145,13 @@ onMounted(() => {
     tokenDialogVisible.value = false;
     window.addEventListener("message", handleExtensionMessage);
     window.addEventListener(COUNTDOWN_COMPLETE_EVENT, handleCountdownComplete as EventListener);
+    window.addEventListener("keydown", checkEscape);
 });
 
 onUnmounted(() => {
     window.removeEventListener("message", handleExtensionMessage);
     window.removeEventListener(COUNTDOWN_COMPLETE_EVENT, handleCountdownComplete as EventListener);
+    window.removeEventListener("keydown", checkEscape);
 });
 
 function toggleLocations(): void {

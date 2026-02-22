@@ -44,6 +44,12 @@ async function handleMessage(event: MessageEvent): Promise<void> {
         return;
     }
 
+    if (data?.type === "planarally-add-to-map" && data.url) {
+        await addDungeonToMap(data.url, data.gridCells || { width: 40, height: 40 });
+        toast.success(t("game.ui.extensions.watabou.added_to_map"));
+        return;
+    }
+
     if (data?.type === "planarally-import-image" && data.url) {
         const toastId = toast.info(t("game.ui.extensions.watabou.importing"), { timeout: false });
         try {
@@ -80,6 +86,8 @@ async function handleMessage(event: MessageEvent): Promise<void> {
         }
     } else if (data?.type === "ambient-music-playing" && typeof data.playing === "boolean") {
         extensionsState.mutableReactive.ambientMusicPlaying = data.playing;
+    } else if (data?.type === "planarally-close-extension") {
+        close();
     }
 }
 

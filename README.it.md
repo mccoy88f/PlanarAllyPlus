@@ -14,19 +14,20 @@ Un fork della versione 2026.1 con estensioni e funzionalità migliorate.
 
 Uno strumento di supporto per quando viaggi attraverso i piani. PlanarAlly Plus è un'applicazione web che aggiunge mappe di battaglia virtuali con varie funzionalità extra alla tua cassetta degli attrezzi per GDR/D&D.
 
-## Novità in PlanarAlly Plus
-
-Questo fork aggiunge le seguenti estensioni e funzioni:
-
+- **Watabou** — Importa mappe da Watabou City Generator e One Page Dungeon. Configurazione automatica di immagini e muri.
 - **Documents** — Carica e visualizza documenti PDF. Condividi documenti con i giocatori.
 - **AI Generator** — Connessione a modelli AI (OpenRouter, Google AI Studio) per personaggi, storie, mappe e altro.
-- **DungeonGen** — Generazione procedurale di dungeon per mappe da tavolo.
+- **DungeonGen** — Generazione procedurale di dungeon per mappe da tavolo. Supporta la generazione automatica di muri per collisioni e luci.
 - **Compendium** — Installa più compendi di conoscenza (JSON), cerca nelle schede personaggio e altrove.
 - **Character Sheet** — Schede personaggio D&D 5e per i token (visualizza/modifica; il Master vede tutto, i giocatori vedono le proprie).
-- **Assets Installer** — Carica file ZIP per installare asset pack nella cartella assets.
+- **Assets Installer** — Installa asset pack da file ZIP. Include un albero delle cartelle organizzato e denominazione automatica dei pacchetti.
 - **Time Manager** — Timer e conto alla rovescia con avviso audio; continua anche con il modale chiuso.
 - **Guida** — Documentazione e guida utente integrate (IT/EN).
 - **Musica d'ambiente** — Playlist e audio d'ambiente dagli asset.
+
+## Funzionalità Quality of Life
+- **ESC Globale per Chiudere** — Chiudi qualsiasi estensione o modale attivo con la sola pressione del tasto ESC.
+- **UI Standardizzata** — Look and feel coerente tra tutte le estensioni con barre di caricamento allineate in alto e layout unificato.
 
 ## Caratteristiche di base
 

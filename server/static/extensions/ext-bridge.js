@@ -56,4 +56,13 @@
             }, '*');
         });
     };
+
+    window.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            var target = getTarget();
+            if (target) {
+                target.postMessage({ type: 'planarally-close-extension' }, '*');
+            }
+        }
+    });
 })();

@@ -105,10 +105,7 @@ async def upload_zip(request: web.Request) -> web.Response:
                 return web.HTTPBadRequest(text="ZIP file is empty")
 
             install_id = str(uuid.uuid4())[:8]
-            base_name = Path(filename).stem
-            if not re.match(r"^[a-zA-Z0-9_-]+$", base_name):
-                base_name = install_id
-            install_name = base_name
+            install_name = Path(filename).stem
 
             target_folder = _get_or_create_target_folder(user, target_path)
             base_path_str = str(safe_target).replace("\\", "/") if str(safe_target) else ""

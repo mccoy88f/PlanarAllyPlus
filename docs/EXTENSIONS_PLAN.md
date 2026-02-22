@@ -163,30 +163,34 @@ Componente Vue da includere in ExtensionsSettings o come sottopannello:
 
 ## Parte 4: Piano di Implementazione (Fasi)
 
-### Fase 1: Infrastruttura base (1–2 giorni)
-- [ ] Aggiungere tab Extensions in DmSettings
-- [ ] Creare ExtensionsSettings.vue con layout base
-- [ ] Aggiungere traduzioni
-- [ ] Creare `GET /api/extensions` che restituisce lista da manifest (o lista hardcoded iniziale)
+### Fase 1: Infrastruttura base (Completata)
+- [x] Aggiungere tab Extensions in DmSettings
+- [x] Creare ExtensionsSettings.vue con layout base
+- [x] Aggiungere traduzioni
+- [x] Creare `GET /api/extensions` che restituisce lista da manifest (o lista hardcoded iniziale)
 
-### Fase 2: Estensione Dungeongen – Backend (2–3 giorni)
-- [ ] Creare `extension.toml` per dungeongen
-- [ ] Estrarre logica generazione da `app.py` (senza Flask)
-- [ ] Correggere path e dipendenze in dungeongen
-- [ ] Creare `server/src/api/http/extensions/` e `dungeongen.py`
-- [ ] Registrare route `POST /api/extensions/dungeongen/generate`
-- [ ] Aggiungere dungeongen come dipendenza opzionale o path in `sys.path`
+### Fase 2: Estensione Dungeongen – Backend (Completata)
+- [x] Creare `extension.toml` per dungeongen
+- [x] Estrarre logica generazione da `app.py` (senza Flask)
+- [x] Correggere path e dipendenze in dungeongen
+- [x] Creare `server/src/api/http/extensions/` e `dungeongen.py`
+- [x] Registrare route `POST /api/extensions/dungeongen/generate`
+- [x] Aggiungere dungeongen come dipendenza opzionale o path in `sys.path`
 
-### Fase 3: Estensione Dungeongen – Frontend (2–3 giorni)
-- [ ] Creare `DungeonGeneratorPanel.vue` con form parametri
-- [ ] Integrare in ExtensionsSettings
-- [ ] Chiamata API e anteprima SVG
-- [ ] Logica "Add to Map" (PNG blob → Asset)
+### Fase 3: Estensione Dungeongen – Frontend (Completata)
+- [x] Creare `DungeonGeneratorPanel.vue` con form parametri
+- [x] Integrare in ExtensionsSettings
+- [x] Chiamata API e anteprima SVG
+- [x] Logica "Add to Map" (PNG blob → Asset)
 
-### Fase 4: Polish e documentazione (1 giorno)
-- [ ] Gestione errori e messaggi utente
-- [ ] README per sviluppatori estensioni
-- [ ] Test manuale end-to-end
+### Fase 4: Sviluppo nuove estensioni (In corso)
+- [x] **Documents** — Visualizzatore PDF e condivisione
+- [x] **Assets Installer** — Caricamento ZIP e gestione asset pack
+- [x] **Watabou** — Importazione mappe City Generator e One Page Dungeon
+- [x] **Compendium** — Pannello di ricerca e installazione compendi
+- [x] **Time Manager** — Timer e countdown
+- [x] **Ambient Music** — Audio posizionale e playlist
+- [x] **Quality of Life** — ESC globale per chiusura, UI standardizzata
 
 ---
 

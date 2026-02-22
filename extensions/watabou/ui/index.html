@@ -65,6 +65,25 @@
             flex-wrap: wrap;
         }
 
+        .wb-import-btn {
+            padding: 0.4rem 0.8rem;
+            border: 1px solid #5c6bc0;
+            border-radius: 6px;
+            background: #5c6bc0;
+            color: #fff;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            transition: background 0.2s;
+        }
+
+        .wb-import-btn:hover {
+            background: #4a59a7;
+        }
+
         .wb-permalink-wrap {
             display: flex;
             align-items: center;
@@ -169,6 +188,137 @@
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
+
+        /* Modal & Dropzone */
+        .wb-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 2rem;
+        }
+
+        .wb-modal-overlay.active {
+            display: flex;
+        }
+
+        .wb-modal {
+            background: #fff;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 500px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+
+        .wb-modal-header {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .wb-modal-close {
+            cursor: pointer;
+            font-size: 1.5rem;
+            color: #999;
+        }
+
+        .wb-modal-close:hover {
+            color: #333;
+        }
+
+        .wb-modal-body {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: #444;
+            margin-bottom: 1.5rem;
+        }
+
+        .wb-dropzone {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            background: #fdfdfd;
+            transition: border-color 0.2s, background 0.2s;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .wb-dropzone.dragover {
+            border-color: #5c6bc0;
+            background: #f0f2ff;
+        }
+
+        .wb-dropzone input[type="file"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .wb-dropzone-icon {
+            font-size: 2rem;
+            color: #999;
+            margin-bottom: 0.5rem;
+        }
+
+        .wb-dropzone-text {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .wb-loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 0.5rem;
+            border-radius: 8px;
+        }
+
+        .wb-loading-overlay.active {
+            display: flex;
+        }
+
+        .wb-spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid #eee;
+            border-top: 3px solid #5c6bc0;
+            border-radius: 50%;
+            animation: wb-spin 1s linear infinite;
+        }
+
+        @keyframes wb-spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
 
@@ -177,6 +327,7 @@
         <div id="toolbar" class="wb-toolbar" style="display: none;">
             <button type="button" id="backBtn" class="wb-back-btn">← Back</button>
             <div class="wb-export-group">
+                <button type="button" id="importMapBtn" class="wb-import-btn">Importa mappa</button>
                 <button type="button" id="regenBtn" class="wb-regen-btn"></button>
             </div>
         </div>
@@ -185,6 +336,27 @@
         </div>
         <div id="iframeView" class="wb-iframe-wrap">
             <iframe id="generatorFrame" title="Watabou Generator"></iframe>
+        </div>
+        <div id="importModal" class="wb-modal-overlay">
+            <div class="wb-modal">
+                <div class="wb-modal-header">
+                    <span id="importModalTitle">Importa Mappa</span>
+                    <span class="wb-modal-close" id="closeImportModal">&times;</span>
+                </div>
+                <div class="wb-modal-body" id="importModalBody">
+                    Per importare la mappa in PlanarAlly torna indietro premi il tasto destro e clicca su Export -> as
+                    PNG dopo averlo scaricato trascinalo qui:
+                </div>
+                <div class="wb-dropzone" id="dropzone">
+                    <div class="wb-dropzone-icon">📁</div>
+                    <div class="wb-dropzone-text" id="dropzoneText">Trascina qui il file o clicca per selezionarlo</div>
+                    <input type="file" id="fileInput" accept="image/png,image/jpeg" />
+                    <div class="wb-loading-overlay" id="loadingOverlay">
+                        <div class="wb-spinner"></div>
+                        <span id="loadingText">Caricamento...</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <script>
@@ -201,6 +373,8 @@
             var TRANSLATIONS = {
                 en: {
                     back: "Back", regen: "Random", import: "Add to Map", region: "Region Generator", city: "City Generator", village: "Village Generator", cave: "Cave/Glade Generator", dungeon: "Dungeon Generator", dwellings: "Dwellings Building Generator",
+                    importMap: "Import Map", importTitle: "Import Map to PlanarAlly", importInstructions: "To import the map into PlanarAlly, go back, right-click and click on Export -> as PNG. Once downloaded, drag it here:",
+                    dropzoneText: "Drag file here or click to select", loading: "Uploading...", uploadSuccess: "Import successful", uploadError: "Upload failed",
                     regionDesc: "Perilous Shores is a fantasy region generator with the scale of resulting maps ranging from an area around a single town to a small continent. While the maps are built on a hexagonal grid, the generator tries to be subtle about that underlying geometry. It was designed to produce hand-drawn looking maps, but now it is capable of displaying them in a variety of styles.",
                     cityDesc: "Medieval Fantasy City Generator (MFCG) is the most developed and most popular generator of this set. Its initial version was crteated for the Montly Challenge on Reddit and back then maps it produced weren't much more than city-shaped Voronoi diagrams. Todays MFCG is capable of generating much more detailed and realistic maps with a lot of customization options.",
                     villageDesc: "Unlike cities in the city generator, villages in the Village Generator are made of roads, not buildings. Houses are placed sparsely along these winding roads and complemented by fields and lots of trees to make resulting maps look rural.",
@@ -210,6 +384,8 @@
                 },
                 it: {
                     back: "Indietro", regen: "Casuale", import: "Aggiungi alla Mappa", region: "Generatore Regioni", city: "Generatore Città", village: "Generatore Villaggi", cave: "Generatore Caverne", dungeon: "Generatore Dungeon", dwellings: "Generatore Edifici",
+                    importMap: "Importa mappa", importTitle: "Importa la mappa in PlanarAlly", importInstructions: "Per importare la mappa in PlanarAlly torna indietro premi il tasto destro e clicca su Export -> as PNG dopo averlo scaricato trascinalo qui:",
+                    dropzoneText: "Trascina qui il file o clicca per selezionarlo", loading: "Caricamento...", uploadSuccess: "Importazione completata", uploadError: "Caricamento fallito",
                     regionDesc: "Perilous Shores è un generatore di regioni fantasy con mappe che variano da un'area intorno a una singola città a un piccolo continente. Sebbene le mappe siano costruite su una griglia esagonale, il generatore cerca di essere sottile riguardo a tale geometria sottostante. È stato progettato per produrre mappe dall'aspetto disegnato a mano, ma ora è in grado di visualizzarle in una varietà di stili.",
                     cityDesc: "Medieval Fantasy City Generator (MFCG) è il generatore più sviluppato e popolare di questo set. La sua versione iniziale è stata creata per la sfida mensile su Reddit e all'epoca le mappe prodotte non erano molto più di diagrammi di Voronoi a forma di città. L'attuale MFCG è in grado di generare mappe molto più dettagliate e realistiche con molte opzioni di personalizzazione.",
                     villageDesc: "A differenza delle città nel generatore di città, i villaggi nel Village Generator sono fatti di strade, non di edifici. Le case sono posizionate in modo sparso lungo queste strade tortuose e completate da campi e molti alberi per far sembrare le mappe rurali.",
@@ -235,14 +411,21 @@
                 return L[key] || TRANSLATIONS.en[key] || key;
             }
 
-            var listView = document.getElementById("listView");
-            var iframeView = document.getElementById("iframeView");
-            var toolbar = document.getElementById("toolbar");
-            var backBtn = document.getElementById("backBtn");
-            var regenBtn = document.getElementById("regenBtn");
-            var frame = document.getElementById("generatorFrame");
+            function api(path) {
+                var base = window.location.pathname.indexOf('/api/') >= 0 ? window.location.pathname.slice(0, window.location.pathname.indexOf('/api/')) : '';
+                return base + path;
+            }
+
             var listEl = document.getElementById("generatorList");
             var currentGeneratorUrl = "";
+
+            var importModal = document.getElementById("importModal");
+            var closeImportModal = document.getElementById("closeImportModal");
+            var importMapBtn = document.getElementById("importMapBtn");
+            var dropzone = document.getElementById("dropzone");
+            var fileInput = document.getElementById("fileInput");
+            var loadingOverlay = document.getElementById("loadingOverlay");
+            var currentGeneratorName = "Generic";
 
             function renderList() {
                 listEl.innerHTML = GENERATORS.map(function (g) {
@@ -261,6 +444,7 @@
                 listEl.querySelectorAll(".wb-card").forEach(function (el) {
                     el.addEventListener("click", function (e) {
                         e.preventDefault();
+                        currentGeneratorName = el.dataset.name;
                         openGenerator(el.dataset.url, el.dataset.name);
                     });
                 });
@@ -287,10 +471,76 @@
                 toolbar.style.display = "none";
             }
 
+            function toggleImportModal(show) {
+                importModal.classList.toggle("active", show);
+            }
+
+            async function handleFileUpload(file) {
+                if (!file) return;
+                loadingOverlay.classList.add("active");
+                var formData = new FormData();
+                formData.append("file", file);
+                formData.append("generator", currentGeneratorName);
+
+                try {
+                    var response = await fetch(api("/api/extensions/watabou/upload"), {
+                        method: "POST",
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        var data = await response.json();
+                        window.parent.postMessage({
+                            type: "planarally-add-to-map",
+                            url: data.url,
+                            gridCells: data.gridCells
+                        }, "*");
+                        toggleImportModal(false);
+                        window.parent.postMessage({ type: "planarally-toast", message: t("uploadSuccess") }, "*");
+                    } else {
+                        var err = await response.text();
+                        window.parent.postMessage({ type: "planarally-toast", message: t("uploadError") + ": " + err, error: true }, "*");
+                    }
+                } catch (e) {
+                    window.parent.postMessage({ type: "planarally-toast", message: t("uploadError"), error: true }, "*");
+                } finally {
+                    loadingOverlay.classList.remove("active");
+                    fileInput.value = "";
+                }
+            }
+
+            importMapBtn.addEventListener("click", function () { toggleImportModal(true); });
+            closeImportModal.addEventListener("click", function () { toggleImportModal(false); });
+            importModal.addEventListener("click", function (e) { if (e.target === importModal) toggleImportModal(false); });
+
+            dropzone.addEventListener("dragover", function (e) { e.preventDefault(); dropzone.classList.add("dragover"); });
+            dropzone.addEventListener("dragleave", function () { dropzone.classList.remove("dragover"); });
+            dropzone.addEventListener("drop", function (e) {
+                e.preventDefault();
+                dropzone.classList.remove("dragover");
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleFileUpload(e.dataTransfer.files[0]);
+                }
+            });
+
+            fileInput.addEventListener("change", function () {
+                if (fileInput.files && fileInput.files.length > 0) {
+                    handleFileUpload(fileInput.files[0]);
+                }
+            });
+
             backBtn.addEventListener("click", showList);
             backBtn.textContent = t("back");
             regenBtn.textContent = t("regen");
             regenBtn.addEventListener("click", regenerate);
+
+            // Set translated strings
+            importMapBtn.textContent = t("importMap");
+            document.getElementById("importModalTitle").textContent = t("importTitle");
+            document.getElementById("importModalBody").textContent = t("importInstructions");
+            document.getElementById("dropzoneText").textContent = t("dropzoneText");
+            document.getElementById("loadingText").textContent = t("loading");
+
             renderList();
         })();
     </script>

@@ -22,11 +22,15 @@ const route = useRoute();
 
 /** In fake player mode, show only extensions visible to players */
 const visibleExtensions = computed(() => {
-    const exts = extensionsState.reactive.extensions;
+    let exts = extensionsState.reactive.extensions;
     if (gameState.reactive.isFakePlayer) {
-        return exts.filter((ext) => ext.visibleToPlayers === true);
+        exts = exts.filter((ext) => ext.visibleToPlayers === true);
     }
-    return exts;
+    return [...exts].sort((a, b) => {
+        const nameA = extensionDisplayName(a);
+        const nameB = extensionDisplayName(b);
+        return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
+    });
 });
 
 async function loadExtensions(): Promise<void> {
@@ -51,9 +55,7 @@ async function loadExtensions(): Promise<void> {
                     visibleToPlayers?: boolean;
                 }[];
             };
-            const exts = data.extensions ?? [];
-            exts.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-            extensionsState.mutableReactive.extensions = exts;
+            extensionsState.mutableReactive.extensions = data.extensions ?? [];
         }
     } catch {
         extensionsState.mutableReactive.extensions = [];
