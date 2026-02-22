@@ -2,26 +2,35 @@
 
 import copy
 import datetime
+import hashlib
 import json
 import re
 import uuid
 
 from aiohttp import web
 
+from .dndbeyond_adapter import migrate_old_to_beyond
+from .dndbeyond_schema import empty_character, get_character_name
+from pathlib import Path
+
 from ....auth import get_authorized_user
+from ....db.models.asset import Asset
 from ....db.models.character import Character
 from ....db.models.user_options import UserOptions
 from ....db.models.player_room import PlayerRoom
 from ....db.models.room import Room
 from ....db.models.user import User
 from ....models.role import Role
-from ....utils import DATA_DIR, get_asset_hash_subpath
-
-from .dndbeyond_adapter import migrate_old_to_beyond
-from .dndbeyond_schema import empty_character, get_character_name
+from ....utils import ASSETS_DIR, DATA_DIR, get_asset_hash_subpath
 
 SHEETS_FILE = DATA_DIR / "character_sheets.json"
 DEFAULTS_FILE = DATA_DIR / "character_sheet_defaults.json"
+EXTENSION_ID = "character-sheet"
+
+
+def _get_or_create_portrait_folder(user: User) -> Asset:
+    """Get or create the portraits folder at assets/extensions/character-sheet."""
+    return Asset.get_or_create_extension_folder(user, EXTENSION_ID)
 
 
 def _load_sheets() -> dict:
@@ -739,3 +748,45 @@ async def get_default(request: web.Request) -> web.Response:
     default_key = f"{user.id}_{room.id}"
     sheet_id = defaults.get(default_key)
     return web.json_response({"defaultSheetId": sheet_id})
+
+
+async def upload_portrait(request: web.Request) -> web.Response:
+    """Upload a portrait image to the extension's assets folder."""
+    user = await get_authorized_user(request)
+
+    reader = await request.multipart()
+    filename = "portrait.png"
+    data = b""
+
+    async for part in reader:
+        if part.name == "file":
+            filename = part.filename or "portrait.png"
+            data = await part.read()
+
+    if not data:
+        return web.HTTPBadRequest(text="No file in 'file' field")
+
+    # Simple validation: common image extensions
+    allowed = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+    ext = Path(filename).suffix.lower()
+    if ext not in allowed:
+        return web.HTTPBadRequest(text=f"Invalid file type: {ext}")
+
+    sh = hashlib.sha1(data)
+    hashname = sh.hexdigest()
+    full_hash_path = ASSETS_DIR / get_asset_hash_subpath(hashname)
+
+    if not full_hash_path.exists():
+        full_hash_path.parent.mkdir(parents=True, exist_ok=True)
+        full_hash_path.write_bytes(data)
+
+    folder = _get_or_create_portrait_folder(user)
+    asset = Asset.create(name=filename, file_hash=hashname, owner=user, parent=folder)
+
+    # Generate thumbnail
+    from ....thumbnail import generate_thumbnail_for_asset
+
+    generate_thumbnail_for_asset(filename, hashname)
+
+    url = f"/static/assets/{get_asset_hash_subpath(hashname).as_posix()}"
+    return web.json_response({"ok": True, "url": url, "assetId": asset.id})
