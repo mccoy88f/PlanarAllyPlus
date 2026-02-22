@@ -426,6 +426,11 @@
             var fileInput = document.getElementById("fileInput");
             var loadingOverlay = document.getElementById("loadingOverlay");
             var currentGeneratorName = "Generic";
+            // Added missing element references for proper functionality
+            var toolbar = document.getElementById("toolbar");
+            var listView = document.getElementById("listView");
+            var iframeView = document.getElementById("iframeView");
+            var frame = document.getElementById("generatorFrame");
 
             function renderList() {
                 listEl.innerHTML = GENERATORS.map(function (g) {
