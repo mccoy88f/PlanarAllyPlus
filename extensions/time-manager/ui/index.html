@@ -1,43 +1,205 @@
 <!DOCTYPE html>
 <html lang="">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Time Manager</title>
     <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=2" />
+    <script src="../../../../static/extensions/ext-bridge.js"></script>
     <style>
-        :root { --tm-accent: #2e7d32; }
-        * { box-sizing: border-box; }
-        html, body { height: 100%; margin: 0; padding: 0; font-family: system-ui, sans-serif; font-size: 13px; }
-        .tm-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-        .tm-item { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px; background: #fafafa; }
-        .tm-item-display-wrap { width: 100%; }
-        .tm-item-name-row { display: flex; align-items: center; gap: 0.5rem; width: 100%; }
-        .tm-item-name { flex: 1; min-width: 0; }
-        .tm-item-name input { width: 100%; padding: 0.25rem 0.5rem; font-size: 0.9rem; border: 1px solid #ccc; border-radius: 4px; font-weight: 600; box-sizing: border-box; }
-        .tm-item-remove { flex-shrink: 0; background: none; border: none; color: #999; cursor: pointer; padding: 0.2rem; font-size: 1rem; }
-        .tm-item-remove:hover { color: #c00; }
-        .tm-item-btns { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; width: 100%; }
-        .tm-mode-toggle { display: flex; border: 1px solid #ccc; border-radius: 4px; overflow: hidden; }
-        .tm-mode-btn { padding: 0.35rem 0.6rem; border: none; background: #fff; cursor: pointer; font-size: 0.8rem; }
-        .tm-mode-btn.active.countdown { background: #f9a825; color: #000; }
-        .tm-mode-btn.active.timer { background: #ef6c00; color: #fff; }
-        .tm-mode-btn:not(.active):hover { background: #eee; }
-        .tm-display { font-family: monospace; font-size: 1.2rem; font-variant-numeric: tabular-nums; width: 100%; max-width: 100%; text-align: center; box-sizing: border-box; }
-        .tm-display[type="text"] { border: 1px solid #ccc; border-radius: 4px; padding: 0.16rem 0.32rem; background: #fff; }
-        .tm-display[type="text"]:read-only { border-color: transparent; background: transparent; cursor: default; }
-        .tm-display.running { color: var(--tm-accent); }
-        .tm-ctrl { display: flex; gap: 0.35rem; }
-        .tm-ctrl button { padding: 0.35rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer; font-size: 0.85rem; }
-        .tm-ctrl button:hover { background: #eee; }
-        .tm-ctrl button.primary { background: var(--tm-accent); color: #fff; border-color: var(--tm-accent); }
-        .tm-ctrl button.primary:hover { background: #1b5e20; }
-        .tm-ctrl button.primary.tm-stop { background: #c62828; border-color: #c62828; }
-        .tm-ctrl button.primary.tm-stop:hover { background: #b71c1c; }
-        .tm-toolbar .ext-search-bar { flex: 1; min-width: 0; }
-        .tm-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; padding: 0.35rem; }
+        :root {
+            --tm-accent: #2e7d32;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, sans-serif;
+            font-size: 13px;
+        }
+
+        .tm-root {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .tm-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+
+        .tm-item-display-wrap {
+            width: 100%;
+        }
+
+        .tm-item-name-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            width: 100%;
+        }
+
+        .tm-item-name {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .tm-item-name input {
+            width: 100%;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.9rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-weight: 600;
+            box-sizing: border-box;
+        }
+
+        .tm-item-remove {
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            padding: 0.2rem;
+            font-size: 1rem;
+        }
+
+        .tm-item-remove:hover {
+            color: #c00;
+        }
+
+        .tm-item-btns {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+            width: 100%;
+        }
+
+        .tm-mode-toggle {
+            display: flex;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .tm-mode-btn {
+            padding: 0.35rem 0.6rem;
+            border: none;
+            background: #fff;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .tm-mode-btn.active.countdown {
+            background: #f9a825;
+            color: #000;
+        }
+
+        .tm-mode-btn.active.timer {
+            background: #ef6c00;
+            color: #fff;
+        }
+
+        .tm-mode-btn:not(.active):hover {
+            background: #eee;
+        }
+
+        .tm-display {
+            font-family: monospace;
+            font-size: 1.2rem;
+            font-variant-numeric: tabular-nums;
+            width: 100%;
+            max-width: 100%;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        .tm-display[type="text"] {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 0.16rem 0.32rem;
+            background: #fff;
+        }
+
+        .tm-display[type="text"]:read-only {
+            border-color: transparent;
+            background: transparent;
+            cursor: default;
+        }
+
+        .tm-display.running {
+            color: var(--tm-accent);
+        }
+
+        .tm-ctrl {
+            display: flex;
+            gap: 0.35rem;
+        }
+
+        .tm-ctrl button {
+            padding: 0.35rem 0.6rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .tm-ctrl button:hover {
+            background: #eee;
+        }
+
+        .tm-ctrl button.primary {
+            background: var(--tm-accent);
+            color: #fff;
+            border-color: var(--tm-accent);
+        }
+
+        .tm-ctrl button.primary:hover {
+            background: #1b5e20;
+        }
+
+        .tm-ctrl button.primary.tm-stop {
+            background: #c62828;
+            border-color: #c62828;
+        }
+
+        .tm-ctrl button.primary.tm-stop:hover {
+            background: #b71c1c;
+        }
+
+        .tm-toolbar .ext-search-bar {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .tm-list {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0.35rem;
+        }
     </style>
 </head>
+
 <body class="ext-ui-root">
     <div class="tm-root ext-modal-body-wrapper">
         <div class="ext-toolbar-bar tm-toolbar">
@@ -113,6 +275,7 @@
             const div = document.createElement("div");
             div.className = "tm-item";
             div.dataset.id = item.id;
+            div.dataset.mode = item.mode; // Track mode to detect changes in syncUI
             const isCountdown = item.mode === "countdown";
             const display = document.createElement(isCountdown ? "input" : "div");
             display.className = "tm-display" + (item.running ? " running" : "");
@@ -152,7 +315,7 @@
             removeBtn.className = "tm-item-remove";
             removeBtn.textContent = "✕";
             removeBtn.title = t.remove;
-            removeBtn.onclick = () => { if (confirm(t.removeConfirm)) send("remove", { id: item.id }); };
+            removeBtn.onclick = async () => { if (await parentConfirm(t.remove, t.removeConfirm)) send("remove", { id: item.id }); };
             const nameRow = document.createElement("div");
             nameRow.className = "tm-item-name-row";
             nameRow.appendChild(nameInput);
@@ -191,71 +354,7 @@
             return div;
         }
 
-        function syncUI() {
-            const list = document.getElementById("list");
-            const ids = new Set(items.map(i => i.id));
-            for (const el of list.querySelectorAll(".tm-item")) {
-                if (!ids.has(el.dataset.id)) el.remove();
-            }
-            for (const item of items) {
-                let el = list.querySelector(`[data-id="${item.id}"]`);
-                if (!el) {
-                    el = renderItem(item);
-                    list.appendChild(el);
-                }
-                if (el._display instanceof HTMLInputElement) {
-                    el._display.readOnly = item.running;
-                    if (document.activeElement !== el._display) {
-                        el._display.value = formatMs(item.mode === "countdown" && !item.running ? item.targetMs : item.valueMs);
-                    }
-                } else {
-                    el._display.textContent = formatMs(item.valueMs);
-                }
-                el._display.classList.toggle("running", item.running);
-                el._startStop.textContent = item.running ? t.stop : t.start;
-                el._startStop.classList.toggle("tm-stop", item.running);
-                el._startStop.onclick = () => send(item.running ? "stop" : "start", { id: item.id });
-                const q = el.querySelector(".tm-item-name");
-                if (q && q.value !== item.name) q.value = item.name || "";
-                el._countdownBtn.classList.toggle("active", item.mode === "countdown");
-                el._timerBtn.classList.toggle("active", item.mode === "timer");
-            }
-        }
-
-        window.addEventListener("message", (e) => {
-            const d = e.data;
-            if (d?.type === "time-manager-state" && Array.isArray(d.items)) {
-                items = d.items;
-                syncUI();
-            }
-        });
-
-        try {
-            const bc = new BroadcastChannel(CHANNEL);
-            bc.onmessage = (e) => {
-                if (e.data?.type === "state" && Array.isArray(e.data.items)) {
-                    items = e.data.items;
-                    syncUI();
-                }
-            };
-        } catch (_) {}
-
-        const searchInput = document.getElementById("searchInput");
-        const addBtn = document.getElementById("addBtn");
-        const searchPlaceholder = locale === "it" ? "Cerca timer..." : "Search timers...";
-        searchInput.placeholder = searchPlaceholder;
-        addBtn.innerHTML = "+";
-        addBtn.title = t.add;
-        addBtn.onclick = () => {
-            const mode = items.length > 0 && items[items.length - 1].mode === "countdown" ? "countdown" : "timer";
-            const name = "Timer " + (items.length + 1);
-            send("add", { mode, name, targetMs: 60000 });
-        };
-
-        let searchFilter = "";
-        searchInput.oninput = () => { searchFilter = searchInput.value.trim().toLowerCase(); syncUI(); };
-
-        syncUI = function() {
+        let syncUI = function () {
             const list = document.getElementById("list");
             const ids = new Set(items.map(i => i.id));
             for (const el of list.querySelectorAll(".tm-item")) {
@@ -264,6 +363,14 @@
             for (const item of items) {
                 const match = !searchFilter || (item.name || "").toLowerCase().includes(searchFilter);
                 let el = list.querySelector('[data-id="' + item.id + '"]');
+
+                // If element exists but mode changed, re-render to switch from input <-> div
+                if (el && el.dataset.mode !== item.mode) {
+                    const newEl = renderItem(item);
+                    el.replaceWith(newEl);
+                    el = newEl;
+                }
+
                 if (!el) {
                     el = renderItem(item);
                     list.appendChild(el);
@@ -288,7 +395,42 @@
             }
         };
 
+        let searchFilter = "";
+
+        window.addEventListener("message", (e) => {
+            const d = e.data;
+            if (d?.type === "time-manager-state" && Array.isArray(d.items)) {
+                items = d.items;
+                syncUI();
+            }
+        });
+
+        try {
+            const bc = new BroadcastChannel(CHANNEL);
+            bc.onmessage = (e) => {
+                if (e.data?.type === "state" && Array.isArray(e.data.items)) {
+                    items = e.data.items;
+                    syncUI();
+                }
+            };
+        } catch (_) { }
+
+        const searchInput = document.getElementById("searchInput");
+        const addBtn = document.getElementById("addBtn");
+        const searchPlaceholder = locale === "it" ? "Cerca timer..." : "Search timers...";
+        searchInput.placeholder = searchPlaceholder;
+        addBtn.innerHTML = "+";
+        addBtn.title = t.add;
+        addBtn.onclick = () => {
+            const mode = items.length > 0 && items[items.length - 1].mode === "countdown" ? "countdown" : "timer";
+            const name = "Timer " + (items.length + 1);
+            send("add", { mode, name, targetMs: 60000 });
+        };
+
+        searchInput.oninput = () => { searchFilter = searchInput.value.trim().toLowerCase(); syncUI(); };
+
         send("get-state");
     </script>
 </body>
+
 </html>
