@@ -185,6 +185,7 @@
             color: #666;
             display: -webkit-box;
             -webkit-line-clamp: 4;
+            line-clamp: 4;
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
@@ -437,7 +438,7 @@
                     var name = t(g.nameKey);
                     var desc = t(g.descKey);
                     var imgUrl = 'images/' + g.img;
-                    return '<a class="wb-card" href="#" data-url="' + g.url.replace(/"/g, "&quot;") + '" data-name="' + name.replace(/"/g, "&quot;") + '">' +
+                    return '<a class="wb-card" href="#" data-url="' + g.url.replace(/"/g, "&quot;") + '" data-name="' + g.name.replace(/"/g, "&quot;") + '">' +
                         '<div class="wb-card-img" style="background-image: url(' + imgUrl + ')"></div>' +
                         '<div class="wb-card-body">' +
                         '<span class="wb-card-title">' + name.replace(/</g, "&lt;") + '</span>' +
