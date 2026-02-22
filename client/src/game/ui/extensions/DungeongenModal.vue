@@ -44,6 +44,7 @@ const dungeonMeta = ref<{
     syncSquareSize: number;
 } | null>(null);
 const dungeonWalls = ref<WallData | null>(null);
+const generatedName = ref<string>("");
 const addingToMap = ref(false);
 const replacing = ref(false);
 const makingRealistic = ref(false);
@@ -162,6 +163,7 @@ async function generate(clearSeed = false): Promise<void> {
     gridCells.value = null;
     dungeonMeta.value = null;
     dungeonWalls.value = null;
+    generatedName.value = "";
     if (clearSeed && !isEditMode.value) params.value.seed = "";
     try {
         const body: Record<string, unknown> = { ...params.value };
@@ -171,6 +173,7 @@ async function generate(clearSeed = false): Promise<void> {
         if (response.ok) {
             const data = (await response.json()) as {
                 url: string;
+                name?: string;
                 gridCells: { width: number; height: number };
                 imageWidth?: number;
                 imageHeight?: number;
@@ -178,6 +181,7 @@ async function generate(clearSeed = false): Promise<void> {
                 seed: number;
             };
             previewUrl.value = data.url;
+            generatedName.value = data.name ?? "";
             gridCells.value = data.gridCells;
             dungeonMeta.value =
                 data.imageWidth != null && data.imageHeight != null && data.syncSquareSize != null
@@ -215,6 +219,7 @@ async function addToMap(): Promise<void> {
             toGP(0, 0),
             {
                 ...(dungeonMeta.value ?? {}),
+                name: generatedName.value || undefined,
                 params: { ...params.value },
                 seed: params.value.seed,
                 walls: dungeonWalls.value ?? undefined,
@@ -280,6 +285,7 @@ function close(): void {
     gridCells.value = null;
     dungeonMeta.value = null;
     dungeonWalls.value = null;
+    generatedName.value = "";
     closeDungeongenModal();
     props.onClose();
 }

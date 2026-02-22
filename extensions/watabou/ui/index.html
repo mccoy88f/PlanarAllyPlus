@@ -499,6 +499,7 @@
                         window.parent.postMessage({
                             type: "planarally-add-to-map",
                             url: data.url,
+                            name: data.name,
                             gridCells: data.gridCells
                         }, "*");
                         toggleImportModal(false);

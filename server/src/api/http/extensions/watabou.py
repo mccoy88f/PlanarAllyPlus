@@ -12,10 +12,11 @@ from ....utils import ASSETS_DIR, STATIC_DIR, get_asset_hash_subpath
 
 async def import_image(request: web.Request) -> web.Response:
     """Download image from Watabou and save to local temp."""
-    await get_authorized_user(request)
+    user = await get_authorized_user(request)
 
     data = await request.json() or {}
     url = data.get("url")
+    generator_name = data.get("generator", "Generic")
     if not url:
         return web.HTTPBadRequest(text="URL is required")
 
@@ -35,19 +36,32 @@ async def import_image(request: web.Request) -> web.Response:
                 if content_type == "image/png" and not img_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
                     return web.HTTPBadRequest(text="The downloaded file is not a valid PNG image.")
 
-        # Save to static temp
-        temp_dir = STATIC_DIR / "temp" / "watabou"
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{uuid.uuid4().hex}.png"
-        filepath = temp_dir / filename
-        filepath.write_bytes(img_bytes)
+        # Save to assets
+        sh = hashlib.sha1(img_bytes)
+        hashname = sh.hexdigest()
+        full_hash_path = ASSETS_DIR / get_asset_hash_subpath(hashname)
 
-        local_url = f"/static/temp/watabou/{filename}"
+        if not full_hash_path.exists():
+            full_hash_path.parent.mkdir(parents=True, exist_ok=True)
+            full_hash_path.write_bytes(img_bytes)
+
+        folder = _get_or_create_watabou_folder(user, generator_name)
+        filename = f"{generator_name}_{uuid.uuid4().hex[:8]}.png"
+        
+        asset = Asset.create(name=filename, file_hash=hashname, owner=user, parent=folder)
+
+        from ....thumbnail import generate_thumbnail_for_asset
+        generate_thumbnail_for_asset(filename, hashname)
+
+        local_url = f"/static/assets/{get_asset_hash_subpath(hashname).as_posix()}"
+        shape_name = Path(filename).stem
         
         # We don't have exact grid info for Watabou, so we return a default guess or the user will resize
         return web.json_response(
             {
                 "url": local_url,
+                "assetId": asset.id,
+                "name": shape_name,
                 "gridCells": {"width": 40, "height": 40}, # Default fallback
             }
         )
@@ -112,6 +126,7 @@ async def upload_image(request: web.Request) -> web.Response:
             "ok": True,
             "url": url,
             "assetId": asset.id,
+            "name": Path(filename).stem,
             "gridCells": {"width": 40, "height": 40},
         }
     )

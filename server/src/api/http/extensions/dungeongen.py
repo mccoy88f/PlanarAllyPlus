@@ -1,12 +1,15 @@
 """Dungeongen extension - procedural dungeon generation API."""
 
+import hashlib
 import random
 import uuid
+from pathlib import Path
 
 from aiohttp import web
 
 from ....auth import get_authorized_user
-from ....utils import STATIC_DIR
+from ....db.models.asset import Asset
+from ....utils import ASSETS_DIR, STATIC_DIR, get_asset_hash_subpath
 
 # PlanarAlly grid: 1 cell = 50 pixels
 GRID_SIZE = 50
@@ -15,7 +18,7 @@ PADDING = 50
 
 async def generate(request: web.Request) -> web.Response:
     """Generate dungeon and return PNG URL + dimensions."""
-    await get_authorized_user(request)
+    user = await get_authorized_user(request)
 
     try:
         from dungeongen.layout import (
@@ -190,12 +193,25 @@ async def generate(request: web.Request) -> web.Response:
     except Exception as e:
         return web.HTTPInternalServerError(text=f"Render failed: {e}")
 
-    # Save to static temp
-    temp_dir = STATIC_DIR / "temp" / "dungeons"
-    temp_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"{uuid.uuid4().hex}.png"
-    filepath = temp_dir / filename
-    filepath.write_bytes(png_bytes)
+    # Save to assets
+    sh = hashlib.sha1(png_bytes)
+    hashname = sh.hexdigest()
+    full_hash_path = ASSETS_DIR / get_asset_hash_subpath(hashname)
+
+    if not full_hash_path.exists():
+        full_hash_path.parent.mkdir(parents=True, exist_ok=True)
+        full_hash_path.write_bytes(png_bytes)
+
+    folder = Asset.get_or_create_extension_folder(user, "dungeongen")
+    filename = f"dungeon_{seed}.png"
+    
+    asset = Asset.create(name=filename, file_hash=hashname, owner=user, parent=folder)
+
+    from ....thumbnail import generate_thumbnail_for_asset
+    generate_thumbnail_for_asset(filename, hashname)
+
+    url = f"/static/assets/{get_asset_hash_subpath(hashname).as_posix()}"
+    shape_name = Path(filename).stem
 
     # Extract walls from occupancy grid
     wall_lines = []
@@ -222,10 +238,11 @@ async def generate(request: web.Request) -> web.Response:
     except ImportError:
         pass
 
-    url = f"/static/temp/dungeons/{filename}"
     return web.json_response(
         {
             "url": url,
+            "assetId": asset.id,
+            "name": shape_name,
             "gridCells": {"width": cells_x, "height": cells_y},
             "imageWidth": canvas_width,
             "imageHeight": canvas_height,

@@ -45,7 +45,7 @@ async function handleMessage(event: MessageEvent): Promise<void> {
     }
 
     if (data?.type === "planarally-add-to-map" && data.url) {
-        await addDungeonToMap(data.url, data.gridCells || { width: 40, height: 40 });
+        await addDungeonToMap(data.url, data.gridCells || { width: 40, height: 40 }, undefined, { name: data.name, params: undefined, seed: "" });
         toast.success(t("game.ui.extensions.watabou.added_to_map"));
         return;
     }
@@ -53,10 +53,10 @@ async function handleMessage(event: MessageEvent): Promise<void> {
     if (data?.type === "planarally-import-image" && data.url) {
         const toastId = toast.info(t("game.ui.extensions.watabou.importing"), { timeout: false });
         try {
-            const response = await http.postJson("/api/extensions/watabou/import", { url: data.url });
+            const response = await http.postJson("/api/extensions/watabou/import", { url: data.url, generator: data.generator });
             if (response.ok) {
-                const resData = (await response.json()) as { url: string; gridCells: { width: number; height: number } };
-                await addDungeonToMap(resData.url, resData.gridCells);
+                const resData = (await response.json()) as { url: string; name: string; gridCells: { width: number; height: number } };
+                await addDungeonToMap(resData.url, resData.gridCells, undefined, { name: resData.name, params: undefined, seed: "" });
                 toast.dismiss(toastId);
                 toast.success(t("game.ui.extensions.watabou.added_to_map"));
             } else {

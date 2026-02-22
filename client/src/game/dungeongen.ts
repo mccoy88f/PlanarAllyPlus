@@ -60,7 +60,8 @@ export async function addDungeonToMap(
         imageHeight?: number;
         syncSquareSize?: number;
         padding?: number;
-        params: DungeonGenParams;
+        name?: string;
+        params?: DungeonGenParams;
         seed: string;
         walls?: WallData;
     },
@@ -126,7 +127,8 @@ export async function addDungeonToMap(
             layer.addShape(asset, SyncMode.FULL_SYNC, InvalidationMode.WITH_LIGHT);
 
             const seed = options?.seed ?? "";
-            propertiesSystem.setName(asset.id, seed, SERVER_SYNC);
+            const shapeName = options?.name ?? seed;
+            propertiesSystem.setName(asset.id, shapeName, SERVER_SYNC);
 
             const walls = options?.walls;
             console.log("DungeonGen - addDungeonToMap walls:", walls);
