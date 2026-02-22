@@ -81,13 +81,19 @@
             <button type="button" id="viewListBtn" title="" class="ext-toolbar-btn active"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg></button>
             <button type="button" id="viewGridBtn" title="" class="ext-toolbar-btn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3v8h8V3H3zm6 6H5V5h4v4zm-6 4v8h8v-8H3zm6 6H5v-4h4v4zm4-16v8h8V3h-8zm6 6h-4V5h4v4zm-6 4v8h8v-8h-8zm6 6h-4v-4h4v4z"/></svg></button>
         </div>
+    <div id="uploadProgress" class="ext-progress-top-container" style="display:none">
+        <div class="pa-loading-bar-wrapper">
+            <div class="pa-loading-bar-track">
+                <div id="uploadProgressBar" class="pa-loading-bar-fill pa-loading-bar-indeterminate" style="width: 100%"></div>
+            </div>
+        </div>
     </div>
     <div id="content" class="doc-content">
+        <div id="msg"></div>
         <div id="breadcrumb" class="doc-breadcrumb" style="display:none"></div>
         <div id="loading" class="ext-ui-loading"></div>
         <div id="empty" class="ext-ui-empty" style="display:none"></div>
         <ul id="list" class="ext-ui-list doc-list" style="display:none"></ul>
-        <div id="msg"></div>
     </div>
 
     <script>
@@ -772,6 +778,8 @@
                 if (!files || files.length === 0) return;
                 const pdfs = Array.prototype.filter.call(files, function(f) { return f.name.toLowerCase().endsWith('.pdf'); });
                 if (pdfs.length === 0) return;
+                const progressEl = document.getElementById('uploadProgress');
+                progressEl.style.display = 'block';
                 uploadBtn.disabled = true;
                 var okCount = 0;
                 var errCount = 0;
@@ -806,6 +814,7 @@
                 } finally {
                     uploadBtn.disabled = false;
                     fileInput.value = '';
+                    document.getElementById('uploadProgress').style.display = 'none';
                 }
             });
 
