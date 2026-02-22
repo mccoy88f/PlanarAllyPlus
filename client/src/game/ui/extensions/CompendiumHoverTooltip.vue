@@ -15,10 +15,16 @@ const loading = ref(false);
 const collectionSlug = ref("");
 const itemSlug = ref("");
 const compendiumSlug = ref<string | undefined>(undefined);
+const isMouseOverTooltip = ref(false);
 let hideTimer: ReturnType<typeof setTimeout> | null = null;
+let loadingTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function fetchItem(comp: string | undefined, coll: string, slug: string): Promise<void> {
-    loading.value = true;
+    if (loadingTimer) clearTimeout(loadingTimer);
+    loadingTimer = setTimeout(() => {
+        loading.value = true;
+    }, 150);
+
     try {
         const params = new URLSearchParams({ collection: coll, slug });
         if (comp) params.set("compendium", comp);
@@ -35,7 +41,7 @@ async function fetchItem(comp: string | undefined, coll: string, slug: string): 
             title.value = data.name;
             const parts: string[] = [];
             if (data.compendiumName) parts.push(data.compendiumName);
-            parts.push(data.collectionName ?? coll, data.name);
+            parts.push(data.collectionName || coll, data.name);
             path.value = parts.join(" › ");
             markdown.value = stripLeadingTitle(data.markdown, data.name);
         } else {
@@ -44,6 +50,10 @@ async function fetchItem(comp: string | undefined, coll: string, slug: string): 
     } catch {
         visible.value = false;
     } finally {
+        if (loadingTimer) {
+            clearTimeout(loadingTimer);
+            loadingTimer = null;
+        }
         loading.value = false;
     }
 }
@@ -165,10 +175,12 @@ function handleMouseOut(e: MouseEvent): void {
 }
 
 function handleMouseEnterTooltip(): void {
+    isMouseOverTooltip.value = true;
     cancelHide();
 }
 
 function handleMouseLeaveTooltip(): void {
+    isMouseOverTooltip.value = false;
     scheduleHide();
 }
 
@@ -206,8 +218,10 @@ function handleMessage(e: MessageEvent): void {
         }
         showAtCoords(coll, slug, comp, screenX, screenY);
     } else if (d.type === "planarally-qe-hover-end") {
+        if (isMouseOverTooltip.value) return;
         if (hideTimer) clearTimeout(hideTimer);
         hideTimer = setTimeout(() => {
+            if (isMouseOverTooltip.value) return;
             visible.value = false;
             hideTimer = null;
         }, 600);
