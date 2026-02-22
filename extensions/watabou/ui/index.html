@@ -518,12 +518,26 @@
             closeImportModal.addEventListener("click", function () { toggleImportModal(false); });
             importModal.addEventListener("click", function (e) { if (e.target === importModal) toggleImportModal(false); });
 
-            dropzone.addEventListener("dragover", function (e) { e.preventDefault(); dropzone.classList.add("dragover"); });
-            dropzone.addEventListener("dragleave", function () { dropzone.classList.remove("dragover"); });
-            dropzone.addEventListener("drop", function (e) {
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropzone.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
                 e.preventDefault();
-                dropzone.classList.remove("dragover");
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropzone.addEventListener(eventName, () => dropzone.classList.add("dragover"), false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropzone.addEventListener(eventName, () => dropzone.classList.remove("dragover"), false);
+            });
+
+            dropzone.addEventListener("drop", function (e) {
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    fileInput.files = e.dataTransfer.files;
                     handleFileUpload(e.dataTransfer.files[0]);
                 }
             });
