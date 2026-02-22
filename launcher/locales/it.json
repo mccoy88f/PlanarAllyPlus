@@ -1,7 +1,7 @@
 {
   "appTitle": "PlanarAlly Plus Launcher",
   "subtitle": "Avvio server",
-  "loading": "Caricamento...",
+  "loading": "",
   "btnUpdate": "Aggiorna app",
   "btnStart": "Avvia server",
   "btnStop": "Stop",
