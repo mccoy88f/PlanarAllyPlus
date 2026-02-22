@@ -208,13 +208,13 @@
     </div>
     <section class="ext-ui-section ai-section">
         <h3 class="ext-ui-section-title" id="uploadSectionTitle"></h3>
+        <p id="uploadInstructions" style="font-size: 0.9em; margin-bottom: 1rem; color: #555;"></p>
         <label id="folderLabel" class="ext-ui-label"></label>
         <div class="ai-tree-container">
             <ul id="folderTree" class="ai-tree"></ul>
         </div>
         <div id="selectedPath" class="ai-selected-path"></div>
-        <div style="margin-top: 0.75rem;">
-
+        <div style="margin-top: 1rem;">
             <input type="file" id="fileInput" class="ext-ui-file-input" accept=".zip,application/zip" />
             <button type="button" id="uploadBtn" class="ext-ui-btn ext-ui-btn-primary"></button>
         </div>
@@ -238,6 +238,7 @@
                     title: "Assets Installer",
                     upload_zip: "Upload ZIP",
                     upload_section: "Upload ZIP file",
+                    upload_instructions: "Select a ZIP file to upload by clicking below:",
                     folder: "Destination folder (click to select)",
                     loading: "Loading...",
                     no_installs: "No asset packs installed. Upload a ZIP file above.",
@@ -257,6 +258,7 @@
                     title: "Assets Installer",
                     upload_zip: "Carica ZIP",
                     upload_section: "Carica file ZIP",
+                    upload_instructions: "Seleziona un file ZIP da caricare cliccando qui sotto:",
                     folder: "Cartella di destinazione (clicca per selezionare)",
                     loading: "Caricamento...",
                     no_installs: "Nessun pacchetto installato. Carica un file ZIP sopra.",

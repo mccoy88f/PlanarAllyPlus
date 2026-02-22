@@ -157,6 +157,22 @@
             transform: translateY(-4px);
         }
 
+        .wb-upload-btn {
+            display: inline-block;
+            padding: 1rem 2rem;
+            background: #5c6bc0;
+            color: white;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-weight: 500;
+        }
+
+        .wb-upload-btn:hover {
+            background: #3f51b5;
+        }
+
         .wb-card-img {
             width: 100%;
             height: 160px;
@@ -246,41 +262,20 @@
             margin-bottom: 1.5rem;
         }
 
-        .wb-dropzone {
-            border: 2px dashed #ccc;
+        .wb-upload-btn {
+            display: inline-block;
+            padding: 1rem 2rem;
+            background: #5c6bc0;
+            color: white;
             border-radius: 8px;
-            padding: 2rem;
             text-align: center;
-            background: #fdfdfd;
-            transition: border-color 0.2s, background 0.2s;
             cursor: pointer;
-            position: relative;
-        }
-
-        .wb-dropzone.dragover {
-            border-color: #5c6bc0;
-            background: #f0f2ff;
-        }
-
-        .wb-dropzone input[type="file"] {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0;
-            cursor: pointer;
-        }
-
-        .wb-dropzone-icon {
-            font-size: 2rem;
-            color: #999;
-            margin-bottom: 0.5rem;
-        }
-
-        .wb-dropzone-text {
-            color: #666;
+            transition: background 0.2s;
             font-weight: 500;
+        }
+
+        .wb-upload-btn:hover {
+            background: #3f51b5;
         }
 
         .wb-loading-overlay {
@@ -348,10 +343,9 @@
                     Per importare la mappa in PlanarAlly torna indietro premi il tasto destro e clicca su Export -> as
                     PNG dopo averlo scaricato trascinalo qui:
                 </div>
-                <div class="wb-dropzone" id="dropzone">
-                    <div class="wb-dropzone-icon">📁</div>
-                    <div class="wb-dropzone-text" id="dropzoneText">Trascina qui il file o clicca per selezionarlo</div>
-                    <input type="file" id="fileInput" accept="image/png,image/jpeg" />
+                <div style="text-align: center; margin: 2rem 0; position: relative;" id="uploadContainer">
+                    <label for="fileInput" class="wb-upload-btn" id="uploadBtnLabel">Upload Image</label>
+                    <input type="file" id="fileInput" accept="image/png,image/jpeg" style="display: none;" />
                     <div class="wb-loading-overlay" id="loadingOverlay">
                         <div class="wb-spinner"></div>
                         <span id="loadingText">Caricamento...</span>
@@ -385,8 +379,8 @@
                 },
                 it: {
                     back: "Indietro", regen: "Casuale", import: "Aggiungi alla Mappa", region: "Generatore Regioni", city: "Generatore Città", village: "Generatore Villaggi", cave: "Generatore Caverne", dungeon: "Generatore Dungeon", dwellings: "Generatore Edifici",
-                    importMap: "Importa mappa", importTitle: "Importa la mappa in PlanarAlly", importInstructions: "Per importare la mappa in PlanarAlly torna indietro premi il tasto destro e clicca su Export -> as PNG dopo averlo scaricato trascinalo qui:",
-                    dropzoneText: "Trascina qui il file o clicca per selezionarlo", loading: "Caricamento...", uploadSuccess: "Importazione completata", uploadError: "Caricamento fallito",
+                    importMap: "Importa mappa", importTitle: "Importa la mappa in PlanarAlly", importInstructions: "Per importare la mappa in PlanarAlly torna indietro premi il tasto destro e clicca su Export -> as PNG dopo averlo scaricato clicca qui sotto:",
+                    uploadBtnText: "Clicca per caricare il file scaricato", loading: "Caricamento...", uploadSuccess: "Importazione completata", uploadError: "Caricamento fallito",
                     regionDesc: "Perilous Shores è un generatore di regioni fantasy con mappe che variano da un'area intorno a una singola città a un piccolo continente. Sebbene le mappe siano costruite su una griglia esagonale, il generatore cerca di essere sottile riguardo a tale geometria sottostante. È stato progettato per produrre mappe dall'aspetto disegnato a mano, ma ora è in grado di visualizzarle in una varietà di stili.",
                     cityDesc: "Medieval Fantasy City Generator (MFCG) è il generatore più sviluppato e popolare di questo set. La sua versione iniziale è stata creata per la sfida mensile su Reddit e all'epoca le mappe prodotte non erano molto più di diagrammi di Voronoi a forma di città. L'attuale MFCG è in grado di generare mappe molto più dettagliate e realistiche con molte opzioni di personalizzazione.",
                     villageDesc: "A differenza delle città nel generatore di città, i villaggi nel Village Generator sono fatti di strade, non di edifici. Le case sono posizionate in modo sparso lungo queste strade tortuose e completate da campi e molti alberi per far sembrare le mappe rurali.",
@@ -423,7 +417,6 @@
             var importModal = document.getElementById("importModal");
             var closeImportModal = document.getElementById("closeImportModal");
             var importMapBtn = document.getElementById("importMapBtn");
-            var dropzone = document.getElementById("dropzone");
             var fileInput = document.getElementById("fileInput");
             var loadingOverlay = document.getElementById("loadingOverlay");
             var currentGeneratorName = "Generic";
@@ -520,30 +513,6 @@
             closeImportModal.addEventListener("click", function () { toggleImportModal(false); });
             importModal.addEventListener("click", function (e) { if (e.target === importModal) toggleImportModal(false); });
 
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                dropzone.addEventListener(eventName, preventDefaults, false);
-            });
-
-            function preventDefaults(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-
-            ['dragenter', 'dragover'].forEach(eventName => {
-                dropzone.addEventListener(eventName, () => dropzone.classList.add("dragover"), false);
-            });
-
-            ['dragleave', 'drop'].forEach(eventName => {
-                dropzone.addEventListener(eventName, () => dropzone.classList.remove("dragover"), false);
-            });
-
-            dropzone.addEventListener("drop", function (e) {
-                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                    fileInput.files = e.dataTransfer.files;
-                    handleFileUpload(e.dataTransfer.files[0]);
-                }
-            });
-
             fileInput.addEventListener("change", function () {
                 if (fileInput.files && fileInput.files.length > 0) {
                     handleFileUpload(fileInput.files[0]);
@@ -559,7 +528,7 @@
             importMapBtn.textContent = t("importMap");
             document.getElementById("importModalTitle").textContent = t("importTitle");
             document.getElementById("importModalBody").textContent = t("importInstructions");
-            document.getElementById("dropzoneText").textContent = t("dropzoneText");
+            document.getElementById("uploadBtnLabel").textContent = t("uploadBtnText");
             document.getElementById("loadingText").textContent = t("loading");
 
             renderList();
