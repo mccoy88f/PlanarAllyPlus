@@ -274,6 +274,8 @@
       "extensions": {
         "DungeongenModal": {
           "title": "DungeonGen",
+          "mode_dungeon": "Dungeon",
+          "mode_building": "Building",
           "settings": "Generation settings",
           "preview": "Preview",
           "size": "Size",

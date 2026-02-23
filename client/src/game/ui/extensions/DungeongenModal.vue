@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { useToast } from "vue-toastification";
 
 import LoadingBar from "../../../core/components/LoadingBar.vue";
+import HeaderModeSelector from "../../../core/components/HeaderModeSelector.vue";
 import Modal from "../../../core/components/modals/Modal.vue";
 import { baseAdjust } from "../../../core/http";
 import { http } from "../../../core/http";
@@ -51,6 +52,12 @@ const addingToMap = ref(false);
 const replacing = ref(false);
 const makingRealistic = ref(false);
 const openRouterAvailable = ref(false);
+
+const mode = ref<"dungeon" | "building">("dungeon");
+const modeOptions = computed(() => [
+    { label: t("game.ui.extensions.DungeongenModal.mode_dungeon"), value: "dungeon" as const },
+    { label: t("game.ui.extensions.DungeongenModal.mode_building"), value: "building" as const },
+]);
 
 const showPromptModal = ref(false);
 const extraAiPrompt = ref("");
@@ -397,6 +404,7 @@ async function makeRealisticWithAI(): Promise<void> {
             <div v-if="generating || makingRealistic" class="ext-progress-top-container">
                 <LoadingBar :progress="100" indeterminate height="6px" />
             </div>
+            <HeaderModeSelector v-model="mode" :options="modeOptions" />
             <div class="ext-body ext-two-col">
                 <section class="ext-ui-section ext-two-col-side ext-two-col-single">
                     <h3 class="ext-ui-section-title">{{ t("game.ui.extensions.DungeongenModal.settings") }}</h3>
