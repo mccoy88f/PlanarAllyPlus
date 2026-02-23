@@ -51,8 +51,15 @@ export interface WallData {
     lines: [[number, number], [number, number]][];
 }
 
+export interface BuildingGenParams {
+    archetype: string; // "house" | "shop" | "tavern" | "inn"
+    footprint: string; // "rectangle" | "l_shape" | "cross" | "offset"
+    layout:    string; // "open_plan" | "corridor"
+    seed:      string;
+}
+
 export interface DungeonGenStoredData {
-    params: DungeonGenParams;
+    params: DungeonGenParams | BuildingGenParams;
     seed: string;
     gridCells?: { width: number; height: number };
     dungeonMeta?: { imageWidth: number; imageHeight: number; syncSquareSize: number; padding?: number };
@@ -70,7 +77,7 @@ export async function addDungeonToMap(
         syncSquareSize?: number;
         padding?: number;
         name?: string;
-        params?: DungeonGenParams;
+        params?: DungeonGenParams | BuildingGenParams;
         seed: string;
         walls?: WallData;
         doors?: DoorData[];
