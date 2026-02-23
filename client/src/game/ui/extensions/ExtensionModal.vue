@@ -55,8 +55,8 @@ async function handleMessage(event: MessageEvent): Promise<void> {
         try {
             const response = await http.postJson("/api/extensions/watabou/import", { url: data.url, generator: data.generator });
             if (response.ok) {
-                const resData = (await response.json()) as { url: string; name: string; gridCells: { width: number; height: number } };
-                await addDungeonToMap(resData.url, resData.gridCells, undefined, { name: resData.name, params: undefined, seed: "" });
+                const resData = (await response.json()) as { url: string; name: string; gridCells: { width: number; height: number }; doors?: any[] };
+                await addDungeonToMap(resData.url, resData.gridCells, undefined, { name: resData.name, params: undefined, seed: "", doors: resData.doors });
                 toast.dismiss(toastId);
                 toast.success(t("game.ui.extensions.watabou.added_to_map"));
             } else {

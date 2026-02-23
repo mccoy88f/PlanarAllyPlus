@@ -252,5 +252,9 @@ async def generate(request: web.Request) -> web.Response:
             "walls": {
                 "lines": wall_lines,
             },
+            "doors": [
+                {"x": d.x - bounds[0], "y": d.y - bounds[1], "direction": d.direction, "type": d.door_type.name}
+                for d in dungeon.doors.values()
+            ],
         }
     )

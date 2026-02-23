@@ -18,6 +18,7 @@ import { propertiesSystem } from "./systems/properties";
 import { locationSettingsState } from "./systems/settings/location/state";
 import { playerSettingsState } from "./systems/settings/players/state";
 import { VisionBlock } from "./systems/properties/types";
+import { doorSystem } from "./systems/logic/door";
 
 export const DUNGEON_ASSET_SRC_PREFIX = "/static/temp/dungeons/";
 
@@ -39,6 +40,13 @@ export interface DungeonGenParams {
     seed: string;
 }
 
+export interface DoorData {
+    x: number;
+    y: number;
+    direction: string;
+    type: string;
+}
+
 export interface WallData {
     lines: [[number, number], [number, number]][];
 }
@@ -49,6 +57,7 @@ export interface DungeonGenStoredData {
     gridCells?: { width: number; height: number };
     dungeonMeta?: { imageWidth: number; imageHeight: number; syncSquareSize: number; padding?: number };
     walls?: WallData;
+    doors?: DoorData[];
 }
 
 export async function addDungeonToMap(
@@ -64,6 +73,7 @@ export async function addDungeonToMap(
         params?: DungeonGenParams;
         seed: string;
         walls?: WallData;
+        doors?: DoorData[];
     },
 ): Promise<Asset | undefined> {
     if (!imageUrl.startsWith("/static") && !imageUrl.startsWith("data:") && !imageUrl.startsWith("blob:")) return undefined;
@@ -158,6 +168,55 @@ export async function addDungeonToMap(
                 }
                 console.log(`DungeonGen - Added ${walls.lines.length} wall lines to ${fowLayer.name}`);
                 fowLayer.invalidate(false);
+            }
+
+            const doorData = options?.doors;
+            if (doorData && layer) {
+                const scale = dungeonMeta ? (gridSize / dungeonMeta.syncSquareSize) : 1;
+                const basePadding = dungeonMeta?.padding ?? 50;
+                const scaledPadding = basePadding * scale;
+                const doorOffset = addP(refPoint, new Vector(scaledPadding, scaledPadding));
+
+                for (const door of doorData) {
+                    const center = addP(doorOffset, new Vector((door.x + 0.5) * gridSize, (door.y + 0.5) * gridSize));
+                    let vertices: GlobalPoint[] = [];
+
+                    if (door.direction === "north" || door.direction === "south") {
+                        // Horizontal door
+                        vertices = [
+                            addP(center, new Vector(-gridSize * 0.5, 0)),
+                            addP(center, new Vector(gridSize * 0.5, 0)),
+                        ];
+                    } else {
+                        // Vertical door
+                        vertices = [
+                            addP(center, new Vector(0, -gridSize * 0.5)),
+                            addP(center, new Vector(0, gridSize * 0.5)),
+                        ];
+                    }
+
+                    const doorShape = new Polygon(
+                        vertices[0]!,
+                        vertices.slice(1),
+                        { openPolygon: true, lineWidth: [10], uuid: uuidv4() },
+                        {
+                            blocksMovement: true,
+                            blocksVision: VisionBlock.Complete,
+                            // strokeColour is not strictly needed as doorSystem will handle it via registerColour
+                        }
+                    );
+                    
+                    doorShape.setLayer(layer.floor, layer.name);
+                    layer.addShape(doorShape, SyncMode.FULL_SYNC, InvalidationMode.WITH_LIGHT);
+                    
+                    // Make it a door!
+                    doorSystem.toggle(doorShape.id, true, SERVER_SYNC);
+                    // Default to movement/vision toggle
+                    doorSystem.setToggleMode(doorShape.id, "both", SERVER_SYNC);
+                    
+                    propertiesSystem.setName(doorShape.id, "Door", SERVER_SYNC);
+                }
+                console.log(`DungeonGen - Added ${doorData.length} doors to ${layer.name}`);
             }
 
             if (options?.params) {

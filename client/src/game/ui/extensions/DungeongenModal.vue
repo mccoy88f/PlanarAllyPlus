@@ -14,6 +14,7 @@ import {
     DUNGEON_PARAMS_CUSTOM_DATA_SOURCE,
     getDungeonStoredData,
     type WallData,
+    type DoorData,
 } from "../../dungeongen";
 import { toGP } from "../../../core/geometry";
 import { getGlobalId, getShape } from "../../id";
@@ -44,6 +45,7 @@ const dungeonMeta = ref<{
     syncSquareSize: number;
 } | null>(null);
 const dungeonWalls = ref<WallData | null>(null);
+const dungeonDoors = ref<DoorData[] | null>(null);
 const generatedName = ref<string>("");
 const addingToMap = ref(false);
 const replacing = ref(false);
@@ -146,6 +148,7 @@ watch(
                 gridCells.value = stored.gridCells ?? null;
                 dungeonMeta.value = stored.dungeonMeta ?? null;
                 dungeonWalls.value = stored.walls ?? null;
+                dungeonDoors.value = stored.doors ?? null;
                 
                 const shape = getShape(shapeId);
                 if (shape && "src" in shape) {
@@ -179,6 +182,7 @@ async function generate(clearSeed = false): Promise<void> {
                 imageHeight?: number;
                 syncSquareSize?: number;
                 seed: number;
+                doors?: DoorData[];
             };
             previewUrl.value = data.url;
             generatedName.value = data.name ?? "";
@@ -192,6 +196,7 @@ async function generate(clearSeed = false): Promise<void> {
                       }
                     : null;
             dungeonWalls.value = (data as any).walls ?? null;
+            dungeonDoors.value = data.doors ?? null;
             params.value.seed = String(data.seed);
         } else {
             const text = await response.text();
@@ -223,6 +228,7 @@ async function addToMap(): Promise<void> {
                 params: { ...params.value },
                 seed: params.value.seed,
                 walls: dungeonWalls.value ?? undefined,
+                doors: dungeonDoors.value ?? undefined,
             },
         );
         if (asset) {
@@ -256,6 +262,7 @@ async function replaceOnMap(): Promise<void> {
             gridCells: gridCells.value,
             dungeonMeta: dungeonMeta.value ?? undefined,
             walls: dungeonWalls.value ?? undefined,
+            doors: dungeonDoors.value ?? undefined,
         };
         const globalId = getGlobalId(shapeId);
         if (globalId) {
@@ -286,6 +293,7 @@ function close(): void {
     dungeonMeta.value = null;
     dungeonWalls.value = null;
     generatedName.value = "";
+    dungeonDoors.value = null;
     closeDungeongenModal();
     props.onClose();
 }
