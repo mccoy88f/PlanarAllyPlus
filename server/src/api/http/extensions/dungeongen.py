@@ -134,6 +134,11 @@ async def generate(request: web.Request) -> web.Response:
     else:
         seed = random.randint(0, 2**31)
 
+    # Route to building generator if mode == "building"
+    mode = data.get("mode", "dungeon")
+    if mode == "building":
+        return await _generate_building(request, data, seed, user)
+
     generator = DungeonGenerator(params)
     dungeon = generator.generate(seed=seed)
 
@@ -255,6 +260,101 @@ async def generate(request: web.Request) -> web.Response:
             "doors": [
                 {"x": d.x - bounds[0], "y": d.y - bounds[1], "direction": d.direction, "type": d.door_type.name}
                 for d in dungeon.doors.values()
+            ],
+        }
+    )
+
+
+async def _generate_building(
+    request: web.Request,
+    data: dict,
+    seed: int,
+    user,
+) -> web.Response:
+    """Handle building generation and return JSON identical in shape to dungeon generation."""
+    try:
+        from .building_generator import (
+            BuildingArchetype,
+            BuildingParams,
+            FootprintShape,
+            LayoutPlan,
+            generate_building,
+        )
+    except ImportError as e:
+        return web.HTTPInternalServerError(text=f"Building generator not available: {e}")
+
+    archetype_map = {
+        "house":  BuildingArchetype.HOUSE,
+        "shop":   BuildingArchetype.SHOP,
+        "tavern": BuildingArchetype.TAVERN,
+        "inn":    BuildingArchetype.INN,
+    }
+    footprint_map = {
+        "rectangle": FootprintShape.RECTANGLE,
+        "l_shape":   FootprintShape.L_SHAPE,
+        "cross":     FootprintShape.CROSS,
+        "offset":    FootprintShape.OFFSET,
+    }
+    layout_map = {
+        "open_plan": LayoutPlan.OPEN_PLAN,
+        "corridor":  LayoutPlan.CORRIDOR,
+    }
+
+    params = BuildingParams(
+        archetype=archetype_map.get(data.get("archetype", "tavern"), BuildingArchetype.TAVERN),
+        footprint=footprint_map.get(data.get("footprint", "rectangle"), FootprintShape.RECTANGLE),
+        layout=layout_map.get(data.get("layout", "open_plan"), LayoutPlan.OPEN_PLAN),
+        seed=seed,
+    )
+
+    try:
+        result, png_bytes, wall_lines = generate_building(params)
+    except Exception as e:
+        return web.HTTPInternalServerError(text=f"Building generation failed: {e}")
+
+    # Save PNG asset (same pattern as dungeon path)
+    sh = hashlib.sha1(png_bytes)
+    hashname = sh.hexdigest()
+    full_hash_path = ASSETS_DIR / get_asset_hash_subpath(hashname)
+
+    if not full_hash_path.exists():
+        full_hash_path.parent.mkdir(parents=True, exist_ok=True)
+        full_hash_path.write_bytes(png_bytes)
+
+    folder = Asset.get_or_create_extension_folder(user, "dungeongen")
+    filename = f"building_{seed}.png"
+    asset = Asset.create(name=filename, file_hash=hashname, owner=user, parent=folder)
+
+    from ....thumbnail import generate_thumbnail_for_asset
+    generate_thumbnail_for_asset(filename, hashname)
+
+    url = f"/static/assets/{get_asset_hash_subpath(hashname).as_posix()}"
+    shape_name = f"building_{seed}"
+    canvas_width  = result.width  * GRID_SIZE + PADDING * 2
+    canvas_height = result.height * GRID_SIZE + PADDING * 2
+
+    return web.json_response(
+        {
+            "url": url,
+            "assetId": asset.id,
+            "name": shape_name,
+            "gridCells": {"width": result.width, "height": result.height},
+            "imageWidth": canvas_width,
+            "imageHeight": canvas_height,
+            "syncSquareSize": GRID_SIZE,
+            "padding": PADDING,
+            "seed": seed,
+            "walls": {
+                "lines": wall_lines,
+            },
+            "doors": [
+                {
+                    "x":         d.x,
+                    "y":         d.y,
+                    "direction": d.direction,
+                    "type":      d.door_type,
+                }
+                for d in result.doors
             ],
         }
     )

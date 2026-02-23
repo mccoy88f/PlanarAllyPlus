@@ -10,6 +10,8 @@ import { baseAdjust } from "../../../core/http";
 import { http } from "../../../core/http";
 import {
     addDungeonToMap,
+    type BuildingGenParams,
+    type DungeonGenParams,
     type DungeonGenStoredData,
     DUNGEON_PARAMS_CUSTOM_DATA_NAME,
     DUNGEON_PARAMS_CUSTOM_DATA_SOURCE,
@@ -138,6 +140,34 @@ const symmetryBreakOptions = [
 
 const symmetryBreakMap: Record<string, number> = { low: 0.1, med: 0.2, high: 0.5 };
 
+// ── Building mode params ──────────────────────────────────────────────────
+
+const buildingParams = ref<BuildingGenParams>({
+    archetype: "tavern",
+    footprint: "rectangle",
+    layout:    "open_plan",
+    seed:      "",
+});
+
+const buildingArchetypeOptions = [
+    { value: "house",  labelKey: "game.ui.extensions.DungeongenModal.barch_house"  },
+    { value: "shop",   labelKey: "game.ui.extensions.DungeongenModal.barch_shop"   },
+    { value: "tavern", labelKey: "game.ui.extensions.DungeongenModal.barch_tavern" },
+    { value: "inn",    labelKey: "game.ui.extensions.DungeongenModal.barch_inn"    },
+];
+
+const footprintOptions = [
+    { value: "rectangle", labelKey: "game.ui.extensions.DungeongenModal.fp_rectangle" },
+    { value: "l_shape",   labelKey: "game.ui.extensions.DungeongenModal.fp_l_shape"   },
+    { value: "cross",     labelKey: "game.ui.extensions.DungeongenModal.fp_cross"     },
+    { value: "offset",    labelKey: "game.ui.extensions.DungeongenModal.fp_offset"    },
+];
+
+const layoutOptions = [
+    { value: "open_plan", labelKey: "game.ui.extensions.DungeongenModal.layout_open_plan" },
+    { value: "corridor",  labelKey: "game.ui.extensions.DungeongenModal.layout_corridor"  },
+];
+
 onMounted(() => {
     checkOpenRouter();
 });
@@ -151,12 +181,20 @@ watch(
         if (visible && shapeId) {
             const stored = getDungeonStoredData(shapeId);
             if (stored) {
-                params.value = { ...stored.params };
+                // Detect if stored params are building params
+                const storedParams = stored.params as Record<string, unknown>;
+                if ("footprint" in storedParams) {
+                    mode.value = "building";
+                    buildingParams.value = { ...(stored.params as BuildingGenParams) };
+                } else {
+                    mode.value = "dungeon";
+                    params.value = { ...(stored.params as DungeonGenParams) };
+                }
                 gridCells.value = stored.gridCells ?? null;
                 dungeonMeta.value = stored.dungeonMeta ?? null;
                 dungeonWalls.value = stored.walls ?? null;
                 dungeonDoors.value = stored.doors ?? null;
-                
+
                 const shape = getShape(shapeId);
                 if (shape && "src" in shape) {
                     previewUrl.value = (shape as Asset).src;
@@ -174,11 +212,28 @@ async function generate(clearSeed = false): Promise<void> {
     dungeonMeta.value = null;
     dungeonWalls.value = null;
     generatedName.value = "";
-    if (clearSeed && !isEditMode.value) params.value.seed = "";
+
     try {
-        const body: Record<string, unknown> = { ...params.value };
-        if (params.value.seed) body.seed = parseInt(params.value.seed, 10) || params.value.seed;
-        body.symmetry_break = symmetryBreakMap[params.value.symmetry_break] ?? 0.2;
+        let body: Record<string, unknown>;
+
+        if (mode.value === "building") {
+            if (clearSeed && !isEditMode.value) buildingParams.value.seed = "";
+            body = {
+                mode:      "building",
+                archetype: buildingParams.value.archetype,
+                footprint: buildingParams.value.footprint,
+                layout:    buildingParams.value.layout,
+                seed:      buildingParams.value.seed
+                               ? (parseInt(buildingParams.value.seed, 10) || buildingParams.value.seed)
+                               : "",
+            };
+        } else {
+            if (clearSeed && !isEditMode.value) params.value.seed = "";
+            body = { ...params.value, mode: "dungeon" };
+            if (params.value.seed) body.seed = parseInt(params.value.seed, 10) || params.value.seed;
+            body.symmetry_break = symmetryBreakMap[params.value.symmetry_break] ?? 0.2;
+        }
+
         const response = await http.postJson("/api/extensions/dungeongen/generate", body);
         if (response.ok) {
             const data = (await response.json()) as {
@@ -204,7 +259,11 @@ async function generate(clearSeed = false): Promise<void> {
                     : null;
             dungeonWalls.value = (data as any).walls ?? null;
             dungeonDoors.value = data.doors ?? null;
-            params.value.seed = String(data.seed);
+            if (mode.value === "building") {
+                buildingParams.value.seed = String(data.seed);
+            } else {
+                params.value.seed = String(data.seed);
+            }
         } else {
             const text = await response.text();
             toast.error(text || t("game.ui.extensions.DungeongenModal.generate_error"));
@@ -225,6 +284,12 @@ async function addToMap(): Promise<void> {
     }
     addingToMap.value = true;
     try {
+        const currentParams = mode.value === "building"
+            ? { ...buildingParams.value }
+            : { ...params.value };
+        const currentSeed = mode.value === "building"
+            ? buildingParams.value.seed
+            : params.value.seed;
         const asset = await addDungeonToMap(
             previewUrl.value,
             gridCells.value,
@@ -232,8 +297,8 @@ async function addToMap(): Promise<void> {
             {
                 ...(dungeonMeta.value ?? {}),
                 name: generatedName.value || undefined,
-                params: { ...params.value },
-                seed: params.value.seed,
+                params: currentParams,
+                seed: currentSeed,
                 walls: dungeonWalls.value ?? undefined,
                 doors: dungeonDoors.value ?? undefined,
             },
@@ -259,12 +324,15 @@ async function replaceOnMap(): Promise<void> {
     if (!shape || !("setImage" in shape)) return;
     replacing.value = true;
     try {
-        const newSeed = params.value.seed;
+        const newSeed = mode.value === "building" ? buildingParams.value.seed : params.value.seed;
+        const currentParams = mode.value === "building"
+            ? { ...buildingParams.value }
+            : { ...params.value };
         propertiesSystem.setName(shapeId, newSeed, SERVER_SYNC);
         (shape as Asset).setImage(previewUrl.value, true);
 
         const storedData: DungeonGenStoredData = {
-            params: { ...params.value },
+            params: currentParams,
             seed: newSeed,
             gridCells: gridCells.value,
             dungeonMeta: dungeonMeta.value ?? undefined,
@@ -408,112 +476,162 @@ async function makeRealisticWithAI(): Promise<void> {
             <div class="ext-body ext-two-col">
                 <section class="ext-ui-section ext-two-col-side ext-two-col-single">
                     <h3 class="ext-ui-section-title">{{ t("game.ui.extensions.DungeongenModal.settings") }}</h3>
-                    <div class="dg-fields-row">
-                        <div class="ext-ui-field">
-                            <label class="ext-ui-label" for="dg-size">{{ t("game.ui.extensions.DungeongenModal.size") }}</label>
-                            <select id="dg-size" v-model="params.size" class="ext-ui-select">
-                                <option v-for="opt in sizeOptions" :key="opt.value" :value="opt.value">
-                                    {{ t(opt.labelKey) }}
-                                </option>
-                            </select>
+
+                    <!-- ── DUNGEON settings ─────────────────────────────── -->
+                    <template v-if="mode === 'dungeon'">
+                        <div class="dg-fields-row">
+                            <div class="ext-ui-field">
+                                <label class="ext-ui-label" for="dg-size">{{ t("game.ui.extensions.DungeongenModal.size") }}</label>
+                                <select id="dg-size" v-model="params.size" class="ext-ui-select">
+                                    <option v-for="opt in sizeOptions" :key="opt.value" :value="opt.value">
+                                        {{ t(opt.labelKey) }}
+                                    </option>
+                                </select>
+                            </div>
                         </div>
-                    </div>
-                    <div class="dg-fields-row">
-                        <div class="ext-ui-field">
-                            <label class="ext-ui-label" for="dg-archetype">{{ t("game.ui.extensions.DungeongenModal.archetype") }}</label>
-                            <select id="dg-archetype" v-model="params.archetype" class="ext-ui-select">
-                                <option v-for="opt in archetypeOptions" :key="opt.value" :value="opt.value">
-                                    {{ t(opt.labelKey) }}
-                                </option>
-                            </select>
+                        <div class="dg-fields-row">
+                            <div class="ext-ui-field">
+                                <label class="ext-ui-label" for="dg-archetype">{{ t("game.ui.extensions.DungeongenModal.archetype") }}</label>
+                                <select id="dg-archetype" v-model="params.archetype" class="ext-ui-select">
+                                    <option v-for="opt in archetypeOptions" :key="opt.value" :value="opt.value">
+                                        {{ t(opt.labelKey) }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="ext-ui-field">
+                                <label class="ext-ui-label" for="dg-symmetry">{{ t("game.ui.extensions.DungeongenModal.symmetry") }}</label>
+                                <select id="dg-symmetry" v-model="params.symmetry" class="ext-ui-select">
+                                    <option v-for="opt in symmetryOptions" :key="opt.value" :value="opt.value">
+                                        {{ t(opt.labelKey) }}
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="dg-fields-row">
+                            <div class="ext-ui-field">
+                                <label class="ext-ui-label" for="dg-water">{{ t("game.ui.extensions.DungeongenModal.water") }}</label>
+                                <select id="dg-water" v-model="params.water" class="ext-ui-select">
+                                    <option v-for="opt in waterOptions" :key="opt.value" :value="opt.value">
+                                        {{ t(opt.labelKey) }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="ext-ui-field">
+                                <label class="ext-ui-label" for="dg-pack">{{ t("game.ui.extensions.DungeongenModal.pack") }}</label>
+                                <select id="dg-pack" v-model="params.pack" class="ext-ui-select">
+                                    <option v-for="opt in packOptions" :key="opt.value" :value="opt.value">
+                                        {{ t(opt.labelKey) }}
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="dg-fields-row">
+                            <div class="ext-ui-field">
+                                <label class="ext-ui-label" for="dg-roomsize">{{ t("game.ui.extensions.DungeongenModal.roomsize") }}</label>
+                                <select id="dg-roomsize" v-model="params.roomsize" class="ext-ui-select">
+                                    <option v-for="opt in roomsizeOptions" :key="opt.value" :value="opt.value">
+                                        {{ t(opt.labelKey) }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="ext-ui-field">
+                                <label class="ext-ui-label" for="dg-cross">{{ t("game.ui.extensions.DungeongenModal.cross") }}</label>
+                                <select id="dg-cross" v-model="params.cross" class="ext-ui-select">
+                                    <option v-for="opt in crossOptions" :key="opt.value" :value="opt.value">
+                                        {{ t(opt.labelKey) }}
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="dg-fields-row">
+                            <div class="ext-ui-field">
+                                <label class="ext-ui-label" for="dg-symbreak">{{ t("game.ui.extensions.DungeongenModal.symmetry_break") }}</label>
+                                <select id="dg-symbreak" v-model="params.symmetry_break" class="ext-ui-select">
+                                    <option v-for="opt in symmetryBreakOptions" :key="opt.value" :value="opt.value">
+                                        {{ t(opt.labelKey) }}
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="dg-fields-row">
+                            <label class="ext-ui-checkbox">
+                                <input v-model="params.round_rooms" type="checkbox" />
+                                {{ t("game.ui.extensions.DungeongenModal.round_rooms") }}
+                            </label>
+                        </div>
+                        <div class="dg-fields-row">
+                            <label class="ext-ui-checkbox">
+                                <input v-model="params.halls" type="checkbox" />
+                                {{ t("game.ui.extensions.DungeongenModal.halls") }}
+                            </label>
+                        </div>
+                        <div class="dg-fields-row">
+                            <label class="ext-ui-checkbox">
+                                <input v-model="params.show_numbers" type="checkbox" />
+                                {{ t("game.ui.extensions.DungeongenModal.show_numbers") }}
+                            </label>
                         </div>
                         <div class="ext-ui-field">
-                            <label class="ext-ui-label" for="dg-symmetry">{{ t("game.ui.extensions.DungeongenModal.symmetry") }}</label>
-                            <select id="dg-symmetry" v-model="params.symmetry" class="ext-ui-select">
-                                <option v-for="opt in symmetryOptions" :key="opt.value" :value="opt.value">
-                                    {{ t(opt.labelKey) }}
-                                </option>
-                            </select>
+                            <label class="ext-ui-label" for="dg-seed">{{ t("game.ui.extensions.DungeongenModal.seed") }}</label>
+                            <input
+                                id="dg-seed"
+                                v-model="params.seed"
+                                type="text"
+                                class="ext-ui-input"
+                                :placeholder="t('game.ui.extensions.DungeongenModal.seed_placeholder')"
+                                :disabled="isEditMode"
+                            />
+                            <p v-if="isEditMode" class="ext-ui-hint edit-mode-note">
+                                {{ t("game.ui.extensions.DungeongenModal.edit_mode_note") }}
+                            </p>
                         </div>
-                    </div>
-                    <div class="dg-fields-row">
+                    </template>
+
+                    <!-- ── BUILDING settings ────────────────────────────── -->
+                    <template v-else>
+                        <div class="dg-fields-row">
+                            <div class="ext-ui-field">
+                                <label class="ext-ui-label" for="bg-archetype">{{ t("game.ui.extensions.DungeongenModal.archetype") }}</label>
+                                <select id="bg-archetype" v-model="buildingParams.archetype" class="ext-ui-select">
+                                    <option v-for="opt in buildingArchetypeOptions" :key="opt.value" :value="opt.value">
+                                        {{ t(opt.labelKey) }}
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="dg-fields-row">
+                            <div class="ext-ui-field">
+                                <label class="ext-ui-label" for="bg-footprint">{{ t("game.ui.extensions.DungeongenModal.footprint") }}</label>
+                                <select id="bg-footprint" v-model="buildingParams.footprint" class="ext-ui-select">
+                                    <option v-for="opt in footprintOptions" :key="opt.value" :value="opt.value">
+                                        {{ t(opt.labelKey) }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="ext-ui-field">
+                                <label class="ext-ui-label" for="bg-layout">{{ t("game.ui.extensions.DungeongenModal.layout") }}</label>
+                                <select id="bg-layout" v-model="buildingParams.layout" class="ext-ui-select">
+                                    <option v-for="opt in layoutOptions" :key="opt.value" :value="opt.value">
+                                        {{ t(opt.labelKey) }}
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
                         <div class="ext-ui-field">
-                            <label class="ext-ui-label" for="dg-water">{{ t("game.ui.extensions.DungeongenModal.water") }}</label>
-                            <select id="dg-water" v-model="params.water" class="ext-ui-select">
-                                <option v-for="opt in waterOptions" :key="opt.value" :value="opt.value">
-                                    {{ t(opt.labelKey) }}
-                                </option>
-                            </select>
+                            <label class="ext-ui-label" for="bg-seed">{{ t("game.ui.extensions.DungeongenModal.seed") }}</label>
+                            <input
+                                id="bg-seed"
+                                v-model="buildingParams.seed"
+                                type="text"
+                                class="ext-ui-input"
+                                :placeholder="t('game.ui.extensions.DungeongenModal.seed_placeholder')"
+                                :disabled="isEditMode"
+                            />
+                            <p v-if="isEditMode" class="ext-ui-hint edit-mode-note">
+                                {{ t("game.ui.extensions.DungeongenModal.edit_mode_note") }}
+                            </p>
                         </div>
-                        <div class="ext-ui-field">
-                            <label class="ext-ui-label" for="dg-pack">{{ t("game.ui.extensions.DungeongenModal.pack") }}</label>
-                            <select id="dg-pack" v-model="params.pack" class="ext-ui-select">
-                                <option v-for="opt in packOptions" :key="opt.value" :value="opt.value">
-                                    {{ t(opt.labelKey) }}
-                                </option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="dg-fields-row">
-                        <div class="ext-ui-field">
-                            <label class="ext-ui-label" for="dg-roomsize">{{ t("game.ui.extensions.DungeongenModal.roomsize") }}</label>
-                            <select id="dg-roomsize" v-model="params.roomsize" class="ext-ui-select">
-                                <option v-for="opt in roomsizeOptions" :key="opt.value" :value="opt.value">
-                                    {{ t(opt.labelKey) }}
-                                </option>
-                            </select>
-                        </div>
-                        <div class="ext-ui-field">
-                            <label class="ext-ui-label" for="dg-cross">{{ t("game.ui.extensions.DungeongenModal.cross") }}</label>
-                            <select id="dg-cross" v-model="params.cross" class="ext-ui-select">
-                                <option v-for="opt in crossOptions" :key="opt.value" :value="opt.value">
-                                    {{ t(opt.labelKey) }}
-                                </option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="dg-fields-row">
-                        <div class="ext-ui-field">
-                            <label class="ext-ui-label" for="dg-symbreak">{{ t("game.ui.extensions.DungeongenModal.symmetry_break") }}</label>
-                            <select id="dg-symbreak" v-model="params.symmetry_break" class="ext-ui-select">
-                                <option v-for="opt in symmetryBreakOptions" :key="opt.value" :value="opt.value">
-                                    {{ t(opt.labelKey) }}
-                                </option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="dg-fields-row">
-                        <label class="ext-ui-checkbox">
-                            <input v-model="params.round_rooms" type="checkbox" />
-                            {{ t("game.ui.extensions.DungeongenModal.round_rooms") }}
-                        </label>
-                    </div>
-                    <div class="dg-fields-row">
-                        <label class="ext-ui-checkbox">
-                            <input v-model="params.halls" type="checkbox" />
-                            {{ t("game.ui.extensions.DungeongenModal.halls") }}
-                        </label>
-                    </div>
-                    <div class="dg-fields-row">
-                        <label class="ext-ui-checkbox">
-                            <input v-model="params.show_numbers" type="checkbox" />
-                            {{ t("game.ui.extensions.DungeongenModal.show_numbers") }}
-                        </label>
-                    </div>
-                    <div class="ext-ui-field">
-                        <label class="ext-ui-label" for="dg-seed">{{ t("game.ui.extensions.DungeongenModal.seed") }}</label>
-                        <input
-                            id="dg-seed"
-                            v-model="params.seed"
-                            type="text"
-                            class="ext-ui-input"
-                            :placeholder="t('game.ui.extensions.DungeongenModal.seed_placeholder')"
-                            :disabled="isEditMode"
-                        />
-                        <p v-if="isEditMode" class="ext-ui-hint edit-mode-note">
-                            {{ t("game.ui.extensions.DungeongenModal.edit_mode_note") }}
-                        </p>
-                    </div>
+                    </template>
                 </section>
 
                 <section class="ext-ui-section ext-two-col-main">
