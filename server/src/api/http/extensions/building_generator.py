@@ -155,8 +155,34 @@ class BuildingResult:
 # Archetype configuration
 # ---------------------------------------------------------------------------
 
-# Canvas sizes per archetype per size: (W, H, n_rooms)
-# Size multipliers: small=0.7, medium=1.0, large=1.35, xlarge=1.7
+# Canvas base sizes per archetype (used as reference for medium size).
+# The actual canvas is scaled by _SIZE_SCALE and adjusted to fit n_rooms.
+ARCHETYPE_CFG: dict[BuildingArchetype, dict] = {
+    BuildingArchetype.HOUSE:  {"canvas": (14, 11)},
+    BuildingArchetype.SHOP:   {"canvas": (15, 11)},
+    BuildingArchetype.TAVERN: {"canvas": (18, 13)},
+    BuildingArchetype.INN:    {"canvas": (20, 15)},
+}
+
+# Room kind pools per archetype.
+# _build_kinds() draws from this pool in order, repeating the last entry
+# when n_rooms exceeds the pool length.  The first entry is always "primary".
+ARCHETYPE_KINDS: dict[BuildingArchetype, list[str]] = {
+    BuildingArchetype.HOUSE:  ["primary", "secondary", "secondary", "secondary"],
+    BuildingArchetype.SHOP:   ["primary", "secondary", "secondary", "storage"],
+    BuildingArchetype.TAVERN: ["primary", "secondary", "secondary", "secondary", "kitchen"],
+    BuildingArchetype.INN:    ["primary", "secondary", "bedroom", "bedroom", "bedroom", "bedroom"],
+}
+
+# Number of rooms (min, max) per BuildingSize, chosen randomly with the seed.
+_SIZE_ROOMS: dict[BuildingSize, tuple[int, int]] = {
+    BuildingSize.SMALL:  (1, 3),
+    BuildingSize.MEDIUM: (3, 5),
+    BuildingSize.LARGE:  (5, 10),
+    BuildingSize.XLARGE: (10, 25),
+}
+
+# Canvas scale factor per BuildingSize (applied to base canvas dimensions).
 _SIZE_SCALE: dict[BuildingSize, float] = {
     BuildingSize.SMALL:  0.70,
     BuildingSize.MEDIUM: 1.00,
@@ -164,24 +190,20 @@ _SIZE_SCALE: dict[BuildingSize, float] = {
     BuildingSize.XLARGE: 1.70,
 }
 
-ARCHETYPE_CFG: dict[BuildingArchetype, dict] = {
-    BuildingArchetype.HOUSE: {
-        "canvas":  (14, 11),
-        "kinds":   ["primary", "secondary", "secondary"],
-    },
-    BuildingArchetype.SHOP: {
-        "canvas":  (15, 11),
-        "kinds":   ["primary", "secondary", "secondary"],
-    },
-    BuildingArchetype.TAVERN: {
-        "canvas":  (18, 13),
-        "kinds":   ["primary", "secondary", "secondary", "secondary"],
-    },
-    BuildingArchetype.INN: {
-        "canvas":  (20, 15),
-        "kinds":   ["primary", "secondary", "bedroom", "bedroom", "bedroom"],
-    },
-}
+
+def _build_kinds(archetype: BuildingArchetype, n_rooms: int) -> list[str]:
+    """Return a list of n_rooms kind strings for the given archetype.
+
+    Always starts with "primary".  Subsequent kinds are drawn from the
+    archetype's kind pool in order; the last pool entry is repeated when
+    n_rooms exceeds the pool length.
+    """
+    pool = ARCHETYPE_KINDS[archetype]
+    kinds: list[str] = []
+    for i in range(n_rooms):
+        idx = min(i, len(pool) - 1)
+        kinds.append(pool[idx])
+    return kinds
 
 
 # ---------------------------------------------------------------------------
@@ -374,12 +396,10 @@ def _guillotine(
 def partition_rooms(
     blocks:    list[tuple[int, int, int, int]],
     W: int, H: int,
-    archetype: BuildingArchetype,
+    kinds:     list[str],
     layout:    LayoutPlan,
-    cfg:       dict,
     rng:       random.Random,
 ) -> list[Room]:
-    kinds     = list(cfg["kinds"])
     n_rooms   = len(kinds)
     total_area = sum(bw * bh for _, _, bw, bh in blocks)
 
@@ -482,70 +502,101 @@ def partition_rooms(
 # Corridor insertion
 # ---------------------------------------------------------------------------
 
+def _trim_rooms_horizontal(
+    rooms_raw: list[tuple[int, int, int, int]],
+    primary_raw: tuple[int, int, int, int],
+    corr_y: int,
+) -> list[tuple[int, int, int, int]]:
+    """Return rooms_raw with any room overlapping the horizontal corridor zone trimmed."""
+    excl_top = corr_y - GAP
+    excl_bot = corr_y + MIN_ROOM + GAP
+    result: list[tuple[int, int, int, int]] = []
+    for sx, sy, sw, sh in rooms_raw:
+        if (sx, sy, sw, sh) == primary_raw:
+            result.append((sx, sy, sw, sh))
+            continue
+        if sy + sh <= excl_top or sy >= excl_bot:
+            result.append((sx, sy, sw, sh))
+            continue
+        if sy < excl_top and excl_top - sy >= MIN_ROOM:
+            result.append((sx, sy, sw, excl_top - sy))
+        if sy + sh > excl_bot and (sy + sh) - excl_bot >= MIN_ROOM:
+            result.append((sx, excl_bot, sw, (sy + sh) - excl_bot))
+    return result
+
+
+def _trim_rooms_vertical(
+    rooms_raw: list[tuple[int, int, int, int]],
+    primary_raw: tuple[int, int, int, int],
+    corr_x: int,
+) -> list[tuple[int, int, int, int]]:
+    """Return rooms_raw with any room overlapping the vertical corridor zone trimmed."""
+    excl_left  = corr_x - GAP
+    excl_right = corr_x + MIN_ROOM + GAP
+    result: list[tuple[int, int, int, int]] = []
+    for sx, sy, sw, sh in rooms_raw:
+        if (sx, sy, sw, sh) == primary_raw:
+            result.append((sx, sy, sw, sh))
+            continue
+        if sx + sw <= excl_left or sx >= excl_right:
+            result.append((sx, sy, sw, sh))
+            continue
+        if sx < excl_left and excl_left - sx >= MIN_ROOM:
+            result.append((sx, sy, excl_left - sx, sh))
+        if sx + sw > excl_right and (sx + sw) - excl_right >= MIN_ROOM:
+            result.append((excl_right, sy, (sx + sw) - excl_right, sh))
+    return result
+
+
 def _insert_corridor(
     rooms_raw: list[tuple[int, int, int, int]],
     W: int, H: int,
     primary_raw: tuple[int, int, int, int],
     rng: random.Random,
 ) -> list[tuple[int, int, int, int]]:
-    """Insert a corridor (MIN_ROOM thick) adjacent to the primary room."""
+    """Insert a corridor (MIN_ROOM thick) adjacent to the primary room.
+
+    Tries all 4 sides of the primary room in random order and places the
+    corridor on the first side that fits on the canvas perimeter.
+    Horizontal corridors (north/south) span the full canvas width.
+    Vertical corridors (east/west) span the full canvas height.
+    """
     px, py, pw, ph = primary_raw
-    horizontal = W >= H
 
-    if horizontal:
-        # Horizontal corridor above the primary
-        corr_y = py - GAP - MIN_ROOM
-        if corr_y < 0:
-            corr_y = py + ph + GAP
-        if corr_y < 0 or corr_y + MIN_ROOM > H:
-            return rooms_raw
+    # Candidate placements: (side, corr_rect)
+    candidates: list[tuple[str, tuple[int, int, int, int]]] = []
 
-        corr = (0, corr_y, W, MIN_ROOM)
-        result: list[tuple[int, int, int, int]] = []
-        for sx, sy, sw, sh in rooms_raw:
-            if (sx, sy, sw, sh) == (px, py, pw, ph):
-                result.append((sx, sy, sw, sh))
-                continue
-            # Rooms that overlap or are adjacent to the corridor zone get trimmed.
-            # The "exclusion zone" is [corr_y - GAP, corr_y + MIN_ROOM + GAP).
-            excl_top = corr_y - GAP
-            excl_bot = corr_y + MIN_ROOM + GAP
-            if sy + sh <= excl_top or sy >= excl_bot:
-                result.append((sx, sy, sw, sh))
-                continue
-            # Trim top portion (must leave a GAP between trimmed room and corridor)
-            if sy < excl_top and excl_top - sy >= MIN_ROOM:
-                result.append((sx, sy, sw, excl_top - sy))
-            # Trim bottom portion
-            if sy + sh > excl_bot and (sy + sh) - excl_bot >= MIN_ROOM:
-                result.append((sx, excl_bot, sw, (sy + sh) - excl_bot))
+    corr_y_north = py - GAP - MIN_ROOM
+    if corr_y_north >= 0:
+        candidates.append(("north", (0, corr_y_north, W, MIN_ROOM)))
+
+    corr_y_south = py + ph + GAP
+    if corr_y_south + MIN_ROOM <= H:
+        candidates.append(("south", (0, corr_y_south, W, MIN_ROOM)))
+
+    corr_x_west = px - GAP - MIN_ROOM
+    if corr_x_west >= 0:
+        candidates.append(("west", (corr_x_west, 0, MIN_ROOM, H)))
+
+    corr_x_east = px + pw + GAP
+    if corr_x_east + MIN_ROOM <= W:
+        candidates.append(("east", (corr_x_east, 0, MIN_ROOM, H)))
+
+    if not candidates:
+        return rooms_raw
+
+    rng.shuffle(candidates)
+    side, corr = candidates[0]
+
+    if side in ("north", "south"):
+        corr_y = corr[1]
+        result = _trim_rooms_horizontal(rooms_raw, primary_raw, corr_y)
         result.append(corr)
         return result
     else:
-        corr_x = px + pw + GAP
-        if corr_x + MIN_ROOM > W:
-            corr_x = px - GAP - MIN_ROOM
-        if corr_x < 0 or corr_x + MIN_ROOM > W:
-            return rooms_raw
-
-        corr = (corr_x, 0, MIN_ROOM, H)
-        result = []
-        for sx, sy, sw, sh in rooms_raw:
-            if (sx, sy, sw, sh) == (px, py, pw, ph):
-                result.append((sx, sy, sw, sh))
-                continue
-            # Exclusion zone: [corr_x - GAP, corr_x + MIN_ROOM + GAP)
-            excl_left = corr_x - GAP
-            excl_right = corr_x + MIN_ROOM + GAP
-            if sx + sw <= excl_left or sx >= excl_right:
-                result.append((sx, sy, sw, sh))
-                continue
-            # Trim left portion (must leave a GAP between trimmed room and corridor)
-            if sx < excl_left and excl_left - sx >= MIN_ROOM:
-                result.append((sx, sy, excl_left - sx, sh))
-            # Trim right portion
-            if sx + sw > excl_right and (sx + sw) - excl_right >= MIN_ROOM:
-                result.append((excl_right, sy, (sx + sw) - excl_right, sh))
+        corr_x = corr[0]
+        result = _trim_rooms_vertical(rooms_raw, primary_raw, corr_x)
+        result.append(corr)
         result.append(corr)
         return result
 
@@ -607,14 +658,15 @@ def _find_entrance(
     primary:    Room,
     blocks:     list[tuple[int, int, int, int]],
     W: int, H: int,
+    rng:        random.Random,
     avoid_room: Optional[Room] = None,
 ) -> Optional[Door]:
     """Find a free exterior side of the primary room for the entrance.
 
     A side is "free" if the gap cell is outside the footprint/canvas.
-    If avoid_room is given (e.g. the corridor), skip the side that faces it
-    so the entrance is always on a true exterior wall.
-    Priority: south → north → west → east.
+    If avoid_room is given (e.g. the corridor), prefer sides that do not
+    face it; those sides are tried first (in random order controlled by rng).
+    The position within the chosen side is centred on the room's midpoint.
     """
     r = primary
 
@@ -657,9 +709,13 @@ def _find_entrance(
 
     sides = ["south", "north", "west", "east"]
 
-    # Try sides not facing avoid_room first, then fallback to all sides
+    # Shuffle preferred sides randomly (seed-controlled), then append the
+    # non-preferred sides (also shuffled) as fallback.
     preferred = [s for s in sides if avoid_room is None or not _side_faces_room(s, avoid_room)]
-    order = preferred + [s for s in sides if s not in preferred]
+    fallback  = [s for s in sides if s not in preferred]
+    rng.shuffle(preferred)
+    rng.shuffle(fallback)
+    order = preferred + fallback
 
     for side in order:
         if side == "south":
@@ -691,13 +747,14 @@ def place_doors(
     blocks: list[tuple[int, int, int, int]],
     layout: LayoutPlan,
     W: int, H: int,
+    rng:    random.Random,
 ) -> list[Door]:
     doors:   list[Door] = []
     primary: Room       = rooms[0]
 
     # In CORRIDOR mode, find the corridor first so entrance avoids its side
     corridor_room = next((r for r in rooms if r.kind == "corridor"), None) if layout == LayoutPlan.CORRIDOR else None
-    entrance = _find_entrance(primary, blocks, W, H, avoid_room=corridor_room)
+    entrance = _find_entrance(primary, blocks, W, H, rng, avoid_room=corridor_room)
     if entrance:
         doors.append(entrance)
 
@@ -932,16 +989,38 @@ def generate_building(params: BuildingParams) -> tuple[BuildingResult, bytes, li
     rng = random.Random(params.seed)
     cfg = ARCHETYPE_CFG[params.archetype]
 
-    scale = _SIZE_SCALE[params.size]
+    # Determine number of rooms based on size (random within range, seed-controlled)
+    n_rooms = rng.randint(*_SIZE_ROOMS[params.size])
+    kinds   = _build_kinds(params.archetype, n_rooms)
+
+    # Canvas must be large enough to fit n_rooms even in a single-block layout.
+    # We compute a minimum canvas from the room count, then take the max with
+    # the size-scaled archetype base canvas so larger sizes still feel spacious.
+    scale   = _SIZE_SCALE[params.size]
     base_w, base_h = cfg["canvas"]
-    scaled_w = max(8,  round(base_w * scale))
-    scaled_h = max(7,  round(base_h * scale))
-    W = max(8, scaled_w + rng.randint(-1, 2))
-    H = max(7, scaled_h + rng.randint(-1, 2))
+    scaled_w = max(8, round(base_w * scale))
+    scaled_h = max(7, round(base_h * scale))
+
+    # Minimum canvas to fit n_rooms via guillotine partitioning.
+    # The guillotine always bisects recursively (n1 = n//2, n2 = n-n1).
+    # In the worst case all rooms are laid out along one axis, requiring
+    # _min_block_size(n_rooms) cells on that axis.  We ensure at least one
+    # axis is large enough, and the other is large enough for a single room.
+    import math
+    min_long  = _min_block_size(n_rooms) + 4   # enough for n rooms in a line
+    min_short = MIN_ROOM + 4                    # enough for 1 room on short axis
+    # Choose orientation: make the longer base axis the "long" one
+    if base_w >= base_h:
+        min_w, min_h = min_long, min_short
+    else:
+        min_w, min_h = min_short, min_long
+
+    W = max(min_w, scaled_w + rng.randint(-1, 2))
+    H = max(min_h, scaled_h + rng.randint(-1, 2))
 
     blocks = make_blocks(params.footprint, W, H, rng)
-    rooms  = partition_rooms(blocks, W, H, params.archetype, params.layout, cfg, rng)
-    doors  = place_doors(rooms, blocks, params.layout, W, H)
+    rooms  = partition_rooms(blocks, W, H, kinds, params.layout, rng)
+    doors  = place_doors(rooms, blocks, params.layout, W, H, rng)
 
     grid = make_grid(W, H)
     stamp_rooms(grid, rooms)
