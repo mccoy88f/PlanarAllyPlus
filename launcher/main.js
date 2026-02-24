@@ -7,7 +7,9 @@ const linkEl = document.getElementById('app-link');
 const urlArea = document.getElementById('url-area');
 const urlLabel = document.getElementById('url-label');
 const statusEl = document.getElementById('status');
+const versionInfoEl = document.getElementById('version-info');
 const btnUpdate = document.getElementById('btn-update');
+const btnReset = document.getElementById('btn-reset');
 const btnStart = document.getElementById('btn-start');
 const btnStop = document.getElementById('btn-stop');
 const btnRestart = document.getElementById('btn-restart');
@@ -18,9 +20,12 @@ const logSection = document.querySelector('.log-section');
 const progressArea = document.getElementById('progress-area');
 const progressFill = document.getElementById('progress-fill');
 const progressStatus = document.getElementById('progress-status');
+const repoLink = document.getElementById('repo-link');
 
 const PORT = 8000;
+const REPO_URL = 'https://github.com/mccoy88f/PlanarAllyPlus';
 let isRestarting = false;
+let appIsReady = false;
 
 function appendLog(text, isError = false) {
   const line = document.createElement('span');
@@ -40,11 +45,13 @@ function setRunning(running) {
   btnStop.disabled = !running;
   btnRestart.disabled = !running;
   btnUpdate.disabled = running;
+  btnReset.disabled = running;
 }
 
 function setStarting(starting) {
   btnStart.disabled = starting;
   btnUpdate.disabled = starting;
+  btnReset.disabled = starting;
   btnStop.disabled = !starting;
   btnRestart.disabled = true;
 }
@@ -65,14 +72,38 @@ function hideProgress(success = true, statusText = '') {
   }, 1500);
 }
 
+function updateBtnUpdateLabel(ready) {
+  const key = ready ? 'btnUpdate' : 'btnDownload';
+  btnUpdate.textContent = t(key);
+  btnUpdate.setAttribute('data-i18n', key);
+}
+
+async function refreshVersionInfo() {
+  try {
+    const info = await invoke('get_app_version_info');
+    if (info && info.commit) {
+      let text = `v: ${info.commit}`;
+      if (info.date) text += `  (${info.date})`;
+      versionInfoEl.textContent = text;
+    } else {
+      versionInfoEl.textContent = '';
+    }
+  } catch {
+    versionInfoEl.textContent = '';
+  }
+}
+
 async function refreshStatus() {
   try {
     const status = await invoke('get_app_status');
+    appIsReady = status.ready;
     if (status.ready) {
       setStatus(tFormat('statusReadyPath', { path: status.path }), true);
     } else {
       setStatus(status.path, false);
     }
+    updateBtnUpdateLabel(status.ready);
+    await refreshVersionInfo();
   } catch (e) {
     setStatus(t('statusErrorPrefix') + e, false);
   }
@@ -110,6 +141,16 @@ linkEl.addEventListener('click', async (e) => {
     } catch (err) {
       console.error('Failed to open URL:', err);
     }
+  }
+});
+
+// Repo link: open in default browser
+repoLink.addEventListener('click', async (e) => {
+  e.preventDefault();
+  try {
+    await invoke('open_browser_url', { url: REPO_URL });
+  } catch (err) {
+    console.error('Failed to open repo URL:', err);
   }
 });
 
@@ -162,16 +203,37 @@ btnUpdate.addEventListener('click', async () => {
   }
   showProgress(true, t('progressDownloading'));
   btnUpdate.disabled = true;
+  btnReset.disabled = true;
   try {
     const path = await invoke('ensure_app_downloaded', { force: true });
     appendLog('Completed: ' + path);
-    refreshStatus();
+    await refreshStatus();
     hideProgress(true, t('progressUpdateComplete'));
   } catch (e) {
     appendLog('Error: ' + String(e), true);
     hideProgress(false, t('progressUpdateFailed'));
   }
-  btnUpdate.disabled = btnStart.disabled; // keep disabled if server is running
+  btnUpdate.disabled = btnStart.disabled;
+  btnReset.disabled = btnStart.disabled;
+});
+
+btnReset.addEventListener('click', async () => {
+  const confirmed = confirm(t('initializeConfirm'));
+  if (!confirmed) return;
+  showProgress(true, t('progressInitializing'));
+  btnReset.disabled = true;
+  btnUpdate.disabled = true;
+  try {
+    await invoke('reset_app');
+    appendLog('App reset: installation folder removed.');
+    await refreshStatus();
+    hideProgress(true, t('progressInitializeComplete'));
+  } catch (e) {
+    appendLog('Reset error: ' + String(e), true);
+    hideProgress(false, t('progressInitializeFailed'));
+  }
+  btnReset.disabled = false;
+  btnUpdate.disabled = btnStart.disabled;
 });
 
 btnStart.addEventListener('click', async () => {

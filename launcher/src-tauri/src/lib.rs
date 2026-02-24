@@ -264,6 +264,73 @@ fn get_launcher_version() -> String {
 }
 
 #[tauri::command]
+fn get_app_version_info() -> serde_json::Value {
+    // Try to read version info from the installed app.
+    // Looks for version.txt, COMMIT, .commit, server/version.txt in project root.
+    let root = match get_project_root() {
+        Ok(r) => r,
+        Err(_) => return serde_json::json!({ "commit": null, "date": null }),
+    };
+
+    // Candidate files that may contain "commit hash [date]" or just a commit hash.
+    let candidates = [
+        "version.txt",
+        "COMMIT",
+        ".commit",
+        "server/version.txt",
+    ];
+
+    for candidate in &candidates {
+        let p = root.join(candidate);
+        if p.exists() {
+            if let Ok(content) = std::fs::read_to_string(&p) {
+                let content = content.trim().to_string();
+                if content.is_empty() {
+                    continue;
+                }
+                // Try to parse "COMMIT DATE" format (space-separated)
+                let mut parts = content.splitn(2, ' ');
+                let commit = parts.next().unwrap_or("").trim().to_string();
+                let date = parts.next().map(|s| s.trim().to_string());
+                if !commit.is_empty() {
+                    return serde_json::json!({ "commit": commit, "date": date });
+                }
+            }
+        }
+    }
+
+    // Fallback: try git log in the project root
+    let output = std::process::Command::new("git")
+        .args(["log", "-1", "--format=%h %ad", "--date=short"])
+        .current_dir(&root)
+        .output();
+    if let Ok(out) = output {
+        if out.status.success() {
+            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !s.is_empty() {
+                let mut parts = s.splitn(2, ' ');
+                let commit = parts.next().unwrap_or("").trim().to_string();
+                let date = parts.next().map(|d| d.trim().to_string());
+                return serde_json::json!({ "commit": commit, "date": date });
+            }
+        }
+    }
+
+    serde_json::json!({ "commit": null, "date": null })
+}
+
+#[tauri::command]
+fn reset_app() -> Result<(), String> {
+    let base = app_data_dir()?;
+    let app_dir = base.join("app");
+    if app_dir.exists() {
+        std::fs::remove_dir_all(&app_dir)
+            .map_err(|e| format!("Failed to remove app dir: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 async fn get_app_status() -> Result<serde_json::Value, String> {
     let root_result = get_project_root();
     let (ready, path) = match root_result {
@@ -541,6 +608,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             ensure_app_downloaded,
             get_app_status,
+            get_app_version_info,
+            reset_app,
             get_launcher_version,
             start_server,
             stop_server,

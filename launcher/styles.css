@@ -5,10 +5,22 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
-  background: #1a1a2e;
   color: #eaeaea;
   min-height: 100vh;
   overflow: hidden;
+}
+
+/* Background image: fixed, top always visible, cover without distortion */
+.bg-image {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  z-index: -1;
+  pointer-events: none;
 }
 
 .container {
@@ -16,27 +28,36 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  background: rgba(10, 10, 20, 0.55);
 }
 
 h1 {
   margin: 0 0 0.25rem 0;
   font-size: 1.5rem;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
 }
 
 .subtitle {
   margin: 0 0 1rem 0;
-  color: #888;
+  color: #b0b0c0;
   font-size: 0.9rem;
 }
 
 .subtitle .version {
-  color: #666;
+  color: #888;
   font-size: 0.8rem;
 }
 
 .status {
   font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.version-info {
+  font-size: 0.8rem;
+  color: #9ab;
   margin-bottom: 0.5rem;
+  min-height: 1.1em;
 }
 
 .url-area {
@@ -55,7 +76,7 @@ h1 {
 }
 
 .url-label {
-  color: #888;
+  color: #b0b0c0;
   font-size: 0.9rem;
 }
 
@@ -85,7 +106,7 @@ h1 {
 
 .progress-bar {
   height: 6px;
-  background: #2d2d44;
+  background: rgba(45, 45, 68, 0.7);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -111,13 +132,21 @@ h1 {
 
 .progress-status {
   font-size: 0.75rem;
-  color: #888;
+  color: #b0b0c0;
 }
 
+/* Button layout: two groups stacked vertically */
 .buttons {
   display: flex;
+  flex-direction: column;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+}
+
+.btn-group {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .btn {
@@ -126,13 +155,16 @@ h1 {
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.95rem;
+  font-weight: 500;
+  transition: background 0.15s, opacity 0.15s;
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
+/* Server controls: green / red / grey */
 .btn-primary {
   background: #2e7d32;
   color: white;
@@ -143,12 +175,12 @@ h1 {
 }
 
 .btn-danger {
-  background: #c62828;
+  background: #b71c1c;
   color: white;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #d32f2f;
+  background: #c62828;
 }
 
 .btn-secondary {
@@ -158,6 +190,34 @@ h1 {
 
 .btn-secondary:hover:not(:disabled) {
   background: #546e7a;
+}
+
+/* App management: blue / orange / dark-red */
+.btn-update {
+  background: #1565c0;
+  color: white;
+}
+
+.btn-update:hover:not(:disabled) {
+  background: #1976d2;
+}
+
+.btn-reset {
+  background: #e65100;
+  color: white;
+}
+
+.btn-reset:hover:not(:disabled) {
+  background: #f57c00;
+}
+
+.btn-close-app {
+  background: #37474f;
+  color: white;
+}
+
+.btn-close-app:hover:not(:disabled) {
+  background: #455a64;
 }
 
 /* Collapsible log */
@@ -174,8 +234,8 @@ h1 {
   align-items: center;
   gap: 0.35rem;
   padding: 0.4rem 0.5rem;
-  background: #252538;
-  border: 1px solid #3d3d5c;
+  background: rgba(30, 30, 50, 0.65);
+  border: 1px solid rgba(80, 80, 120, 0.5);
   border-radius: 6px;
   color: #a0a0b0;
   cursor: pointer;
@@ -184,7 +244,7 @@ h1 {
 }
 
 .log-toggle:hover {
-  background: #2d2d44;
+  background: rgba(40, 40, 65, 0.8);
   color: #eaeaea;
 }
 
@@ -200,10 +260,12 @@ h1 {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  background: #0d1117;
+  background: rgba(10, 14, 20, 0.72);
   border-radius: 8px;
   padding: 0.75rem;
   transition: flex 0.2s ease;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .log-container.collapsed {
@@ -221,4 +283,24 @@ h1 {
   line-height: 1.4;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* Repo footer */
+.repo-footer {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #8899aa;
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.repo-link {
+  color: #4fc3f7;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.repo-link:hover {
+  text-decoration: underline;
 }
