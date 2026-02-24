@@ -597,7 +597,6 @@ def _insert_corridor(
         corr_x = corr[0]
         result = _trim_rooms_vertical(rooms_raw, primary_raw, corr_x)
         result.append(corr)
-        result.append(corr)
         return result
 
 
