@@ -175,12 +175,17 @@ ARCHETYPE_KINDS: dict[BuildingArchetype, list[str]] = {
 }
 
 # Number of rooms (min, max) per BuildingSize, chosen randomly with the seed.
+# XLARGE capped at 15 to stay within dungeongen pixel limits (±3200px / 50px/cell ≈ 64 cells max).
 _SIZE_ROOMS: dict[BuildingSize, tuple[int, int]] = {
     BuildingSize.SMALL:  (1, 3),
     BuildingSize.MEDIUM: (3, 5),
     BuildingSize.LARGE:  (5, 10),
-    BuildingSize.XLARGE: (10, 25),
+    BuildingSize.XLARGE: (10, 15),
 }
+
+# Maximum canvas cells per axis to stay within dungeongen's ±3200px coordinate limit.
+# With GRID_SIZE=50 and PADDING=50: max_cells = (3200 - 50) / 50 = 63
+_MAX_CANVAS_CELLS = 62
 
 # Canvas scale factor per BuildingSize (applied to base canvas dimensions).
 _SIZE_SCALE: dict[BuildingSize, float] = {
@@ -768,9 +773,14 @@ def place_doors(
         doors.append(d)
         return True
 
-    if layout == LayoutPlan.OPEN_PLAN:
-        accessible = {primary.id}
-        pending = [r for r in rooms[1:] if r.kind != "corridor"]
+    def _bfs_connect(
+        accessible: set[int],
+        pending: list[Room],
+    ) -> list[Room]:
+        """BFS: try to connect all pending rooms to accessible set.
+
+        Returns the list of rooms still not connected after all passes.
+        """
         for _ in range(len(pending) + 1):
             still = []
             for room in pending:
@@ -785,6 +795,71 @@ def place_doors(
             pending = still
             if not pending:
                 break
+        return pending
+
+    def _force_connect_isolated(isolated: list[Room], accessible: set[int]) -> None:
+        """Force-connect rooms that BFS couldn't reach by finding the closest gap.
+
+        For each isolated room, we look for the accessible room whose boundary
+        is closest to this room's boundary and insert a "virtual door" between
+        them even if they are not exactly GAP apart.  We pick the midpoint of
+        the overlapping span (or clamp to nearest valid y/x) so dungeongen can
+        render a door on the shared boundary cell.
+
+        This is a last-resort fallback: it may produce a door on a cell that is
+        technically a wall, but it prevents rooms from being completely sealed.
+        """
+        for room in isolated:
+            best: Optional[tuple[int, int, str]] = None
+            best_dist = 10**9
+            for aid in sorted(accessible):
+                other = rooms[aid]
+                # Try all 4 relative positions
+                # room to the right of other (other.x2 gap room.x)
+                dist_e = abs(room.x - other.x2)
+                dist_w = abs(other.x - room.x2)
+                dist_s = abs(room.y - other.y2)
+                dist_n = abs(other.y - room.y2)
+
+                # East: other left of room
+                ov1 = max(room.y, other.y); ov2 = min(room.y2, other.y2)
+                if ov2 - ov1 >= MIN_ROOM and dist_e < best_dist:
+                    mid_y = (ov1 + ov2) // 2
+                    best = (other.x2, mid_y, "east")
+                    best_dist = dist_e
+
+                # West: other right of room
+                if ov2 - ov1 >= MIN_ROOM and dist_w < best_dist:
+                    mid_y = (ov1 + ov2) // 2
+                    best = (room.x2, mid_y, "east")
+                    best_dist = dist_w
+
+                # South: other above room
+                oh1 = max(room.x, other.x); oh2 = min(room.x2, other.x2)
+                if oh2 - oh1 >= MIN_ROOM and dist_s < best_dist:
+                    mid_x = (oh1 + oh2) // 2
+                    best = (mid_x, other.y2, "south")
+                    best_dist = dist_s
+
+                # North: other below room
+                if oh2 - oh1 >= MIN_ROOM and dist_n < best_dist:
+                    mid_x = (oh1 + oh2) // 2
+                    best = (mid_x, room.y2, "south")
+                    best_dist = dist_n
+
+            if best is not None:
+                dx, dy, ddir = best
+                # Avoid duplicate
+                if not any(ex.x == dx and ex.y == dy for ex in doors):
+                    doors.append(Door(dx, dy, ddir))
+                accessible.add(room.id)
+
+    if layout == LayoutPlan.OPEN_PLAN:
+        accessible = {primary.id}
+        pending = [r for r in rooms[1:] if r.kind != "corridor"]
+        still = _bfs_connect(accessible, pending)
+        if still:
+            _force_connect_isolated(still, accessible)
 
     else:  # CORRIDOR — BFS through corridor first, then fallback to any accessible room
         corridor = next((r for r in rooms if r.kind == "corridor"), None)
@@ -793,36 +868,15 @@ def place_doors(
             add_door(primary, corridor)
             accessible = {primary.id, corridor.id}
             pending = [r for r in rooms if r is not primary and r.kind != "corridor"]
-            # Multiple passes: first try corridor, then any accessible room
-            for _ in range(len(pending) + 1):
-                still = []
-                for room in pending:
-                    connected = False
-                    for aid in sorted(accessible):
-                        if add_door(rooms[aid], room):
-                            accessible.add(room.id)
-                            connected = True
-                            break
-                    if not connected:
-                        still.append(room)
-                pending = still
-                if not pending:
-                    break
+            still = _bfs_connect(accessible, pending)
+            if still:
+                _force_connect_isolated(still, accessible)
         else:
             accessible = {primary.id}
             pending = list(rooms[1:])
-            for _ in range(len(pending) + 1):
-                still = []
-                for room in pending:
-                    for aid in sorted(accessible):
-                        if add_door(rooms[aid], room):
-                            accessible.add(room.id)
-                            break
-                    else:
-                        still.append(room)
-                pending = still
-                if not pending:
-                    break
+            still = _bfs_connect(accessible, pending)
+            if still:
+                _force_connect_isolated(still, accessible)
 
     return doors
 
@@ -1001,21 +1055,29 @@ def generate_building(params: BuildingParams) -> tuple[BuildingResult, bytes, li
     scaled_h = max(7, round(base_h * scale))
 
     # Minimum canvas to fit n_rooms via guillotine partitioning.
-    # The guillotine always bisects recursively (n1 = n//2, n2 = n-n1).
-    # In the worst case all rooms are laid out along one axis, requiring
-    # _min_block_size(n_rooms) cells on that axis.  We ensure at least one
-    # axis is large enough, and the other is large enough for a single room.
-    import math
-    min_long  = _min_block_size(n_rooms) + 4   # enough for n rooms in a line
-    min_short = MIN_ROOM + 4                    # enough for 1 room on short axis
+    # For multi-block footprints (CROSS has 3 blocks, L_SHAPE/OFFSET have 2),
+    # rooms are distributed proportionally across blocks. Each block gets at
+    # least 1 room.  To be safe we assume up to n_rooms rooms can end up in
+    # one block (worst case: single RECTANGLE block).
+    # We ensure at least one axis fits n_rooms in a line, the other fits 1 room.
+    n_blocks_est = {
+        FootprintShape.RECTANGLE: 1,
+        FootprintShape.L_SHAPE:   2,
+        FootprintShape.OFFSET:    2,
+        FootprintShape.CROSS:     3,
+    }[params.footprint]
+    # Per-block room count: ceiling of n_rooms / n_blocks (worst case distribution)
+    rooms_per_block = max(1, (n_rooms + n_blocks_est - 1) // n_blocks_est)
+    min_long  = _min_block_size(rooms_per_block) + 4   # enough for rooms_per_block in a line
+    min_short = MIN_ROOM + 4                             # enough for 1 room on short axis
     # Choose orientation: make the longer base axis the "long" one
     if base_w >= base_h:
         min_w, min_h = min_long, min_short
     else:
         min_w, min_h = min_short, min_long
 
-    W = max(min_w, scaled_w + rng.randint(-1, 2))
-    H = max(min_h, scaled_h + rng.randint(-1, 2))
+    W = min(_MAX_CANVAS_CELLS, max(min_w, scaled_w + rng.randint(-1, 2)))
+    H = min(_MAX_CANVAS_CELLS, max(min_h, scaled_h + rng.randint(-1, 2)))
 
     blocks = make_blocks(params.footprint, W, H, rng)
     rooms  = partition_rooms(blocks, W, H, kinds, params.layout, rng)
