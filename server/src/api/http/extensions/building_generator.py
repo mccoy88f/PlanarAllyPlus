@@ -1011,10 +1011,6 @@ def render_building_with_dungeongen(
     tf.postTranslate(PADDING, PADDING)
     dungeon_map.render(cv, tf)
 
-    sync = skia.Paint(Style=skia.Paint.kStroke_Style,
-                      Color=skia.Color(180, 180, 180), StrokeWidth=2)
-    cv.drawRect(skia.Rect(1, 1, GRID_SIZE - 1, GRID_SIZE - 1), sync)
-
     data = surface.makeImageSnapshot().encodeToData()
     if data is None:
         raise RuntimeError("PNG encode failed")

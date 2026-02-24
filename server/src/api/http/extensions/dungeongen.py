@@ -179,15 +179,6 @@ async def generate(request: web.Request) -> web.Response:
 
         dungeon_map.render(canvas, transform)
 
-        # Draw sync square (1 cell = GRID_SIZE px) in top-left for PlanarAlly auto-resize
-        sync_paint = skia.Paint(
-            Style=skia.Paint.kStroke_Style,
-            Color=skia.Color(180, 180, 180),
-            StrokeWidth=2,
-        )
-        # Draw strictly inside to prevent stroke from extending past GRID_SIZE
-        canvas.drawRect(skia.Rect(1, 1, GRID_SIZE - 1, GRID_SIZE - 1), sync_paint)
-
         image = surface.makeImageSnapshot()
         png_data = image.encodeToData()
         if png_data is None:

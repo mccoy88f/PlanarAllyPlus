@@ -88,7 +88,7 @@ extensions/
 | **Documents** | `documents` | Upload e visualizzazione PDF in una cartella dedicata. Condivisione con i giocatori |
 | **Assets Installer** | `assets-installer` | Carica file ZIP per estrarre asset nella cartella assets. Installa e disinstalla asset pack |
 | **AI Generator** | `openrouter` | Connetti modelli AI via OpenRouter o Google AI Studio. Genera personaggi, storie, migliora mappe |
-| **DungeonGen** | `dungeongen` | Generazione procedurale di dungeon per mappe da tavolo |
+| **MapsGen** | `dungeongen` | Generazione procedurale di dungeon e **edifici** per mappe da tavolo. Supporta muri automatici, porte, modalità AI realistica |
 
 ### 4.2 Framework tecnico
 
@@ -583,29 +583,160 @@ if (shapeId !== undefined && hasMiaEstensioneData(shapeId)) {
 ### 9.4 Aggiornare immagine di un asset
 
 ```typescript
-import { sendAssetRectImageChange } from "../../api/emits/shape/asset";
+import type { AssetId } from "../../../assets/models";
 
-(shape as Asset).setImage(newUrl, true);
+// Firma completa: setImage(assetId: AssetId, url: string, sync: boolean)
+// assetId deve essere il numero ID dell'asset nel database (restituito da Asset.create() lato server).
+// Non passare la URL al posto dell'assetId: sono tipi diversi.
+(shape as Asset).setImage(assetId, newUrl, true);
 ```
+
+> **Attenzione**: le immagini temporanee salvate in `/static/temp/` non hanno un `AssetId` valido.
+> Per poter chiamare `setImage()` correttamente, l'endpoint server deve salvare l'immagine come asset
+> permanente (`Asset.create()`) e restituire `assetId` nella risposta JSON.
+
+### 9.5 Sub-modali draggable dentro un'estensione
+
+Quando un'estensione ha bisogno di un pannello secondario (es. opzioni AI, configurazione rapida) che non blocchi la vista del contenuto principale, usa un **sub-modale draggable** anziché un overlay opaco.
+
+**Pattern standard**: `position: absolute` dentro il contenitore del modale principale (che deve avere `position: relative`), con una handle bar che avvia il drag via `mousedown`.
+
+**Esempio Vue 3 (TypeScript)**:
+
+```typescript
+const subModalPos = ref({ x: 40, y: 40 });
+let _drag: { startX: number; startY: number; origX: number; origY: number } | null = null;
+
+function dragStart(e: MouseEvent): void {
+    e.preventDefault();
+    _drag = { startX: e.clientX, startY: e.clientY, origX: subModalPos.value.x, origY: subModalPos.value.y };
+    window.addEventListener("mousemove", dragMove);
+    window.addEventListener("mouseup", dragEnd);
+}
+function dragMove(e: MouseEvent): void {
+    if (!_drag) return;
+    subModalPos.value = { x: _drag.origX + (e.clientX - _drag.startX), y: _drag.origY + (e.clientY - _drag.startY) };
+}
+function dragEnd(): void {
+    _drag = null;
+    window.removeEventListener("mousemove", dragMove);
+    window.removeEventListener("mouseup", dragEnd);
+}
+```
+
+```html
+<!-- Il contenitore padre deve avere position: relative -->
+<div
+    v-if="showSubModal"
+    class="ext-sub-modal"
+    :style="{ left: subModalPos.x + 'px', top: subModalPos.y + 'px' }"
+>
+    <div class="ext-sub-modal-handle" @mousedown="dragStart">
+        <span>Titolo sotto-modale</span>
+        <button class="ext-sub-modal-close" @click="showSubModal = false">✕</button>
+    </div>
+    <div class="ext-sub-modal-body">
+        <!-- contenuto -->
+    </div>
+</div>
+```
+
+**Classi CSS** (usa direttamente in un blocco `<style scoped>` — non sono in `ui.css` in quanto specific per questo pattern):
+
+```scss
+.ext-sub-modal {
+    position: absolute;
+    z-index: 200;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    min-width: 300px;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+}
+.ext-sub-modal-handle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ddd;
+    border-radius: 0.5rem 0.5rem 0 0;
+    cursor: grab;
+    font-weight: 600;
+    &:active { cursor: grabbing; }
+}
+.ext-sub-modal-close {
+    background: none; border: none; cursor: pointer;
+    font-size: 0.9rem; color: #666;
+    &:hover { color: #333; }
+}
+.ext-sub-modal-body { padding: 1rem; }
+```
+
+> **Regola UX**: il sub-modale non usa overlay opaco, così il contenuto principale resta visibile e consultabile. Resettare la posizione ad ogni apertura (`subModalPos.value = { x: 40, y: 40 }`) per mostrarlo sempre in un punto noto.
 
 ---
 
-## 10. Riferimento: DungeonGen
+## 10. Riferimento: MapsGen (ex DungeonGen)
 
-DungeonGen è l'estensione di riferimento. Struttura:
+MapsGen è l'estensione di riferimento per la generazione procedurale di mappe. Struttura:
 
 ### Server
 
-- **File**: `server/src/api/http/extensions/dungeongen.py`
+- **File principale**: `server/src/api/http/extensions/dungeongen.py`
+- **Generatore edifici**: `server/src/api/http/extensions/building_generator.py`
 - **Endpoint**: `POST /api/extensions/dungeongen/generate`
-- **Body**: `{ size, archetype, symmetry, water, pack, roomsize, round_rooms, halls, cross, symmetry_break, show_numbers, seed }`
-- **Response**: `{ url, gridCells, imageWidth, imageHeight, syncSquareSize, seed }`
+- **Body modalità dungeon**: `{ mode: "dungeon", size, archetype, symmetry, water, pack, roomsize, round_rooms, halls, cross, symmetry_break, show_numbers, seed }`
+- **Body modalità edificio**: `{ mode: "building", archetype, footprint, layout, size, seed }`
+- **Response comune**: `{ url, assetId, name, gridCells, imageWidth, imageHeight, syncSquareSize, padding, seed, walls: { lines }, doors }`
+
+**Parametri specifici dungeon** (`mode: "dungeon"`):
+| Campo | Valori | Default |
+|-------|--------|---------|
+| `size` | `tiny`, `small`, `medium`, `large`, `xlarge` | `medium` |
+| `archetype` | `classic`, `warren`, `temple`, `crypt`, `cavern`, `fortress`, `lair` | `classic` |
+| `symmetry` | `none`, `bilateral`, `radial2`, `radial4`, `partial` | `none` |
+| `water` | `dry`, `puddles`, `pools`, `lakes`, `flooded` | `dry` |
+| `pack` | `sparse`, `normal`, `tight` | `normal` |
+| `roomsize` | `cozy`, `mixed`, `grand` | `mixed` |
+| `cross` | `none`, `low`, `med`, `high` | `med` |
+
+**Parametri specifici edificio** (`mode: "building"`):
+| Campo | Valori | Default |
+|-------|--------|---------|
+| `size` | `small`, `medium`, `large`, `xlarge` | `medium` |
+| `archetype` | `house`, `shop`, `tavern`, `inn` | `tavern` |
+| `footprint` | `rectangle`, `l_shape`, `cross`, `offset` | `rectangle` |
+| `layout` | `open_plan`, `corridor` | `open_plan` |
+
+**Numero di stanze per dimensione** (edifici, casuale nel range):
+| Size | Stanze |
+|------|--------|
+| `small` | 1–3 |
+| `medium` | 3–5 |
+| `large` | 5–10 |
+| `xlarge` | 10–15 |
+
+**Connettività garantita**: il generatore di edifici esegue fino a 20 tentativi con seed consecutivi per garantire che tutte le stanze siano raggiungibili dalla stanza primaria (BFS).
+
+### Rendering
+
+- Le immagini generate non contengono più il **quadrato di sincronizzazione** nell'angolo in alto a sinistra. Il sizing è interamente basato sui metadati JSON (`syncSquareSize`, `imageWidth`, `imageHeight`, `padding`).
+- Le immagini sono salvate come asset permanenti nel DB (`Asset.create()`): il client riceve `assetId` nella risposta e può chiamare correttamente `setImage(assetId, url, sync)`.
 
 ### Client
 
-- **Modale**: `client/src/game/ui/extensions/DungeongenModal.vue` — parametri, anteprima, "Aggiungi alla mappa"
-- **Menu**: `Extensions.vue` → click su DungeonGen → `openDungeongenModal()`
+- **Modale**: `client/src/game/ui/extensions/DungeongenModal.vue` — parametri, anteprima, "Aggiungi alla mappa", "Rendi realistico con AI", "Sostituisci sulla mappa"
+- **Menu**: `Extensions.vue` → click su MapsGen → `openDungeongenModal()`
 - **Stato**: `extensionsState.dungeongenModalOpen`
+- **Selettore modalità**: `HeaderModeSelector` nella parte alta del modale permette di passare tra `dungeon` e `building`; il cambio modalità azzera l'anteprima corrente
+
+### AI realistica
+
+L'endpoint `POST /api/extensions/openrouter/transform-image` riceve l'URL dell'immagine generata e la trasforma con un modello AI (Google Gemini Image o OpenRouter). La risposta contiene `imageUrl` (URL asset permanente) e `assetId`, così il client può sostituire correttamente la forma sulla mappa.
 
 ### Integrazione mappa
 
@@ -613,19 +744,19 @@ DungeonGen è l'estensione di riferimento. Struttura:
   - Crea Asset con immagine
   - Imposta nome = seed
   - Salva custom data con parametri e seed
-- **`DungeonGenSettings.vue`**: tab nelle proprietà per forme dungeon, permette rigenerare e sostituire
+  - Aggiunge automaticamente muri (layer Lighting) e porte (layer Map)
+- **`DungeonGenSettings.vue`**: tab nelle proprietà per forme dungeon/edificio, permette rigenerare e sostituire
 
 ### Custom data
 
 - `source`: `"dungeongen"`
 - `name`: `"params"`
-- `value`: JSON con `{ params, seed, gridCells, dungeonMeta }`
+- `value`: JSON con `{ params, seed, gridCells, dungeonMeta, walls, doors }`
 
 ### Helper
 
-- `hasDungeonData(shapeId)`: true se la forma ha custom data DungeonGen
+- `hasDungeonData(shapeId)`: true se la forma ha custom data MapsGen
 - `getDungeonStoredData(shapeId)`: restituisce i dati salvati
-- `isDungeonAsset(src)`: true se `src` è un dungeon temporaneo
 
 ---
 

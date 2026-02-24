@@ -19,7 +19,7 @@ A companion tool for when you travel into the planes. PlanarAlly Plus is a web t
 - **Watabou** — Import maps from Watabou City Generator and One Page Dungeon. Automatic setup of images and walls.
 - **Documents** — Upload and view PDF documents. Share documents with players.
 - **AI Generator** — Connect to AI models (OpenRouter, Google AI Studio) for characters, stories, maps, and more.
-- **DungeonGen** — Procedural dungeon generation for tabletop maps. Supports automatic wall generation for collision and lighting.
+- **MapsGen** — Procedural generation of dungeons and **buildings** for tabletop maps. Two modes: dungeon (classic, warren, temple…) and building (house, tavern, inn…). Automatic walls, doors, and AI-realistic transform.
 - **Compendium** — Install multiple knowledge bases (JSON), search in character sheets and elsewhere.
 - **Character Sheet** — D&D 5e character sheets for tokens (view/edit; DM sees all, players see their own).
 - **Assets Installer** — Install asset pack ZIPs. Features an organized folder tree and automatic pack naming.

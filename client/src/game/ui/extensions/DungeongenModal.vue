@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useToast } from "vue-toastification";
 
@@ -64,9 +64,13 @@ const modeOptions = computed(() => [
     { label: t("game.ui.extensions.DungeongenModal.mode_building"), value: "building" as const },
 ]);
 
-// Clear preview whenever the user switches between dungeon and building modes
-// so a stale dungeon preview is not shown when building params are active (and vice versa).
+// Flag to suppress the mode-change clear when we're restoring state from edit-mode.
+let _skipModeWatch = false;
+
+// Clear preview whenever the user manually switches between dungeon and building modes.
+// Skip when the mode is being set programmatically during edit-mode restore.
 watch(mode, () => {
+    if (_skipModeWatch) return;
     previewUrl.value = null;
     generatedAssetId.value = null;
     gridCells.value = null;
@@ -78,6 +82,36 @@ watch(mode, () => {
 
 const showPromptModal = ref(false);
 const extraAiPrompt = ref("");
+
+// ── Draggable AI prompt box ───────────────────────────────────────────────
+const aiPromptPos = ref({ x: 40, y: 40 });
+let _aiDrag: { startX: number; startY: number; origX: number; origY: number } | null = null;
+
+function aiPromptDragStart(e: MouseEvent): void {
+    e.preventDefault();
+    _aiDrag = { startX: e.clientX, startY: e.clientY, origX: aiPromptPos.value.x, origY: aiPromptPos.value.y };
+    window.addEventListener("mousemove", aiPromptDragMove);
+    window.addEventListener("mouseup", aiPromptDragEnd);
+}
+function aiPromptDragMove(e: MouseEvent): void {
+    if (!_aiDrag) return;
+    aiPromptPos.value = {
+        x: _aiDrag.origX + (e.clientX - _aiDrag.startX),
+        y: _aiDrag.origY + (e.clientY - _aiDrag.startY),
+    };
+}
+function aiPromptDragEnd(): void {
+    _aiDrag = null;
+    window.removeEventListener("mousemove", aiPromptDragMove);
+    window.removeEventListener("mouseup", aiPromptDragEnd);
+}
+
+function promptMakeRealisticWithAI_open(): void {
+    // Reset position to default on each open
+    aiPromptPos.value = { x: 40, y: 40 };
+    showPromptModal.value = true;
+    extraAiPrompt.value = "";
+}
 
 const params = ref({
     size: "medium",
@@ -206,6 +240,9 @@ watch(
             if (stored) {
                 // Detect if stored params are building params
                 const storedParams = stored.params as Record<string, unknown>;
+                // Suppress the mode-change watcher so it doesn't wipe the preview
+                // we are about to restore from the existing asset.
+                _skipModeWatch = true;
                 if ("footprint" in storedParams) {
                     mode.value = "building";
                     buildingParams.value = { ...(stored.params as BuildingGenParams) };
@@ -222,6 +259,8 @@ watch(
                 if (shape && "src" in shape) {
                     previewUrl.value = (shape as Asset).src;
                 }
+                // Re-enable mode-change clearing after Vue has flushed the watcher queue.
+                nextTick(() => { _skipModeWatch = false; });
             }
         }
     },
@@ -427,8 +466,7 @@ async function checkOpenRouter(): Promise<void> {
 
 function promptMakeRealisticWithAI(): void {
     if (!previewUrl.value) return;
-    showPromptModal.value = true;
-    extraAiPrompt.value = "";
+    promptMakeRealisticWithAI_open();
 }
 
 async function makeRealisticWithAI(): Promise<void> {
@@ -724,17 +762,22 @@ async function makeRealisticWithAI(): Promise<void> {
                 </button>
             </div>
 
-            <div v-if="showPromptModal" class="ai-prompt-overlay" @click="showPromptModal = false">
-                <div class="ai-prompt-box" @click.stop>
-                    <h3>{{ t("game.ui.extensions.DungeongenModal.ai_prompt_title") }}</h3>
-                    <p>{{ t("game.ui.extensions.DungeongenModal.ai_prompt_desc") }}</p>
-                    <textarea v-model="extraAiPrompt" class="ext-ui-textarea" rows="3"></textarea>
-                    <div class="ai-prompt-actions">
-                        <button class="ext-ui-btn" @click="showPromptModal = false">{{ t("common.cancel") }}</button>
-                        <button class="ext-ui-btn ext-ui-btn-success ai-prompt-send" @click="makeRealisticWithAI">
-                            {{ extraAiPrompt.trim() ? t("game.ui.extensions.DungeongenModal.ai_prompt_send") : t("game.ui.extensions.DungeongenModal.ai_prompt_send_empty") }}
-                        </button>
-                    </div>
+            <div
+                v-if="showPromptModal"
+                class="ai-prompt-box"
+                :style="{ left: aiPromptPos.x + 'px', top: aiPromptPos.y + 'px' }"
+            >
+                <div class="ai-prompt-handle" @mousedown="aiPromptDragStart">
+                    <span>{{ t("game.ui.extensions.DungeongenModal.ai_prompt_title") }}</span>
+                    <button class="ai-prompt-close" @click="showPromptModal = false" title="Chiudi">✕</button>
+                </div>
+                <p>{{ t("game.ui.extensions.DungeongenModal.ai_prompt_desc") }}</p>
+                <textarea v-model="extraAiPrompt" class="ext-ui-textarea" rows="3"></textarea>
+                <div class="ai-prompt-actions">
+                    <button class="ext-ui-btn" @click="showPromptModal = false">{{ t("common.cancel") }}</button>
+                    <button class="ext-ui-btn ext-ui-btn-success ai-prompt-send" @click="makeRealisticWithAI">
+                        {{ extraAiPrompt.trim() ? t("game.ui.extensions.DungeongenModal.ai_prompt_send") : t("game.ui.extensions.DungeongenModal.ai_prompt_send_empty") }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -830,27 +873,45 @@ async function makeRealisticWithAI(): Promise<void> {
     }
 }
 
-.ai-prompt-overlay {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-}
 .ai-prompt-box {
+    position: absolute;
+    z-index: 200;
     background: white;
-    padding: 1.5rem;
+    border: 1px solid #ccc;
     border-radius: 0.5rem;
-    width: 80%;
-    max-width: 400px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    width: 340px;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.75rem;
     color: #333;
+    padding-bottom: 1rem;
+    user-select: none;
 }
-.ai-prompt-box h3 { margin: 0; font-size: 1.2rem; font-weight: bold; }
-.ai-prompt-box p { margin: 0; font-size: 0.9rem; color: #555; }
-.ai-prompt-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+.ai-prompt-handle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ddd;
+    border-radius: 0.5rem 0.5rem 0 0;
+    cursor: grab;
+    font-size: 0.95rem;
+    font-weight: 600;
+    &:active { cursor: grabbing; }
+}
+.ai-prompt-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #666;
+    padding: 0 0.2rem;
+    line-height: 1;
+    &:hover { color: #333; }
+}
+.ai-prompt-box p { margin: 0 1rem; font-size: 0.875rem; color: #555; }
+.ai-prompt-box .ext-ui-textarea { margin: 0 1rem; }
+.ai-prompt-actions { display: flex; justify-content: flex-end; gap: 0.5rem; padding: 0 1rem 0; }
 </style>
