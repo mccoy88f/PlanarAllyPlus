@@ -276,6 +276,7 @@ async def _generate_building(
         from .building_generator import (
             BuildingArchetype,
             BuildingParams,
+            BuildingSize,
             FootprintShape,
             LayoutPlan,
             generate_building,
@@ -299,11 +300,18 @@ async def _generate_building(
         "open_plan": LayoutPlan.OPEN_PLAN,
         "corridor":  LayoutPlan.CORRIDOR,
     }
+    size_map = {
+        "small":  BuildingSize.SMALL,
+        "medium": BuildingSize.MEDIUM,
+        "large":  BuildingSize.LARGE,
+        "xlarge": BuildingSize.XLARGE,
+    }
 
     params = BuildingParams(
         archetype=archetype_map.get(data.get("archetype", "tavern"), BuildingArchetype.TAVERN),
         footprint=footprint_map.get(data.get("footprint", "rectangle"), FootprintShape.RECTANGLE),
         layout=layout_map.get(data.get("layout", "open_plan"), LayoutPlan.OPEN_PLAN),
+        size=size_map.get(data.get("size", "medium"), BuildingSize.MEDIUM),
         seed=seed,
     )
 
@@ -349,8 +357,11 @@ async def _generate_building(
             },
             "doors": [
                 {
-                    "x":         d.x,
-                    "y":         d.y,
+                    # Clamp coordinates to canvas bounds so the client never
+                    # receives negative or out-of-canvas values (entrance gaps
+                    # can be at y=-1 or x=-1 when on the north/west edge).
+                    "x":         max(0, min(d.x, result.width  - 1)),
+                    "y":         max(0, min(d.y, result.height - 1)),
                     "direction": d.direction,
                     "type":      d.door_type,
                 }

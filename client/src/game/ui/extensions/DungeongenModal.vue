@@ -22,6 +22,7 @@ import {
 import { toGP } from "../../../core/geometry";
 import { getGlobalId, getShape } from "../../id";
 import type { Asset } from "../../shapes/variants/asset";
+import type { AssetId } from "../../../assets/models";
 import { extensionsState } from "../../systems/extensions/state";
 import { closeDungeongenModal, focusExtension } from "../../systems/extensions/ui";
 import { customDataSystem } from "../../systems/customData";
@@ -41,11 +42,13 @@ const isEditMode = computed(() => editShapeId.value !== undefined);
 
 const generating = ref(false);
 const previewUrl = ref<string | null>(null);
+const generatedAssetId = ref<AssetId | null>(null);
 const gridCells = ref<{ width: number; height: number } | null>(null);
 const dungeonMeta = ref<{
     imageWidth: number;
     imageHeight: number;
     syncSquareSize: number;
+    padding?: number;
 } | null>(null);
 const dungeonWalls = ref<WallData | null>(null);
 const dungeonDoors = ref<DoorData[] | null>(null);
@@ -60,6 +63,18 @@ const modeOptions = computed(() => [
     { label: t("game.ui.extensions.DungeongenModal.mode_dungeon"), value: "dungeon" as const },
     { label: t("game.ui.extensions.DungeongenModal.mode_building"), value: "building" as const },
 ]);
+
+// Clear preview whenever the user switches between dungeon and building modes
+// so a stale dungeon preview is not shown when building params are active (and vice versa).
+watch(mode, () => {
+    previewUrl.value = null;
+    generatedAssetId.value = null;
+    gridCells.value = null;
+    dungeonMeta.value = null;
+    dungeonWalls.value = null;
+    dungeonDoors.value = null;
+    generatedName.value = "";
+});
 
 const showPromptModal = ref(false);
 const extraAiPrompt = ref("");
@@ -146,8 +161,16 @@ const buildingParams = ref<BuildingGenParams>({
     archetype: "tavern",
     footprint: "rectangle",
     layout:    "open_plan",
+    size:      "medium",
     seed:      "",
 });
+
+const buildingSizeOptions = [
+    { value: "small",  labelKey: "game.ui.extensions.DungeongenModal.bsize_small"  },
+    { value: "medium", labelKey: "game.ui.extensions.DungeongenModal.bsize_medium" },
+    { value: "large",  labelKey: "game.ui.extensions.DungeongenModal.bsize_large"  },
+    { value: "xlarge", labelKey: "game.ui.extensions.DungeongenModal.bsize_xlarge" },
+];
 
 const buildingArchetypeOptions = [
     { value: "house",  labelKey: "game.ui.extensions.DungeongenModal.barch_house"  },
@@ -208,6 +231,7 @@ watch(
 async function generate(clearSeed = false): Promise<void> {
     generating.value = true;
     previewUrl.value = null;
+    generatedAssetId.value = null;
     gridCells.value = null;
     dungeonMeta.value = null;
     dungeonWalls.value = null;
@@ -223,6 +247,7 @@ async function generate(clearSeed = false): Promise<void> {
                 archetype: buildingParams.value.archetype,
                 footprint: buildingParams.value.footprint,
                 layout:    buildingParams.value.layout,
+                size:      buildingParams.value.size,
                 seed:      buildingParams.value.seed
                                ? (parseInt(buildingParams.value.seed, 10) || buildingParams.value.seed)
                                : "",
@@ -238,6 +263,7 @@ async function generate(clearSeed = false): Promise<void> {
         if (response.ok) {
             const data = (await response.json()) as {
                 url: string;
+                assetId?: AssetId;
                 name?: string;
                 gridCells: { width: number; height: number };
                 imageWidth?: number;
@@ -247,6 +273,7 @@ async function generate(clearSeed = false): Promise<void> {
                 doors?: DoorData[];
             };
             previewUrl.value = data.url;
+            generatedAssetId.value = data.assetId ?? null;
             generatedName.value = data.name ?? "";
             gridCells.value = data.gridCells;
             dungeonMeta.value =
@@ -255,6 +282,7 @@ async function generate(clearSeed = false): Promise<void> {
                           imageWidth: data.imageWidth,
                           imageHeight: data.imageHeight,
                           syncSquareSize: data.syncSquareSize,
+                          padding: (data as any).padding ?? 50,
                       }
                     : null;
             dungeonWalls.value = (data as any).walls ?? null;
@@ -329,7 +357,10 @@ async function replaceOnMap(): Promise<void> {
             ? { ...buildingParams.value }
             : { ...params.value };
         propertiesSystem.setName(shapeId, newSeed, SERVER_SYNC);
-        (shape as Asset).setImage(previewUrl.value, true);
+        if (generatedAssetId.value === null) {
+            throw new Error("No asset ID available for replace");
+        }
+        (shape as Asset).setImage(generatedAssetId.value, previewUrl.value, true);
 
         const storedData: DungeonGenStoredData = {
             params: currentParams,
@@ -364,6 +395,7 @@ async function replaceOnMap(): Promise<void> {
 
 function close(): void {
     previewUrl.value = null;
+    generatedAssetId.value = null;
     gridCells.value = null;
     dungeonMeta.value = null;
     dungeonWalls.value = null;
@@ -410,9 +442,10 @@ async function makeRealisticWithAI(): Promise<void> {
             extraPrompt: extraAiPrompt.value,
         });
         if (resp.ok) {
-            const data = (await resp.json()) as { imageUrl?: string };
+            const data = (await resp.json()) as { imageUrl?: string; assetId?: AssetId };
             if (data.imageUrl) {
                 previewUrl.value = data.imageUrl;
+                if (data.assetId !== undefined) generatedAssetId.value = data.assetId;
                 toast.success(t("game.ui.extensions.DungeongenModal.realistic_done"));
             }
         } else {
@@ -590,6 +623,14 @@ async function makeRealisticWithAI(): Promise<void> {
                     <!-- ── BUILDING settings ────────────────────────────── -->
                     <template v-else>
                         <div class="dg-fields-row">
+                            <div class="ext-ui-field">
+                                <label class="ext-ui-label" for="bg-size">{{ t("game.ui.extensions.DungeongenModal.size_building") }}</label>
+                                <select id="bg-size" v-model="buildingParams.size" class="ext-ui-select">
+                                    <option v-for="opt in buildingSizeOptions" :key="opt.value" :value="opt.value">
+                                        {{ t(opt.labelKey) }}
+                                    </option>
+                                </select>
+                            </div>
                             <div class="ext-ui-field">
                                 <label class="ext-ui-label" for="bg-archetype">{{ t("game.ui.extensions.DungeongenModal.archetype") }}</label>
                                 <select id="bg-archetype" v-model="buildingParams.archetype" class="ext-ui-select">

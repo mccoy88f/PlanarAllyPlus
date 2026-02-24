@@ -22,6 +22,7 @@ export type ApiShapeCustomData = ApiShapeCustomDataText | ApiShapeCustomDataNumb
 /* Do not modify it by hand - just update the pydantic models and then re-run the script
 */
 
+export type InitiativeEffectUpdateTiming = 0 | 1;
 export type DefaultNoteFilter = "NO_FILTER" | "ACTIVE_FILTER" | "NO_LINK_FILTER";
 export type InitiativeDirection = -1 | 0 | 1;
 
@@ -439,6 +440,10 @@ export interface ApiShapeDataBlock extends ApiCoreDataBlock {
   category: "shape";
   shape: GlobalId;
 }
+export interface ApiShapeSize {
+  x: number;
+  y: number;
+}
 export interface ApiShapeWithLayer extends ApiShapeCore {
   floor: string;
   layer: LayerName;
@@ -679,11 +684,6 @@ export interface PlayerOptionsSet {
   default_user_options: ApiUserOptions;
   room_user_options: ApiOptionalUserOptions | null;
 }
-export interface PlayerPosition {
-  x: number;
-  y: number;
-  floor: string;
-}
 export interface PlayerRoleSet {
   player: PlayerId;
   role: number;
@@ -702,6 +702,11 @@ export interface PlayersPositionSet {
 export interface PositionTuple {
   x: number;
   y: number;
+}
+export interface PositionTupleWithFloor {
+  x: number;
+  y: number;
+  floor: string;
 }
 export interface RoomFeatures {
   chat: boolean;
@@ -724,6 +729,7 @@ export interface RoomInfoSet {
 export interface ShapeAssetImageSet {
   uuid: GlobalId;
   src: string;
+  assetId: AssetId;
 }
 export interface ShapeCircleSizeUpdate {
   uuid: GlobalId;
@@ -802,6 +808,10 @@ export interface ShapeSetPermissionValue {
   shape: GlobalId;
   value: Permissions;
 }
+export interface ShapeSetSizeValue {
+  shape: GlobalId;
+  value: ApiShapeSize;
+}
 export interface ShapeSetStringValue {
   shape: GlobalId;
   value: string;
@@ -818,10 +828,6 @@ export interface ShapeTemplateAdd {
   assetId: AssetId;
   shapeId: GlobalId;
   name: string;
-}
-export interface ShapeSetSizeValue  {
-    shape: GlobalId;
-    value: ApiShapeSize;
 }
 export interface ShapeTextSizeUpdate {
   uuid: GlobalId;
@@ -917,7 +923,7 @@ export interface ApiSpawnInfo {
 export interface LocationChange {
   location: number;
   users: string[];
-  position?: PositionTuple;
+  position?: PositionTupleWithFloor;
 }
 export interface LocationClone {
   location: number;

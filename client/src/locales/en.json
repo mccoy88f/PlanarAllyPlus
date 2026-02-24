@@ -260,7 +260,7 @@
           "extensions": {
             "assets-installer": "Assets Installer",
             "character-sheet": "Character Sheet",
-            "dungeongen": "DungeonGen",
+            "dungeongen": "MapsGen",
             "documents": "Documents",
             "openrouter": "AI Generator",
             "compendium": "Compendium",
@@ -273,7 +273,7 @@
       },
       "extensions": {
         "DungeongenModal": {
-          "title": "DungeonGen",
+          "title": "MapsGen",
           "mode_dungeon": "Dungeon",
           "mode_building": "Building",
           "settings": "Generation settings",
@@ -312,6 +312,7 @@
           "add_failed": "Failed to add dungeon to map",
           "footprint": "Footprint",
           "layout": "Layout",
+          "size_building": "Building size",
           "barch_house": "House",
           "barch_shop": "Shop",
           "barch_tavern": "Tavern",
@@ -322,6 +323,10 @@
           "fp_offset": "Offset",
           "layout_open_plan": "Open Plan",
           "layout_corridor": "Corridor",
+          "bsize_small": "Small",
+          "bsize_medium": "Medium",
+          "bsize_large": "Large",
+          "bsize_xlarge": "Extra Large",
           "size_tiny": "Tiny (4-6 rooms)",
           "size_small": "Small (6-10 rooms)",
           "size_medium": "Medium (10-20 rooms)",
@@ -368,9 +373,9 @@
           "confirm_import_message": "Do you want to import this map into the current game session?"
         },
         "DungeongenSettings": {
-          "tab": "DungeonGen",
-          "desc": "Modify this dungeon using the DungeonGen extension interface.",
-          "edit_in_dungeongen": "Edit in DungeonGen"
+          "tab": "MapsGen",
+          "desc": "Modify this map using the MapsGen extension interface.",
+          "edit_in_dungeongen": "Edit in MapsGen"
         },
         "ExtensionsManager": {
           "title": "Manage Extensions",
@@ -425,9 +430,9 @@
           "api_key_required": "OpenRouter API key required. Add it in the Settings tab.",
           "model": "Model",
           "model_free": "OpenRouter (Free)",
-          "image_model": "Image model (DungeonGen)",
+          "image_model": "Image model (MapsGen)",
           "image_model_label": "Image-to-image models",
-          "image_model_hint": "For \"Make realistic with AI\" in DungeonGen. Choose an image-to-image model.",
+          "image_model_hint": "For \"Make realistic with AI\" in MapsGen. Choose an image-to-image model.",
           "model_paid": "OpenRouter (Paid)",
           "base_prompt": "Base prompt (defines chat type)",
           "base_prompt_placeholder": "e.g. You are a helpful assistant for tabletop RPG...",

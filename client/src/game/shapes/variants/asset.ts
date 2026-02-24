@@ -152,14 +152,15 @@ export class Asset extends BaseRect implements IAsset {
         super.drawPost(ctx, lightRevealRender);
     }
 
-    setImage(url: string, sync: boolean): void {
+    setImage(assetId: AssetId, url: string, sync: boolean): void {
+        this.assetId = assetId;
         this.#loaded = false;
         this.src = url;
         this.img.src = baseAdjust(url);
-        this.img.addEventListener("load", () => {
+        this.img.onload = () => {
             this.setLoaded();
-        });
+        };
         const uuid = getGlobalId(this.id);
-        if (uuid && sync) sendAssetRectImageChange({ uuid, src: url });
+        if (uuid && sync) sendAssetRectImageChange({ uuid, src: url, assetId });
     }
 }
