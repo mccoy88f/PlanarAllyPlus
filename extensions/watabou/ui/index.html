@@ -357,12 +357,12 @@
     <script>
         (function () {
             var GENERATORS = [
-                { url: "https://watabou.github.io/perilous-shores", name: "Region Generator", nameKey: "region", img: "card_realm.jpg", descKey: "regionDesc" },
-                { url: "https://watabou.github.io/city-generator", name: "City Generator", nameKey: "city", img: "card_city.jpg", descKey: "cityDesc" },
-                { url: "https://watabou.github.io/village-generator/", name: "Village Generator", nameKey: "village", img: "card_village.jpg", descKey: "villageDesc" },
-                { url: "https://watabou.github.io/cave-generator", name: "Cave/Glade Generator", nameKey: "cave", img: "card_cave.jpg", descKey: "caveDesc" },
-                { url: "https://watabou.github.io/one-page-dungeon", name: "Dungeon Generator", nameKey: "dungeon", img: "card_dungeon.jpg", descKey: "dungeonDesc" },
-                { url: "https://watabou.github.io/dwellings/", name: "Dwellings Building Generator", nameKey: "dwellings", img: "card_dwelling.jpg", descKey: "dwellingsDesc" }
+                { url: "https://watabou.github.io/perilous-shores", name: "Region Generator", nameKey: "region", img: "https://watabou.github.io/images/card_realm.jpg", descKey: "regionDesc" },
+                { url: "https://watabou.github.io/city-generator", name: "City Generator", nameKey: "city", img: "https://watabou.github.io/images/card_city.jpg", descKey: "cityDesc" },
+                { url: "https://watabou.github.io/village-generator/", name: "Village Generator", nameKey: "village", img: "https://watabou.github.io/images/card_village.jpg", descKey: "villageDesc" },
+                { url: "https://watabou.github.io/cave-generator", name: "Cave/Glade Generator", nameKey: "cave", img: "https://watabou.github.io/images/card_cave.jpg", descKey: "caveDesc" },
+                { url: "https://watabou.github.io/one-page-dungeon", name: "Dungeon Generator", nameKey: "dungeon", img: "https://watabou.github.io/images/card_dungeon.jpg", descKey: "dungeonDesc" },
+                { url: "https://watabou.github.io/dwellings/", name: "Dwellings Building Generator", nameKey: "dwellings", img: "https://watabou.github.io/images/card_dwelling.jpg", descKey: "dwellingsDesc" }
             ];
 
             var TRANSLATIONS = {
@@ -430,7 +430,7 @@
                 listEl.innerHTML = GENERATORS.map(function (g) {
                     var name = t(g.nameKey);
                     var desc = t(g.descKey);
-                    var imgUrl = 'images/' + g.img;
+                    var imgUrl = g.img;
                     return '<a class="wb-card" href="#" data-url="' + g.url.replace(/"/g, "&quot;") + '" data-name="' + g.name.replace(/"/g, "&quot;") + '">' +
                         '<div class="wb-card-img" style="background-image: url(' + imgUrl + ')"></div>' +
                         '<div class="wb-card-body">' +
