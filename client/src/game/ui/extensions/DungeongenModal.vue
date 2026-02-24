@@ -22,6 +22,7 @@ import {
 import { toGP } from "../../../core/geometry";
 import { getGlobalId, getShape } from "../../id";
 import type { Asset } from "../../shapes/variants/asset";
+import type { AssetId } from "../../../assets/models";
 import { extensionsState } from "../../systems/extensions/state";
 import { closeDungeongenModal, focusExtension } from "../../systems/extensions/ui";
 import { customDataSystem } from "../../systems/customData";
@@ -41,6 +42,7 @@ const isEditMode = computed(() => editShapeId.value !== undefined);
 
 const generating = ref(false);
 const previewUrl = ref<string | null>(null);
+const generatedAssetId = ref<AssetId | null>(null);
 const gridCells = ref<{ width: number; height: number } | null>(null);
 const dungeonMeta = ref<{
     imageWidth: number;
@@ -66,6 +68,7 @@ const modeOptions = computed(() => [
 // so a stale dungeon preview is not shown when building params are active (and vice versa).
 watch(mode, () => {
     previewUrl.value = null;
+    generatedAssetId.value = null;
     gridCells.value = null;
     dungeonMeta.value = null;
     dungeonWalls.value = null;
@@ -228,6 +231,7 @@ watch(
 async function generate(clearSeed = false): Promise<void> {
     generating.value = true;
     previewUrl.value = null;
+    generatedAssetId.value = null;
     gridCells.value = null;
     dungeonMeta.value = null;
     dungeonWalls.value = null;
@@ -259,6 +263,7 @@ async function generate(clearSeed = false): Promise<void> {
         if (response.ok) {
             const data = (await response.json()) as {
                 url: string;
+                assetId?: AssetId;
                 name?: string;
                 gridCells: { width: number; height: number };
                 imageWidth?: number;
@@ -268,6 +273,7 @@ async function generate(clearSeed = false): Promise<void> {
                 doors?: DoorData[];
             };
             previewUrl.value = data.url;
+            generatedAssetId.value = data.assetId ?? null;
             generatedName.value = data.name ?? "";
             gridCells.value = data.gridCells;
             dungeonMeta.value =
@@ -351,7 +357,10 @@ async function replaceOnMap(): Promise<void> {
             ? { ...buildingParams.value }
             : { ...params.value };
         propertiesSystem.setName(shapeId, newSeed, SERVER_SYNC);
-        (shape as Asset).setImage(previewUrl.value, true);
+        if (generatedAssetId.value === null) {
+            throw new Error("No asset ID available for replace");
+        }
+        (shape as Asset).setImage(generatedAssetId.value, previewUrl.value, true);
 
         const storedData: DungeonGenStoredData = {
             params: currentParams,
@@ -386,6 +395,7 @@ async function replaceOnMap(): Promise<void> {
 
 function close(): void {
     previewUrl.value = null;
+    generatedAssetId.value = null;
     gridCells.value = null;
     dungeonMeta.value = null;
     dungeonWalls.value = null;
@@ -432,9 +442,10 @@ async function makeRealisticWithAI(): Promise<void> {
             extraPrompt: extraAiPrompt.value,
         });
         if (resp.ok) {
-            const data = (await resp.json()) as { imageUrl?: string };
+            const data = (await resp.json()) as { imageUrl?: string; assetId?: AssetId };
             if (data.imageUrl) {
                 previewUrl.value = data.imageUrl;
+                if (data.assetId !== undefined) generatedAssetId.value = data.assetId;
                 toast.success(t("game.ui.extensions.DungeongenModal.realistic_done"));
             }
         } else {

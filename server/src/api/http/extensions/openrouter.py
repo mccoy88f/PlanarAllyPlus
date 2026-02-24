@@ -10,7 +10,9 @@ from aiohttp import web
 
 from ....auth import get_authorized_user
 from ....db.models.user_options import UserOptions
-from ....utils import STATIC_DIR
+from ....db.models.asset import Asset
+from ....utils import ASSETS_DIR, STATIC_DIR
+from ....utils import get_asset_hash_subpath
 
 OPENROUTER_API = "https://openrouter.ai/api/v1"
 GOOGLE_AI_API = "https://generativelanguage.googleapis.com/v1beta"
@@ -352,14 +354,19 @@ async def set_settings(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
-def _save_generated_image(b64_data: str) -> str:
-    """Decode base64 image and save to static temp. Returns URL path."""
+def _decode_data_url(b64_data: str) -> bytes:
+    """Decode a base64 data URL (or raw base64) string to bytes."""
     try:
         if "," in b64_data:
             b64_data = b64_data.split(",", 1)[1]
-        image_bytes = base64.b64decode(b64_data)
+        return base64.b64decode(b64_data)
     except Exception as e:
         raise ValueError(f"Failed to decode image: {e}") from e
+
+
+def _save_generated_image(b64_data: str) -> str:
+    """Decode base64 image and save to static temp. Returns URL path."""
+    image_bytes = _decode_data_url(b64_data)
     temp_dir = STATIC_DIR / "temp" / "dungeons"
     temp_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{uuid.uuid4().hex}.png"
@@ -554,9 +561,27 @@ async def transform_image(request: web.Request) -> web.Response:
             status=502,
         )
 
+    # Decode the image once, then save as a proper PlanarAlly asset so the
+    # client gets a valid assetId it can pass to setImage().
     try:
-        url = _save_generated_image(result_data_url)
+        img_bytes = _decode_data_url(result_data_url)
     except ValueError as e:
         return web.json_response({"error": str(e)}, status=502)
 
-    return web.json_response({"imageUrl": url})
+    try:
+        import hashlib
+        h = hashlib.sha1(img_bytes).hexdigest()
+        asset_path = ASSETS_DIR / get_asset_hash_subpath(h)
+        if not asset_path.exists():
+            asset_path.parent.mkdir(parents=True, exist_ok=True)
+            asset_path.write_bytes(img_bytes)
+        folder = Asset.get_or_create_extension_folder(user, "dungeongen")
+        filename = f"realistic_{uuid.uuid4().hex[:8]}.png"
+        asset = Asset.create(name=filename, file_hash=h, owner=user, parent=folder)
+        asset_url = f"/static/assets/{get_asset_hash_subpath(h).as_posix()}"
+        return web.json_response({"imageUrl": asset_url, "assetId": asset.id})
+    except Exception:
+        # Asset creation failed — fall back to temp file so the user still
+        # sees the result, but replace will not work without assetId.
+        url = _save_generated_image(result_data_url)
+        return web.json_response({"imageUrl": url})
