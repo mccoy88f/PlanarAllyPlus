@@ -97,11 +97,19 @@ class CellKind(Enum):
 # Data structures
 # ---------------------------------------------------------------------------
 
+class BuildingSize(Enum):
+    SMALL  = "small"
+    MEDIUM = "medium"
+    LARGE  = "large"
+    XLARGE = "xlarge"
+
+
 @dataclass
 class BuildingParams:
     archetype: BuildingArchetype = BuildingArchetype.TAVERN
     footprint: FootprintShape    = FootprintShape.RECTANGLE
     layout:    LayoutPlan        = LayoutPlan.OPEN_PLAN
+    size:      BuildingSize      = BuildingSize.MEDIUM
     seed:      int               = 0
 
 
@@ -146,6 +154,15 @@ class BuildingResult:
 # ---------------------------------------------------------------------------
 # Archetype configuration
 # ---------------------------------------------------------------------------
+
+# Canvas sizes per archetype per size: (W, H, n_rooms)
+# Size multipliers: small=0.7, medium=1.0, large=1.35, xlarge=1.7
+_SIZE_SCALE: dict[BuildingSize, float] = {
+    BuildingSize.SMALL:  0.70,
+    BuildingSize.MEDIUM: 1.00,
+    BuildingSize.LARGE:  1.35,
+    BuildingSize.XLARGE: 1.70,
+}
 
 ARCHETYPE_CFG: dict[BuildingArchetype, dict] = {
     BuildingArchetype.HOUSE: {
@@ -204,7 +221,8 @@ def make_blocks(
         # that ends at y2=split_h is 1 gap away from a room in the bottom block
         # that starts at y=split_h+1).
         min_top = _min_block_size(1)
-        min_bot = _min_block_size(1)
+        # bot block is shrunk by GAP on its north side → needs MIN_ROOM + GAP
+        min_bot = MIN_ROOM + GAP
         split_h = _clamp(
             rng.randint(int(H * 55 // 100), int(H * 70 // 100)),
             min_top, H - min_bot,
@@ -224,8 +242,13 @@ def make_blocks(
         #   top_arm:  (cx, 0,         bar_w, cy)
         #   h_bar:    (0,  cy,        W,     bar_h)
         #   bot_arm:  (cx, cy+bar_h,  bar_w, H - cy - bar_h)
-        min_bar_h = _min_block_size(1)
-        min_arm_h = _min_block_size(1)
+        #
+        # _shrink_block will shrink h_bar by GAP on its north side (top_arm above it)
+        # and shrink bot_arm by GAP on its north side (h_bar above it).
+        # So min_bar_h and min_arm_h must each be MIN_ROOM + GAP to ensure
+        # the partitioning area is still >= MIN_ROOM after shrinking.
+        min_bar_h = MIN_ROOM + GAP
+        min_arm_h = MIN_ROOM + GAP
         bar_h = _clamp(
             rng.randint(int(H * 30 // 100), int(H * 45 // 100)),
             min_bar_h, H - 2 * min_arm_h,
@@ -249,7 +272,8 @@ def make_blocks(
 
     if shape == FootprintShape.OFFSET:
         # Two blocks sharing a vertical boundary, vertically staggered.
-        min_w = _min_block_size(1)
+        # The right block is shrunk by GAP on its west side → needs MIN_ROOM + GAP wide.
+        min_w = MIN_ROOM + GAP
         half_w = _clamp(W // 2, min_w, W - min_w)
         right_w = W - half_w
         min_h = _min_block_size(1)
@@ -389,7 +413,7 @@ def partition_rooms(
             # Other block is to the north: this block is bottom → shrink north side
             if oby + obh == by and max(bx, obx) < min(bx + bw, obx + obw):
                 oy += GAP; oh -= GAP
-        return ox, oy, max(ow, MIN_ROOM), max(oh, MIN_ROOM)
+        return ox, oy, ow, oh
 
     all_raw: list[tuple[int, int, int, int]] = []
     remaining = n_rooms
@@ -482,17 +506,19 @@ def _insert_corridor(
             if (sx, sy, sw, sh) == (px, py, pw, ph):
                 result.append((sx, sy, sw, sh))
                 continue
-            # Rooms that overlap the corridor y range get trimmed
-            if sy + sh <= corr_y or sy >= corr_y + MIN_ROOM:
+            # Rooms that overlap or are adjacent to the corridor zone get trimmed.
+            # The "exclusion zone" is [corr_y - GAP, corr_y + MIN_ROOM + GAP).
+            excl_top = corr_y - GAP
+            excl_bot = corr_y + MIN_ROOM + GAP
+            if sy + sh <= excl_top or sy >= excl_bot:
                 result.append((sx, sy, sw, sh))
                 continue
-            # Trim top portion
-            if sy < corr_y and corr_y - sy >= MIN_ROOM:
-                result.append((sx, sy, sw, corr_y - sy))
+            # Trim top portion (must leave a GAP between trimmed room and corridor)
+            if sy < excl_top and excl_top - sy >= MIN_ROOM:
+                result.append((sx, sy, sw, excl_top - sy))
             # Trim bottom portion
-            below = corr_y + MIN_ROOM + GAP
-            if sy + sh > below and (sy + sh) - below >= MIN_ROOM:
-                result.append((sx, below, sw, (sy + sh) - below))
+            if sy + sh > excl_bot and (sy + sh) - excl_bot >= MIN_ROOM:
+                result.append((sx, excl_bot, sw, (sy + sh) - excl_bot))
         result.append(corr)
         return result
     else:
@@ -508,14 +534,18 @@ def _insert_corridor(
             if (sx, sy, sw, sh) == (px, py, pw, ph):
                 result.append((sx, sy, sw, sh))
                 continue
-            if sx + sw <= corr_x or sx >= corr_x + MIN_ROOM:
+            # Exclusion zone: [corr_x - GAP, corr_x + MIN_ROOM + GAP)
+            excl_left = corr_x - GAP
+            excl_right = corr_x + MIN_ROOM + GAP
+            if sx + sw <= excl_left or sx >= excl_right:
                 result.append((sx, sy, sw, sh))
                 continue
-            if sx < corr_x and corr_x - sx >= MIN_ROOM:
-                result.append((sx, sy, corr_x - sx, sh))
-            right = corr_x + MIN_ROOM + GAP
-            if sx + sw > right and (sx + sw) - right >= MIN_ROOM:
-                result.append((right, sy, (sx + sw) - right, sh))
+            # Trim left portion (must leave a GAP between trimmed room and corridor)
+            if sx < excl_left and excl_left - sx >= MIN_ROOM:
+                result.append((sx, sy, excl_left - sx, sh))
+            # Trim right portion
+            if sx + sw > excl_right and (sx + sw) - excl_right >= MIN_ROOM:
+                result.append((excl_right, sy, (sx + sw) - excl_right, sh))
         result.append(corr)
         return result
 
@@ -574,19 +604,31 @@ def _gap_between(a: Room, b: Room) -> Optional[tuple[int, int, str]]:
 # ---------------------------------------------------------------------------
 
 def _find_entrance(
-    primary: Room,
-    blocks:  list[tuple[int, int, int, int]],
+    primary:    Room,
+    blocks:     list[tuple[int, int, int, int]],
     W: int, H: int,
+    avoid_room: Optional[Room] = None,
 ) -> Optional[Door]:
     """Find a free exterior side of the primary room for the entrance.
 
-    A side is "free" if the cell just outside the room (the gap cell) is
-    outside the footprint or beyond the canvas edge. The entrance Exit is
-    placed IN the gap cell (the rock cell just outside the room boundary),
-    which is what dungeongen's Exit.from_grid expects.
+    A side is "free" if the gap cell is outside the footprint/canvas.
+    If avoid_room is given (e.g. the corridor), skip the side that faces it
+    so the entrance is always on a true exterior wall.
     Priority: south → north → west → east.
     """
     r = primary
+
+    def _side_faces_room(side: str, other: Room) -> bool:
+        """True if 'side' of primary faces 'other' room across the gap."""
+        if side == "south" and other.y == r.y2 + GAP:
+            return max(r.x, other.x) < min(r.x2, other.x2)
+        if side == "north" and other.y2 + GAP == r.y:
+            return max(r.x, other.x) < min(r.x2, other.x2)
+        if side == "west" and other.x2 + GAP == r.x:
+            return max(r.y, other.y) < min(r.y2, other.y2)
+        if side == "east" and other.x == r.x2 + GAP:
+            return max(r.y, other.y) < min(r.y2, other.y2)
+        return False
 
     def gap_is_free_exterior(cx: int, cy: int) -> bool:
         """True if (cx,cy) is a valid gap cell outside the building footprint.
@@ -613,25 +655,29 @@ def _find_entrance(
         """Return range [lo, hi) sorted by distance from center (closest first)."""
         return sorted(range(lo, hi), key=lambda v: abs(v - center))
 
-    # South: gap row at r.y2 → Exit at (x, r.y2) facing SOUTH
-    for x in _sorted_by_center(r.x, r.x2, mid_x):
-        if free_outside(x, r.y2):
-            return Door(x, r.y2, "south")
+    sides = ["south", "north", "west", "east"]
 
-    # North: gap row at r.y-1 → Exit at (x, r.y-1) facing NORTH
-    for x in _sorted_by_center(r.x, r.x2, mid_x):
-        if free_outside(x, r.y - 1):
-            return Door(x, r.y - 1, "north")
+    # Try sides not facing avoid_room first, then fallback to all sides
+    preferred = [s for s in sides if avoid_room is None or not _side_faces_room(s, avoid_room)]
+    order = preferred + [s for s in sides if s not in preferred]
 
-    # West: gap col at r.x-1 → Exit at (r.x-1, y) facing WEST
-    for y in _sorted_by_center(r.y, r.y2, mid_y):
-        if free_outside(r.x - 1, y):
-            return Door(r.x - 1, y, "west")
-
-    # East: gap col at r.x2 → Exit at (r.x2, y) facing EAST
-    for y in _sorted_by_center(r.y, r.y2, mid_y):
-        if free_outside(r.x2, y):
-            return Door(r.x2, y, "east")
+    for side in order:
+        if side == "south":
+            for x in _sorted_by_center(r.x, r.x2, mid_x):
+                if free_outside(x, r.y2):
+                    return Door(x, r.y2, "south")
+        elif side == "north":
+            for x in _sorted_by_center(r.x, r.x2, mid_x):
+                if free_outside(x, r.y - 1):
+                    return Door(x, r.y - 1, "north")
+        elif side == "west":
+            for y in _sorted_by_center(r.y, r.y2, mid_y):
+                if free_outside(r.x - 1, y):
+                    return Door(r.x - 1, y, "west")
+        elif side == "east":
+            for y in _sorted_by_center(r.y, r.y2, mid_y):
+                if free_outside(r.x2, y):
+                    return Door(r.x2, y, "east")
 
     return None
 
@@ -649,7 +695,9 @@ def place_doors(
     doors:   list[Door] = []
     primary: Room       = rooms[0]
 
-    entrance = _find_entrance(primary, blocks, W, H)
+    # In CORRIDOR mode, find the corridor first so entrance avoids its side
+    corridor_room = next((r for r in rooms if r.kind == "corridor"), None) if layout == LayoutPlan.CORRIDOR else None
+    entrance = _find_entrance(primary, blocks, W, H, avoid_room=corridor_room)
     if entrance:
         doors.append(entrance)
 
@@ -682,15 +730,28 @@ def place_doors(
             if not pending:
                 break
 
-    else:  # CORRIDOR
+    else:  # CORRIDOR — BFS through corridor first, then fallback to any accessible room
         corridor = next((r for r in rooms if r.kind == "corridor"), None)
         if corridor:
+            # Connect primary ↔ corridor
             add_door(primary, corridor)
-            for room in rooms:
-                if room is primary or room.kind == "corridor":
-                    continue
-                if not add_door(corridor, room):
-                    add_door(primary, room)
+            accessible = {primary.id, corridor.id}
+            pending = [r for r in rooms if r is not primary and r.kind != "corridor"]
+            # Multiple passes: first try corridor, then any accessible room
+            for _ in range(len(pending) + 1):
+                still = []
+                for room in pending:
+                    connected = False
+                    for aid in sorted(accessible):
+                        if add_door(rooms[aid], room):
+                            accessible.add(room.id)
+                            connected = True
+                            break
+                    if not connected:
+                        still.append(room)
+                pending = still
+                if not pending:
+                    break
         else:
             accessible = {primary.id}
             pending = list(rooms[1:])
@@ -871,9 +932,12 @@ def generate_building(params: BuildingParams) -> tuple[BuildingResult, bytes, li
     rng = random.Random(params.seed)
     cfg = ARCHETYPE_CFG[params.archetype]
 
+    scale = _SIZE_SCALE[params.size]
     base_w, base_h = cfg["canvas"]
-    W = max(8, base_w + rng.randint(-1, 2))
-    H = max(7, base_h + rng.randint(-1, 2))
+    scaled_w = max(8,  round(base_w * scale))
+    scaled_h = max(7,  round(base_h * scale))
+    W = max(8, scaled_w + rng.randint(-1, 2))
+    H = max(7, scaled_h + rng.randint(-1, 2))
 
     blocks = make_blocks(params.footprint, W, H, rng)
     rooms  = partition_rooms(blocks, W, H, params.archetype, params.layout, cfg, rng)

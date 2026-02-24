@@ -55,6 +55,7 @@ export interface BuildingGenParams {
     archetype: string; // "house" | "shop" | "tavern" | "inn"
     footprint: string; // "rectangle" | "l_shape" | "cross" | "offset"
     layout:    string; // "open_plan" | "corridor"
+    size:      string; // "small" | "medium" | "large" | "xlarge"
     seed:      string;
 }
 

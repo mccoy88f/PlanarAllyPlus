@@ -46,6 +46,7 @@ const dungeonMeta = ref<{
     imageWidth: number;
     imageHeight: number;
     syncSquareSize: number;
+    padding?: number;
 } | null>(null);
 const dungeonWalls = ref<WallData | null>(null);
 const dungeonDoors = ref<DoorData[] | null>(null);
@@ -146,8 +147,16 @@ const buildingParams = ref<BuildingGenParams>({
     archetype: "tavern",
     footprint: "rectangle",
     layout:    "open_plan",
+    size:      "medium",
     seed:      "",
 });
+
+const buildingSizeOptions = [
+    { value: "small",  labelKey: "game.ui.extensions.DungeongenModal.bsize_small"  },
+    { value: "medium", labelKey: "game.ui.extensions.DungeongenModal.bsize_medium" },
+    { value: "large",  labelKey: "game.ui.extensions.DungeongenModal.bsize_large"  },
+    { value: "xlarge", labelKey: "game.ui.extensions.DungeongenModal.bsize_xlarge" },
+];
 
 const buildingArchetypeOptions = [
     { value: "house",  labelKey: "game.ui.extensions.DungeongenModal.barch_house"  },
@@ -223,6 +232,7 @@ async function generate(clearSeed = false): Promise<void> {
                 archetype: buildingParams.value.archetype,
                 footprint: buildingParams.value.footprint,
                 layout:    buildingParams.value.layout,
+                size:      buildingParams.value.size,
                 seed:      buildingParams.value.seed
                                ? (parseInt(buildingParams.value.seed, 10) || buildingParams.value.seed)
                                : "",
@@ -255,6 +265,7 @@ async function generate(clearSeed = false): Promise<void> {
                           imageWidth: data.imageWidth,
                           imageHeight: data.imageHeight,
                           syncSquareSize: data.syncSquareSize,
+                          padding: (data as any).padding ?? 50,
                       }
                     : null;
             dungeonWalls.value = (data as any).walls ?? null;
@@ -590,6 +601,14 @@ async function makeRealisticWithAI(): Promise<void> {
                     <!-- ── BUILDING settings ────────────────────────────── -->
                     <template v-else>
                         <div class="dg-fields-row">
+                            <div class="ext-ui-field">
+                                <label class="ext-ui-label" for="bg-size">{{ t("game.ui.extensions.DungeongenModal.size_building") }}</label>
+                                <select id="bg-size" v-model="buildingParams.size" class="ext-ui-select">
+                                    <option v-for="opt in buildingSizeOptions" :key="opt.value" :value="opt.value">
+                                        {{ t(opt.labelKey) }}
+                                    </option>
+                                </select>
+                            </div>
                             <div class="ext-ui-field">
                                 <label class="ext-ui-label" for="bg-archetype">{{ t("game.ui.extensions.DungeongenModal.archetype") }}</label>
                                 <select id="bg-archetype" v-model="buildingParams.archetype" class="ext-ui-select">
