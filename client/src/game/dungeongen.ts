@@ -149,15 +149,11 @@ export async function addDungeonToMap(
             propertiesSystem.setName(asset.id, shapeName, SERVER_SYNC);
 
             const walls = options?.walls;
-            console.log("DungeonGen - addDungeonToMap walls:", walls);
-            console.log("DungeonGen - fowLayer:", fowLayer?.name);
-
             if (walls && fowLayer) {
                 const scale = dungeonMeta ? (gridSize / dungeonMeta.syncSquareSize) : 1;
                 const basePadding = dungeonMeta?.padding ?? 50;
                 const scaledPadding = basePadding * scale;
                 const wallOffset = addP(refPoint, new Vector(scaledPadding, scaledPadding));
-                console.log("DungeonGen - wallOffset:", wallOffset);
 
                 // Add wall lines
                 for (const line of walls.lines) {
@@ -174,7 +170,6 @@ export async function addDungeonToMap(
                     );
                     fowLayer.addShape(wallShape, SyncMode.FULL_SYNC, InvalidationMode.WITH_LIGHT);
                 }
-                console.log(`DungeonGen - Added ${walls.lines.length} wall lines to ${fowLayer.name}`);
                 fowLayer.invalidate(false);
             }
 
@@ -224,7 +219,6 @@ export async function addDungeonToMap(
                     
                     propertiesSystem.setName(doorShape.id, "Door", SERVER_SYNC);
                 }
-                console.log(`DungeonGen - Added ${doorData.length} doors to ${layer.name}`);
             }
 
             if (options?.params) {
