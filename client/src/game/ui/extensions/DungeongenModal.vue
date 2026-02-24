@@ -62,6 +62,17 @@ const modeOptions = computed(() => [
     { label: t("game.ui.extensions.DungeongenModal.mode_building"), value: "building" as const },
 ]);
 
+// Clear preview whenever the user switches between dungeon and building modes
+// so a stale dungeon preview is not shown when building params are active (and vice versa).
+watch(mode, () => {
+    previewUrl.value = null;
+    gridCells.value = null;
+    dungeonMeta.value = null;
+    dungeonWalls.value = null;
+    dungeonDoors.value = null;
+    generatedName.value = "";
+});
+
 const showPromptModal = ref(false);
 const extraAiPrompt = ref("");
 

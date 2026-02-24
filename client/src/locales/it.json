@@ -260,7 +260,7 @@
           "extensions": {
             "assets-installer": "Assets Installer",
             "character-sheet": "Scheda del personaggio",
-            "dungeongen": "DungeonGen",
+            "dungeongen": "MapsGen",
             "documents": "Documenti",
             "openrouter": "AI Generator",
             "compendium": "Compendium",
@@ -273,7 +273,7 @@
       },
       "extensions": {
         "DungeongenModal": {
-          "title": "DungeonGen",
+          "title": "MapsGen",
           "mode_dungeon": "Dungeon",
           "mode_building": "Edificio",
           "settings": "Impostazioni generazione",
@@ -373,9 +373,9 @@
           "confirm_import_message": "Vuoi importare questa mappa nella sessione di gioco attuale?"
         },
         "DungeongenSettings": {
-          "tab": "DungeonGen",
-          "desc": "Modifica questo dungeon usando l'interfaccia dell'estensione DungeonGen.",
-          "edit_in_dungeongen": "Modifica in DungeonGen"
+          "tab": "MapsGen",
+          "desc": "Modifica questa mappa usando l'interfaccia dell'estensione MapsGen.",
+          "edit_in_dungeongen": "Modifica in MapsGen"
         },
         "ExtensionsManager": {
           "title": "Gestisci estensioni",
@@ -430,9 +430,9 @@
           "api_key_hint": "OpenRouter: ottieni la chiave su openrouter.ai. Google: ottieni la chiave su aistudio.google.com.",
           "model": "Modello",
           "model_free": "OpenRouter (Gratuito)",
-          "image_model": "Modello immagini (DungeonGen)",
+          "image_model": "Modello immagini (MapsGen)",
           "image_model_label": "Modelli image-to-image",
-          "image_model_hint": "Per \"Rendi realistico con AI\" in DungeonGen. Scegli un modello image-to-image.",
+          "image_model_hint": "Per \"Rendi realistico con AI\" in MapsGen. Scegli un modello image-to-image.",
           "model_paid": "OpenRouter (A pagamento)",
           "base_prompt": "Prompt base (definisce il tipo di chat)",
           "base_prompt_placeholder": "es. Sei un assistente per giochi di ruolo da tavolo...",
