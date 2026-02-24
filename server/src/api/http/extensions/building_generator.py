@@ -4,8 +4,39 @@ Generates floor-plan style buildings (house, shop, tavern, inn) as grid-based
 room layouts. Rendering is delegated entirely to the dungeongen library's
 Map.render() pipeline so the visual output is identical in style to dungeons.
 
-Wall extraction and door data for PlanarAlly use the same grid-based approach
-as the dungeon generator.
+== Room / wall model ==
+
+Each room is passed to dungeongen as Room.from_grid(x, y, w, h).  Dungeongen
+draws the room filling that rectangle and renders rock/crosshatching in any
+canvas area NOT covered by a room.
+
+Two adjacent rooms share a 1-cell wall gap between them:
+  Room A ends at x2 = N  (slot x + slot_w)
+  Gap cell: x = N  (1 cell wide, belongs to neither room)
+  Room B starts at x = N+1
+
+The door is placed at (N, mid_y) — inside the gap cell (the rock/wall cell).
+DoorOrientation: VERTICAL for doors on a vertical wall (east/west sides),
+                 HORIZONTAL for doors on a horizontal wall (north/south sides).
+
+Minimum room size (interior + its own walls handled by dungeongen): MIN_ROOM = 3
+  (dungeongen needs at least 3 cells to draw a room with visible interior)
+
+Canvas layout for a simple 2-room horizontal split at cut=C (W total):
+  Room A: x=0, w=C          (cells 0..C-1)
+  gap:    x=C               (1 cell)
+  Room B: x=C+1, w=W-C-1   (cells C+1..W-1)
+  Door:   x=C, y=mid  (VERTICAL orientation — on the vertical wall)
+
+For n rooms, each cut consumes 1 extra cell for the gap. So for n rooms:
+  usable_width = W - (n-1) gaps
+
+== Footprint ==
+The footprint is one or more rectangular blocks covering the canvas.
+Blocks share boundaries (no gaps between them) so the building outline is
+solid. Inside each block, rooms are placed with the gap model above.
+Between two blocks the shared boundary row/column is also a 1-cell gap where
+a door can be placed.
 """
 
 from __future__ import annotations
@@ -17,11 +48,17 @@ from typing import Optional
 
 
 # ---------------------------------------------------------------------------
-# Constants (must match dungeongen.py)
+# Constants
 # ---------------------------------------------------------------------------
 
 GRID_SIZE = 50   # PlanarAlly pixels per cell
-PADDING   = 50   # pixel padding (matches dungeongen.py)
+PADDING   = 50   # pixel padding around canvas
+
+# Minimum cells for a dungeongen room (each axis)
+MIN_ROOM = 3
+
+# 1-cell gap between any two adjacent rooms (the shared wall)
+GAP = 1
 
 
 # ---------------------------------------------------------------------------
@@ -48,7 +85,7 @@ class LayoutPlan(Enum):
 
 
 # ---------------------------------------------------------------------------
-# Internal grid kind (for wall extraction only)
+# Internal grid kind (for wall extraction)
 # ---------------------------------------------------------------------------
 
 class CellKind(Enum):
@@ -69,53 +106,30 @@ class BuildingParams:
 
 
 @dataclass
-class FootprintBlock:
-    x: int
-    y: int
-    w: int
-    h: int
-
-    @property
-    def x2(self) -> int:
-        return self.x + self.w
-
-    @property
-    def y2(self) -> int:
-        return self.y + self.h
-
-    def contains(self, cx: int, cy: int) -> bool:
-        return self.x <= cx < self.x2 and self.y <= cy < self.y2
-
-
-@dataclass
 class Room:
-    """Internal room representation (grid coordinates)."""
+    """A room in dungeongen grid coordinates.
+
+    These coordinates are passed directly to DGRoom.from_grid(x, y, w, h).
+    Adjacent rooms are separated by a 1-cell gap (the shared wall).
+    """
     id:   int
     x:    int
     y:    int
     w:    int
     h:    int
-    kind: str  # "primary" | "secondary" | "bedroom" | "corridor"
+    kind: str   # "primary" | "secondary" | "bedroom" | "corridor"
 
     @property
-    def x2(self) -> int:
-        return self.x + self.w
-
+    def x2(self) -> int: return self.x + self.w
     @property
-    def y2(self) -> int:
-        return self.y + self.h
-
-    @property
-    def area(self) -> int:
-        return self.w * self.h
+    def y2(self) -> int: return self.y + self.h
 
 
 @dataclass
 class Door:
-    """Door in grid coordinates for PlanarAlly wall/door pipeline."""
     x:         int
     y:         int
-    direction: str   # "north" | "south" | "east" | "west"
+    direction: str    # "north"|"south"|"east"|"west"
     door_type: str = "normal"
 
 
@@ -135,483 +149,602 @@ class BuildingResult:
 
 ARCHETYPE_CFG: dict[BuildingArchetype, dict] = {
     BuildingArchetype.HOUSE: {
-        "primary_frac": 0.35,
-        "base_size":    (8, 7),
-        "min_room":     2,
+        "canvas":  (14, 11),
+        "kinds":   ["primary", "secondary", "secondary"],
     },
     BuildingArchetype.SHOP: {
-        "primary_frac": 0.45,
-        "base_size":    (9, 7),
-        "min_room":     2,
+        "canvas":  (15, 11),
+        "kinds":   ["primary", "secondary", "secondary"],
     },
     BuildingArchetype.TAVERN: {
-        "primary_frac": 0.55,
-        "base_size":    (12, 9),
-        "min_room":     2,
+        "canvas":  (18, 13),
+        "kinds":   ["primary", "secondary", "secondary", "secondary"],
     },
     BuildingArchetype.INN: {
-        "primary_frac": 0.40,
-        "base_size":    (14, 10),
-        "min_room":     2,
+        "canvas":  (20, 15),
+        "kinds":   ["primary", "secondary", "bedroom", "bedroom", "bedroom"],
     },
 }
 
-ARCHETYPE_ROOM_KINDS: dict[BuildingArchetype, list[str]] = {
-    BuildingArchetype.HOUSE:  ["primary", "secondary", "secondary", "secondary"],
-    BuildingArchetype.SHOP:   ["primary", "secondary", "secondary"],
-    BuildingArchetype.TAVERN: ["primary", "secondary", "secondary", "secondary"],
-    BuildingArchetype.INN:    ["primary", "secondary", "bedroom", "bedroom", "bedroom", "bedroom"],
-}
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _clamp(v: int, lo: int, hi: int) -> int:
+    return max(lo, min(hi, v))
+
+
+def _min_block_size(n: int) -> int:
+    """Minimum cells needed in one axis to fit n rooms with gaps between them."""
+    return n * MIN_ROOM + (n - 1) * GAP
 
 
 # ---------------------------------------------------------------------------
-# Footprint generation
+# Footprint blocks  (x, y, w, h) in canvas grid coordinates
+#
+# Blocks are non-overlapping and share exact boundary rows/columns so that
+# rooms in adjacent blocks can be connected through a 1-cell gap.
 # ---------------------------------------------------------------------------
 
-def build_footprint(
-    shape:   FootprintShape,
-    total_w: int,
-    total_h: int,
-    rng:     random.Random,
-) -> tuple[list[FootprintBlock], int, int]:
-    """Return (blocks, canvas_w, canvas_h)."""
+def make_blocks(
+    shape: FootprintShape,
+    W: int, H: int,
+    rng: random.Random,
+) -> list[tuple[int, int, int, int]]:
+    """Return list of non-overlapping (x,y,w,h) blocks covering the footprint."""
 
     if shape == FootprintShape.RECTANGLE:
-        return [FootprintBlock(0, 0, total_w, total_h)], total_w, total_h
+        return [(0, 0, W, H)]
 
     if shape == FootprintShape.L_SHAPE:
-        split_h = rng.randint(max(2, int(total_h * 0.55)), max(3, int(total_h * 0.70)))
-        split_h = min(split_h, total_h - 2)
-        split_w = rng.randint(max(2, int(total_w * 0.40)), max(3, int(total_w * 0.60)))
-        split_w = min(split_w, total_w - 2)
-        arm1 = FootprintBlock(0, 0, total_w, split_h)
-        arm2 = FootprintBlock(0, split_h, split_w, total_h - split_h)
-        return [arm1, arm2], total_w, total_h
+        # top block: full width, upper portion
+        # bottom-left block: left portion of lower part
+        # They share the boundary row at y=split_h (so a room in the top block
+        # that ends at y2=split_h is 1 gap away from a room in the bottom block
+        # that starts at y=split_h+1).
+        min_top = _min_block_size(1)
+        min_bot = _min_block_size(1)
+        split_h = _clamp(
+            rng.randint(int(H * 55 // 100), int(H * 70 // 100)),
+            min_top, H - min_bot,
+        )
+        min_lw = _min_block_size(1)
+        split_w = _clamp(
+            rng.randint(int(W * 40 // 100), int(W * 60 // 100)),
+            min_lw, W - min_lw,
+        )
+        return [
+            (0, 0,        W,       split_h),
+            (0, split_h,  split_w, H - split_h),
+        ]
 
     if shape == FootprintShape.CROSS:
-        bar_h = max(2, rng.randint(int(total_h * 0.30), int(total_h * 0.45)))
-        bar_w = max(2, rng.randint(int(total_w * 0.30), int(total_w * 0.45)))
-        cy = (total_h - bar_h) // 2
-        cx = (total_w - bar_w) // 2
-        h_bar = FootprintBlock(0, cy, total_w, bar_h)
-        v_bar = FootprintBlock(cx, 0, bar_w, total_h)
-        return [h_bar, v_bar], total_w, total_h
+        # Three non-overlapping blocks:
+        #   top_arm:  (cx, 0,         bar_w, cy)
+        #   h_bar:    (0,  cy,        W,     bar_h)
+        #   bot_arm:  (cx, cy+bar_h,  bar_w, H - cy - bar_h)
+        min_bar_h = _min_block_size(1)
+        min_arm_h = _min_block_size(1)
+        bar_h = _clamp(
+            rng.randint(int(H * 30 // 100), int(H * 45 // 100)),
+            min_bar_h, H - 2 * min_arm_h,
+        )
+        cy = _clamp((H - bar_h) // 2, min_arm_h, H - bar_h - min_arm_h)
+
+        min_arm_w = _min_block_size(1)
+        bar_w = _clamp(
+            rng.randint(int(W * 30 // 100), int(W * 50 // 100)),
+            min_arm_w, W - 2 * min_arm_w,
+        )
+        cx = (W - bar_w) // 2
+        cx = _clamp(cx, 0, W - bar_w)
+
+        blocks: list[tuple[int, int, int, int]] = [(0, cy, W, bar_h)]
+        if cy >= min_arm_h:
+            blocks.append((cx, 0, bar_w, cy))
+        if H - cy - bar_h >= min_arm_h:
+            blocks.append((cx, cy + bar_h, bar_w, H - cy - bar_h))
+        return blocks
 
     if shape == FootprintShape.OFFSET:
-        half_w = total_w // 2
-        right_w = total_w - half_w
-        stagger = max(1, rng.randint(1, max(1, total_h // 4)))
-        left  = FootprintBlock(0, 0, half_w, total_h - stagger)
-        right = FootprintBlock(half_w, stagger, right_w, total_h - stagger)
-        return [left, right], total_w, total_h
-
-    return [FootprintBlock(0, 0, total_w, total_h)], total_w, total_h
-
-
-# ---------------------------------------------------------------------------
-# Occupancy grid helpers (used for wall extraction only)
-# ---------------------------------------------------------------------------
-
-def make_grid(w: int, h: int) -> list[list[CellKind]]:
-    return [[CellKind.EMPTY] * w for _ in range(h)]
-
-
-def stamp_footprint(grid: list[list[CellKind]], blocks: list[FootprintBlock]) -> None:
-    for b in blocks:
-        for row in range(b.y, b.y + b.h):
-            for col in range(b.x, b.x + b.w):
-                grid[row][col] = CellKind.FLOOR
-
-
-# ---------------------------------------------------------------------------
-# Room partitioning (guillotine, axis-alternating)
-# ---------------------------------------------------------------------------
-
-def _slice_block(
-    block:       FootprintBlock,
-    min_size:    int,
-    target_frac: float,
-    axis:        str,
-    rng:         random.Random,
-) -> Optional[tuple[FootprintBlock, FootprintBlock]]:
-    if axis == "h":
-        ideal = int(block.h * target_frac)
-        lo = max(min_size, int(ideal * 0.80))
-        hi = min(block.h - min_size, int(ideal * 1.20))
-        if lo > hi:
-            return None
-        cut = rng.randint(lo, hi)
-        return (
-            FootprintBlock(block.x, block.y,       block.w, cut),
-            FootprintBlock(block.x, block.y + cut, block.w, block.h - cut),
+        # Two blocks sharing a vertical boundary, vertically staggered.
+        min_w = _min_block_size(1)
+        half_w = _clamp(W // 2, min_w, W - min_w)
+        right_w = W - half_w
+        min_h = _min_block_size(1)
+        stagger = _clamp(
+            rng.randint(int(H // 6), int(H // 3)),
+            1, H - min_h * 2,
         )
-    else:
-        ideal = int(block.w * target_frac)
-        lo = max(min_size, int(ideal * 0.80))
-        hi = min(block.w - min_size, int(ideal * 1.20))
-        if lo > hi:
-            return None
-        cut = rng.randint(lo, hi)
-        return (
-            FootprintBlock(block.x,       block.y, cut,           block.h),
-            FootprintBlock(block.x + cut, block.y, block.w - cut, block.h),
-        )
+        left_h  = max(H - stagger, min_h)
+        right_h = max(H - stagger, min_h)
+        return [
+            (0,      0,       half_w,  left_h),
+            (half_w, stagger, right_w, right_h),
+        ]
 
+    return [(0, 0, W, H)]
+
+
+def cell_in_blocks(cx: int, cy: int, blocks: list[tuple[int, int, int, int]]) -> bool:
+    for bx, by, bw, bh in blocks:
+        if bx <= cx < bx + bw and by <= cy < by + bh:
+            return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Guillotine partitioning
+#
+# Split a block (bx, by, bw, bh) into n rooms with GAP-cell gaps between them.
+# Each room gets at least MIN_ROOM cells on each axis.
+#
+# Cut at position C (relative to block start):
+#   Room A: offset=0,       size=C
+#   gap:    offset=C        (GAP cells)
+#   Room B: offset=C+GAP,   size=remaining
+#
+# So: C >= MIN_ROOM, remaining = bw - C - GAP >= MIN_ROOM
+#   => C in [MIN_ROOM, bw - GAP - MIN_ROOM]
+# ---------------------------------------------------------------------------
 
 def _guillotine(
-    block:           FootprintBlock,
-    room_kinds:      list[str],
-    min_size:        int,
-    rng:             random.Random,
-    room_id_counter: list[int],
-    axis:            str = "v",
-) -> list[Room]:
-    if len(room_kinds) == 1:
-        rid = room_id_counter[0]
-        room_id_counter[0] += 1
-        return [Room(rid, block.x, block.y, block.w, block.h, room_kinds[0])]
+    bx: int, by: int, bw: int, bh: int,
+    n: int,
+    rng: random.Random,
+) -> list[tuple[int, int, int, int]]:
+    """Partition block into n rooms. Returns list of (x,y,w,h) room rects."""
+    if n <= 1:
+        return [(bx, by, bw, bh)]
 
-    frac = 1.0 / len(room_kinds)
-    result = _slice_block(block, min_size, frac, axis, rng)
-    if result is None:
-        rid = room_id_counter[0]
-        room_id_counter[0] += 1
-        return [Room(rid, block.x, block.y, block.w, block.h, room_kinds[0])]
+    # Can we split horizontally (along y)?
+    can_h = bh >= _min_block_size(2)   # need room for 2 rooms + 1 gap
+    # Can we split vertically (along x)?
+    can_v = bw >= _min_block_size(2)
 
-    a, b = result
-    next_axis = "h" if axis == "v" else "v"
-    return (
-        _guillotine(a, room_kinds[:1],  min_size, rng, room_id_counter, next_axis)
-        + _guillotine(b, room_kinds[1:], min_size, rng, room_id_counter, next_axis)
-    )
+    if not can_h and not can_v:
+        return [(bx, by, bw, bh)]
 
+    # Prefer splitting along the longer axis
+    use_h = (bh >= bw) if (can_h and can_v) else can_h
 
-def _insert_corridor(
-    rooms:    list[Room],
-    blocks:   list[FootprintBlock],
-    min_size: int,
-    rng:      random.Random,
-    counter:  list[int],
-) -> list[Room]:
-    primary = rooms[0]
-    all_x = [b.x for b in blocks] + [b.x2 for b in blocks]
-    all_y = [b.y for b in blocks] + [b.y2 for b in blocks]
-    bb_w = max(all_x) - min(all_x)
-    bb_h = max(all_y) - min(all_y)
-    corridor_horizontal = bb_w >= bb_h
+    n1 = max(1, n // 2)
+    n2 = n - n1
 
-    if corridor_horizontal:
-        cy = primary.y - 1
-        if cy < 0:
-            cy = primary.y2
-        corridor_x = min(b.x for b in blocks)
-        corridor_w = max(b.x2 for b in blocks) - corridor_x
-        if corridor_w < 2:
-            return rooms
-        corridor = Room(counter[0], corridor_x, cy, corridor_w, 1, "corridor")
-        counter[0] += 1
-        trimmed = []
-        for r in rooms:
-            if r is primary:
-                trimmed.append(r)
-                continue
-            if r.y <= cy < r.y2 and r.h > min_size:
-                if cy == r.y:
-                    trimmed.append(Room(r.id, r.x, r.y + 1, r.w, r.h - 1, r.kind))
-                elif cy == r.y2 - 1:
-                    trimmed.append(Room(r.id, r.x, r.y, r.w, r.h - 1, r.kind))
-                else:
-                    trimmed.append(r)
-            else:
-                trimmed.append(r)
-        return trimmed + [corridor]
+    if use_h:
+        # split horizontally: cut at y offset C
+        # block A: (bx, by, bw, C), block B: (bx, by+C+GAP, bw, bh-C-GAP)
+        min_c = _min_block_size(n1)
+        max_c = bh - GAP - _min_block_size(n2)
+        if min_c > max_c:
+            return [(bx, by, bw, bh)]
+        ideal = round(bh * n1 / n)
+        ideal = _clamp(ideal, min_c, max_c)
+        lo = _clamp(ideal - max(1, bh // 6), min_c, max_c)
+        hi = _clamp(ideal + max(1, bh // 6), min_c, max_c)
+        cut = rng.randint(lo, hi)
+        part_a = _guillotine(bx, by,             bw, cut,             n1, rng)
+        part_b = _guillotine(bx, by + cut + GAP, bw, bh - cut - GAP, n2, rng)
+        return part_a + part_b
     else:
-        cx = primary.x2
-        if cx >= max(b.x2 for b in blocks):
-            cx = primary.x - 1
-        if cx < 0:
-            return rooms
-        corridor_y = min(b.y for b in blocks)
-        corridor_h = max(b.y2 for b in blocks) - corridor_y
-        if corridor_h < 2:
-            return rooms
-        corridor = Room(counter[0], cx, corridor_y, 1, corridor_h, "corridor")
-        counter[0] += 1
-        trimmed = []
-        for r in rooms:
-            if r is primary:
-                trimmed.append(r)
-                continue
-            if r.x <= cx < r.x2 and r.w > min_size:
-                if cx == r.x:
-                    trimmed.append(Room(r.id, r.x + 1, r.y, r.w - 1, r.h, r.kind))
-                elif cx == r.x2 - 1:
-                    trimmed.append(Room(r.id, r.x, r.y, r.w - 1, r.h, r.kind))
-                else:
-                    trimmed.append(r)
-            else:
-                trimmed.append(r)
-        return trimmed + [corridor]
+        # split vertically: cut at x offset C
+        min_c = _min_block_size(n1)
+        max_c = bw - GAP - _min_block_size(n2)
+        if min_c > max_c:
+            return [(bx, by, bw, bh)]
+        ideal = round(bw * n1 / n)
+        ideal = _clamp(ideal, min_c, max_c)
+        lo = _clamp(ideal - max(1, bw // 6), min_c, max_c)
+        hi = _clamp(ideal + max(1, bw // 6), min_c, max_c)
+        cut = rng.randint(lo, hi)
+        part_a = _guillotine(bx,             by, cut,             bh, n1, rng)
+        part_b = _guillotine(bx + cut + GAP, by, bw - cut - GAP, bh, n2, rng)
+        return part_a + part_b
 
+
+# ---------------------------------------------------------------------------
+# Room partitioning
+# ---------------------------------------------------------------------------
 
 def partition_rooms(
-    blocks:    list[FootprintBlock],
+    blocks:    list[tuple[int, int, int, int]],
+    W: int, H: int,
     archetype: BuildingArchetype,
     layout:    LayoutPlan,
     cfg:       dict,
     rng:       random.Random,
 ) -> list[Room]:
-    min_size   = cfg["min_room"]
-    room_kinds = list(ARCHETYPE_ROOM_KINDS[archetype])
-    largest    = max(blocks, key=lambda b: b.w * b.h)
-    counter    = [0]
+    kinds     = list(cfg["kinds"])
+    n_rooms   = len(kinds)
+    total_area = sum(bw * bh for _, _, bw, bh in blocks)
 
-    total_area   = sum(b.w * b.h for b in blocks)
-    largest_area = largest.w * largest.h
-    n_largest    = max(1, min(round(len(room_kinds) * largest_area / total_area), len(room_kinds)))
+    # Distribute rooms across blocks proportionally to area.
+    # For each block, shrink the partitioning area by GAP on any side that
+    # shares a boundary with another block.  This reserves a 1-cell gap at
+    # inter-block boundaries so rooms in different blocks are always separated
+    # by exactly GAP cells (same as rooms within a single block).
+    def _shrink_block(bx, by, bw, bh, all_blocks):
+        """Return partitioning rect shrunk on sides shared with another block.
 
-    largest_kinds   = room_kinds[:n_largest]
-    remaining_kinds = room_kinds[n_largest:]
+        Convention: only the block with the LARGER coordinate shrinks on the
+        shared boundary side (the "incoming" side).  The block with the smaller
+        coordinate keeps its natural extent up to the boundary.
 
-    if "primary" in largest_kinds:
-        largest_kinds.remove("primary")
-        largest_kinds = ["primary"] + largest_kinds
+        This ensures exactly GAP=1 cells between the last room of block A and
+        the first room of block B:
+          Block A rooms extend up to boundary coord C  (a.y2 == C)
+          Block B rooms start at C+1                  (b.y  == C+1)
+          Gap cell: y=C  →  a.y2 + GAP == b.y  ✓
+        """
+        ox, oy, ow, oh = bx, by, bw, bh
+        for obx, oby, obw, obh in all_blocks:
+            if (obx, oby, obw, obh) == (bx, by, bw, bh):
+                continue
+            # Other block is to the east: this block is left → keep east extent
+            # Other block is to the west: this block is right → shrink west side
+            if obx + obw == bx and max(by, oby) < min(by + bh, oby + obh):
+                ox += GAP; ow -= GAP
+            # Other block is to the south: this block is top → keep south extent
+            # Other block is to the north: this block is bottom → shrink north side
+            if oby + obh == by and max(bx, obx) < min(bx + bw, obx + obw):
+                oy += GAP; oh -= GAP
+        return ox, oy, max(ow, MIN_ROOM), max(oh, MIN_ROOM)
 
-    primary_frac = cfg["primary_frac"]
-    primary_h    = max(min_size, int(largest.h * primary_frac))
-    primary_h    = min(primary_h, largest.h - min_size * (n_largest - 1))
+    all_raw: list[tuple[int, int, int, int]] = []
+    remaining = n_rooms
+    for i, (bx, by, bw, bh) in enumerate(blocks):
+        if i == len(blocks) - 1:
+            n = remaining
+        else:
+            frac = (bw * bh) / total_area
+            n = max(1, min(round(n_rooms * frac), remaining - (len(blocks) - i - 1)))
+        remaining -= n
+        px, py, pw, ph = _shrink_block(bx, by, bw, bh, blocks)
+        all_raw.extend(_guillotine(px, py, pw, ph, n, rng))
 
-    if n_largest == 1 or primary_h >= largest.h:
-        rooms_largest = _guillotine(largest, largest_kinds, min_size, rng, counter)
-    else:
-        primary_strip = FootprintBlock(largest.x, largest.y + largest.h - primary_h, largest.w, primary_h)
-        rest_strip    = FootprintBlock(largest.x, largest.y, largest.w, largest.h - primary_h)
-        primary_obj   = Room(counter[0], primary_strip.x, primary_strip.y, primary_strip.w, primary_strip.h, "primary")
-        counter[0]   += 1
-        other_rooms   = (
-            _guillotine(rest_strip, largest_kinds[1:], min_size, rng, counter)
-            if n_largest > 1 and rest_strip.h >= min_size else []
+    # Choose primary: largest room with at least one exterior (non-block) side
+    def has_exterior_side(rx, ry, rw, rh) -> bool:
+        mid_x = rx + rw // 2
+        mid_y = ry + rh // 2
+        return (
+            not cell_in_blocks(mid_x, ry + rh, blocks) or   # south
+            not cell_in_blocks(mid_x, ry - 1, blocks) or    # north
+            not cell_in_blocks(rx - 1, mid_y, blocks) or    # west
+            not cell_in_blocks(rx + rw, mid_y, blocks)      # east
         )
-        rooms_largest = [primary_obj] + other_rooms
 
-    other_block_rooms: list[Room] = []
-    for b in blocks:
-        if b is largest:
-            continue
-        b_area    = b.w * b.h
-        other_sum = sum(ob.w * ob.h for ob in blocks if ob is not largest)
-        n_b       = max(1, min(round(len(remaining_kinds) * b_area / other_sum) if other_sum else 1, len(remaining_kinds)))
-        b_kinds          = remaining_kinds[:n_b]
-        remaining_kinds  = remaining_kinds[n_b:]
-        if b_kinds:
-            other_block_rooms += _guillotine(b, b_kinds, min_size, rng, counter)
+    exterior = [s for s in all_raw if has_exterior_side(*s)]
+    pool = exterior if exterior else all_raw
+    primary_raw = max(pool, key=lambda s: s[2] * s[3])
 
-    all_rooms = rooms_largest + other_block_rooms
+    # Insert corridor slot if requested
+    if layout == LayoutPlan.CORRIDOR:
+        all_raw = _insert_corridor(all_raw, W, H, primary_raw, rng)
+        exterior2 = [s for s in all_raw if has_exterior_side(*s)]
+        pool2 = exterior2 if exterior2 else all_raw
+        primary_raw = max(pool2, key=lambda s: s[2] * s[3])
 
-    if layout == LayoutPlan.CORRIDOR and len(all_rooms) > 1:
-        all_rooms = _insert_corridor(all_rooms, blocks, min_size, rng, counter)
+    # Find corridor slot (thinnest slot)
+    corridor_raw: Optional[tuple[int, int, int, int]] = None
+    if layout == LayoutPlan.CORRIDOR:
+        for s in all_raw:
+            if s is not primary_raw and (s[2] == MIN_ROOM or s[3] == MIN_ROOM):
+                corridor_raw = s
+                break
 
-    return all_rooms
+    # Assign kinds: primary first, corridor second, rest by area descending
+    others = [s for s in all_raw if s is not primary_raw and s is not corridor_raw]
+    others_sorted = sorted(others, key=lambda s: s[2] * s[3], reverse=True)
+
+    ordered: list[tuple[tuple[int, int, int, int], str]] = [(primary_raw, "primary")]
+    if corridor_raw is not None:
+        ordered.append((corridor_raw, "corridor"))
+    kind_idx = 1
+    for s in others_sorted:
+        k = kinds[kind_idx] if kind_idx < len(kinds) else "secondary"
+        ordered.append((s, k))
+        kind_idx += 1
+
+    rooms: list[Room] = []
+    for rid, (raw, kind) in enumerate(ordered):
+        rx, ry, rw, rh = raw
+        rooms.append(Room(rid, rx, ry, rw, rh, kind))
+
+    return rooms
 
 
 # ---------------------------------------------------------------------------
-# Door placement helpers
+# Corridor insertion
 # ---------------------------------------------------------------------------
 
-def _rooms_share_wall(a: Room, b: Room) -> Optional[tuple[int, int, str]]:
-    """Return (door_x, door_y, direction_from_a_to_b) or None."""
-    if a.x2 == b.x and max(a.y, b.y) < min(a.y2, b.y2):
-        return (b.x, (max(a.y, b.y) + min(a.y2, b.y2)) // 2, "east")
-    if b.x2 == a.x and max(a.y, b.y) < min(a.y2, b.y2):
-        return (a.x, (max(a.y, b.y) + min(a.y2, b.y2)) // 2, "west")
-    if a.y2 == b.y and max(a.x, b.x) < min(a.x2, b.x2):
-        return ((max(a.x, b.x) + min(a.x2, b.x2)) // 2, b.y, "south")
-    if b.y2 == a.y and max(a.x, b.x) < min(a.x2, b.x2):
-        return ((max(a.x, b.x) + min(a.x2, b.x2)) // 2, a.y, "north")
+def _insert_corridor(
+    rooms_raw: list[tuple[int, int, int, int]],
+    W: int, H: int,
+    primary_raw: tuple[int, int, int, int],
+    rng: random.Random,
+) -> list[tuple[int, int, int, int]]:
+    """Insert a corridor (MIN_ROOM thick) adjacent to the primary room."""
+    px, py, pw, ph = primary_raw
+    horizontal = W >= H
+
+    if horizontal:
+        # Horizontal corridor above the primary
+        corr_y = py - GAP - MIN_ROOM
+        if corr_y < 0:
+            corr_y = py + ph + GAP
+        if corr_y < 0 or corr_y + MIN_ROOM > H:
+            return rooms_raw
+
+        corr = (0, corr_y, W, MIN_ROOM)
+        result: list[tuple[int, int, int, int]] = []
+        for sx, sy, sw, sh in rooms_raw:
+            if (sx, sy, sw, sh) == (px, py, pw, ph):
+                result.append((sx, sy, sw, sh))
+                continue
+            # Rooms that overlap the corridor y range get trimmed
+            if sy + sh <= corr_y or sy >= corr_y + MIN_ROOM:
+                result.append((sx, sy, sw, sh))
+                continue
+            # Trim top portion
+            if sy < corr_y and corr_y - sy >= MIN_ROOM:
+                result.append((sx, sy, sw, corr_y - sy))
+            # Trim bottom portion
+            below = corr_y + MIN_ROOM + GAP
+            if sy + sh > below and (sy + sh) - below >= MIN_ROOM:
+                result.append((sx, below, sw, (sy + sh) - below))
+        result.append(corr)
+        return result
+    else:
+        corr_x = px + pw + GAP
+        if corr_x + MIN_ROOM > W:
+            corr_x = px - GAP - MIN_ROOM
+        if corr_x < 0 or corr_x + MIN_ROOM > W:
+            return rooms_raw
+
+        corr = (corr_x, 0, MIN_ROOM, H)
+        result = []
+        for sx, sy, sw, sh in rooms_raw:
+            if (sx, sy, sw, sh) == (px, py, pw, ph):
+                result.append((sx, sy, sw, sh))
+                continue
+            if sx + sw <= corr_x or sx >= corr_x + MIN_ROOM:
+                result.append((sx, sy, sw, sh))
+                continue
+            if sx < corr_x and corr_x - sx >= MIN_ROOM:
+                result.append((sx, sy, corr_x - sx, sh))
+            right = corr_x + MIN_ROOM + GAP
+            if sx + sw > right and (sx + sw) - right >= MIN_ROOM:
+                result.append((right, sy, (sx + sw) - right, sh))
+        result.append(corr)
+        return result
+
+
+# ---------------------------------------------------------------------------
+# Adjacency: two rooms are adjacent when separated by exactly GAP=1 cell
+#
+# Room A ends at x2=N, Room B starts at x=N+GAP → gap column at x=N
+# Door is placed IN the gap cell: (N, mid_y) with VERTICAL orientation.
+# For a horizontal gap: (mid_x, N) with HORIZONTAL orientation.
+#
+# DoorOrientation.VERTICAL   → door on a vertical wall (east/west sides)
+# DoorOrientation.HORIZONTAL → door on a horizontal wall (north/south sides)
+# ---------------------------------------------------------------------------
+
+def _gap_between(a: Room, b: Room) -> Optional[tuple[int, int, str]]:
+    """Return (door_x, door_y, direction) if rooms share a 1-cell wall gap.
+
+    Door coordinates are placed IN the gap cell (rock/wall cell between rooms).
+    This is what dungeongen expects: Door.from_grid(gap_x, gap_y, orientation).
+    """
+
+    # A left of B: gap column at a.x2 → door at (a.x2, mid_y) VERTICAL
+    if a.x2 + GAP == b.x:
+        oy1 = max(a.y, b.y)
+        oy2 = min(a.y2, b.y2)
+        if oy2 - oy1 >= MIN_ROOM:
+            return (a.x2, (oy1 + oy2) // 2, "east")
+
+    # B left of A: gap column at b.x2 → door at (b.x2, mid_y) VERTICAL
+    if b.x2 + GAP == a.x:
+        oy1 = max(a.y, b.y)
+        oy2 = min(a.y2, b.y2)
+        if oy2 - oy1 >= MIN_ROOM:
+            return (b.x2, (oy1 + oy2) // 2, "west")
+
+    # A above B: gap row at a.y2 → door at (mid_x, a.y2) HORIZONTAL
+    if a.y2 + GAP == b.y:
+        ox1 = max(a.x, b.x)
+        ox2 = min(a.x2, b.x2)
+        if ox2 - ox1 >= MIN_ROOM:
+            return ((ox1 + ox2) // 2, a.y2, "south")
+
+    # B above A: gap row at b.y2 → door at (mid_x, b.y2) HORIZONTAL
+    if b.y2 + GAP == a.y:
+        ox1 = max(a.x, b.x)
+        ox2 = min(a.x2, b.x2)
+        if ox2 - ox1 >= MIN_ROOM:
+            return ((ox1 + ox2) // 2, b.y2, "north")
+
     return None
 
 
-def _find_exterior_entrance(primary: Room, blocks: list[FootprintBlock]) -> Optional[Door]:
-    mid_x = (primary.x + primary.x2) // 2
-    mid_y = (primary.y + primary.y2) // 2
+# ---------------------------------------------------------------------------
+# Exterior entrance
+# ---------------------------------------------------------------------------
 
-    if not any(b.contains(mid_x, primary.y2) for b in blocks):
-        return Door(mid_x, primary.y2 - 1, "south")
-    if not any(b.contains(mid_x, primary.y - 1) for b in blocks):
-        return Door(mid_x, primary.y, "north")
-    if not any(b.contains(primary.x - 1, mid_y) for b in blocks):
-        return Door(primary.x, mid_y, "west")
-    if not any(b.contains(primary.x2, mid_y) for b in blocks):
-        return Door(primary.x2 - 1, mid_y, "east")
+def _find_entrance(
+    primary: Room,
+    blocks:  list[tuple[int, int, int, int]],
+    W: int, H: int,
+) -> Optional[Door]:
+    """Find a free exterior side of the primary room for the entrance.
+
+    A side is "free" if the cell just outside the room (the gap cell) is
+    outside the footprint or beyond the canvas edge. The entrance Exit is
+    placed IN the gap cell (the rock cell just outside the room boundary),
+    which is what dungeongen's Exit.from_grid expects.
+    Priority: south → north → west → east.
+    """
+    r = primary
+
+    def gap_is_free_exterior(cx: int, cy: int) -> bool:
+        """True if (cx,cy) is a valid gap cell outside the building footprint.
+
+        The cell must be within canvas bounds (so it renders correctly) or
+        just one step off the canvas edge (still valid as exterior).
+        We allow exactly one cell outside the canvas on each side.
+        """
+        # Must not be inside the footprint
+        if 0 <= cx < W and 0 <= cy < H and cell_in_blocks(cx, cy, blocks):
+            return False
+        # Must be reachable: within canvas or exactly one cell off edge
+        if cx < -1 or cy < -1 or cx > W or cy > H:
+            return False
+        return True
+
+    # Keep the old name as alias for clarity below
+    free_outside = gap_is_free_exterior
+
+    mid_x = r.x + r.w // 2
+    mid_y = r.y + r.h // 2
+
+    def _sorted_by_center(lo: int, hi: int, center: int) -> list[int]:
+        """Return range [lo, hi) sorted by distance from center (closest first)."""
+        return sorted(range(lo, hi), key=lambda v: abs(v - center))
+
+    # South: gap row at r.y2 → Exit at (x, r.y2) facing SOUTH
+    for x in _sorted_by_center(r.x, r.x2, mid_x):
+        if free_outside(x, r.y2):
+            return Door(x, r.y2, "south")
+
+    # North: gap row at r.y-1 → Exit at (x, r.y-1) facing NORTH
+    for x in _sorted_by_center(r.x, r.x2, mid_x):
+        if free_outside(x, r.y - 1):
+            return Door(x, r.y - 1, "north")
+
+    # West: gap col at r.x-1 → Exit at (r.x-1, y) facing WEST
+    for y in _sorted_by_center(r.y, r.y2, mid_y):
+        if free_outside(r.x - 1, y):
+            return Door(r.x - 1, y, "west")
+
+    # East: gap col at r.x2 → Exit at (r.x2, y) facing EAST
+    for y in _sorted_by_center(r.y, r.y2, mid_y):
+        if free_outside(r.x2, y):
+            return Door(r.x2, y, "east")
+
     return None
 
+
+# ---------------------------------------------------------------------------
+# Door placement
+# ---------------------------------------------------------------------------
 
 def place_doors(
     rooms:  list[Room],
-    blocks: list[FootprintBlock],
+    blocks: list[tuple[int, int, int, int]],
     layout: LayoutPlan,
-    rng:    random.Random,
+    W: int, H: int,
 ) -> list[Door]:
     doors:   list[Door] = []
     primary: Room       = rooms[0]
 
-    entrance = _find_exterior_entrance(primary, blocks)
+    entrance = _find_entrance(primary, blocks, W, H)
     if entrance:
         doors.append(entrance)
 
+    def add_door(a: Room, b: Room) -> bool:
+        g = _gap_between(a, b)
+        if g is None:
+            return False
+        d = Door(g[0], g[1], g[2])
+        for ex in doors:
+            if ex.x == d.x and ex.y == d.y:
+                return True
+        doors.append(d)
+        return True
+
     if layout == LayoutPlan.OPEN_PLAN:
-        for room in rooms[1:]:
-            if room.kind == "corridor":
-                continue
-            wall = _rooms_share_wall(primary, room)
-            if wall:
-                doors.append(Door(wall[0], wall[1], wall[2]))
-    else:
+        accessible = {primary.id}
+        pending = [r for r in rooms[1:] if r.kind != "corridor"]
+        for _ in range(len(pending) + 1):
+            still = []
+            for room in pending:
+                connected = False
+                for aid in sorted(accessible):
+                    if add_door(rooms[aid], room):
+                        accessible.add(room.id)
+                        connected = True
+                        break
+                if not connected:
+                    still.append(room)
+            pending = still
+            if not pending:
+                break
+
+    else:  # CORRIDOR
         corridor = next((r for r in rooms if r.kind == "corridor"), None)
         if corridor:
-            wall = _rooms_share_wall(primary, corridor)
-            if wall:
-                doors.append(Door(wall[0], wall[1], wall[2]))
+            add_door(primary, corridor)
             for room in rooms:
                 if room is primary or room.kind == "corridor":
                     continue
-                wall = _rooms_share_wall(corridor, room)
-                if wall:
-                    doors.append(Door(wall[0], wall[1], wall[2]))
+                if not add_door(corridor, room):
+                    add_door(primary, room)
         else:
-            for room in rooms[1:]:
-                wall = _rooms_share_wall(primary, room)
-                if wall:
-                    doors.append(Door(wall[0], wall[1], wall[2]))
+            accessible = {primary.id}
+            pending = list(rooms[1:])
+            for _ in range(len(pending) + 1):
+                still = []
+                for room in pending:
+                    for aid in sorted(accessible):
+                        if add_door(rooms[aid], room):
+                            accessible.add(room.id)
+                            break
+                    else:
+                        still.append(room)
+                pending = still
+                if not pending:
+                    break
 
     return doors
 
 
 # ---------------------------------------------------------------------------
-# Wall extraction (identical to dungeongen.py approach)
+# Occupancy grid & wall extraction
 # ---------------------------------------------------------------------------
 
-def extract_walls(
-    grid:     list[list[CellKind]],
-    canvas_w: int,
-    canvas_h: int,
-) -> list[list[list[int]]]:
-    """Extract exterior wall segments as [[x1,y1],[x2,y2]] in grid coordinates."""
-    wall_lines: list[list[list[int]]] = []
-    for y in range(canvas_h):
-        for x in range(canvas_w):
+def make_grid(W: int, H: int) -> list[list[CellKind]]:
+    return [[CellKind.EMPTY] * W for _ in range(H)]
+
+
+def stamp_rooms(grid: list[list[CellKind]], rooms: list[Room]) -> None:
+    H, W = len(grid), len(grid[0])
+    for r in rooms:
+        for row in range(r.y, r.y2):
+            for col in range(r.x, r.x2):
+                if 0 <= row < H and 0 <= col < W:
+                    grid[row][col] = CellKind.FLOOR
+
+
+def extract_walls(grid: list[list[CellKind]], W: int, H: int) -> list[list[list[int]]]:
+    lines: list[list[list[int]]] = []
+    for y in range(H):
+        for x in range(W):
             if grid[y][x] != CellKind.FLOOR:
                 continue
-            if y == 0 or grid[y - 1][x] == CellKind.EMPTY:
-                wall_lines.append([[x, y], [x + 1, y]])
-            if y == canvas_h - 1 or grid[y + 1][x] == CellKind.EMPTY:
-                wall_lines.append([[x, y + 1], [x + 1, y + 1]])
-            if x == 0 or grid[y][x - 1] == CellKind.EMPTY:
-                wall_lines.append([[x, y], [x, y + 1]])
-            if x == canvas_w - 1 or grid[y][x + 1] == CellKind.EMPTY:
-                wall_lines.append([[x + 1, y], [x + 1, y + 1]])
-    return wall_lines
+            if y == 0   or grid[y-1][x] == CellKind.EMPTY: lines.append([[x,y],[x+1,y]])
+            if y == H-1 or grid[y+1][x] == CellKind.EMPTY: lines.append([[x,y+1],[x+1,y+1]])
+            if x == 0   or grid[y][x-1] == CellKind.EMPTY: lines.append([[x,y],[x,y+1]])
+            if x == W-1 or grid[y][x+1] == CellKind.EMPTY: lines.append([[x+1,y],[x+1,y+1]])
+    return lines
 
 
 # ---------------------------------------------------------------------------
-# Rendering via the dungeongen library Map pipeline
+# Rendering via dungeongen Map pipeline
 # ---------------------------------------------------------------------------
 
-def render_building_with_dungeongen(
-    rooms:     list[Room],
-    doors:     list[Door],
-    canvas_w:  int,
-    canvas_h:  int,
-) -> bytes:
-    """
-    Build a dungeongen Map from our room/door data and render it using the
-    same Map.render() pipeline that dungeon generation uses.
-    This ensures visual consistency (crosshatching, shadows, borders, etc.)
-    """
-    from dungeongen.map.map import Map
-    from dungeongen.map.room import Room as DGRoom, RoomType
-    from dungeongen.map.passage import Passage
-    from dungeongen.map.door import Door as DGDoor, DoorOrientation, DoorType
-    from dungeongen.map.exit import Exit
-    from dungeongen.map.enums import RoomDirection
-    from dungeongen.options import Options
-    import skia
-
-    options = Options()
-    dungeon_map = Map(options)
-
-    # Map our internal Room -> dungeongen Room
-    dg_rooms: dict[int, DGRoom] = {}
-    for room in rooms:
-        dg_room = DGRoom.from_grid(room.x, room.y, room.w, room.h, RoomType.RECTANGULAR, room.id + 1)
-        dungeon_map.add_element(dg_room)
-        dg_rooms[room.id] = dg_room
-
-    # Build lookup: grid position -> (our_door, DGDoor)
-    # For interior doors: connect adjacent rooms via a 1-cell passage
-    # For the exterior entrance: add an Exit element
-    entrance_door = next(
-        (d for d in doors if _is_exterior_door(d, rooms[0])),
-        None,
-    )
-
-    for door in doors:
-        if door is entrance_door:
-            # Exterior entrance → Exit element
-            direction = _direction_to_dg(door.direction)
-            exit_elem = Exit.from_grid(door.x, door.y, direction)
-            dungeon_map.add_element(exit_elem)
-            # Connect to the primary room
-            dg_rooms[rooms[0].id].connect_to(exit_elem)
-        else:
-            # Interior door → short Passage with a Door in it
-            orientation = (
-                DoorOrientation.HORIZONTAL
-                if door.direction in ("north", "south")
-                else DoorOrientation.VERTICAL
-            )
-            dg_door = DGDoor.from_grid(door.x, door.y, orientation, DoorType.OPEN)
-            dungeon_map.add_element(dg_door)
-
-            # Find the two rooms this door connects and wire them
-            room_a, room_b = _find_rooms_for_door(door, rooms)
-            if room_a is not None and room_b is not None:
-                dg_rooms[room_a.id].connect_to(dg_door)
-                dg_door.connect_to(dg_rooms[room_b.id])
-
-    # Render with the same transform as dungeongen.py
-    map_units_per_grid = 64          # dungeongen internal units per grid cell
-    scale       = GRID_SIZE / map_units_per_grid   # = 50/64
-    canvas_width  = canvas_w * GRID_SIZE + PADDING * 2
-    canvas_height = canvas_h * GRID_SIZE + PADDING * 2
-
-    surface = skia.Surface(int(canvas_width), int(canvas_height))
-    canvas  = surface.getCanvas()
-    canvas.clear(skia.Color(255, 255, 255))
-
-    transform = skia.Matrix()
-    transform.setScale(scale, scale)
-    transform.postTranslate(PADDING, PADDING)
-
-    dungeon_map.render(canvas, transform)
-
-    # Sync square — identical to dungeongen.py
-    sync_paint = skia.Paint(
-        Style=skia.Paint.kStroke_Style,
-        Color=skia.Color(180, 180, 180),
-        StrokeWidth=2,
-    )
-    canvas.drawRect(skia.Rect(1, 1, GRID_SIZE - 1, GRID_SIZE - 1), sync_paint)
-
-    image    = surface.makeImageSnapshot()
-    png_data = image.encodeToData()
-    if png_data is None:
-        raise RuntimeError("Failed to encode building PNG")
-    return bytes(png_data)
-
-
-def _direction_to_dg(direction: str):
-    """Convert our direction string to dungeongen RoomDirection."""
+def _dir_to_dg(direction: str):
     from dungeongen.map.enums import RoomDirection
     return {
         "north": RoomDirection.NORTH,
@@ -621,83 +754,138 @@ def _direction_to_dg(direction: str):
     }[direction]
 
 
-def _is_exterior_door(door: Door, primary: Room) -> bool:
-    """True if this door is on the exterior wall of the primary room."""
-    mid_x = (primary.x + primary.x2) // 2
-    mid_y = (primary.y + primary.y2) // 2
-    if door.direction == "south" and door.y == primary.y2 - 1 and door.x == mid_x:
-        return True
-    if door.direction == "north" and door.y == primary.y and door.x == mid_x:
-        return True
-    if door.direction == "west" and door.x == primary.x and door.y == mid_y:
-        return True
-    if door.direction == "east" and door.x == primary.x2 - 1 and door.y == mid_y:
-        return True
-    return False
+def _rooms_for_door(door: Door, rooms: list[Room]) -> tuple[Optional[Room], Optional[Room]]:
+    """Find the two rooms on either side of an internal door.
 
-
-def _find_rooms_for_door(door: Door, rooms: list[Room]) -> tuple[Optional[Room], Optional[Room]]:
-    """Return the two rooms that share the wall where this door sits."""
+    Door coords are IN the gap cell between rooms:
+      east/west door at (dx, dy):
+        room A has r.x2 == dx  (A ends just before the gap)
+        room B has r.x  == dx + GAP  (B starts just after the gap)
+      south/north door at (dx, dy):
+        room A has r.y2 == dy  (A ends just before the gap)
+        room B has r.y  == dy + GAP  (B starts just after the gap)
+    """
     dx, dy = door.x, door.y
-    direction = door.direction
-    room_a: Optional[Room] = None
-    room_b: Optional[Room] = None
+    a: Optional[Room] = None
+    b: Optional[Room] = None
+
+    for r in rooms:
+        if door.direction in ("east", "west"):
+            # room A: its right edge is at dx (gap col)
+            if r.x2 == dx and r.y <= dy < r.y2:
+                a = r
+            # room B: its left edge is at dx+GAP
+            elif r.x == dx + GAP and r.y <= dy < r.y2:
+                b = r
+        else:  # south / north
+            # room A: its bottom edge is at dy (gap row)
+            if r.y2 == dy and r.x <= dx < r.x2:
+                a = r
+            # room B: its top edge is at dy+GAP
+            elif r.y == dy + GAP and r.x <= dx < r.x2:
+                b = r
+    return a, b
+
+
+def _is_exterior(door: Door, entrance: Optional[Door]) -> bool:
+    """True if this door is the exterior entrance."""
+    return entrance is not None and door.x == entrance.x and door.y == entrance.y
+
+
+def render_building_with_dungeongen(
+    rooms:    list[Room],
+    doors:    list[Door],
+    W: int, H: int,
+) -> bytes:
+    from dungeongen.map.map import Map
+    from dungeongen.map.room import Room as DGRoom, RoomType
+    from dungeongen.map.door import Door as DGDoor, DoorOrientation, DoorType
+    from dungeongen.map.exit import Exit
+    from dungeongen.options import Options
+    import skia
+
+    dungeon_map = Map(Options())
+    dg_rooms: dict[int, DGRoom] = {}
 
     for room in rooms:
-        if room.x <= dx < room.x2 and room.y <= dy < room.y2:
-            # dx,dy is inside this room
-            if direction in ("south", "east"):
-                room_a = room
-            else:
-                room_b = room
-        # Neighbour cell
-        elif direction == "east" and room.x == dx + 1 and room.y <= dy < room.y2:
-            room_b = room
-        elif direction == "west" and room.x2 == dx and room.y <= dy < room.y2:
-            room_a = room
-        elif direction == "south" and room.y == dy + 1 and room.x <= dx < room.x2:
-            room_b = room
-        elif direction == "north" and room.y2 == dy and room.x <= dx < room.x2:
-            room_a = room
+        dg_room = DGRoom.from_grid(room.x, room.y, room.w, room.h,
+                                   RoomType.RECTANGULAR, room.id + 1)
+        dungeon_map.add_element(dg_room)
+        dg_rooms[room.id] = dg_room
 
-    return room_a, room_b
+    primary = rooms[0]
+    # First door is always the exterior entrance (if any)
+    entrance = doors[0] if doors else None
+
+    for door in doors:
+        if _is_exterior(door, entrance):
+            try:
+                exit_elem = Exit.from_grid(door.x, door.y, _dir_to_dg(door.direction))
+                dungeon_map.add_element(exit_elem)
+                dg_rooms[primary.id].connect_to(exit_elem)
+            except (ValueError, KeyError):
+                pass
+        else:
+            # HORIZONTAL = door on a vertical wall (east/west sides)
+            # VERTICAL = door on a horizontal wall (north/south sides)
+            orient = (DoorOrientation.HORIZONTAL if door.direction in ("east", "west")
+                      else DoorOrientation.VERTICAL)
+            try:
+                dg_door = DGDoor.from_grid(door.x, door.y, orient, DoorType.CLOSED)
+                dungeon_map.add_element(dg_door)
+                ra, rb = _rooms_for_door(door, rooms)
+                if ra is not None and rb is not None:
+                    dg_rooms[ra.id].connect_to(dg_door)
+                    dg_door.connect_to(dg_rooms[rb.id])
+            except (ValueError, KeyError):
+                pass
+
+    scale = GRID_SIZE / 64   # dungeongen CELL_SIZE = 64
+    px_w  = W * GRID_SIZE + PADDING * 2
+    px_h  = H * GRID_SIZE + PADDING * 2
+
+    surface = skia.Surface(int(px_w), int(px_h))
+    cv      = surface.getCanvas()
+    cv.clear(skia.Color(255, 255, 255))
+
+    tf = skia.Matrix()
+    tf.setScale(scale, scale)
+    tf.postTranslate(PADDING, PADDING)
+    dungeon_map.render(cv, tf)
+
+    sync = skia.Paint(Style=skia.Paint.kStroke_Style,
+                      Color=skia.Color(180, 180, 180), StrokeWidth=2)
+    cv.drawRect(skia.Rect(1, 1, GRID_SIZE - 1, GRID_SIZE - 1), sync)
+
+    data = surface.makeImageSnapshot().encodeToData()
+    if data is None:
+        raise RuntimeError("PNG encode failed")
+    return bytes(data)
 
 
 # ---------------------------------------------------------------------------
-# Main entry point
+# Public entry point
 # ---------------------------------------------------------------------------
 
 def generate_building(params: BuildingParams) -> tuple[BuildingResult, bytes, list]:
-    """
-    Generate a building.
-    Returns (BuildingResult, png_bytes, wall_lines).
-    """
     rng = random.Random(params.seed)
     cfg = ARCHETYPE_CFG[params.archetype]
 
-    base_w, base_h = cfg["base_size"]
-    total_w = max(4, base_w + rng.randint(-1, 1))
-    total_h = max(4, base_h + rng.randint(-1, 1))
+    base_w, base_h = cfg["canvas"]
+    W = max(8, base_w + rng.randint(-1, 2))
+    H = max(7, base_h + rng.randint(-1, 2))
 
-    blocks, canvas_w, canvas_h = build_footprint(params.footprint, total_w, total_h, rng)
+    blocks = make_blocks(params.footprint, W, H, rng)
+    rooms  = partition_rooms(blocks, W, H, params.archetype, params.layout, cfg, rng)
+    doors  = place_doors(rooms, blocks, params.layout, W, H)
 
-    grid = make_grid(canvas_w, canvas_h)
-    stamp_footprint(grid, blocks)
+    grid = make_grid(W, H)
+    stamp_rooms(grid, rooms)
+    walls = extract_walls(grid, W, H)
 
-    rooms = partition_rooms(blocks, params.archetype, params.layout, cfg, rng)
-    doors = place_doors(rooms, blocks, params.layout, rng)
-    wall_lines = extract_walls(grid, canvas_w, canvas_h)
+    png = render_building_with_dungeongen(rooms, doors, W, H)
 
-    # Render using the dungeongen library pipeline (same visual style as dungeons)
-    png_bytes = render_building_with_dungeongen(rooms, doors, canvas_w, canvas_h)
-
-    result = BuildingResult(
-        grid=grid,
-        width=canvas_w,
-        height=canvas_h,
-        rooms=rooms,
-        doors=doors,
-        seed=params.seed,
-    )
-
-    return result, png_bytes, wall_lines
+    return BuildingResult(
+        grid=grid, width=W, height=H,
+        rooms=rooms, doors=doors, seed=params.seed,
+    ), png, walls

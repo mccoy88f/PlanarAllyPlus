@@ -349,8 +349,11 @@ async def _generate_building(
             },
             "doors": [
                 {
-                    "x":         d.x,
-                    "y":         d.y,
+                    # Clamp coordinates to canvas bounds so the client never
+                    # receives negative or out-of-canvas values (entrance gaps
+                    # can be at y=-1 or x=-1 when on the north/west edge).
+                    "x":         max(0, min(d.x, result.width  - 1)),
+                    "y":         max(0, min(d.y, result.height - 1)),
                     "direction": d.direction,
                     "type":      d.door_type,
                 }
