@@ -67,6 +67,18 @@ async def list_extensions(request: web.Request) -> web.Response:
     room_creator = request.query.get("room_creator", "").strip()
     room_name = request.query.get("room_name", "").strip()
 
+    # Determine preferred locale from query param or user options
+    locale = (request.query.get("locale") or "").strip().lower()
+    if locale not in ("it", "en"):
+        try:
+            from ....db.models.user_options import UserOptions
+            opts = UserOptions.get_by_id(user.default_options)
+            locale = (getattr(opts, "openrouter_default_language", None) or "en").strip().lower()
+        except Exception:
+            locale = "en"
+    if locale not in ("it", "en"):
+        locale = "en"
+
     extensions = []
     if EXTENSIONS_DIR.exists():
         for item in EXTENSIONS_DIR.iterdir():
@@ -75,6 +87,7 @@ async def list_extensions(request: web.Request) -> web.Response:
                 ext_name = item.name
                 ext_version = "0.0.0"
                 ext_description = ""
+                ext_author = ""
                 manifest = item / "extension.toml"
                 ext_entry = "ui/index.html"
                 ext_title_bar_color = None
@@ -88,10 +101,19 @@ async def list_extensions(request: web.Request) -> web.Response:
                             ext_id = data["extension"].get("id", ext_id)
                             ext_name = data["extension"].get("name", ext_name)
                             ext_version = data["extension"].get("version", ext_version)
-                            ext_description = data["extension"].get("description", "")
+                            ext_author = data["extension"].get("author", "")
                             ext_entry = data["extension"].get("entry", "ui/index.html")
                             ext_title_bar_color = data["extension"].get("titleBarColor")
                             ext_icon = data["extension"].get("icon")
+                            # Pick localised description: prefer locale-specific key,
+                            # fall back to the other language, then to plain "description".
+                            desc_it = data["extension"].get("description_it", "")
+                            desc_en = data["extension"].get("description_en", "")
+                            desc_plain = data["extension"].get("description", "")
+                            if locale == "it":
+                                ext_description = desc_it or desc_en or desc_plain
+                            else:
+                                ext_description = desc_en or desc_it or desc_plain
                     except Exception:
                         pass
                 ui_path = item / ext_entry
@@ -101,6 +123,7 @@ async def list_extensions(request: web.Request) -> web.Response:
                     "name": ext_name,
                     "version": ext_version,
                     "description": ext_description,
+                    "author": ext_author,
                     "folder": item.name,
                     "entry": ext_entry if has_ui else None,
                 }

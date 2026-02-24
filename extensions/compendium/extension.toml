@@ -2,5 +2,6 @@
 id = "compendium"
 name = "Compendium"
 version = "2.0.0"
-description = "Compendio di conoscenza: installa più JSON nello stesso formato, cerca nella scheda personaggio e altrove"
-author = "McCoy88f"
+description_en = "Knowledge compendium: install multiple JSON databases, search from character sheets and more. Base 5e data from quintaedizione.online and SRD 5.2.1 (Wizards of the Coast, CC BY 4.0)."
+description_it = "Compendio di conoscenza: installa più database JSON, cerca dalle schede personaggio e altrove. Dati 5e da quintaedizione.online e SRD 5.2.1 (Wizards of the Coast, CC BY 4.0)."
+author = "mccoy88f"

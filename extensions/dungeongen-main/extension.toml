@@ -1,6 +1,7 @@
 [extension]
 id = "dungeongen"
-name = "DungeonGen"
-version = "1.0.0"
-description = "Procedural dungeon generation for tabletop maps. Code by benjcooley (https://github.com/benjcooley/dungeongen)"
-author = "McCoy88f"
+name = "MapsGen"
+version = "2.0.0"
+description_en = "Procedural dungeon and building generation for tabletop maps. Two modes: dungeon and building (house, tavern, inn…). Automatic walls, doors, and AI-realistic transform."
+description_it = "Generazione procedurale di dungeon ed edifici per mappe da tavolo. Due modalità: dungeon e edificio (casa, taverna, locanda…). Muri, porte e trasformazione AI realistica."
+author = "mccoy88f — dungeon engine by benjcooley (https://github.com/benjcooley/dungeongen)"

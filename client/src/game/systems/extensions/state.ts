@@ -17,6 +17,7 @@ export interface ExtensionMeta {
     name: string;
     version: string;
     description?: string;
+    author?: string;
     folder?: string;
     visibleToPlayers?: boolean;
     uiUrl?: string;

@@ -49,6 +49,7 @@ async function loadExtensions(): Promise<void> {
                     name: string;
                     version: string;
                     description?: string;
+                    author?: string;
                     folder?: string;
                     titleBarColor?: string;
                     icon?: string | [string, string];

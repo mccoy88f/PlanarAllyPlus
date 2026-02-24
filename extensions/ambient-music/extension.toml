@@ -1,8 +1,9 @@
 [extension]
 id = "ambient-music"
-name = "Musica d'ambiente"
+name = "Ambient Music"
 version = "1.0.0"
-description = "Riproduce file audio dagli asset. Playlist, volume e ripetizione."
-author = "PlanarAlly"
+description_en = "Play audio files from assets. Playlists, volume control and repeat."
+description_it = "Riproduce file audio dagli asset. Playlist, controllo volume e ripetizione."
+author = "mccoy88f"
 entry = "ui/index.html"
 titleBarColor = "#5c6bc0"

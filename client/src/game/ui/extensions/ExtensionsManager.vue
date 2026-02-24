@@ -16,7 +16,7 @@ const emit = defineEmits<(e: "close" | "focus") => void>();
 defineExpose({ close });
 const props = defineProps<{ modalIndex: ModalIndex }>();
 
-const { t } = useI18n();
+const { t, locale: locale_ } = useI18n();
 const toast = useToast();
 const modals = useModal();
 const route = useRoute();
@@ -42,9 +42,15 @@ function extensionsUrl(): string {
     let url = "/api/extensions";
     const creator = route.params.creator as string | undefined;
     const room = route.params.room as string | undefined;
+    const params = new URLSearchParams();
     if (creator && room) {
-        url += `?room_creator=${encodeURIComponent(creator)}&room_name=${encodeURIComponent(room)}`;
+        params.set("room_creator", creator);
+        params.set("room_name", room);
     }
+    // Pass current UI locale so the server returns the localised description
+    const locale = (String(locale_.value ?? "en")).startsWith("it") ? "it" : "en";
+    params.set("locale", locale);
+    url += `?${params.toString()}`;
     return url;
 }
 
@@ -58,6 +64,7 @@ async function loadExtensions(): Promise<void> {
                     name: string;
                     version: string;
                     description?: string;
+                    author?: string;
                     folder: string;
                     visibleToPlayers?: boolean;
                 }[];
@@ -311,6 +318,7 @@ async function onAddClick(): Promise<void> {
                                 <span class="extension-version">v{{ ext.version }}</span>
                             </div>
                             <div v-if="ext.description" class="extension-desc ext-ui-muted">{{ ext.description }}</div>
+                            <div v-if="ext.author" class="extension-author ext-ui-muted">{{ ext.author }}</div>
                         </div>
                         <div class="ext-item-actions extension-item-actions">
                         <font-awesome-icon
@@ -410,6 +418,13 @@ async function onAddClick(): Promise<void> {
         .extension-desc {
             font-size: 0.9em;
             line-height: 1.3;
+        }
+
+        .extension-author {
+            font-size: 0.78em;
+            font-style: italic;
+            color: #888;
+            margin-top: 0.1rem;
         }
 
         .extension-item-actions {
