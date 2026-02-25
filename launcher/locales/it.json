@@ -31,5 +31,14 @@
   "progressInitializeComplete": "Ripristino completato — scarica per reinstallare",
   "progressInitializeFailed": "Ripristino fallito",
   "serverStarted": "--- Server avviato ---",
-  "serverStopped": "--- Server arrestato (exit: {code}) ---"
+  "serverStopped": "--- Server arrestato (exit: {code}) ---",
+  "errNotDownloaded": "Applicazione non scaricata. Fai clic su 'Avvia server' o 'Scarica app/Aggiorna app'.",
+  "errInvalidStructure": "Struttura app non valida. Fai clic su 'Scarica app/Aggiorna app'.",
+  "dlBackup": "Creazione backup dati utente...",
+  "dlDownloading": "Scaricamento in corso...",
+  "dlWriting": "Salvataggio file...",
+  "dlExtracting": "Estrazione archivio...",
+  "dlRestoring": "Ripristino backup in corso...",
+  "warnSqliteNotFound": "Attenzione: planar.sqlite non trovato dopo il ripristino",
+  "dlCompleted": "Completato"
 }

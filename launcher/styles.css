@@ -23,6 +23,44 @@ body {
   pointer-events: none;
 }
 
+/* Confirm modal overlay */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-overlay[aria-hidden="true"] {
+  display: none;
+}
+
+.modal-box {
+  background: #1a1d2e;
+  border: 1px solid rgba(100, 100, 160, 0.5);
+  border-radius: 10px;
+  padding: 1.5rem 2rem;
+  max-width: 380px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+
+.modal-box p {
+  margin: 0 0 1.25rem 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #ddd;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
 .container {
   padding: 1rem 1.5rem;
   height: 100vh;
@@ -32,15 +70,17 @@ body {
 }
 
 h1 {
-  margin: 0 0 0.25rem 0;
+  margin: 0 0 0.2rem 0;
   font-size: 1.5rem;
   text-shadow: 0 1px 4px rgba(0,0,0,0.8);
 }
 
 .subtitle {
-  margin: 0 0 1rem 0;
-  color: #b0b0c0;
-  font-size: 0.9rem;
+  margin: 0 0 0.75rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
 }
 
 .subtitle .version {
@@ -48,16 +88,15 @@ h1 {
   font-size: 0.8rem;
 }
 
-.status {
-  font-size: 0.85rem;
-  margin-bottom: 0.25rem;
+.subtitle .app-version {
+  color: #7ab0cc;
+  font-size: 0.8rem;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
 }
 
-.version-info {
-  font-size: 0.8rem;
-  color: #9ab;
+.status {
+  font-size: 0.85rem;
   margin-bottom: 0.5rem;
-  min-height: 1.1em;
 }
 
 .url-area {
@@ -192,7 +231,7 @@ h1 {
   background: #546e7a;
 }
 
-/* App management: blue / orange / dark-red */
+/* App management: blue / orange / dark */
 .btn-update {
   background: #1565c0;
   color: white;

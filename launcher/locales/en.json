@@ -31,5 +31,14 @@
   "progressInitializeComplete": "Reset complete — download to reinstall",
   "progressInitializeFailed": "Reset failed",
   "serverStarted": "--- Server started ---",
-  "serverStopped": "--- Server stopped (exit: {code}) ---"
+  "serverStopped": "--- Server stopped (exit: {code}) ---",
+  "errNotDownloaded": "App not downloaded. Click Start or Update.",
+  "errInvalidStructure": "Invalid app structure. Click Update.",
+  "dlBackup": "Creating user data backup...",
+  "dlDownloading": "Downloading app...",
+  "dlWriting": "Writing file...",
+  "dlExtracting": "Extracting archive...",
+  "dlRestoring": "Restoring user data backup...",
+  "warnSqliteNotFound": "Warning: planar.sqlite not found after restore",
+  "dlCompleted": "Completed"
 }

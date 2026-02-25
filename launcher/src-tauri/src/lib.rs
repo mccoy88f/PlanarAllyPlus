@@ -133,7 +133,7 @@ fn get_project_root() -> Result<PathBuf, String> {
     let base = app_data_dir()?;
     let app_dir = base.join("app");
     if !app_dir.exists() {
-        return Err("App not downloaded. Click Start or Update.".to_string());
+        return Err("errNotDownloaded".to_string());
     }
 
     let entries: Vec<_> = std::fs::read_dir(&app_dir)
@@ -151,7 +151,7 @@ fn get_project_root() -> Result<PathBuf, String> {
     if app_dir.join("scripts").exists() {
         Ok(app_dir)
     } else {
-        Err("Invalid app structure. Click Update.".to_string())
+        Err("errInvalidStructure".to_string())
     }
 }
 
@@ -178,7 +178,7 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
     // Backup user data BEFORE download (if not first install)
     let backup_dir = if app_dir.exists() {
         if let Ok(project_root) = get_project_root() {
-            app.emit("download-progress", "Creating user data backup...").ok();
+            app.emit("download-progress", "dlBackup").ok();
             match backup_user_data(&base, &project_root) {
                 Ok(b) => Some(b),
                 Err(e) => return Err(e),
@@ -190,7 +190,7 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
         None
     };
 
-    app.emit("download-progress", "Downloading app...").ok();
+    app.emit("download-progress", "dlDownloading").ok();
 
     let response = reqwest::get(&zip_url)
         .await
@@ -205,11 +205,11 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
         .await
         .map_err(|e| format!("Reading response: {}", e))?;
 
-    app.emit("download-progress", "Writing file...").ok();
+    app.emit("download-progress", "dlWriting").ok();
     std::fs::create_dir_all(&base).map_err(|e| e.to_string())?;
     std::fs::write(&zip_path, &bytes).map_err(|e| e.to_string())?;
 
-    app.emit("download-progress", "Extracting archive...").ok();
+    app.emit("download-progress", "dlExtracting").ok();
 
     if app_dir.exists() {
         std::fs::remove_dir_all(&app_dir).map_err(|e| e.to_string())?;
@@ -241,19 +241,19 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
     }
 
     if let Some(ref b) = backup_dir {
-        app.emit("download-progress", "Restoring user data backup...").ok();
+        app.emit("download-progress", "dlRestoring").ok();
         restore_user_data(b, &root).map_err(|e| e.to_string())?;
         // Verify key file exists
         let db_path = root.join("server/data/planar.sqlite");
         if !db_path.exists() {
             let _ = app.emit(
                 "download-progress",
-                "Warning: planar.sqlite not found after restore",
+                "warnSqliteNotFound",
             );
         }
     }
 
-    app.emit("download-progress", "Completed").ok();
+    app.emit("download-progress", "dlCompleted").ok();
 
     Ok(root.to_string_lossy().to_string())
 }
