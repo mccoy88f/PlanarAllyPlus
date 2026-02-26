@@ -24,7 +24,7 @@ const props = defineProps<{
     onClose: () => void;
 }>();
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const toast = useToast();
 const modals = useModal();
 
@@ -462,7 +462,8 @@ async function checkAiConfig(): Promise<void> {
 async function translateCurrentView(): Promise<void> {
     if (translateLoading.value) return;
     
-    const targetLang = t("language") === "Italiano" ? "Italian" : "English";
+    const targetLang = locale.value.startsWith("it") ? "Italian" : "English";
+    console.log(`[Compendium AI] Starting translation to ${targetLang} using model ${aiModel.value}`);
     const systemPrompt = `You are a translator specialized in Dungeons & Dragons 5th Edition.
 Translate the provided content into ${targetLang}. 
 Maintain the original Markdown structure and all special tags like {@b ...}, {@i ...}, {@dice ...}, etc. 
@@ -483,8 +484,12 @@ Ensure terminology consistency with D&D 5e standards (e.g., "Saving Throw" -> "T
             if (r.ok) {
                 const data = await r.json();
                 const translated = data.choices?.[0]?.message?.content;
+                console.log("[Compendium AI] Translation received", { length: translated?.length });
                 if (translated) {
                     selectedItem.value.item.markdown = translated;
+                } else {
+                    console.error("[Compendium AI] Empty translation response received");
+                    toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
                 }
             } else {
                 toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
