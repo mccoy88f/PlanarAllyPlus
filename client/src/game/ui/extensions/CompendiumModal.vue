@@ -525,10 +525,25 @@ async function saveTranslationToDb(content: string, type: "item" | "index"): Pro
     }
 }
 
+function revertTranslationUI(): void {
+    if (!activeTranslationLang.value) return;
+
+    const isIndex = showIndex.value;
+    if (isIndex && originalIndex.value) {
+        currentIndex.value = JSON.parse(JSON.stringify(originalIndex.value));
+        originalIndex.value = null;
+    } else if (selectedItem.value && originalMarkdown.value !== null) {
+        selectedItem.value.item.markdown = originalMarkdown.value;
+        originalMarkdown.value = null;
+    }
+    activeTranslationLang.value = null;
+    showTranslationTools.value = false;
+}
+
 async function clearTranslation(): Promise<void> {
     if (!activeTranslationLang.value) return;
 
-    // Delete from DB so that next translate call re-runs AI instead of loading stale cache
+    // Delete from DB — only called from the tag menu "Cancella Traduzione"
     const isIndex = showIndex.value;
     const compId = isIndex ? indexCompendium.value?.id : selectedItem.value?.compendium.id;
     if (compId) {
@@ -545,15 +560,7 @@ async function clearTranslation(): Promise<void> {
         }
     }
 
-    if (isIndex && originalIndex.value) {
-        currentIndex.value = JSON.parse(JSON.stringify(originalIndex.value));
-        originalIndex.value = null;
-    } else if (selectedItem.value && originalMarkdown.value !== null) {
-        selectedItem.value.item.markdown = originalMarkdown.value;
-        originalMarkdown.value = null;
-    }
-    activeTranslationLang.value = null;
-    showTranslationTools.value = false;
+    revertTranslationUI();
 }
 
 async function rerunTranslation(): Promise<void> {
@@ -565,7 +572,7 @@ async function translateCurrentView(): Promise<void> {
     if (translateLoading.value) return;
 
     if (activeTranslationLang.value === locale.value) {
-        await clearTranslation();
+        revertTranslationUI();
         return;
     }
 
