@@ -80,6 +80,10 @@ const selectedItem = ref<{
     item: ItemFull;
 } | null>(null);
 const itemLoading = ref(false);
+const showIndex = ref(false);
+const currentIndex = ref<{ slug: string; name: string; items: { slug: string; name: string }[] }[]>([]);
+const indexLoading = ref(false);
+const indexCompendium = ref<CompendiumMeta | null>(null);
 
 const installDialogOpen = ref(false);
 const installName = ref("");
@@ -281,6 +285,7 @@ async function selectItem(
     collection: CollectionMeta,
     item: ItemMeta,
 ): Promise<void> {
+    showIndex.value = false;
     itemLoading.value = true;
     try {
         const r = await http.get(
@@ -298,6 +303,7 @@ async function selectItem(
 }
 
 async function selectFromSearch(result: SearchResult): Promise<void> {
+    showIndex.value = false;
     const compId = result.compendiumId ?? defaultId.value;
     if (!compId) return;
     const comp = compendiums.value.find((c) => c.id === compId);
@@ -331,6 +337,34 @@ async function selectFromSearch(result: SearchResult): Promise<void> {
     await selectItem(comp, coll, itemMeta);
     searchQuery.value = "";
     debouncedSearchQuery.value = "";
+}
+
+async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
+    selectedItem.value = null;
+    showIndex.value = true;
+    indexLoading.value = true;
+    indexCompendium.value = comp;
+    currentIndex.value = [];
+    try {
+        const r = await http.get(
+            `/api/extensions/compendium/index?compendium=${encodeURIComponent(comp.id)}`,
+        );
+        if (r.ok) {
+            const data = (await r.json()) as { index: any[] };
+            currentIndex.value = data.index;
+        }
+    } catch {
+        /* ignore */
+    } finally {
+        indexLoading.value = false;
+    }
+}
+
+async function selectItemBySlug(collSlug: string, itemSlug: string): Promise<void> {
+    if (!indexCompendium.value) return;
+    const coll: CollectionMeta = { slug: collSlug, name: "", count: 0 };
+    const item: ItemMeta = { slug: itemSlug, name: "" };
+    await selectItem(indexCompendium.value, coll, item);
 }
 
 async function setDefault(compId: string): Promise<void> {
@@ -770,7 +804,7 @@ onMounted(() => {
                                 <font-awesome-icon
                                     :icon="isExpanded(comp.id) ? 'chevron-down' : 'chevron-right'"
                                 />
-                                {{ comp.name }}
+                                <span class="qe-tree-comp-name" @click.stop="showCompendiumIndex(comp)">{{ comp.name }}</span>
                             </button>
                             <button
                                 v-if="!comp.isDefault"
@@ -858,8 +892,31 @@ onMounted(() => {
                             {{ t("game.ui.extensions.CompendiumModal.share") }}
                         </button>
                     </div>
+                    <div v-if="showIndex" class="qe-index-view">
+                        <div v-if="indexLoading" class="qe-loading-inline">
+                            {{ t("game.ui.extensions.CompendiumModal.loading") }}
+                        </div>
+                        <div v-else class="qe-index-container">
+                            <h1 class="qe-index-title">{{ indexCompendium?.name }}</h1>
+                            <div class="qe-index-grid">
+                                <div v-for="coll in currentIndex" :key="coll.slug" class="qe-index-coll">
+                                    <h2 class="qe-index-coll-title">{{ formatName(coll.name) }}</h2>
+                                    <div class="qe-index-item-list">
+                                        <button 
+                                            v-for="item in coll.items" 
+                                            :key="item.slug" 
+                                            class="qe-index-item-link"
+                                            @click="selectItemBySlug(coll.slug, item.slug)"
+                                        >
+                                            {{ item.name }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div
-                        v-if="selectedItem"
+                        v-else-if="selectedItem"
                         class="qe-markdown"
                         @click="handleMarkdownClick"
                     >
@@ -1151,6 +1208,89 @@ onMounted(() => {
     flex-direction: column;
     min-width: 0;
     overflow: hidden;
+    background: #fff;
+}
+
+.qe-index-view {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 2rem;
+    background: linear-gradient(135deg, #ffffff 0%, #f9fbff 100%);
+}
+
+.qe-index-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.qe-index-title {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: #1a2a3a;
+    margin-bottom: 2rem;
+    border-bottom: 3px solid #3498db;
+    padding-bottom: 0.5rem;
+    background: linear-gradient(to right, #1a2a3a, #3498db);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.qe-index-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 2rem;
+}
+
+.qe-index-coll {
+    background: #fff;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border: 1px solid #edf2f7;
+    transition: transform 0.2s, box-shadow 0.2s;
+
+    &:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    }
+}
+
+.qe-index-coll-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #2d3748;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.qe-index-item-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.qe-index-item-link {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.9rem;
+    color: #4a5568;
+    cursor: pointer;
+    border-radius: 0.35rem;
+    transition: background 0.2s, color 0.2s;
+
+    &:hover {
+        background: #ebf8ff;
+        color: #2b6cb0;
+        text-decoration: underline;
+    }
 }
 
 .qe-breadcrumb {

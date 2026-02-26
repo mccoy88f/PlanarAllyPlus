@@ -101,6 +101,164 @@ def _db_path(comp_id: str) -> Path:
     return _db_dir() / f"compendium-{comp_id}.db"
 
 
+def _clean_5etools_tags(text: str) -> str:
+    """Converte i tag specifici di 5etools in Markdown."""
+    if not isinstance(text, str):
+        return str(text)
+    # Grassetti, corsivi, etc
+    text = re.sub(r"\{@b (.*?)\}", r"**\1**", text)
+    text = re.sub(r"\{@i (.*?)\}", r"*\1*", text)
+    text = re.sub(r"\{@u (.*?)\}", r"<u>\1</u>", text)
+    text = re.sub(r"\{@s (.*?)\}", r"~~\1~~", text)
+    # Item, spell, creature, etc
+    text = re.sub(r"\{@item (.*?)\}", r"**\1**", text)
+    text = re.sub(r"\{@spell (.*?)\}", r"*\1*", text)
+    text = re.sub(r"\{@creature (.*?)\}", r"**\1**", text)
+    text = re.sub(r"\{@condition (.*?)\}", r"*\1*", text)
+    text = re.sub(r"\{@skill (.*?)\}", r"**\1**", text)
+    text = re.sub(r"\{@sense (.*?)\}", r"*\1*", text)
+    text = re.sub(r"\{@filter (.*?)\|.*?\}", r"\1", text)
+    text = re.sub(r"\{@link (.*?)\|(.*?)\}", r"[\1](\2)", text)
+    # Rimuove riferimenti alle fonti come |PHB] lasciando solo il nome
+    text = re.sub(r"\{@([a-z]+) ([^|}]+)(\|[^}]*)?\}", r"**\2**", text)
+    return text
+
+
+def _entries_to_markdown(entries: list, level: int = 1) -> str:
+    """Converte un array di entries 5etools in un blocco Markdown."""
+    md = ""
+    for entry in entries:
+        if isinstance(entry, str):
+            md += _clean_5etools_tags(entry) + "\n\n"
+        elif isinstance(entry, dict):
+            e_type = entry.get("type")
+            name = entry.get("name")
+            if name:
+                md += "#" * (level + 1) + " " + _clean_5etools_tags(name) + "\n\n"
+
+            if e_type in ["entries", "section"] or "entries" in entry:
+                md += _entries_to_markdown(entry.get("entries", []), level + 1)
+            elif e_type == "list":
+                for item in entry.get("items", []):
+                    if isinstance(item, str):
+                        md += "- " + _clean_5etools_tags(item) + "\n"
+                    elif isinstance(item, dict) and "entry" in item:
+                        md += "- " + _clean_5etools_tags(item["entry"]) + "\n"
+                    elif isinstance(item, dict) and "entries" in item:
+                        # Liste annidate o liste con entries
+                        md += "- " + _entries_to_markdown(item["entries"], level + 2).strip() + "\n"
+                md += "\n"
+            elif e_type == "table":
+                col_labels = entry.get("colLabels", [])
+                if col_labels:
+                    md += "| " + " | ".join([_clean_5etools_tags(str(c)) for c in col_labels]) + " |\n"
+                    md += "| " + " | ".join(["---"] * len(col_labels)) + " |\n"
+                for row in entry.get("rows", []):
+                    md += "| " + " | ".join([_clean_5etools_tags(str(c)) for c in row]) + " |\n"
+                md += "\n"
+            elif e_type == "inset":
+                inner = _entries_to_markdown(entry.get("entries", []), level + 2).strip()
+                md += "> " + inner.replace("\n", "\n> ") + "\n\n"
+            elif "entries" in entry:
+                 md += _entries_to_markdown(entry.get("entries", []), level + 1)
+    return md
+
+
+def _convert_5etools_to_sqlite(data: dict, db_path: Path) -> bool:
+    """Converte JSON in formato 5etools in SQLite."""
+    import sqlite3
+
+    # Identifica se è un libro o un set di dati generico
+    if "book" in data:
+        # Struttura metadata del libro
+        return False # TODO: handle books.json if needed, but usually data is in book-*.json
+    
+    sections = data.get("data", [])
+    if not sections and "adventureData" in data:
+         sections = data.get("adventureData", [])
+    
+    if not sections:
+        return False
+
+    if db_path.exists():
+        db_path.unlink()
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("CREATE TABLE collections (id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL)")
+    conn.execute("""
+        CREATE TABLE items (
+            id INTEGER PRIMARY KEY, collection_id INTEGER NOT NULL, slug TEXT NOT NULL,
+            name TEXT NOT NULL, markdown TEXT NOT NULL,
+            FOREIGN KEY (collection_id) REFERENCES collections(id), UNIQUE(collection_id, slug)
+        )
+    """)
+    conn.execute("CREATE INDEX idx_items_collection ON items(collection_id)")
+    conn.execute("CREATE INDEX idx_items_slug ON items(slug)")
+    conn.execute("CREATE VIRTUAL TABLE items_fts USING fts5(name, markdown, content='items', content_rowid='id', tokenize='unicode61')")
+    
+    # Per ora creiamo una singola collezione per il libro
+    # Se il JSON è book-phb.json, non abbiamo il nome del libro qui facilmente,
+    # usiamo il nome della prima sezione o "Book"
+    book_name = "5e Compendium"
+    book_slug = "compendium"
+    
+    conn.execute("INSERT INTO collections (slug, name) VALUES (?, ?)", (book_slug, book_name))
+    coll_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+    for section in sections:
+        sec_name = section.get("name", "Unknown Section")
+        sec_slug = _slugify(sec_name)
+        
+        # Granularità precisa: ogni sub-entry di alto livello può essere un item?
+        # Per ora facciamo uno per sezione top-level, ma analizziamo i suoi "entries"
+        
+        # Se la sezione ha delle sotto-entries nominate, potremmo volerle separare
+        # per una granularità maggiore come richiesto dall'utente.
+        
+        sub_sections = [e for e in section.get("entries", []) if isinstance(e, dict) and e.get("name")]
+        
+        if not sub_sections:
+            # Sezione piatta
+            md = _entries_to_markdown(section.get("entries", []))
+            conn.execute(
+                "INSERT INTO items (collection_id, slug, name, markdown) VALUES (?, ?, ?, ?)",
+                (coll_id, sec_slug, sec_name, md),
+            )
+        else:
+            # Importiamo la sezione principale (magari solo il testo iniziale)
+            intro_entries = []
+            for e in section.get("entries", []):
+                if isinstance(e, dict) and e.get("name"):
+                    break
+                intro_entries.append(e)
+            
+            if intro_entries:
+                md = _entries_to_markdown(intro_entries)
+                conn.execute(
+                    "INSERT INTO items (collection_id, slug, name, markdown) VALUES (?, ?, ?, ?)",
+                    (coll_id, sec_slug, sec_name, md),
+                )
+            
+            # E poi tutte le sotto-sezioni come item separati
+            for sub in sub_sections:
+                sub_name = sub.get("name")
+                sub_slug = sec_slug + "-" + _slugify(sub_name)
+                # Evitiamo collisioni se lo slug esiste già (molto comune con "Introduction")
+                md = _entries_to_markdown([sub])
+                try:
+                    conn.execute(
+                        "INSERT INTO items (collection_id, slug, name, markdown) VALUES (?, ?, ?, ?)",
+                        (coll_id, sub_slug[:50], sub_name, md),
+                    )
+                except sqlite3.IntegrityError:
+                    pass # Skip duplicate slugs per ora
+
+    conn.execute("INSERT INTO items_fts(rowid, name, markdown) SELECT id, name, markdown FROM items")
+    conn.commit()
+    conn.close()
+    return True
+
+
 def _convert_json_to_sqlite(json_path: Path, db_path: Path) -> bool:
     """Converte JSON in SQLite. Ritorna True se OK."""
     import sqlite3
@@ -110,6 +268,11 @@ def _convert_json_to_sqlite(json_path: Path, db_path: Path) -> bool:
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
         return False
+        
+    # Detection formato 5etools
+    if "data" in data or "adventureData" in data:
+        return _convert_5etools_to_sqlite(data, db_path)
+
     collections = data.get("collections", [])
     if not collections:
         return False
@@ -225,9 +388,10 @@ async def install_compendium(request: web.Request) -> web.Response:
         if not file_content:
             return web.json_response({"error": "File required"}, status=400)
         data = json.loads(file_content.decode("utf-8"))
-        collections = data.get("collections", [])
-        if not collections:
-            return web.json_response({"error": "Invalid JSON: no collections"}, status=400)
+        # Detection formato 5etools o standard
+        is_5etools = "data" in data or "adventureData" in data or "book" in data
+        if not is_5etools and not data.get("collections", []):
+            return web.json_response({"error": "Invalid JSON: no collections or 5etools data"}, status=400)
         comp_id = str(uuid.uuid4())[:8]
         slug = _slugify(name)
         config = _load_config()
@@ -330,6 +494,38 @@ async def get_collections(request: web.Request) -> web.Response:
         return web.json_response({"collections": collections})
     except Exception as e:
         return web.json_response({"error": str(e), "collections": []}, status=500)
+
+
+async def get_index(request: web.Request) -> web.Response:
+    """Ritorna l'indice (ToC) del compendio. Struttura ad albero 2 livelli."""
+    await get_authorized_user(request)
+    comp_id = _resolve_compendium_id(request.query.get("compendium", "").strip())
+    if not comp_id or not _ensure_sqlite(comp_id):
+        return web.json_response({"index": []})
+    try:
+        conn = _get_conn(comp_id)
+        # Reperiamo tutte le collezioni e i relativi item
+        rows = conn.execute(
+            """
+            SELECT c.slug, c.name, i.slug, i.name
+            FROM collections c
+            LEFT JOIN items i ON i.collection_id = c.id
+            ORDER BY c.id, i.name
+            """
+        ).fetchall()
+        conn.close()
+
+        index = []
+        current_coll = None
+        for c_slug, c_name, i_slug, i_name in rows:
+            if not current_coll or current_coll["slug"] != c_slug:
+                current_coll = {"slug": c_slug, "name": c_name, "items": []}
+                index.append(current_coll)
+            if i_slug:
+                current_coll["items"].append({"slug": i_slug, "name": i_name})
+        return web.json_response({"index": index})
+    except Exception as e:
+        return web.json_response({"error": str(e), "index": []}, status=500)
 
 
 async def get_items(request: web.Request) -> web.Response:

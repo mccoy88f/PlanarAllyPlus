@@ -185,6 +185,10 @@ main_app.router.add_get(
     extensions.compendium.get_collections,
 )
 main_app.router.add_get(
+    f"{subpath}/api/extensions/compendium/index",
+    extensions.compendium.get_index,
+)
+main_app.router.add_get(
     f"{subpath}/api/extensions/compendium/collections/{{collection_slug}}/items",
     extensions.compendium.get_items,
 )
