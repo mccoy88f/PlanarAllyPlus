@@ -156,7 +156,7 @@ fn get_project_root() -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, String> {
+async fn ensure_app_downloaded(app: AppHandle, force: bool, branch: Option<String>) -> Result<String, String> {
     if cfg!(debug_assertions) {
         if let Some(root) = project_root_for_dev() {
             if root.join("scripts").exists() {
@@ -173,7 +173,11 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
         return Ok(get_project_root().unwrap().to_string_lossy().to_string());
     }
 
-    let zip_url = get_zip_url();
+    let zip_url = if let Some(b) = branch {
+        format!("https://github.com/mccoy88f/PlanarAllyPlus/archive/refs/heads/{}.zip", b)
+    } else {
+        get_zip_url()
+    };
 
     // Backup user data BEFORE download (if not first install)
     let backup_dir = if app_dir.exists() {
@@ -410,7 +414,7 @@ async fn start_server(app: AppHandle, mode: String) -> Result<(), String> {
     kill_process_on_port(8000);
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-    ensure_app_downloaded(app.clone(), false).await?;
+    ensure_app_downloaded(app.clone(), false, None).await?;
     let root = get_project_root()?;
     let scripts = root.join("scripts");
 
