@@ -91,6 +91,7 @@ class LayoutPlan(Enum):
 class CellKind(Enum):
     EMPTY = 0
     FLOOR = 1
+    DOOR  = 2
 
 
 # ---------------------------------------------------------------------------
@@ -885,16 +886,44 @@ def stamp_rooms(grid: list[list[CellKind]], rooms: list[Room]) -> None:
                     grid[row][col] = CellKind.FLOOR
 
 
-def extract_walls(grid: list[list[CellKind]], W: int, H: int) -> list[list[list[int]]]:
+def stamp_doors(grid: list[list[CellKind]], doors: list[Door]) -> None:
+    H, W = len(grid), len(grid[0])
+    for d in doors:
+        if 0 <= d.y < H and 0 <= d.x < W:
+            grid[d.y][d.x] = CellKind.DOOR
+
+
+def extract_walls(grid: list[list[CellKind]], W: int, H: int, doors: list[Door]) -> list[list[list[int]]]:
+    """Extract wall lines, skipping any segment that touches a door (the gap)."""
     lines: list[list[list[int]]] = []
+
+    # Helper to check if a cell is traversable (floor or door).
+    # We also check the doors list directly for off-canvas entrances (x or y = -1).
+    def is_traversable(cx: int, cy: int) -> bool:
+        if 0 <= cx < W and 0 <= cy < H:
+            return grid[cy][cx] in (CellKind.FLOOR, CellKind.DOOR)
+        # Check off-canvas doors (entrance gaps)
+        for d in doors:
+            if d.x == cx and d.y == cy:
+                return True
+        return False
+
     for y in range(H):
         for x in range(W):
-            if grid[y][x] != CellKind.FLOOR:
+            if not is_traversable(x, y):
                 continue
-            if y == 0   or grid[y-1][x] == CellKind.EMPTY: lines.append([[x,y],[x+1,y]])
-            if y == H-1 or grid[y+1][x] == CellKind.EMPTY: lines.append([[x,y+1],[x+1,y+1]])
-            if x == 0   or grid[y][x-1] == CellKind.EMPTY: lines.append([[x,y],[x,y+1]])
-            if x == W-1 or grid[y][x+1] == CellKind.EMPTY: lines.append([[x+1,y],[x+1,y+1]])
+            
+            # For each side, only draw a wall if the neighbor is NOT traversable
+            # (i.e. if it's EMPTY or an off-canvas non-door cell).
+            # North
+            if not is_traversable(x, y - 1): lines.append([[x, y], [x + 1, y]])
+            # South
+            if not is_traversable(x, y + 1): lines.append([[x, y + 1], [x + 1, y + 1]])
+            # West
+            if not is_traversable(x - 1, y): lines.append([[x, y], [x, y + 1]])
+            # East
+            if not is_traversable(x + 1, y): lines.append([[x + 1, y], [x + 1, y + 1]])
+
     return lines
 
 
@@ -1099,7 +1128,8 @@ def generate_building(params: BuildingParams) -> tuple[BuildingResult, bytes, li
 
     grid = make_grid(W, H)
     stamp_rooms(grid, rooms)
-    walls = extract_walls(grid, W, H)
+    stamp_doors(grid, doors)
+    walls = extract_walls(grid, W, H, doors)
 
     png = render_building_with_dungeongen(rooms, doors, W, H)
 
