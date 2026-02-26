@@ -528,7 +528,24 @@ async function saveTranslationToDb(content: string, type: "item" | "index"): Pro
 async function clearTranslation(): Promise<void> {
     if (!activeTranslationLang.value) return;
 
-    if (showIndex.value && originalIndex.value) {
+    // Delete from DB so that next translate call re-runs AI instead of loading stale cache
+    const isIndex = showIndex.value;
+    const compId = isIndex ? indexCompendium.value?.id : selectedItem.value?.compendium.id;
+    if (compId) {
+        const lang = activeTranslationLang.value;
+        const payload: any = { compendium: compId, type: isIndex ? "index" : "item", lang };
+        if (!isIndex && selectedItem.value) {
+            payload.collection = selectedItem.value.collection.slug;
+            payload.slug = selectedItem.value.item.slug;
+        }
+        try {
+            await http.deleteJson("/api/extensions/compendium/translations", payload);
+        } catch (e) {
+            console.error("Error deleting translation from db", e);
+        }
+    }
+
+    if (isIndex && originalIndex.value) {
         currentIndex.value = JSON.parse(JSON.stringify(originalIndex.value));
         originalIndex.value = null;
     } else if (selectedItem.value && originalMarkdown.value !== null) {

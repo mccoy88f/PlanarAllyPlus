@@ -9,6 +9,7 @@ export function getStaticImg(img: string): string {
 
 export const http = {
     delete: _delete,
+    deleteJson,
     get,
     patchJson,
     post,
@@ -61,5 +62,15 @@ async function _delete(url: string): Promise<Response> {
     if (url.startsWith("/")) url = url.slice(1);
     return fetch(import.meta.env.BASE_URL + url, {
         method: "DELETE",
+    });
+}
+
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+async function deleteJson(url: string, data?: any): Promise<Response> {
+    if (url.startsWith("/")) url = url.slice(1);
+    return fetch(import.meta.env.BASE_URL + url, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data ?? {}),
     });
 }
