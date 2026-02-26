@@ -137,11 +137,26 @@ const breadcrumb = computed(() => {
     const fallback = (label: string, slug: string) =>
         (label && label.trim()) ? label : (slug || "—");
     return [
-        { label: fallback(compendium.name, compendium.slug), slug: compendium.slug },
-        { label: fallback(collection.name, collection.slug), slug: collection.slug },
-        { label: fallback(item.name, item.slug), slug: item.slug },
+        { label: fallback(compendium.name, compendium.slug), slug: compendium.slug, type: "compendium" as const },
+        { label: fallback(collection.name, collection.slug), slug: collection.slug, type: "collection" as const },
+        { label: fallback(item.name, item.slug), slug: item.slug, type: "item" as const },
     ];
 });
+
+async function navigateBreadcrumb(index: number): Promise<void> {
+    if (!selectedItem.value) return;
+    const { compendium, collection } = selectedItem.value;
+    if (index === 0) {
+        // Navigate to compendium index
+        await showCompendiumIndex(compendium);
+    } else if (index === 1) {
+        // Expand the compendium and the collection in the sidebar
+        await ensureCompendiumExpanded(compendium.id);
+        await ensureCollectionExpanded(compendium.id, collection.slug);
+        // Select the first item if the current item doesn't belong to that collection
+        // (in practice the user is already on an item, so just expand sidebar)
+    }
+}
 
 const qeNames = ref<{ name: string; compendiumSlug?: string; collectionSlug: string; itemSlug: string }[]>([]);
 
@@ -1135,7 +1150,12 @@ onMounted(() => {
                         <div class="qe-breadcrumb-path">
                             <template v-for="(crumb, i) in breadcrumb" :key="'crumb-' + i">
                                 <span v-if="i > 0" class="qe-breadcrumb-sep"> › </span>
-                                <span class="qe-breadcrumb-item">{{ crumb.label }}</span>
+                                <button
+                                    v-if="crumb.type !== 'item'"
+                                    class="qe-breadcrumb-link"
+                                    @click="navigateBreadcrumb(i)"
+                                >{{ crumb.label }}</button>
+                                <span v-else class="qe-breadcrumb-item">{{ crumb.label }}</span>
                             </template>
                         </div>
                         <div v-if="isTranslated" class="translation-tag-container" ref="translationTagContainer">
@@ -1633,6 +1653,24 @@ onMounted(() => {
 
     .qe-breadcrumb-item {
         text-transform: capitalize;
+    }
+
+    .qe-breadcrumb-link {
+        background: none;
+        border: none;
+        padding: 0;
+        margin: 0;
+        cursor: pointer;
+        color: #5b8ef0;
+        font-size: inherit;
+        font-family: inherit;
+        text-transform: capitalize;
+        text-decoration: none;
+
+        &:hover {
+            text-decoration: underline;
+            color: #3a6fd8;
+        }
     }
 
     .qe-share-btn {
