@@ -501,7 +501,12 @@
           "no_compendiums": "No compendiums installed. Install a JSON file to get started.",
           "install_submit": "Install",
           "install_cancel": "Cancel",
-          "load_all": "Load all"
+          "load_all": "Load all",
+          "translate_to": "Translate to",
+          "translate_btn": "Translate",
+          "translating": "Translating...",
+          "show_original": "Show original",
+          "translation_error": "Translation failed. Check your AI settings."
         },
         "DocumentsModal": {
           "title": "Documents",

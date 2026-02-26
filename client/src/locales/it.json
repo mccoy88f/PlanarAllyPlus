@@ -501,7 +501,12 @@
           "no_compendiums": "Nessun compendio installato. Installa un file JSON per iniziare.",
           "install_submit": "Installa",
           "install_cancel": "Annulla",
-          "load_all": "Carica tutti"
+          "load_all": "Carica tutti",
+          "translate_to": "Traduci in",
+          "translate_btn": "Traduci",
+          "translating": "Traduzione in corso...",
+          "show_original": "Mostra originale",
+          "translation_error": "Traduzione fallita. Controlla le impostazioni AI."
         },
         "DocumentsModal": {
           "title": "Documenti",

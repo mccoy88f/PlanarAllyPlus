@@ -85,6 +85,9 @@ const currentIndex = ref<{ slug: string; name: string; items: { slug: string; na
 const indexLoading = ref(false);
 const indexCompendium = ref<CompendiumMeta | null>(null);
 const expandedIndexCollections = ref<Set<string>>(new Set());
+const translatedText = ref<string | null>(null);
+const translationLoading = ref(false);
+const targetLang = ref("it");
 
 const installDialogOpen = ref(false);
 const installName = ref("");
@@ -136,7 +139,7 @@ const breadcrumb = computed(() => {
 const qeNames = ref<{ name: string; compendiumSlug?: string; collectionSlug: string; itemSlug: string }[]>([]);
 
 const selectedMarkdownHtml = computed(() => {
-    const raw = selectedItem.value?.item.markdown ?? "";
+    const raw = translatedText.value ?? selectedItem.value?.item.markdown ?? "";
     const withLinks = !qeNames.value.length
         ? raw
         : injectQeLinks(raw, qeNames.value, selectedItem.value ? [selectedItem.value.item.name] : []);
@@ -288,6 +291,7 @@ async function selectItem(
 ): Promise<void> {
     showIndex.value = false;
     itemLoading.value = true;
+    translatedText.value = null;
     try {
         const r = await http.get(
             `/api/extensions/compendium/item?compendium=${encodeURIComponent(compendium.id)}&collection=${encodeURIComponent(collection.slug)}&slug=${encodeURIComponent(item.slug)}`,
@@ -296,10 +300,45 @@ async function selectItem(
             const full = (await r.json()) as ItemFull;
             selectedItem.value = { compendium, collection, item: full };
         }
-    } catch {
-        /* ignore */
     } finally {
         itemLoading.value = false;
+    }
+}
+
+async function translateContent(): Promise<void> {
+    if (!selectedItem.value) return;
+    translationLoading.value = true;
+    try {
+        const textToTranslate = selectedItem.value.item.markdown;
+        const prompt = `Translate the following D&D content to ${targetLang.value === "it" ? "Italian" : "English"}. Keep the exact same markdown formatting and the specific D&D terminology accurate. Content:\n\n${textToTranslate}`;
+
+        const r = await http.post("/api/extensions/openrouter/chat", {
+            messages: [
+                {
+                    role: "system",
+                    content:
+                        "You are an expert D&D translator. Translate the given content accurately while maintaining markdown structure. Use professional and evocative language appropriate for fantasy RPGs.",
+                },
+                { role: "user", content: prompt },
+            ],
+            model: "openrouter/free", // Use a free model by default or let user settings decide
+        });
+
+        if (r.ok) {
+            const data = await r.json();
+            const content = data.choices[0]?.message?.content;
+            if (content) {
+                translatedText.value = content;
+            } else {
+                toast.error(t("game.ui.extensions.CompendiumModal.translation_error"));
+            }
+        } else {
+            toast.error(t("game.ui.extensions.CompendiumModal.translation_error"));
+        }
+    } catch (e) {
+        toast.error(t("game.ui.extensions.CompendiumModal.translation_error"));
+    } finally {
+        translationLoading.value = false;
     }
 }
 
@@ -932,23 +971,53 @@ onMounted(() => {
                             </div>
                         </div>
                     </div>
-                    <div
-                        v-else-if="selectedItem"
-                        class="qe-markdown"
-                        @click="handleMarkdownClick"
-                    >
+                    <div v-else-if="selectedItem" class="qe-markdown-container">
                         <div
-                            v-if="itemLoading"
-                            class="qe-loading-inline"
+                            class="qe-markdown"
+                            @click="handleMarkdownClick"
                         >
-                            {{ t("game.ui.extensions.CompendiumModal.loading") }}
+                            <div
+                                v-if="itemLoading"
+                                class="qe-loading-inline"
+                            >
+                                {{ t("game.ui.extensions.CompendiumModal.loading") }}
+                            </div>
+                            <!-- eslint-disable-next-line vue/no-v-html -->
+                            <div
+                                v-else
+                                class="qe-markdown-content"
+                                v-html="selectedMarkdownHtml"
+                            />
                         </div>
-                        <!-- eslint-disable-next-line vue/no-v-html -->
-                        <div
-                            v-else
-                            class="qe-markdown-content"
-                            v-html="selectedMarkdownHtml"
-                        />
+
+                        <div v-if="!itemLoading" class="qe-translate-bar">
+                            <div class="qe-translate-controls">
+                                <span class="qe-translate-label">{{ t("game.ui.extensions.CompendiumModal.translate_to") }}</span>
+                                <select v-model="targetLang" class="ext-ui-select qe-translate-select">
+                                    <option value="it">Italiano</option>
+                                    <option value="en">English</option>
+                                </select>
+                                <button
+                                    type="button"
+                                    class="ext-ui-btn qe-translate-btn"
+                                    :disabled="translationLoading"
+                                    @click="translateContent"
+                                >
+                                    <font-awesome-icon v-if="translationLoading" icon="spinner" spin />
+                                    <font-awesome-icon v-else icon="language" />
+                                    {{ translationLoading ? t("game.ui.extensions.CompendiumModal.translating") : t("game.ui.extensions.CompendiumModal.translate_btn") }}
+                                </button>
+                                <button
+                                    v-if="translatedText"
+                                    type="button"
+                                    class="ext-ui-btn qe-translate-reset"
+                                    @click="translatedText = null"
+                                >
+                                    <font-awesome-icon icon="undo" />
+                                    {{ t("game.ui.extensions.CompendiumModal.show_original") }}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                     <div v-else class="qe-empty">
                         {{ t("game.ui.extensions.CompendiumModal.select_item") }}
@@ -1557,6 +1626,93 @@ onMounted(() => {
             opacity: 0.6;
             cursor: not-allowed;
         }
+    }
+}
+
+.qe-markdown-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.qe-translate-bar {
+    padding: 0.75rem 1.25rem;
+    border-top: 1px solid #eee;
+    background: #fafafa;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.qe-translate-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.qe-translate-label {
+    font-size: 0.85rem;
+    color: #555;
+    font-weight: 500;
+}
+
+.qe-translate-select {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.85rem;
+    border-radius: 0.25rem;
+    border: 1px solid #ccc;
+    background: #fff;
+    cursor: pointer;
+
+    &:hover {
+        border-color: #999;
+    }
+}
+
+.qe-translate-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    background: #1976d2;
+    color: #fff;
+    border: none;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+
+    &:hover:not(:disabled) {
+        background: #1565c0;
+    }
+
+    &:active:not(:disabled) {
+        transform: translateY(1px);
+    }
+
+    &:disabled {
+        opacity: 0.7;
+        cursor: wait;
+    }
+}
+
+.qe-translate-reset {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    background: #fff;
+    border: 1px solid #ccc;
+    color: #444;
+    border-radius: 0.25rem;
+    cursor: pointer;
+
+    &:hover {
+        background: #f5f5f5;
+        border-color: #999;
     }
 }
 </style>
