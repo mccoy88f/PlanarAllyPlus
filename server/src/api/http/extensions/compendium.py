@@ -3,6 +3,8 @@
 import json
 import re
 import uuid
+import time
+import sqlite3
 from pathlib import Path
 
 from aiohttp import web
@@ -195,37 +197,32 @@ def _convert_5etools_to_sqlite(data: dict, db_path: Path) -> bool:
     conn.execute("CREATE INDEX idx_items_collection ON items(collection_id)")
     conn.execute("CREATE INDEX idx_items_slug ON items(slug)")
     conn.execute("CREATE VIRTUAL TABLE items_fts USING fts5(name, markdown, content='items', content_rowid='id', tokenize='unicode61')")
-    
-    # Per ora creiamo una singola collezione per il libro
-    # Se il JSON è book-phb.json, non abbiamo il nome del libro qui facilmente,
-    # usiamo il nome della prima sezione o "Book"
-    book_name = "5e Compendium"
-    book_slug = "compendium"
-    
-    conn.execute("INSERT INTO collections (slug, name) VALUES (?, ?)", (book_slug, book_name))
-    coll_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
     for section in sections:
         sec_name = section.get("name", "Unknown Section")
         sec_slug = _slugify(sec_name)
         
-        # Granularità precisa: ogni sub-entry di alto livello può essere un item?
-        # Per ora facciamo uno per sezione top-level, ma analizziamo i suoi "entries"
-        
-        # Se la sezione ha delle sotto-entries nominate, potremmo volerle separare
-        # per una granularità maggiore come richiesto dall'utente.
-        
+        # Ogni sezione top-level (Capitolo) diventa una collezione
+        try:
+            conn.execute("INSERT INTO collections (slug, name) VALUES (?, ?)", (sec_slug, sec_name))
+            coll_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        except sqlite3.IntegrityError:
+            # Se lo slug esiste già, aggiungiamo un suffisso
+            sec_slug = f"{sec_slug}-{int(time.time()) % 1000}"
+            conn.execute("INSERT INTO collections (slug, name) VALUES (?, ?)", (sec_slug, sec_name))
+            coll_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
         sub_sections = [e for e in section.get("entries", []) if isinstance(e, dict) and e.get("name")]
         
         if not sub_sections:
-            # Sezione piatta
+            # Sezione piatta: creiamo un item con lo stesso nome del capitolo
             md = _entries_to_markdown(section.get("entries", []))
             conn.execute(
                 "INSERT INTO items (collection_id, slug, name, markdown) VALUES (?, ?, ?, ?)",
                 (coll_id, sec_slug, sec_name, md),
             )
         else:
-            # Importiamo la sezione principale (magari solo il testo iniziale)
+            # Importiamo la sezione principale (testo introduttivo prima delle sotto-sezioni nominante)
             intro_entries = []
             for e in section.get("entries", []):
                 if isinstance(e, dict) and e.get("name"):
@@ -239,11 +236,10 @@ def _convert_5etools_to_sqlite(data: dict, db_path: Path) -> bool:
                     (coll_id, sec_slug, sec_name, md),
                 )
             
-            # E poi tutte le sotto-sezioni come item separati
+            # E poi tutte le sotto-sezioni come item separati della stessa collezione
             for sub in sub_sections:
                 sub_name = sub.get("name")
-                sub_slug = sec_slug + "-" + _slugify(sub_name)
-                # Evitiamo collisioni se lo slug esiste già (molto comune con "Introduction")
+                sub_slug = _slugify(sub_name)
                 md = _entries_to_markdown([sub])
                 try:
                     conn.execute(
@@ -251,7 +247,15 @@ def _convert_5etools_to_sqlite(data: dict, db_path: Path) -> bool:
                         (coll_id, sub_slug[:50], sub_name, md),
                     )
                 except sqlite3.IntegrityError:
-                    pass # Skip duplicate slugs per ora
+                    # Se lo slug duplicato (comune per "Introduction"), aggiungiamo prefisso
+                    sub_slug = _slugify(sec_name[:10]) + "-" + sub_slug
+                    try:
+                        conn.execute(
+                            "INSERT INTO items (collection_id, slug, name, markdown) VALUES (?, ?, ?, ?)",
+                            (coll_id, sub_slug[:50], sub_name, md),
+                        )
+                    except sqlite3.IntegrityError:
+                        pass # Skip se proprio non riusciamo
 
     conn.execute("INSERT INTO items_fts(rowid, name, markdown) SELECT id, name, markdown FROM items")
     conn.commit()
