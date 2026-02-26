@@ -139,7 +139,13 @@ async function refreshVersionInfo() {
   try {
     const info = await invoke('get_app_version_info');
     if (info && info.commit) {
-      let text = `[${info.commit}`;
+      let branchLabel = '';
+      if (info.branch) {
+        if (info.branch === 'main') branchLabel = t('branchStable') + ' · ';
+        else if (info.branch === 'dev') branchLabel = t('branchDev') + ' · ';
+        else branchLabel = info.branch + ' · ';
+      }
+      let text = `[${branchLabel}${info.commit}`;
       if (info.date) text += ` · ${info.date}`;
       text += ']';
       appVersionInfoEl.textContent = text;
