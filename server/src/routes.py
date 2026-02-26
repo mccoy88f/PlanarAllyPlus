@@ -204,6 +204,18 @@ main_app.router.add_get(
     f"{subpath}/api/extensions/compendium/names",
     extensions.compendium.get_names,
 )
+main_app.router.add_get(
+    f"{subpath}/api/extensions/compendium/translations",
+    extensions.compendium.get_translation,
+)
+main_app.router.add_post(
+    f"{subpath}/api/extensions/compendium/translations",
+    extensions.compendium.save_translation,
+)
+main_app.router.add_delete(
+    f"{subpath}/api/extensions/compendium/translations",
+    extensions.compendium.delete_translation,
+)
 main_app.router.add_get(f"{subpath}/api/extensions/ambient-music/list", extensions.ambient_music.list_audio)
 main_app.router.add_get(f"{subpath}/api/extensions/ambient-music/playlists/list", extensions.ambient_music.list_playlists)
 main_app.router.add_get(

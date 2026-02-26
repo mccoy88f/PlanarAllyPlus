@@ -88,6 +88,11 @@ const expandedIndexCollections = ref<Set<string>>(new Set());
 const aiConfigured = ref(false);
 const aiModel = ref("");
 const translateLoading = ref(false);
+const activeTranslationLang = ref<string | null>(null);
+const originalMarkdown = ref<string | null>(null);
+const originalIndex = ref<any[] | null>(null);
+const showTranslationTools = ref(false);
+const isTranslated = computed(() => !!activeTranslationLang.value);
 
 const installDialogOpen = ref(false);
 const installName = ref("");
@@ -298,7 +303,10 @@ async function selectItem(
         );
         if (r.ok) {
             const full = (await r.json()) as ItemFull;
+            originalMarkdown.value = null;
+            activeTranslationLang.value = null;
             selectedItem.value = { compendium, collection, item: full };
+            await checkTranslation("item");
         }
     } catch {
         /* ignore */
@@ -357,7 +365,10 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
         );
         if (r.ok) {
             const data = (await r.json()) as { index: any[] };
+            originalIndex.value = null;
+            activeTranslationLang.value = null;
             currentIndex.value = data.index;
+            await checkTranslation("index");
         }
     } catch {
         /* ignore */
@@ -459,11 +470,90 @@ async function checkAiConfig(): Promise<void> {
     }
 }
 
+async function checkTranslation(type: "item" | "index"): Promise<void> {
+    const compId = type === "item" ? selectedItem.value?.compendium.id : indexCompendium.value?.id;
+    if (!compId) return;
+    
+    const lang = locale.value;
+    let url = `/api/extensions/compendium/translations?compendium=${encodeURIComponent(compId)}&lang=${encodeURIComponent(lang)}&type=${type}`;
+    if (type === "item" && selectedItem.value) {
+        url += `&collection=${encodeURIComponent(selectedItem.value.collection.slug)}&slug=${encodeURIComponent(selectedItem.value.item.slug)}`;
+    }
+    
+    try {
+        const r = await http.get(url);
+        if (r.ok) {
+            const data = await r.json();
+            if (data.content) {
+                if (type === "item" && selectedItem.value) {
+                    if (originalMarkdown.value === null) originalMarkdown.value = selectedItem.value.item.markdown;
+                    selectedItem.value.item.markdown = data.content;
+                    activeTranslationLang.value = lang;
+                } else if (type === "index" && currentIndex.value.length > 0) {
+                    if (originalIndex.value === null) originalIndex.value = JSON.parse(JSON.stringify(currentIndex.value));
+                    currentIndex.value = JSON.parse(data.content);
+                    activeTranslationLang.value = lang;
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error checking translation", e);
+    }
+}
+
+async function saveTranslationToDb(content: string, type: "item" | "index"): Promise<void> {
+    const compId = type === "item" ? selectedItem.value?.compendium.id : indexCompendium.value?.id;
+    if (!compId) return;
+
+    const payload: any = {
+        compendium: compId,
+        type,
+        lang: locale.value,
+        content: content
+    };
+
+    if (type === "item" && selectedItem.value) {
+        payload.collection = selectedItem.value.collection.slug;
+        payload.slug = selectedItem.value.item.slug;
+    }
+
+    try {
+        await http.postJson("/api/extensions/compendium/translations", payload);
+    } catch (e) {
+        console.error("Error saving translation", e);
+    }
+}
+
+async function clearTranslation(): Promise<void> {
+    if (!activeTranslationLang.value) return;
+
+    if (showIndex.value && originalIndex.value) {
+        currentIndex.value = JSON.parse(JSON.stringify(originalIndex.value));
+        originalIndex.value = null;
+    } else if (selectedItem.value && originalMarkdown.value !== null) {
+        selectedItem.value.item.markdown = originalMarkdown.value;
+        originalMarkdown.value = null;
+    }
+    activeTranslationLang.value = null;
+    showTranslationTools.value = false;
+}
+
+async function rerunTranslation(): Promise<void> {
+    await clearTranslation();
+    await translateCurrentView();
+}
+
 async function translateCurrentView(): Promise<void> {
     if (translateLoading.value) return;
     
     const targetLang = locale.value.startsWith("it") ? "Italian" : "English";
     console.log(`[Compendium AI] Starting translation to ${targetLang} using model ${aiModel.value}`);
+    
+    if (activeTranslationLang.value === locale.value) {
+        toast.info("Content already translated to " + targetLang);
+        return;
+    }
+
     const systemPrompt = `You are a translator specialized in Dungeons & Dragons 5th Edition.
 Translate the provided content into ${targetLang}. 
 Maintain the original Markdown structure and all special tags like {@b ...}, {@i ...}, {@dice ...}, etc. 
@@ -487,6 +577,8 @@ Ensure terminology consistency with D&D 5e standards (e.g., "Saving Throw" -> "T
                 console.log("[Compendium AI] Translation received", { length: translated?.length });
                 if (translated) {
                     selectedItem.value.item.markdown = translated;
+                    activeTranslationLang.value = locale.value;
+                    await saveTranslationToDb(translated, "item");
                 } else {
                     console.error("[Compendium AI] Empty translation response received");
                     toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
@@ -826,6 +918,7 @@ onMounted(() => {
                     v-if="aiConfigured && (selectedItem || (showIndex && currentIndex.length > 0))"
                     type="button"
                     class="ext-search-add-btn translate-btn"
+                    :class="{ 'is-active': isTranslated }"
                     :title="t('game.ui.extensions.CompendiumModal.translate')"
                     :disabled="translateLoading"
                     @click="translateCurrentView"
@@ -996,6 +1089,22 @@ onMounted(() => {
                                 <span class="qe-breadcrumb-item">{{ crumb.label }}</span>
                             </template>
                         </div>
+                        <div v-if="isTranslated" class="translation-tag-container">
+                            <div class="translation-tag" @click.stop="showTranslationTools = !showTranslationTools">
+                                <font-awesome-icon icon="check-circle" class="me-1" />
+                                {{ t("game.ui.extensions.CompendiumModal.translated_to", { lang: activeTranslationLang === 'it' ? 'Italiano' : 'English' }) }}
+                                <font-awesome-icon icon="chevron-down" class="ms-1" />
+                            </div>
+                            
+                            <div v-if="showTranslationTools" class="translation-tools-popover">
+                                <button class="popover-btn" @click.stop="clearTranslation">
+                                    <font-awesome-icon icon="undo" /> {{ t("game.ui.extensions.CompendiumModal.clear_translation") }}
+                                </button>
+                                <button class="popover-btn" @click.stop="rerunTranslation">
+                                    <font-awesome-icon icon="sync" /> {{ t("game.ui.extensions.CompendiumModal.rerun_translation") }}
+                                </button>
+                            </div>
+                        </div>
                         <button
                             class="qe-share-btn"
                             :title="t('game.ui.extensions.CompendiumModal.share_to_chat')"
@@ -1010,7 +1119,25 @@ onMounted(() => {
                             {{ t("game.ui.extensions.CompendiumModal.loading") }}
                         </div>
                         <div v-else class="qe-index-container">
-                            <h1 class="qe-index-title">{{ indexCompendium?.name }}</h1>
+                            <div class="qe-index-header">
+                                <h1 class="qe-index-title">{{ indexCompendium?.name }}</h1>
+                                <div v-if="isTranslated" class="translation-tag-container">
+                                    <div class="translation-tag" @click.stop="showTranslationTools = !showTranslationTools">
+                                        <font-awesome-icon icon="check-circle" class="me-1" />
+                                        {{ t("game.ui.extensions.CompendiumModal.translated_to", { lang: activeTranslationLang === 'it' ? 'Italiano' : 'English' }) }}
+                                        <font-awesome-icon icon="chevron-down" class="ms-1" />
+                                    </div>
+                                    
+                                    <div v-if="showTranslationTools" class="translation-tools-popover">
+                                        <button class="popover-btn" @click.stop="clearTranslation">
+                                            <font-awesome-icon icon="undo" /> {{ t("game.ui.extensions.CompendiumModal.clear_translation") }}
+                                        </button>
+                                        <button class="popover-btn" @click.stop="rerunTranslation">
+                                            <font-awesome-icon icon="sync" /> {{ t("game.ui.extensions.CompendiumModal.rerun_translation") }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="qe-index-grid">
                                 <div v-for="coll in currentIndex" :key="coll.slug" class="qe-index-coll">
                                     <h2 class="qe-index-coll-title">{{ formatName(coll.name) }}</h2>
@@ -1667,14 +1794,93 @@ onMounted(() => {
     border-color: #2196f3 !important;
     color: #2196f3 !important;
     background: #fff !important;
+
+    &.is-active {
+        background: #2196f3 !important;
+        color: #fff !important;
+    }
 }
 
 .translate-btn:hover:not(:disabled) {
     background: #e3f2fd !important;
+    &.is-active {
+        background: #1976d2 !important;
+    }
 }
 
 .translate-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.translation-tag-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.translation-tag {
+    background: #e3f2fd;
+    color: #1976d2;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    border: 1px solid #bbdefb;
+    margin: 0 0.5rem;
+
+    &:hover {
+        background: #bbdefb;
+    }
+}
+
+.translation-tools-popover {
+    position: absolute;
+    top: 100%;
+    left: 0.5rem;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    z-index: 100;
+    margin-top: 0.25rem;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    min-width: 150px;
+}
+
+.popover-btn {
+    border: none;
+    background: transparent;
+    padding: 0.5rem;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 2px;
+
+    &:hover {
+        background: #f5f5f5;
+    }
+
+    svg {
+        width: 14px;
+    }
+}
+
+.ms-1 { margin-left: 0.25rem !important; }
+.me-1 { margin-right: 0.25rem !important; }
+
+.qe-index-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
 }
 </style>

@@ -503,7 +503,11 @@
           "install_cancel": "Cancel",
           "load_all": "Load all",
           "translate": "Translate",
-          "translate_loading": "Translating..."
+          "translate_loading": "Translating...",
+          "translate_error": "Failed to translate content",
+          "translated_to": "Translated to {lang}",
+          "clear_translation": "Clear Translation",
+          "rerun_translation": "Rerun Translation"
         },
         "DocumentsModal": {
           "title": "Documents",

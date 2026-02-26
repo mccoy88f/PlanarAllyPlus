@@ -196,6 +196,7 @@ def _convert_5etools_to_sqlite(data: dict, db_path: Path) -> bool:
     """)
     conn.execute("CREATE INDEX idx_items_collection ON items(collection_id)")
     conn.execute("CREATE INDEX idx_items_slug ON items(slug)")
+    conn.execute("CREATE TABLE IF NOT EXISTS translations (id INTEGER PRIMARY KEY, type TEXT NOT NULL, collection_slug TEXT, item_slug TEXT, lang TEXT NOT NULL, content TEXT NOT NULL, UNIQUE(type, collection_slug, item_slug, lang))")
     conn.execute("CREATE VIRTUAL TABLE items_fts USING fts5(name, markdown, content='items', content_rowid='id', tokenize='unicode61')")
 
     for section in sections:
@@ -296,9 +297,8 @@ def _convert_json_to_sqlite(json_path: Path, db_path: Path) -> bool:
     """)
     conn.execute("CREATE INDEX idx_items_collection ON items(collection_id)")
     conn.execute("CREATE INDEX idx_items_slug ON items(slug)")
-    conn.execute("""
-        CREATE VIRTUAL TABLE items_fts USING fts5(name, markdown, content='items', content_rowid='id', tokenize='unicode61')
-    """)
+    conn.execute("CREATE TABLE IF NOT EXISTS translations (id INTEGER PRIMARY KEY, type TEXT NOT NULL, collection_slug TEXT, item_slug TEXT, lang TEXT NOT NULL, content TEXT NOT NULL, UNIQUE(type, collection_slug, item_slug, lang))")
+    conn.execute("CREATE VIRTUAL TABLE items_fts USING fts5(name, markdown, content='items', content_rowid='id', tokenize='unicode61')")
     conn.execute("""
         CREATE TRIGGER items_ai AFTER INSERT ON items BEGIN
             INSERT INTO items_fts(rowid, name, markdown) VALUES (new.id, new.name, new.markdown);
@@ -338,6 +338,11 @@ def _ensure_sqlite(comp_id: str) -> bool:
     json_path = _json_path(comp)
     db_path = _db_path(comp_id)
     if db_path.exists():
+        # Ensure translations table exists for legacy DBs
+        conn = sqlite3.connect(db_path)
+        conn.execute("CREATE TABLE IF NOT EXISTS translations (id INTEGER PRIMARY KEY, type TEXT NOT NULL, collection_slug TEXT, item_slug TEXT, lang TEXT NOT NULL, content TEXT NOT NULL, UNIQUE(type, collection_slug, item_slug, lang))")
+        conn.commit()
+        conn.close()
         return True
     if not json_path.exists():
         return False
@@ -744,3 +749,108 @@ async def get_db(request: web.Request) -> web.Response:
             {"error": str(e), "collections": []},
             status=500,
         )
+
+
+async def get_translation(request: web.Request) -> web.Response:
+    """Recupera una traduzione salvata."""
+    await get_authorized_user(request)
+    comp_id = request.query.get("compendium", "").strip()
+    config = _load_config()
+    if not comp_id:
+        comp_id = config.get("defaultId")
+    
+    t_type = request.query.get("type", "item")
+    coll_slug = request.query.get("collection", "").strip()
+    item_slug = request.query.get("slug", "").strip()
+    lang = request.query.get("lang", "").strip()
+
+    if not comp_id or not lang:
+        return web.json_response({"error": "compendium and lang required"}, status=400)
+    
+    if not _ensure_sqlite(comp_id):
+        return web.json_response({"error": "Database not found"}, status=404)
+
+    try:
+        conn = _get_conn(comp_id)
+        row = conn.execute(
+            "SELECT content FROM translations WHERE type = ? AND collection_slug IS ? AND item_slug IS ? AND lang = ?",
+            (t_type, coll_slug or None, item_slug or None, lang)
+        ).fetchone()
+        conn.close()
+        
+        if row:
+            return web.json_response({"content": row[0]})
+        return web.json_response({"content": None})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+async def save_translation(request: web.Request) -> web.Response:
+    """Salva una traduzione."""
+    await get_authorized_user(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.HTTPBadRequest(text="Invalid JSON")
+
+    comp_id = body.get("compendium", "").strip()
+    t_type = body.get("type", "item")
+    coll_slug = body.get("collection", "").strip()
+    item_slug = body.get("slug", "").strip()
+    lang = body.get("lang", "").strip()
+    content = body.get("content", "").strip()
+
+    if not comp_id or not lang or not content:
+        return web.json_response({"error": "compendium, lang and content required"}, status=400)
+    
+    if not _ensure_sqlite(comp_id):
+        return web.json_response({"error": "Database not found"}, status=404)
+
+    try:
+        conn = _get_conn(comp_id)
+        conn.execute(
+            """
+            INSERT INTO translations (type, collection_slug, item_slug, lang, content)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(type, collection_slug, item_slug, lang) DO UPDATE SET content = excluded.content
+            """,
+            (t_type, coll_slug or None, item_slug or None, lang, content)
+        )
+        conn.commit()
+        conn.close()
+        return web.json_response({"ok": True})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+async def delete_translation(request: web.Request) -> web.Response:
+    """Elimina una traduzione."""
+    await get_authorized_user(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.HTTPBadRequest(text="Invalid JSON")
+
+    comp_id = body.get("compendium", "").strip()
+    t_type = body.get("type", "item")
+    coll_slug = body.get("collection", "").strip()
+    item_slug = body.get("slug", "").strip()
+    lang = body.get("lang", "").strip()
+
+    if not comp_id or not lang:
+        return web.json_response({"error": "compendium and lang required"}, status=400)
+    
+    if not _ensure_sqlite(comp_id):
+        return web.json_response({"error": "Database not found"}, status=404)
+
+    try:
+        conn = _get_conn(comp_id)
+        conn.execute(
+            "DELETE FROM translations WHERE type = ? AND collection_slug IS ? AND item_slug IS ? AND lang = ?",
+            (t_type, coll_slug or None, item_slug or None, lang)
+        )
+        conn.commit()
+        conn.close()
+        return web.json_response({"ok": True})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
