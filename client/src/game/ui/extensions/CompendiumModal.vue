@@ -94,6 +94,7 @@ const originalIndex = ref<any[] | null>(null);
 const showTranslationTools = ref(false);
 const translationTagContainer = ref<HTMLElement | null>(null);
 const isTranslated = computed(() => !!activeTranslationLang.value);
+const currentMarkdown = ref<string>("");
 
 const installDialogOpen = ref(false);
 const installName = ref("");
@@ -145,7 +146,7 @@ const breadcrumb = computed(() => {
 const qeNames = ref<{ name: string; compendiumSlug?: string; collectionSlug: string; itemSlug: string }[]>([]);
 
 const selectedMarkdownHtml = computed(() => {
-    const raw = selectedItem.value?.item.markdown ?? "";
+    const raw = currentMarkdown.value || selectedItem.value?.item.markdown || "";
     const withLinks = !qeNames.value.length
         ? raw
         : injectQeLinks(raw, qeNames.value, selectedItem.value ? [selectedItem.value.item.name] : []);
@@ -306,6 +307,7 @@ async function selectItem(
             const full = (await r.json()) as ItemFull;
             originalMarkdown.value = null;
             activeTranslationLang.value = null;
+            currentMarkdown.value = "";
             selectedItem.value = { compendium, collection, item: full };
             await checkTranslation("item");
         }
@@ -368,6 +370,7 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
             const data = (await r.json()) as { index: any[] };
             originalIndex.value = null;
             activeTranslationLang.value = null;
+            currentMarkdown.value = "";
             currentIndex.value = data.index;
             await checkTranslation("index");
         }
@@ -488,7 +491,7 @@ async function checkTranslation(type: "item" | "index"): Promise<void> {
             if (data.content) {
                 if (type === "item" && selectedItem.value) {
                     if (originalMarkdown.value === null) originalMarkdown.value = selectedItem.value.item.markdown;
-                    selectedItem.value.item.markdown = data.content;
+                    currentMarkdown.value = data.content;
                     activeTranslationLang.value = lang;
                 } else if (type === "index" && currentIndex.value.length > 0) {
                     if (originalIndex.value === null) originalIndex.value = JSON.parse(JSON.stringify(currentIndex.value));
@@ -533,7 +536,7 @@ function revertTranslationUI(): void {
         currentIndex.value = JSON.parse(JSON.stringify(originalIndex.value));
         originalIndex.value = null;
     } else if (selectedItem.value && originalMarkdown.value !== null) {
-        selectedItem.value.item.markdown = originalMarkdown.value;
+        currentMarkdown.value = originalMarkdown.value;
         originalMarkdown.value = null;
     }
     activeTranslationLang.value = null;
@@ -610,7 +613,8 @@ Ensure terminology consistency with D&D 5e standards (e.g., "Saving Throw" -> "T
                 const translated = data.choices?.[0]?.message?.content;
                 console.log("[Compendium AI] Translation received", { length: translated?.length });
                 if (translated) {
-                    selectedItem.value.item.markdown = translated;
+                    if (!originalMarkdown.value) originalMarkdown.value = selectedItem.value.item.markdown;
+                    currentMarkdown.value = translated;
                     activeTranslationLang.value = locale.value;
                     await saveTranslationToDb(translated, "item");
                 } else {
