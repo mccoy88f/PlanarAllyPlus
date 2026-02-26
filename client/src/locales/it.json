@@ -502,11 +502,8 @@
           "install_submit": "Installa",
           "install_cancel": "Annulla",
           "load_all": "Carica tutti",
-          "translate_to": "Traduci in",
-          "translate_btn": "Traduci",
-          "translating": "Traduzione in corso...",
-          "show_original": "Mostra originale",
-          "translation_error": "Traduzione fallita. Controlla le impostazioni AI."
+          "translate": "Traduci",
+          "translate_loading": "Traduzione in corso..."
         },
         "DocumentsModal": {
           "title": "Documenti",

@@ -502,11 +502,8 @@
           "install_submit": "Install",
           "install_cancel": "Cancel",
           "load_all": "Load all",
-          "translate_to": "Translate to",
-          "translate_btn": "Translate",
-          "translating": "Translating...",
-          "show_original": "Show original",
-          "translation_error": "Translation failed. Check your AI settings."
+          "translate": "Translate",
+          "translate_loading": "Translating..."
         },
         "DocumentsModal": {
           "title": "Documents",
