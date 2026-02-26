@@ -84,6 +84,7 @@ const showIndex = ref(false);
 const currentIndex = ref<{ slug: string; name: string; items: { slug: string; name: string }[] }[]>([]);
 const indexLoading = ref(false);
 const indexCompendium = ref<CompendiumMeta | null>(null);
+const expandedIndexCollections = ref<Set<string>>(new Set());
 
 const installDialogOpen = ref(false);
 const installName = ref("");
@@ -345,6 +346,7 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
     indexLoading.value = true;
     indexCompendium.value = comp;
     currentIndex.value = [];
+    expandedIndexCollections.value.clear();
     try {
         const r = await http.get(
             `/api/extensions/compendium/index?compendium=${encodeURIComponent(comp.id)}`,
@@ -365,6 +367,14 @@ async function selectItemBySlug(collSlug: string, itemSlug: string): Promise<voi
     const coll: CollectionMeta = { slug: collSlug, name: "", count: 0 };
     const item: ItemMeta = { slug: itemSlug, name: "" };
     await selectItem(indexCompendium.value, coll, item);
+}
+
+function toggleIndexCollection(collSlug: string): void {
+    if (expandedIndexCollections.value.has(collSlug)) {
+        expandedIndexCollections.value.delete(collSlug);
+    } else {
+        expandedIndexCollections.value.add(collSlug);
+    }
 }
 
 async function setDefault(compId: string): Promise<void> {
@@ -903,12 +913,19 @@ onMounted(() => {
                                     <h2 class="qe-index-coll-title">{{ formatName(coll.name) }}</h2>
                                     <div class="qe-index-item-list">
                                         <button 
-                                            v-for="item in coll.items" 
+                                            v-for="item in (expandedIndexCollections.has(coll.slug) ? coll.items : coll.items.slice(0, 10))" 
                                             :key="item.slug" 
                                             class="qe-index-item-link"
                                             @click="selectItemBySlug(coll.slug, item.slug)"
                                         >
                                             {{ item.name }}
+                                        </button>
+                                        <button 
+                                            v-if="coll.items.length > 10 && !expandedIndexCollections.has(coll.slug)"
+                                            class="qe-index-load-more"
+                                            @click="toggleIndexCollection(coll.slug)"
+                                        >
+                                            ... {{ t("game.ui.extensions.CompendiumModal.load_all") }}
                                         </button>
                                     </div>
                                 </div>
@@ -1289,6 +1306,25 @@ onMounted(() => {
     &:hover {
         background: #ebf8ff;
         color: #2b6cb0;
+        text-decoration: underline;
+    }
+}
+
+.qe-index-load-more {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+    color: #3498db;
+    cursor: pointer;
+    font-weight: 600;
+    font-style: italic;
+
+    &:hover {
+        color: #2980b9;
         text-decoration: underline;
     }
 }

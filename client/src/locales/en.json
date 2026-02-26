@@ -500,7 +500,8 @@
           "uninstall_success": "Compendium uninstalled",
           "no_compendiums": "No compendiums installed. Install a JSON file to get started.",
           "install_submit": "Install",
-          "install_cancel": "Cancel"
+          "install_cancel": "Cancel",
+          "load_all": "Load all"
         },
         "DocumentsModal": {
           "title": "Documents",

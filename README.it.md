@@ -61,6 +61,28 @@ Gli script nella cartella `scripts/` verificano prerequisiti, installano dipende
 
 Prerequisiti: Node.js 20+, Python 3.13+, [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
+## Avvio con Docker
+
+Il progetto include un `Dockerfile` e un file `docker-compose.yml` pronti all'uso.
+
+### Tramite riga di comando
+1. Assicurati di avere Docker e Docker Compose installati.
+2. Esegui:
+   ```bash
+   docker compose up -d
+   ```
+3. Il server sarà accessibile su `http://localhost:8000`.
+
+### Tramite Portainer
+Per avviare il progetto in Portainer:
+1. Vai su **Stacks** > **Add stack**.
+2. Scegli un nome (es. `planarally`).
+3. Incolla il contenuto del file `docker-compose.yml` (che trovi nella root del progetto) nell'editor del browser.
+4. Clicca su **Deploy the stack**.
+
+> [!NOTE]
+> La prima build potrebbe richiedere alcuni minuti poiché deve compilare il frontend ed installare le dipendenze Python.
+
 # Launcher app (download + avvio)
 
 Il launcher nella cartella `launcher/` è un'app desktop che **scarica** lo ZIP della repo, lo estrae e avvia il server. Non va ricompilata quando il codice cambia: l'eseguibile resta valido.
