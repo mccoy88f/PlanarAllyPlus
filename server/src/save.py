@@ -14,7 +14,7 @@ When writing migrations make sure that these things are respected:
     - e.g. a column added to Circle also needs to be added to CircularToken
 """
 
-SAVE_VERSION = 120
+SAVE_VERSION = 121
 
 import asyncio
 import json
@@ -735,6 +735,22 @@ def upgrade(
         # Add UserOptions.openrouter_max_tokens (max output tokens for AI chat)
         with db.atomic():
             db.execute_sql("ALTER TABLE user_options ADD COLUMN openrouter_max_tokens INTEGER DEFAULT 8192")
+    elif version == 120:
+        # Add CharacterSheet and CharacterSheetDefault tables
+        with db.atomic():
+            db.execute_sql(
+                'CREATE TABLE IF NOT EXISTS "character_sheet" ("id" INTEGER NOT NULL PRIMARY KEY, "owner_id" INTEGER NOT NULL, "room_id" INTEGER NOT NULL, "character_id" INTEGER DEFAULT NULL, "name" TEXT NOT NULL, "data" TEXT NOT NULL, "visible_to_players" INTEGER NOT NULL DEFAULT 0, "created_at" TEXT NOT NULL, "updated_at" TEXT NOT NULL, FOREIGN KEY ("owner_id") REFERENCES "user" ("id") ON DELETE CASCADE, FOREIGN KEY ("room_id") REFERENCES "room" ("id") ON DELETE CASCADE, FOREIGN KEY ("character_id") REFERENCES "character" ("id") ON DELETE SET NULL)'
+            )
+            db.execute_sql('CREATE INDEX "character_sheet_owner_id" ON "character_sheet" ("owner_id")')
+            db.execute_sql('CREATE INDEX "character_sheet_room_id" ON "character_sheet" ("room_id")')
+            db.execute_sql('CREATE INDEX "character_sheet_character_id" ON "character_sheet" ("character_id")')
+
+            db.execute_sql(
+                'CREATE TABLE IF NOT EXISTS "character_sheet_default" ("id" INTEGER NOT NULL PRIMARY KEY, "user_id" INTEGER NOT NULL, "room_id" INTEGER NOT NULL, "sheet_id" INTEGER NOT NULL, FOREIGN KEY ("user_id") REFERENCES "user" ("id") ON DELETE CASCADE, FOREIGN KEY ("room_id") REFERENCES "room" ("id") ON DELETE CASCADE, FOREIGN KEY ("sheet_id") REFERENCES "character_sheet" ("id") ON DELETE CASCADE)'
+            )
+            db.execute_sql('CREATE INDEX "character_sheet_default_user_id" ON "character_sheet_default" ("user_id")')
+            db.execute_sql('CREATE INDEX "character_sheet_default_room_id" ON "character_sheet_default" ("room_id")')
+            db.execute_sql('CREATE INDEX "character_sheet_default_sheet_id" ON "character_sheet_default" ("sheet_id")')
     else:
         raise UnknownVersionException(f"No upgrade code for save format {version} was found.")
     inc_save_version(db)

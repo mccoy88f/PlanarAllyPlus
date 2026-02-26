@@ -70,8 +70,8 @@ def _migrate_json_to_db() -> None:
                             name=rec.get("name", "Untitled"),
                             data=json.dumps(rec.get("data", {})),
                             visible_to_players=rec.get("visibleToPlayers", False),
-                            created_at=rec.get("createdAt", datetime.datetime.utcnow().isoformat()),
-                            updated_at=rec.get("updatedAt", datetime.datetime.utcnow().isoformat())
+                            created_at=rec.get("createdAt", datetime.datetime.now(datetime.UTC).isoformat()),
+                            updated_at=rec.get("updatedAt", datetime.datetime.now(datetime.UTC).isoformat())
                         )
                         sheet_db_mapping[sheet_uuid] = sheet_db
                     except Exception as e:
@@ -181,7 +181,7 @@ async def list_all(request: web.Request) -> web.Response:
                 sheet_data = migrated
                 sheet_record.data = json.dumps(sheet_data)
                 sheet_record.name = get_character_name(migrated)
-                sheet_record.updated_at = datetime.datetime.utcnow().isoformat()
+                sheet_record.updated_at = datetime.datetime.now(datetime.UTC).isoformat()
                 sheet_record.save()
             
             name = sheet_record.name or get_character_name(sheet_data) or (char_name or "")
@@ -255,7 +255,7 @@ async def get_sheet(request: web.Request) -> web.Response:
         sheet_data = migrated
         sheet_record.data = json.dumps(sheet_data)
         sheet_record.name = get_character_name(migrated)
-        sheet_record.updated_at = datetime.datetime.utcnow().isoformat()
+        sheet_record.updated_at = datetime.datetime.now(datetime.UTC).isoformat()
         sheet_record.save()
 
     return web.json_response({
@@ -414,8 +414,8 @@ async def create_sheet(request: web.Request) -> web.Response:
         name=final_name,
         data=json.dumps(sheet_data),
         visible_to_players=False,
-        created_at=datetime.datetime.utcnow().isoformat(),
-        updated_at=datetime.datetime.utcnow().isoformat()
+        created_at=datetime.datetime.now(datetime.UTC).isoformat(),
+        updated_at=datetime.datetime.now(datetime.UTC).isoformat()
     )
 
     return web.json_response({"ok": True, "sheetId": str(new_sheet.id)})
@@ -464,7 +464,7 @@ async def update_sheet(request: web.Request) -> web.Response:
     _clean_spell_arrays(sheet_data)
     
     sheet_record.data = json.dumps(sheet_data)
-    sheet_record.updated_at = datetime.datetime.utcnow().isoformat()
+    sheet_record.updated_at = datetime.datetime.now(datetime.UTC).isoformat()
     sheet_record.name = get_character_name(sheet_data) or sheet_record.name
     sheet_record.save()
     
@@ -566,8 +566,8 @@ async def duplicate_sheet(request: web.Request) -> web.Response:
         name=name,
         data=json.dumps(sheet_data),
         visible_to_players=False,
-        created_at=datetime.datetime.utcnow().isoformat(),
-        updated_at=datetime.datetime.utcnow().isoformat()
+        created_at=datetime.datetime.now(datetime.UTC).isoformat(),
+        updated_at=datetime.datetime.now(datetime.UTC).isoformat()
     )
 
     return web.json_response({"ok": True, "sheetId": str(new_sheet.id)})
@@ -625,7 +625,7 @@ async def associate_sheet(request: web.Request) -> web.Response:
         return web.HTTPBadRequest(text="Character already has a sheet linked")
 
     sheet_record.character = char
-    sheet_record.updated_at = datetime.datetime.utcnow().isoformat()
+    sheet_record.updated_at = datetime.datetime.now(datetime.UTC).isoformat()
     # Set sheet appearance from character's asset image
     try:
         sheet_data = json.loads(sheet_record.data) if sheet_record.data else {}
@@ -680,7 +680,7 @@ async def dissociate_sheet(request: web.Request) -> web.Response:
         return web.HTTPForbidden(text="Cannot modify this sheet")
 
     sheet_record.character = None
-    sheet_record.updated_at = datetime.datetime.utcnow().isoformat()
+    sheet_record.updated_at = datetime.datetime.now(datetime.UTC).isoformat()
     
     # Clear appearance when unlinking character
     try:
@@ -782,7 +782,7 @@ async def toggle_sheet_visibility(request: web.Request) -> web.Response:
         return web.HTTPForbidden(text="Cannot change visibility of this sheet")
 
     sheet_record.visible_to_players = not sheet_record.visible_to_players
-    sheet_record.updated_at = datetime.datetime.utcnow().isoformat()
+    sheet_record.updated_at = datetime.datetime.now(datetime.UTC).isoformat()
     sheet_record.save()
     
     return web.json_response({"ok": True, "visibleToPlayers": sheet_record.visible_to_players})
