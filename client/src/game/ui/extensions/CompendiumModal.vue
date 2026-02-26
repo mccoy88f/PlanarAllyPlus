@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useToast } from "vue-toastification";
 
@@ -92,6 +92,7 @@ const activeTranslationLang = ref<string | null>(null);
 const originalMarkdown = ref<string | null>(null);
 const originalIndex = ref<any[] | null>(null);
 const showTranslationTools = ref(false);
+const translationTagContainer = ref<HTMLElement | null>(null);
 const isTranslated = computed(() => !!activeTranslationLang.value);
 
 const installDialogOpen = ref(false);
@@ -545,7 +546,16 @@ async function rerunTranslation(): Promise<void> {
 
 async function translateCurrentView(): Promise<void> {
     if (translateLoading.value) return;
-    
+
+    if (activeTranslationLang.value === locale.value) {
+        await clearTranslation();
+        return;
+    }
+
+    // Check if we have a cached translation first
+    await checkTranslation(selectedItem.value ? "item" : "index");
+    if (activeTranslationLang.value === locale.value) return;
+
     const targetLang = locale.value.startsWith("it") ? "Italian" : "English";
     console.log(`[Compendium AI] Starting translation to ${targetLang} using model ${aiModel.value}`);
     
@@ -622,9 +632,20 @@ Ensure terminology consistency with D&D 5e standards (e.g., "Saving Throw" -> "T
     }
 }
 
+function handleOutsideClick(event: MouseEvent): void {
+    if (showTranslationTools.value && translationTagContainer.value && !translationTagContainer.value.contains(event.target as Node)) {
+        showTranslationTools.value = false;
+    }
+}
+
 onMounted(async () => {
     await loadCompendiums();
     await checkAiConfig();
+    window.addEventListener("mousedown", handleOutsideClick);
+});
+
+onUnmounted(() => {
+    window.removeEventListener("mousedown", handleOutsideClick);
 });
 
 async function doInstall(): Promise<void> {
@@ -1089,7 +1110,7 @@ onMounted(() => {
                                 <span class="qe-breadcrumb-item">{{ crumb.label }}</span>
                             </template>
                         </div>
-                        <div v-if="isTranslated" class="translation-tag-container">
+                        <div v-if="isTranslated" class="translation-tag-container" ref="translationTagContainer">
                             <div class="translation-tag" @click.stop="showTranslationTools = !showTranslationTools">
                                 <font-awesome-icon icon="check-circle" class="me-1" />
                                 {{ t("game.ui.extensions.CompendiumModal.translated_to", { lang: activeTranslationLang === 'it' ? 'Italiano' : 'English' }) }}
@@ -1121,7 +1142,7 @@ onMounted(() => {
                         <div v-else class="qe-index-container">
                             <div class="qe-index-header">
                                 <h1 class="qe-index-title">{{ indexCompendium?.name }}</h1>
-                                <div v-if="isTranslated" class="translation-tag-container">
+                                <div v-if="isTranslated" class="translation-tag-container" ref="translationTagContainer">
                                     <div class="translation-tag" @click.stop="showTranslationTools = !showTranslationTools">
                                         <font-awesome-icon icon="check-circle" class="me-1" />
                                         {{ t("game.ui.extensions.CompendiumModal.translated_to", { lang: activeTranslationLang === 'it' ? 'Italiano' : 'English' }) }}
