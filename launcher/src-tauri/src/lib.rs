@@ -227,6 +227,44 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
 
     let root = get_project_root().map_err(|e| e.to_string())?;
 
+    // Fetch commit info if downloading from GitHub archive.
+    // zip_url format: https://github.com/owner/repo/archive/refs/heads/branch.zip
+    if zip_url.starts_with("https://github.com/") && zip_url.contains("/archive/refs/heads/") {
+        let parts: Vec<&str> = zip_url.split('/').collect();
+        if parts.len() >= 9 {
+            let owner = parts[3];
+            let repo = parts[4];
+            let branch_zip = parts.last().unwrap_or(&"");
+            let branch = branch_zip.trim_end_matches(".zip");
+
+            let api_url = format!("https://api.github.com/repos/{}/{}/commits/{}", owner, repo, branch);
+            let client = reqwest::Client::new();
+            if let Ok(res) = client
+                .get(&api_url)
+                .header("User-Agent", "PlanarAllyPlus-Launcher")
+                .send()
+                .await
+            {
+                if let Ok(text) = res.text().await {
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                        if let Some(sha) = json.get("sha").and_then(|v| v.as_str()) {
+                            let date = json
+                                .get("commit")
+                                .and_then(|c| c.get("author"))
+                                .and_then(|a| a.get("date"))
+                                .and_then(|d| d.as_str())
+                                .unwrap_or("");
+                            let short_sha = &sha[..std::cmp::min(7, sha.len())];
+                            let short_date = date.split('T').next().unwrap_or(date);
+                            let content = format!("{} {}", short_sha, short_date);
+                            let _ = std::fs::write(root.join(".commit"), content.trim());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Make scripts executable (ZIP extraction doesn't preserve Unix permissions)
     #[cfg(unix)]
     for script in ["scripts/run.sh", "scripts/start-server.sh"] {

@@ -474,7 +474,7 @@ async def transform_image(request: web.Request) -> web.Response:
     prompt = (
         f"Transform this schematic dungeon map into a photorealistic, detailed isometric or top-down dungeon map. "
         f"The style should be: {archetype_desc}. "
-        "Keep the exact same layout, room positions, corridors, and structure. "
+        "Keep the exact same layout, room positions, corridors, walls, doors and structure. "
         "Make it look like a real tabletop RPG battle map with proper lighting and atmospheric details."
     )
     if extra_prompt:

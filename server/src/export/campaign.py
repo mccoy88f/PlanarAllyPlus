@@ -23,6 +23,8 @@ from ..db.models.asset import Asset
 from ..db.models.asset_rect import AssetRect
 from ..db.models.aura import Aura
 from ..db.models.character import Character
+from ..db.models.character_sheet import CharacterSheet
+from ..db.models.character_sheet_default import CharacterSheetDefault
 from ..db.models.circle import Circle
 from ..db.models.circular_token import CircularToken
 from ..db.models.composite_shape_association import CompositeShapeAssociation
@@ -180,7 +182,7 @@ class CampaignExporter:
         send_status(self.loop, "export", self.sid, f"Starting campaign export {name}")
         send_status(self.loop, "export", self.sid, "> Generating empty database")
         self.generate_empty_db(rooms)
-        for room in self.migrator.rooms:
+        for room in self.rooms:
             send_status(self.loop, "export", self.sid, f"> Exporting room {room.name}")
             send_status(self.loop, "export", self.sid, "    > Exporting user info")
             self.export_users(room)
@@ -195,6 +197,8 @@ class CampaignExporter:
             self.migrator.migrate_players(room)
             send_status(self.loop, "export", self.sid, "    > Exporting notes")
             self.migrator.migrate_notes(room)
+            send_status(self.loop, "export", self.sid, "    > Exporting character sheets")
+            self.migrator.migrate_character_sheets(room)
 
         if export_all_assets:
             self.migrator.migrate_all_assets()
@@ -227,6 +231,7 @@ class CampaignExporter:
                 api_token=secrets.token_hex(32),
             )
             self.migrator = CampaignMigrator("export", open_db(self.copy_name), self.db, rooms, self.sid, self.loop)
+            self.rooms = self.migrator.rooms
 
     def pack(self):
         send_status(self.loop, "export", self.sid, "> Start packing data")
@@ -320,7 +325,8 @@ class CampaignImporter:
         send_status(self.loop, "import", self.sid, f"Starting campaign import for {user.name}")
         self.unpack(pac)
 
-        from_room = self.migrator.rooms[0]
+        self.rooms = self.migrator.rooms
+        from_room = self.rooms[0]
 
         # todo: reconcile this with migrator being able to work with multiple rooms
         new_room_name = name if not take_over_name else from_room.name
@@ -330,7 +336,7 @@ class CampaignImporter:
                 raise Exception("Room with that name already exists")
 
         try:
-            for room in self.migrator.rooms:
+            for room in self.rooms:
                 send_status(self.loop, "import", self.sid, f"> Importing room {room.name}")
                 send_status(self.loop, "import", self.sid, "    > Importing user info")
                 self.import_users(room)
@@ -345,6 +351,8 @@ class CampaignImporter:
                 self.migrator.migrate_players(room)
                 send_status(self.loop, "import", self.sid, "    > Importing notes")
                 self.migrator.migrate_notes(room)
+                send_status(self.loop, "import", self.sid, "    > Importing character sheets")
+                self.migrator.migrate_character_sheets(room)
             print("Completed campaign import")
         except Exception as e:
             if r := Room.get_or_none(name=new_room_name, creator=user):
@@ -940,3 +948,40 @@ class CampaignMigrator:
 
                     with self.to_db.bind_ctx([NoteTag]):
                         NoteTag.create(**tag_data)
+
+    def migrate_character_sheets(self, room: Room):
+        sheet_mapping = {}
+        with self.from_db.bind_ctx([CharacterSheet, CharacterSheetDefault]):
+            for sheet in CharacterSheet.filter(room=room):
+                sheet_data = model_to_dict(sheet, recurse=False)
+                del sheet_data["id"]
+
+                owner = self.user_mapping.get(sheet_data["owner"])
+                if owner is None:
+                    continue
+
+                sheet_data["owner"] = owner
+                sheet_data["room"] = self.room_mapping[room.id]
+                if sheet_data["character"]:
+                    sheet_data["character"] = self.character_mapping.get(sheet_data["character"])
+
+                with self.to_db.bind_ctx([CharacterSheet]):
+                    new_sheet = CharacterSheet.create(**sheet_data)
+                    sheet_mapping[sheet.id] = new_sheet.id
+
+            for sheet_default in CharacterSheetDefault.filter(room=room):
+                default_data = model_to_dict(sheet_default, recurse=False)
+                del default_data["id"]
+
+                user = self.user_mapping.get(default_data["user"])
+                if user is None:
+                    continue
+                if default_data["sheet"] not in sheet_mapping:
+                    continue
+
+                default_data["user"] = user
+                default_data["room"] = self.room_mapping[room.id]
+                default_data["sheet"] = sheet_mapping[default_data["sheet"]]
+
+                with self.to_db.bind_ctx([CharacterSheetDefault]):
+                    CharacterSheetDefault.create(**default_data)

@@ -12,6 +12,8 @@ from .models.asset_shortcut import AssetShortcut
 from .models.aura import Aura
 from .models.base_rect import BaseRect
 from .models.character import Character
+from .models.character_sheet import CharacterSheet
+from .models.character_sheet_default import CharacterSheetDefault
 from .models.circle import Circle
 from .models.circular_token import CircularToken
 from .models.composite_shape_association import CompositeShapeAssociation
@@ -60,6 +62,8 @@ ALL_NORMAL_MODELS: list[type[BaseDbModel]] = [
     Aura,
     BaseRect,
     Character,
+    CharacterSheet,
+    CharacterSheetDefault,
     Circle,
     CircularToken,
     CompositeShapeAssociation,

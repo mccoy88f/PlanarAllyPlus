@@ -16,6 +16,8 @@ from pathlib import Path
 from ....auth import get_authorized_user
 from ....db.models.asset import Asset
 from ....db.models.character import Character
+from ....db.models.character_sheet import CharacterSheet
+from ....db.models.character_sheet_default import CharacterSheetDefault
 from ....db.models.user_options import UserOptions
 from ....db.models.player_room import PlayerRoom
 from ....db.models.room import Room
@@ -33,39 +35,79 @@ def _get_or_create_portrait_folder(user: User) -> Asset:
     return Asset.get_or_create_extension_folder(user, EXTENSION_ID)
 
 
-def _load_sheets() -> dict:
-    if not SHEETS_FILE.exists():
-        return {"sheets": {}}
-    try:
-        with open(SHEETS_FILE, encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data.get("sheets"), dict) else {"sheets": {}}
-    except (json.JSONDecodeError, OSError):
-        return {"sheets": {}}
+def _migrate_json_to_db() -> None:
+    """Migrate old JSON sheets and defaults to SQLite database."""
+    if SHEETS_FILE.exists() or DEFAULTS_FILE.exists():
+        try:
+            from ....db.db import db as ACTIVE_DB
+            
+            with ACTIVE_DB.atomic():
+                sheets_data = {}
+                if SHEETS_FILE.exists():
+                    try:
+                        with open(SHEETS_FILE, encoding="utf-8") as f:
+                            data = json.load(f)
+                            sheets_data = data.get("sheets", {}) if isinstance(data, dict) else {}
+                    except (json.JSONDecodeError, OSError):
+                        pass
 
+                sheet_db_mapping = {}
+                for sheet_uuid, rec in sheets_data.items():
+                    try:
+                        # Convert to DB
+                        owner = User.get_or_none(User.id == rec.get("ownerId"))
+                        room = Room.get_or_none(Room.id == rec.get("roomId"))
+                        if not owner or not room:
+                            continue
 
-def _save_sheets(data: dict) -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if "sheets" not in data:
-        data = {"sheets": data}
-    with open(SHEETS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+                        char_id = rec.get("characterId")
+                        character = Character.get_or_none(Character.id == char_id) if char_id else None
 
+                        sheet_db = CharacterSheet.create(
+                            owner=owner,
+                            room=room,
+                            character=character,
+                            name=rec.get("name", "Untitled"),
+                            data=json.dumps(rec.get("data", {})),
+                            visible_to_players=rec.get("visibleToPlayers", False),
+                            created_at=rec.get("createdAt", datetime.datetime.utcnow().isoformat()),
+                            updated_at=rec.get("updatedAt", datetime.datetime.utcnow().isoformat())
+                        )
+                        sheet_db_mapping[sheet_uuid] = sheet_db
+                    except Exception as e:
+                        print(f"Error migrating sheet {sheet_uuid}: {e}")
 
-def _load_defaults() -> dict:
-    if not DEFAULTS_FILE.exists():
-        return {}
-    try:
-        with open(DEFAULTS_FILE, encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return {}
+                if DEFAULTS_FILE.exists():
+                    try:
+                        with open(DEFAULTS_FILE, encoding="utf-8") as f:
+                            defaults_data = json.load(f)
+                        
+                        for key, sheet_uuid in defaults_data.items():
+                            parts = key.split("_")
+                            if len(parts) != 2:
+                                continue
+                            user_id, room_id = parts
+                            owner = User.get_or_none(User.id == user_id)
+                            room = Room.get_or_none(Room.id == room_id)
+                            if not owner or not room or sheet_uuid not in sheet_db_mapping:
+                                continue
+                            
+                            CharacterSheetDefault.create(
+                                user=owner,
+                                room=room,
+                                sheet=sheet_db_mapping[sheet_uuid]
+                            )
+                    except (json.JSONDecodeError, OSError):
+                        pass
 
+                # Rename the files so migration doesn't run again
+                if SHEETS_FILE.exists():
+                    SHEETS_FILE.rename(SHEETS_FILE.with_suffix(".json.bak"))
+                if DEFAULTS_FILE.exists():
+                    DEFAULTS_FILE.rename(DEFAULTS_FILE.with_suffix(".json.bak"))
+        except Exception as e:
+            print(f"Character Sheet migration failed: {e}")
 
-def _save_defaults(data: dict) -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    with open(DEFAULTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
 
 
 def _get_room(creator_name: str, room_name: str) -> Room | None:
@@ -108,46 +150,51 @@ async def list_all(request: web.Request) -> web.Response:
     characters = _get_characters_for_room(room, user, is_dm)
     char_by_id = {c.id: c for c in characters}
 
-    data = _load_sheets()
-    sheets_dict = data.get("sheets", {})
-    defaults = _load_defaults()
-    default_key = f"{user.id}_{room.id}"
-    default_sheet_id = defaults.get(default_key)
+    from ....db.db import db as ACTIVE_DB
 
-    # Filter sheets: owner must match; for players: own OR visibleToPlayers
-    result_sheets = []
-    needs_save = False
-    for sheet_id, rec in sheets_dict.items():
-        if rec.get("roomId") != room.id:
-            continue
-        owner_id = rec.get("ownerId")
-        visible_to_players = rec.get("visibleToPlayers", False)
-        if not is_dm and owner_id != user.id and not visible_to_players:
-            continue
-        char_id = rec.get("characterId")
-        char = char_by_id.get(char_id) if char_id else None
-        can_edit = is_dm or owner_id == user.id
-        char_name = char.name if char else None
-        sheet_data = rec.get("data") or {}
-        migrated = migrate_old_to_beyond(sheet_data)
-        if migrated:
-            rec["data"] = migrated
-            rec["name"] = get_character_name(migrated)
-            rec["updatedAt"] = datetime.datetime.utcnow().isoformat()
-            needs_save = True
-        name = rec.get("name") or get_character_name(sheet_data) or (char_name or "")
-        result_sheets.append({
-            "id": sheet_id,
-            "name": name,
-            "characterId": char_id,
-            "characterName": char_name,
-            "canEdit": can_edit,
-            "isDefault": default_sheet_id == sheet_id,
-            "visibleToPlayers": visible_to_players,
-            "canToggleVisibility": is_dm or owner_id == user.id,
-        })
-    if needs_save:
-        _save_sheets(data)
+    # Run DB migration code lazily on first access if needed
+    _migrate_json_to_db()
+
+    with ACTIVE_DB.atomic():
+        default_record = CharacterSheetDefault.get_or_none(CharacterSheetDefault.user == user, CharacterSheetDefault.room == room)
+        default_sheet_id = str(default_record.sheet.id) if default_record else None
+
+        sheets_query = CharacterSheet.select().where(CharacterSheet.room == room)
+        if not is_dm:
+            sheets_query = sheets_query.where((CharacterSheet.owner == user) | (CharacterSheet.visible_to_players == True))
+
+        result_sheets = []
+        for sheet_record in sheets_query:
+            sheet_data = {}
+            try:
+                sheet_data = json.loads(sheet_record.data) if sheet_record.data else {}
+            except json.JSONDecodeError:
+                pass
+
+            char_id = sheet_record.character.id if sheet_record.character else None
+            char = char_by_id.get(char_id) if char_id else None
+            can_edit = is_dm or sheet_record.owner.id == user.id
+            char_name = char.name if char else None
+
+            migrated = migrate_old_to_beyond(sheet_data)
+            if migrated:
+                sheet_data = migrated
+                sheet_record.data = json.dumps(sheet_data)
+                sheet_record.name = get_character_name(migrated)
+                sheet_record.updated_at = datetime.datetime.utcnow().isoformat()
+                sheet_record.save()
+            
+            name = sheet_record.name or get_character_name(sheet_data) or (char_name or "")
+            result_sheets.append({
+                "id": str(sheet_record.id),
+                "name": name,
+                "characterId": char_id,
+                "characterName": char_name,
+                "canEdit": can_edit,
+                "isDefault": default_sheet_id == str(sheet_record.id),
+                "visibleToPlayers": sheet_record.visible_to_players,
+                "canToggleVisibility": is_dm or sheet_record.owner.id == user.id,
+            })
 
     result_sheets.sort(key=lambda s: (s.get("name") or "").lower())
 
@@ -169,9 +216,13 @@ async def list_all(request: web.Request) -> web.Response:
 async def get_sheet(request: web.Request) -> web.Response:
     """Get a sheet by id."""
     user = await get_authorized_user(request)
-    sheet_id = request.match_info.get("sheet_id", "").strip()
-    if not sheet_id:
+    sheet_id_str = request.match_info.get("sheet_id", "").strip()
+    if not sheet_id_str:
         return web.HTTPBadRequest(text="sheet_id required")
+    try:
+        sheet_id = int(sheet_id_str)
+    except ValueError:
+        return web.HTTPBadRequest(text="Invalid sheet_id")
 
     creator = request.query.get("room_creator", "").strip()
     room_name = request.query.get("room_name", "").strip()
@@ -186,30 +237,31 @@ async def get_sheet(request: web.Request) -> web.Response:
     if not pr:
         return web.HTTPForbidden(text="Not in this room")
 
-    data = _load_sheets()
-    rec = data.get("sheets", {}).get(sheet_id)
-    if not rec:
+    sheet_record = CharacterSheet.get_or_none(CharacterSheet.id == sheet_id)
+    if not sheet_record:
         return web.HTTPNotFound(text="Sheet not found")
-    if rec.get("roomId") != room.id:
+    if sheet_record.room.id != room.id:
         return web.HTTPNotFound(text="Sheet not in this room")
-    owner_id = rec.get("ownerId")
-    visible_to_players = rec.get("visibleToPlayers", False)
-    if pr.role != Role.DM and owner_id != user.id and not visible_to_players:
+    if pr.role != Role.DM and sheet_record.owner.id != user.id and not sheet_record.visible_to_players:
         return web.HTTPForbidden(text="Cannot access this sheet")
 
-    sheet_data = rec.get("data") or {}
+    try:
+        sheet_data = json.loads(sheet_record.data) if sheet_record.data else {}
+    except json.JSONDecodeError:
+        sheet_data = {}
+
     migrated = migrate_old_to_beyond(sheet_data)
     if migrated:
-        rec["data"] = migrated
-        rec["name"] = get_character_name(migrated)
-        rec["updatedAt"] = datetime.datetime.utcnow().isoformat()
-        _save_sheets(data)
         sheet_data = migrated
+        sheet_record.data = json.dumps(sheet_data)
+        sheet_record.name = get_character_name(migrated)
+        sheet_record.updated_at = datetime.datetime.utcnow().isoformat()
+        sheet_record.save()
 
     return web.json_response({
         "sheet": sheet_data,
-        "name": rec.get("name", ""),
-        "characterId": rec.get("characterId"),
+        "name": sheet_record.name or "",
+        "characterId": sheet_record.character.id if sheet_record.character else None,
         "characterName": None,
     })
 
@@ -348,10 +400,6 @@ async def create_sheet(request: web.Request) -> web.Response:
     if not pr:
         return web.HTTPForbidden(text="Not in this room")
 
-    data = _load_sheets()
-    sheets = data.setdefault("sheets", {})
-    sheet_id = str(uuid.uuid4())
-    now = datetime.datetime.utcnow().isoformat()
     sheet_data = empty_character()
     if isinstance(sheet_overlay, dict):
         sheet_data = _merge_sheet_data(sheet_data, sheet_overlay)
@@ -359,17 +407,18 @@ async def create_sheet(request: web.Request) -> web.Response:
     final_name = name or get_character_name(sheet_data) or _default_new_character_name(user)
     sheet_data["name"] = final_name
 
-    sheets[sheet_id] = {
-        "ownerId": user.id,
-        "roomId": room.id,
-        "characterId": None,
-        "name": final_name,
-        "data": sheet_data,
-        "createdAt": now,
-        "updatedAt": now,
-    }
-    _save_sheets(data)
-    return web.json_response({"ok": True, "sheetId": sheet_id})
+    new_sheet = CharacterSheet.create(
+        owner=user,
+        room=room,
+        character=None,
+        name=final_name,
+        data=json.dumps(sheet_data),
+        visible_to_players=False,
+        created_at=datetime.datetime.utcnow().isoformat(),
+        updated_at=datetime.datetime.utcnow().isoformat()
+    )
+
+    return web.json_response({"ok": True, "sheetId": str(new_sheet.id)})
 
 
 async def update_sheet(request: web.Request) -> web.Response:
@@ -396,24 +445,29 @@ async def update_sheet(request: web.Request) -> web.Response:
     if not pr:
         return web.HTTPForbidden(text="Not in this room")
 
-    data = _load_sheets()
-    rec = data.get("sheets", {}).get(sheet_id)
-    if not rec:
+    try:
+        sheet_id_int = int(sheet_id)
+    except ValueError:
+        return web.HTTPBadRequest(text="Invalid sheet_id")
+
+    sheet_record = CharacterSheet.get_or_none(CharacterSheet.id == sheet_id_int)
+    if not sheet_record:
         return web.HTTPNotFound(text="Sheet not found")
-    if rec.get("roomId") != room.id:
+    if sheet_record.room.id != room.id:
         return web.HTTPNotFound(text="Sheet not in this room")
-    if pr.role != Role.DM and rec.get("ownerId") != user.id:
+    if pr.role != Role.DM and sheet_record.owner.id != user.id:
         return web.HTTPForbidden(text="Cannot edit this sheet")
 
-    now = datetime.datetime.utcnow().isoformat()
     migrated = migrate_old_to_beyond(sheet_data)
     if migrated:
         sheet_data = migrated
     _clean_spell_arrays(sheet_data)
-    rec["data"] = sheet_data
-    rec["updatedAt"] = now
-    rec["name"] = get_character_name(sheet_data)
-    _save_sheets(data)
+    
+    sheet_record.data = json.dumps(sheet_data)
+    sheet_record.updated_at = datetime.datetime.utcnow().isoformat()
+    sheet_record.name = get_character_name(sheet_data) or sheet_record.name
+    sheet_record.save()
+    
     return web.json_response({"ok": True})
 
 
@@ -437,23 +491,24 @@ async def delete_sheet(request: web.Request) -> web.Response:
     if not pr:
         return web.HTTPForbidden(text="Not in this room")
 
-    data = _load_sheets()
-    rec = data.get("sheets", {}).get(sheet_id)
-    if not rec:
+    try:
+        sheet_id_int = int(sheet_id)
+    except ValueError:
+        return web.HTTPBadRequest(text="Invalid sheet_id")
+
+    sheet_record = CharacterSheet.get_or_none(CharacterSheet.id == sheet_id_int)
+    if not sheet_record:
         return web.json_response({"ok": True})  # already gone
-    if rec.get("roomId") != room.id:
+
+    if sheet_record.room.id != room.id:
         return web.HTTPNotFound(text="Sheet not in this room")
-    if pr.role != Role.DM and rec.get("ownerId") != user.id:
+    if pr.role != Role.DM and sheet_record.owner.id != user.id:
         return web.HTTPForbidden(text="Cannot delete this sheet")
 
-    del data["sheets"][sheet_id]
-    _save_sheets(data)
+    # The default sheet association is set to CASCADE, so deleting the sheet
+    # will also automatically delete the corresponding CharacterSheetDefault.
+    sheet_record.delete_instance()
 
-    defaults = _load_defaults()
-    default_key = f"{user.id}_{room.id}"
-    if defaults.get(default_key) == sheet_id:
-        del defaults[default_key]
-        _save_defaults(defaults)
     return web.json_response({"ok": True})
 
 
@@ -479,35 +534,43 @@ async def duplicate_sheet(request: web.Request) -> web.Response:
     if not pr:
         return web.HTTPForbidden(text="Not in this room")
 
-    data = _load_sheets()
-    src = data.get("sheets", {}).get(sheet_id)
+    try:
+        sheet_id_int = int(sheet_id)
+    except ValueError:
+        return web.HTTPBadRequest(text="Invalid sheet_id")
+
+    src = CharacterSheet.get_or_none(CharacterSheet.id == sheet_id_int)
     if not src:
         return web.HTTPNotFound(text="Sheet not found")
-    if src.get("roomId") != room.id:
+    if src.room.id != room.id:
         return web.HTTPNotFound(text="Sheet not in this room")
-    if pr.role != Role.DM and src.get("ownerId") != user.id:
+    if pr.role != Role.DM and src.owner.id != user.id:
         return web.HTTPForbidden(text="Cannot duplicate this sheet")
 
-    new_id = str(uuid.uuid4())
-    now = datetime.datetime.utcnow().isoformat()
-    sheet_data = copy.deepcopy(src.get("data") or empty_character())
+    try:
+        sheet_data = json.loads(src.data) if src.data else empty_character()
+    except json.JSONDecodeError:
+        sheet_data = empty_character()
+
     migrated = migrate_old_to_beyond(sheet_data)
     if migrated:
         sheet_data = migrated
-    name = new_name or (src.get("name") or "Copy")
+    
+    name = new_name or (src.name or "Copy")
     sheet_data["name"] = name
 
-    data["sheets"][new_id] = {
-        "ownerId": user.id,
-        "roomId": room.id,
-        "characterId": None,
-        "name": name,
-        "data": sheet_data,
-        "createdAt": now,
-        "updatedAt": now,
-    }
-    _save_sheets(data)
-    return web.json_response({"ok": True, "sheetId": new_id})
+    new_sheet = CharacterSheet.create(
+        owner=user,
+        room=room,
+        character=None,
+        name=name,
+        data=json.dumps(sheet_data),
+        visible_to_players=False,
+        created_at=datetime.datetime.utcnow().isoformat(),
+        updated_at=datetime.datetime.utcnow().isoformat()
+    )
+
+    return web.json_response({"ok": True, "sheetId": str(new_sheet.id)})
 
 
 async def associate_sheet(request: web.Request) -> web.Response:
@@ -543,33 +606,43 @@ async def associate_sheet(request: web.Request) -> web.Response:
     if not _can_edit_character(user, char, pr.role == Role.DM):
         return web.HTTPForbidden(text="Cannot associate to this character")
 
-    data = _load_sheets()
-    rec = data.get("sheets", {}).get(sheet_id)
-    if not rec:
+    try:
+        sheet_id_int = int(sheet_id)
+    except ValueError:
+        return web.HTTPBadRequest(text="Invalid sheet_id")
+
+    sheet_record = CharacterSheet.get_or_none(CharacterSheet.id == sheet_id_int)
+    if not sheet_record:
         return web.HTTPNotFound(text="Sheet not found")
-    if rec.get("roomId") != room.id:
+    if sheet_record.room.id != room.id:
         return web.HTTPNotFound(text="Sheet not in this room")
-    if pr.role != Role.DM and rec.get("ownerId") != user.id:
+    if pr.role != Role.DM and sheet_record.owner.id != user.id:
         return web.HTTPForbidden(text="Cannot use this sheet")
 
     # Check no other sheet is linked to this character
-    for sid, r in data.get("sheets", {}).items():
-        if r.get("characterId") == char.id and sid != sheet_id:
-            return web.HTTPBadRequest(text="Character already has a sheet linked")
+    existing_link = CharacterSheet.get_or_none(CharacterSheet.character == char)
+    if existing_link and existing_link.id != sheet_record.id:
+        return web.HTTPBadRequest(text="Character already has a sheet linked")
 
-    rec["characterId"] = char.id
-    rec["updatedAt"] = datetime.datetime.utcnow().isoformat()
+    sheet_record.character = char
+    sheet_record.updated_at = datetime.datetime.utcnow().isoformat()
     # Set sheet appearance from character's asset image
-    sheet_data = rec.get("data") or {}
+    try:
+        sheet_data = json.loads(sheet_record.data) if sheet_record.data else {}
+    except json.JSONDecodeError:
+        sheet_data = {}
+    
     ds = sheet_data.get("dndsheets") or {}
     if char.asset and char.asset.file_hash:
         app_url = f"/static/assets/{get_asset_hash_subpath(char.asset.file_hash).as_posix()}"
         ds["appearance"] = app_url
     else:
         ds.pop("appearance", None)
+    
     sheet_data["dndsheets"] = ds
-    rec["data"] = sheet_data
-    _save_sheets(data)
+    sheet_record.data = json.dumps(sheet_data)
+    sheet_record.save()
+    
     return web.json_response({"ok": True, "appearanceUrl": ds.get("appearance")})
 
 
@@ -593,24 +666,35 @@ async def dissociate_sheet(request: web.Request) -> web.Response:
     if not pr:
         return web.HTTPForbidden(text="Not in this room")
 
-    data = _load_sheets()
-    rec = data.get("sheets", {}).get(sheet_id)
-    if not rec:
+    try:
+        sheet_id_int = int(sheet_id)
+    except ValueError:
+        return web.HTTPBadRequest(text="Invalid sheet_id")
+
+    sheet_record = CharacterSheet.get_or_none(CharacterSheet.id == sheet_id_int)
+    if not sheet_record:
         return web.json_response({"ok": True})
-    if rec.get("roomId") != room.id:
+    if sheet_record.room.id != room.id:
         return web.HTTPNotFound(text="Sheet not in this room")
-    if pr.role != Role.DM and rec.get("ownerId") != user.id:
+    if pr.role != Role.DM and sheet_record.owner.id != user.id:
         return web.HTTPForbidden(text="Cannot modify this sheet")
 
-    rec["characterId"] = None
-    rec["updatedAt"] = datetime.datetime.utcnow().isoformat()
+    sheet_record.character = None
+    sheet_record.updated_at = datetime.datetime.utcnow().isoformat()
+    
     # Clear appearance when unlinking character
-    sheet_data = rec.get("data") or {}
+    try:
+        sheet_data = json.loads(sheet_record.data) if sheet_record.data else {}
+    except json.JSONDecodeError:
+        sheet_data = {}
+        
     ds = sheet_data.get("dndsheets") or {}
     ds.pop("appearance", None)
     sheet_data["dndsheets"] = ds
-    rec["data"] = sheet_data
-    _save_sheets(data)
+    
+    sheet_record.data = json.dumps(sheet_data)
+    sheet_record.save()
+    
     return web.json_response({"ok": True})
 
 
@@ -633,20 +717,29 @@ async def set_default(request: web.Request) -> web.Response:
         return web.HTTPForbidden(text="Not in this room")
 
     if sheet_id is not None:
-        data = _load_sheets()
-        rec = data.get("sheets", {}).get(sheet_id)
-        if not rec or rec.get("roomId") != room.id:
+        try:
+            sheet_id_int = int(sheet_id)
+        except ValueError:
+            return web.HTTPBadRequest(text="Invalid sheet_id")
+
+        sheet_record = CharacterSheet.get_or_none(CharacterSheet.id == sheet_id_int)
+        if not sheet_record or sheet_record.room.id != room.id:
             return web.HTTPNotFound(text="Sheet not found")
-        if pr.role != Role.DM and rec.get("ownerId") != user.id:
+        if pr.role != Role.DM and sheet_record.owner.id != user.id:
             return web.HTTPForbidden(text="Cannot set as default")
 
-    defaults = _load_defaults()
-    default_key = f"{user.id}_{room.id}"
+    default_record = CharacterSheetDefault.get_or_none(CharacterSheetDefault.user == user, CharacterSheetDefault.room == room)
+    
     if sheet_id is None:
-        defaults.pop(default_key, None)
+        if default_record:
+            default_record.delete_instance()
     else:
-        defaults[default_key] = sheet_id
-    _save_defaults(defaults)
+        if default_record:
+            default_record.sheet = sheet_record
+            default_record.save()
+        else:
+            CharacterSheetDefault.create(user=user, room=room, sheet=sheet_record)
+            
     return web.json_response({"ok": True})
 
 
@@ -675,19 +768,24 @@ async def toggle_sheet_visibility(request: web.Request) -> web.Response:
     if not pr:
         return web.HTTPForbidden(text="Not in this room")
 
-    data = _load_sheets()
-    rec = data.get("sheets", {}).get(sheet_id)
-    if not rec:
+    try:
+        sheet_id_int = int(sheet_id)
+    except ValueError:
+        return web.HTTPBadRequest(text="Invalid sheet_id")
+
+    sheet_record = CharacterSheet.get_or_none(CharacterSheet.id == sheet_id_int)
+    if not sheet_record:
         return web.HTTPNotFound(text="Sheet not found")
-    if rec.get("roomId") != room.id:
+    if sheet_record.room.id != room.id:
         return web.HTTPNotFound(text="Sheet not in this room")
-    if pr.role != Role.DM and rec.get("ownerId") != user.id:
+    if pr.role != Role.DM and sheet_record.owner.id != user.id:
         return web.HTTPForbidden(text="Cannot change visibility of this sheet")
 
-    rec["visibleToPlayers"] = not rec.get("visibleToPlayers", False)
-    rec["updatedAt"] = datetime.datetime.utcnow().isoformat()
-    _save_sheets(data)
-    return web.json_response({"ok": True, "visibleToPlayers": rec["visibleToPlayers"]})
+    sheet_record.visible_to_players = not sheet_record.visible_to_players
+    sheet_record.updated_at = datetime.datetime.utcnow().isoformat()
+    sheet_record.save()
+    
+    return web.json_response({"ok": True, "visibleToPlayers": sheet_record.visible_to_players})
 
 
 async def get_sheet_for_character(request: web.Request) -> web.Response:
@@ -723,12 +821,13 @@ async def get_sheet_for_character(request: web.Request) -> web.Response:
     if not _can_edit_character(user, char, pr.role == Role.DM):
         return web.HTTPForbidden(text="Cannot access this character")
 
-    data = _load_sheets()
-    for sheet_id, rec in data.get("sheets", {}).items():
-        if rec.get("roomId") == room.id and rec.get("characterId") == char.id:
-            if pr.role != Role.DM and rec.get("ownerId") != user.id:
-                return web.HTTPForbidden(text="Cannot access sheet for this character")
-            return web.json_response({"sheetId": sheet_id})
+    sheet_record = CharacterSheet.get_or_none(CharacterSheet.room == room, CharacterSheet.character == char)
+    
+    if sheet_record:
+        if pr.role != Role.DM and sheet_record.owner.id != user.id:
+            return web.HTTPForbidden(text="Cannot access sheet for this character")
+        return web.json_response({"sheetId": str(sheet_record.id)})
+        
     return web.HTTPNotFound(text="No sheet linked to this character")
 
 
@@ -744,9 +843,8 @@ async def get_default(request: web.Request) -> web.Response:
     if not room:
         return web.HTTPNotFound(text="Room not found")
 
-    defaults = _load_defaults()
-    default_key = f"{user.id}_{room.id}"
-    sheet_id = defaults.get(default_key)
+    default_record = CharacterSheetDefault.get_or_none(CharacterSheetDefault.user == user, CharacterSheetDefault.room == room)
+    sheet_id = str(default_record.sheet.id) if default_record else None
     return web.json_response({"defaultSheetId": sheet_id})
 
 

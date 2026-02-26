@@ -88,11 +88,6 @@ h1 {
   font-size: 0.8rem;
 }
 
-.subtitle .app-version {
-  color: #7ab0cc;
-  font-size: 0.8rem;
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-}
 
 .status {
   font-size: 0.85rem;
@@ -330,7 +325,18 @@ h1 {
   font-size: 0.75rem;
   color: #8899aa;
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.footer-left {
+  display: flex;
   gap: 0.4rem;
+  align-items: center;
+}
+
+.footer-right {
+  display: flex;
   align-items: center;
 }
 
@@ -342,4 +348,10 @@ h1 {
 
 .repo-link:hover {
   text-decoration: underline;
+}
+
+.app-version {
+  color: #7ab0cc;
+  font-size: 0.75rem;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
 }

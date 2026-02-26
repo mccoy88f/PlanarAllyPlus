@@ -120,14 +120,11 @@ async function refreshVersionInfo() {
       if (info.date) text += ` · ${info.date}`;
       text += ']';
       appVersionInfoEl.textContent = text;
-      document.getElementById('version-subtitle').style.display = 'flex';
     } else {
       appVersionInfoEl.textContent = '';
-      document.getElementById('version-subtitle').style.display = 'none';
     }
   } catch {
     appVersionInfoEl.textContent = '';
-    document.getElementById('version-subtitle').style.display = 'none';
   }
 }
 

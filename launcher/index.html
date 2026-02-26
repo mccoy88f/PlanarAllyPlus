@@ -22,9 +22,8 @@
 
   <div class="container">
     <h1 data-i18n="appTitle">PlanarAlly Plus Launcher</h1>
-    <p class="subtitle" id="version-subtitle" style="display: none;">
+    <p class="subtitle" id="version-subtitle">
       <span id="launcher-version" class="version"></span>
-      <span id="app-version-info" class="app-version"></span>
     </p>
 
     <div class="url-area hidden" id="url-area">
@@ -65,8 +64,13 @@
     </div>
 
     <footer class="repo-footer">
-      <span data-i18n="repoLabel">Repo:</span>
-      <a href="#" id="repo-link" class="repo-link">https://github.com/mccoy88f/PlanarAllyPlus</a>
+      <div class="footer-left">
+        <span data-i18n="repoLabel">Repo:</span>
+        <a href="#" id="repo-link" class="repo-link">https://github.com/mccoy88f/PlanarAllyPlus</a>
+      </div>
+      <div class="footer-right">
+        <span id="app-version-info" class="app-version"></span>
+      </div>
     </footer>
   </div>
   <script type="module" src="./main.js"></script>
