@@ -1139,6 +1139,32 @@ onMounted(() => {
                 </div>
             </div>
 
+            <div v-show="activeTab === 'tasks'" class="ext-toolbar-bar ext-search-bar openrouter-task-toolbar">
+                <font-awesome-icon icon="search" class="ext-search-icon" />
+                <input
+                    v-model="taskSearch"
+                    type="text"
+                    class="ext-search-input"
+                    :placeholder="t('game.ui.extensions.OpenRouterModal.task_search_placeholder')"
+                />
+                <button
+                    type="button"
+                    class="ext-search-add-btn"
+                    :title="t('game.ui.extensions.OpenRouterModal.task_add')"
+                    @click="addTaskPickerVisible = !addTaskPickerVisible"
+                >
+                    <font-awesome-icon icon="plus" />
+                </button>
+                <button
+                    type="button"
+                    class="ext-search-add-btn"
+                    :title="t('game.ui.extensions.OpenRouterModal.settings')"
+                    @click="activeTab = 'settings'; addTaskPickerVisible = false"
+                >
+                    <font-awesome-icon icon="cog" />
+                </button>
+            </div>
+
             <div v-show="activeTab === 'tasks'" class="ext-body ext-two-col">
                 <section class="ext-ui-section ext-two-col-main openrouter-result-section">
                     <h3>{{ t("game.ui.extensions.OpenRouterModal.result") }}</h3>
@@ -1186,31 +1212,6 @@ onMounted(() => {
                 </section>
 
                 <section class="ext-ui-section ext-two-col-side openrouter-params-section">
-                    <div class="ext-toolbar-bar ext-search-bar openrouter-task-toolbar">
-                        <font-awesome-icon icon="search" class="ext-search-icon" />
-                        <input
-                            v-model="taskSearch"
-                            type="text"
-                            class="ext-search-input"
-                            :placeholder="t('game.ui.extensions.OpenRouterModal.task_search_placeholder')"
-                        />
-                        <button
-                            type="button"
-                            class="ext-search-add-btn"
-                            :title="t('game.ui.extensions.OpenRouterModal.task_add')"
-                            @click="addTaskPickerVisible = !addTaskPickerVisible"
-                        >
-                            <font-awesome-icon icon="plus" />
-                        </button>
-                        <button
-                            type="button"
-                            class="ext-search-add-btn"
-                            :title="t('game.ui.extensions.OpenRouterModal.settings')"
-                            @click="activeTab = 'settings'; addTaskPickerVisible = false"
-                        >
-                            <font-awesome-icon icon="cog" />
-                        </button>
-                    </div>
                     <div class="openrouter-task-list">
                         <span class="openrouter-task-group-label">{{ t("game.ui.extensions.OpenRouterModal.task_group_text") }}</span>
                         <button
@@ -1706,8 +1707,11 @@ onMounted(() => {
 }
 
 .openrouter-task-toolbar {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0;
     flex-shrink: 0;
+    background: #fdfdfd;
+    border-bottom: 1px solid #eee;
+    padding: 0.75rem 1.25rem;
 }
 
 .openrouter-task-group-label {
