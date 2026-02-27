@@ -211,6 +211,9 @@ const paidModels = computed(() => models.value.filter((m) => !m.is_free && !m.id
 const openRouterImageModels = computed(() => models.value.filter((m) => (m.output_modalities ?? []).includes("image") && !m.id.startsWith("gemini")));
 const googleImageModels = computed(() => imageModelsList.value.filter((m) => (m.output_modalities ?? []).includes("image")));
 
+const textTasks = computed(() => tasks.value.filter((t) => !t.type));
+const multimodalTasks = computed(() => tasks.value.filter((t) => !!t.type));
+
 async function loadModels(): Promise<void> {
     loadingModels.value = true;
     try {
@@ -1040,8 +1043,18 @@ onMounted(() => {
                         </button>
                     </div>
                     <div class="openrouter-task-list">
+                        <span class="openrouter-task-group-label">{{ t("game.ui.extensions.OpenRouterModal.task_group_text") }}</span>
                         <button
-                            v-for="task in tasks"
+                            v-for="task in textTasks"
+                            :key="task.id"
+                            :class="{ active: currentTask?.id === task.id }"
+                            @click="selectTask(task)"
+                        >
+                            {{ getTaskLabel(task) }}
+                        </button>
+                        <span class="openrouter-task-group-label openrouter-task-group-label--multimodal">{{ t("game.ui.extensions.OpenRouterModal.task_group_multimodal") }}</span>
+                        <button
+                            v-for="task in multimodalTasks"
                             :key="task.id"
                             :class="{ active: currentTask?.id === task.id }"
                             @click="selectTask(task)"
@@ -1128,6 +1141,11 @@ onMounted(() => {
                         >
                             {{ t("game.ui.extensions.OpenRouterModal.task_edit") }}
                         </button>
+
+                        <!-- Multimodal hint -->
+                        <div v-if="(currentTask as TaskDef).type" class="openrouter-multimodal-hint">
+                            {{ t("game.ui.extensions.OpenRouterModal.task_multimodal_hint") }}
+                        </div>
 
                         <!-- File upload for import tasks -->
                         <template v-if="(currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'import_map'">
@@ -1431,6 +1449,33 @@ onMounted(() => {
     &:hover {
         background: #f5f5f5;
     }
+}
+
+.openrouter-task-group-label {
+    width: 100%;
+    font-size: 0.72em;
+    font-weight: 700;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.35rem 0 0.1rem;
+    border-bottom: 1px solid #e8e8e8;
+    margin-bottom: 0.1rem;
+
+    &--multimodal {
+        color: #5a9fd4;
+        border-bottom-color: #c8dff0;
+    }
+}
+
+.openrouter-multimodal-hint {
+    font-size: 0.82em;
+    color: #5a9fd4;
+    background: #eef5fc;
+    border: 1px solid #c8dff0;
+    border-radius: 0.25rem;
+    padding: 0.4rem 0.6rem;
+    margin-bottom: 0.5rem;
 }
 
 .openrouter-task-list {
