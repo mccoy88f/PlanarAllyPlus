@@ -1212,6 +1212,16 @@ onMounted(() => {
                 </section>
 
                 <section class="ext-ui-section ext-two-col-side openrouter-params-section">
+                    <div v-if="addTaskPickerVisible" class="openrouter-add-task-picker">
+                        <span class="openrouter-add-task-picker-label">{{ t("game.ui.extensions.OpenRouterModal.task_add_type_label") }}</span>
+                        <button class="openrouter-add-task-type-btn" @click="addTask()">
+                            {{ t("game.ui.extensions.OpenRouterModal.task_add_type_text") }}
+                        </button>
+                        <button class="openrouter-add-task-type-btn openrouter-add-task-type-btn--multimodal" @click="addTask('multimodal')">
+                            {{ t("game.ui.extensions.OpenRouterModal.task_add_type_multimodal") }}
+                        </button>
+                    </div>
+
                     <div class="openrouter-task-list">
                         <span class="openrouter-task-group-label">{{ t("game.ui.extensions.OpenRouterModal.task_group_text") }}</span>
                         <button
@@ -1246,15 +1256,6 @@ onMounted(() => {
                             "
                         >
                             {{ t("game.ui.extensions.OpenRouterModal.task_custom") }}
-                        </button>
-                    </div>
-                    <div v-if="addTaskPickerVisible" class="openrouter-add-task-picker">
-                        <span class="openrouter-add-task-picker-label">{{ t("game.ui.extensions.OpenRouterModal.task_add_type_label") }}</span>
-                        <button class="openrouter-add-task-type-btn" @click="addTask()">
-                            {{ t("game.ui.extensions.OpenRouterModal.task_add_type_text") }}
-                        </button>
-                        <button class="openrouter-add-task-type-btn openrouter-add-task-type-btn--multimodal" @click="addTask('multimodal')">
-                            {{ t("game.ui.extensions.OpenRouterModal.task_add_type_multimodal") }}
                         </button>
                     </div>
 
@@ -1746,7 +1747,7 @@ onMounted(() => {
     background: #f7f7f7;
     border: 1px solid #ddd;
     border-radius: 0.25rem;
-    margin-top: 0.25rem;
+    margin-bottom: 0.5rem;
 
     .openrouter-add-task-picker-label {
         font-size: 0.85em;
