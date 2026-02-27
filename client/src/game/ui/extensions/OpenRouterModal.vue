@@ -1454,6 +1454,14 @@ onMounted(() => {
     width: min(90vw, 900px);
     height: min(85vh, 600px);
     overflow: hidden;
+
+    .ext-modal-header {
+        width: 100%;
+        flex-shrink: 0;
+        background: #fdfdfd;
+        border-bottom: 1px solid #eee;
+        padding: 0.75rem 1.25rem;
+    }
 }
 </style>
 
