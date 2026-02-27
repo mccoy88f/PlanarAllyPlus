@@ -14,7 +14,7 @@ When writing migrations make sure that these things are respected:
     - e.g. a column added to Circle also needs to be added to CircularToken
 """
 
-SAVE_VERSION = 121
+SAVE_VERSION = 122
 
 import asyncio
 import json
@@ -751,6 +751,10 @@ def upgrade(
             db.execute_sql('CREATE INDEX "character_sheet_default_user_id" ON "character_sheet_default" ("user_id")')
             db.execute_sql('CREATE INDEX "character_sheet_default_room_id" ON "character_sheet_default" ("room_id")')
             db.execute_sql('CREATE INDEX "character_sheet_default_sheet_id" ON "character_sheet_default" ("sheet_id")')
+    elif version == 121:
+        # Add UserOptions.openrouter_vision_model (AI Generator: vision model for map import)
+        with db.atomic():
+            db.execute_sql("ALTER TABLE user_options ADD COLUMN openrouter_vision_model TEXT DEFAULT NULL")
     else:
         raise UnknownVersionException(f"No upgrade code for save format {version} was found.")
     inc_save_version(db)
