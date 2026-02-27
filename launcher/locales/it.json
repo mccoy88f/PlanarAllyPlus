@@ -40,5 +40,9 @@
   "dlExtracting": "Estrazione archivio...",
   "dlRestoring": "Ripristino backup in corso...",
   "warnSqliteNotFound": "Attenzione: planar.sqlite non trovato dopo il ripristino",
+  "branchModalTitle": "Scegli la versione da scaricare:",
+  "branchStable": "Stabile (main)",
+  "branchDev": "Sviluppo (dev)",
+  "branchCancel": "Annulla",
   "dlCompleted": "Completato"
 }

@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PlanarAlly Plus Launcher</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
+
 <body>
   <img class="bg-image" src="./drago.png" alt="" aria-hidden="true" />
 
@@ -16,6 +18,18 @@
       <div class="modal-buttons">
         <button id="confirm-yes" class="btn btn-reset">OK</button>
         <button id="confirm-no" class="btn btn-close-app">Annulla</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Branch Selection Modal -->
+  <div class="modal-overlay" id="branch-modal" aria-hidden="true">
+    <div class="modal-box">
+      <p data-i18n="branchModalTitle">Scegli la versione da scaricare:</p>
+      <div class="modal-buttons vertical">
+        <button id="branch-stable" class="btn btn-primary" data-i18n="branchStable">Stable (main)</button>
+        <button id="branch-dev" class="btn btn-secondary" data-i18n="branchDev">Sviluppo (dev)</button>
+        <button id="branch-cancel" class="btn btn-close-app" data-i18n="branchCancel">Annulla</button>
       </div>
     </div>
   </div>
@@ -75,4 +89,5 @@
   </div>
   <script type="module" src="./main.js"></script>
 </body>
+
 </html>

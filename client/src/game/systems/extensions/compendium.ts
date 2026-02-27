@@ -63,7 +63,7 @@ const MARKDOWN_LINK = /\[([^\]]*)\]\(([^)]*)\)/g;
 const QE_LINK = /\[([^\]]*)\]\(\s*qe:([^)]+)\s*\)/gi;
 /** Solo path "puliti" (slug validi): niente [, ], ( - evita di matchare link annidati/malformati */
 const QE_LINK_CLEAN = /\[([^\]]*)\]\(\s*qe:([a-zA-Z0-9_\-\/.]+)\s*\)/gi;
-const QE_PLACEHOLDER = "\x01QE\x02";
+
 
 const qeMarkdownRenderer = (() => {
     const md = new MarkdownIt({ html: true });
@@ -140,17 +140,21 @@ export function injectQeLinks(
     excludeNames?: string[],
 ): string {
     if (!names.length) return text;
-    /* Ordina per lunghezza decrescente: frasi più lunghe prima, così "competenza nelle armature"
-     * viene linkata prima di "competenza" e non viene spezzata. */
+    /* Ordina per lunghezza decrescente: frasi più lunghe prima, così "Tiro Salvezza"
+     * viene linkata prima di "Tiro" e non viene spezzata/corrupta. */
     const sorted = [...names].sort((a, b) => (b.name?.length ?? 0) - (a.name?.length ?? 0));
     const exclude = new Set((excludeNames ?? []).map((n) => n.toLowerCase().trim()).filter(Boolean));
-    const links: string[] = [];
+
+    /* ── Step 1: salva i link markdown già presenti nel testo ────────────── */
+    const existingLinks: string[] = [];
     const withoutLinks = text.replace(MARKDOWN_LINK, (_, linkText, url) => {
-        links.push(`[${linkText}](${url})`);
+        existingLinks.push(`[${linkText}](${url})`);
         return `\x00QEL\x00`;
     });
+
     let result = withoutLinks;
 
+    /* ── Step 2: inietta link tra virgolette e parentesi ─────────────────── */
     for (const entry of sorted) {
         if (exclude.has(entry.name.toLowerCase().trim())) continue;
         const escaped = entry.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -159,23 +163,46 @@ export function injectQeLinks(
         result = result.replace(new RegExp(`\\((${escaped})\\)`, "gi"), () => `(${link})`);
     }
 
-    const qeCreated: string[] = [];
+    /* ── Step 3: proteggi tutti i link qe: già esistenti (step 2 + originali)
+     *  come placeholder indicizzati, così il loop successivo non li tocca ── */
+    const protectedLinks: string[] = [];
+    const LINK_PLACEHOLDER = (i: number) => `\x02QELINK${i}\x03`;
     result = result.replace(QE_LINK, (m) => {
-        qeCreated.push(m);
-        return QE_PLACEHOLDER;
+        const idx = protectedLinks.length;
+        protectedLinks.push(m);
+        return LINK_PLACEHOLDER(idx);
     });
 
+    /* ── Step 4: inietta link nel testo libero (word-boundary), dal più lungo ──
+     *  Dopo ogni sostituzione, protegge subito i nuovi link così le iterazioni
+     *  successive con termini più corti non entrano dentro link già creati. ── */
     for (const entry of sorted) {
         if (exclude.has(entry.name.toLowerCase().trim())) continue;
         const escaped = entry.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const re = new RegExp(`\\b(${escaped})\\b`, "gi");
         const link = buildQeLink(entry);
-        result = result.replace(re, (_match) => link);
+
+        let replaced = false;
+        result = result.replace(re, (_match) => {
+            replaced = true;
+            return link;
+        });
+
+        /* Se abbiamo creato nuovi link, proteggili subito come placeholder */
+        if (replaced) {
+            result = result.replace(QE_LINK, (m) => {
+                const i = protectedLinks.length;
+                protectedLinks.push(m);
+                return LINK_PLACEHOLDER(i);
+            });
+        }
     }
 
-    let qi = 0;
-    const placeRe = new RegExp(`\x01QE\x02`, "g");
-    result = result.replace(placeRe, () => qeCreated[qi++] ?? "");
+    /* ── Step 5: ripristina tutti i link protetti ────────────────────────── */
+    result = result.replace(/\x02QELINK(\d+)\x03/g, (_, i) => protectedLinks[Number(i)] ?? "");
+
+    /* ── Step 6: ripristina i link originali del testo ───────────────────── */
     let idx = 0;
-    return result.replace(/\x00QEL\x00/g, () => links[idx++] ?? "");
+    return result.replace(/\x00QEL\x00/g, () => existingLinks[idx++] ?? "");
 }
+

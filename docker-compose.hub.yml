@@ -1,0 +1,32 @@
+# PlanarAlly Plus — Docker Compose (immagine da Docker Hub)
+# Uso: docker compose -f docker-compose.hub.yml up -d
+# Immagine: https://hub.docker.com/r/mccoy88f/planarallyplus
+
+services:
+  planarally:
+    container_name: planarally
+    image: mccoy88f/planarallyplus:latest
+    restart: unless-stopped
+    user: "9000"
+    environment:
+      - PA_BASEPATH=/
+      - PA_ADMIN_USER=admin
+    ports:
+      - "8000:8000"
+    volumes:
+      - planarally_assets:/planarally/static/assets
+      - planarally_data:/planarally/data
+      - planarally_temp:/planarally/static/temp
+    networks:
+      - planarally-net
+    entrypoint: /usr/bin/dumb-init --
+    command: uv run planarally.py
+
+volumes:
+  planarally_assets:
+  planarally_data:
+  planarally_temp:
+
+networks:
+  planarally-net:
+    driver: bridge

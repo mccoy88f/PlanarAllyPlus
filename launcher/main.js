@@ -48,6 +48,29 @@ function showConfirm(message) {
   });
 }
 
+const branchModal = document.getElementById('branch-modal');
+const branchStableBtn = document.getElementById('branch-stable');
+const branchDevBtn = document.getElementById('branch-dev');
+const branchCancelBtn = document.getElementById('branch-cancel');
+
+function showBranchSelector() {
+  return new Promise((resolve) => {
+    branchModal.setAttribute('aria-hidden', 'false');
+    function onStable() { cleanup(); resolve('main'); }
+    function onDev() { cleanup(); resolve('dev'); }
+    function onCancel() { cleanup(); resolve(null); }
+    function cleanup() {
+      branchModal.setAttribute('aria-hidden', 'true');
+      branchStableBtn.removeEventListener('click', onStable);
+      branchDevBtn.removeEventListener('click', onDev);
+      branchCancelBtn.removeEventListener('click', onCancel);
+    }
+    branchStableBtn.addEventListener('click', onStable);
+    branchDevBtn.addEventListener('click', onDev);
+    branchCancelBtn.addEventListener('click', onCancel);
+  });
+}
+
 // ── Logging ──────────────────────────────────────────────────────────────────
 function appendLog(text, isError = false) {
   const line = document.createElement('span');
@@ -116,7 +139,13 @@ async function refreshVersionInfo() {
   try {
     const info = await invoke('get_app_version_info');
     if (info && info.commit) {
-      let text = `[${info.commit}`;
+      let branchLabel = '';
+      if (info.branch) {
+        if (info.branch === 'main') branchLabel = t('branchStable') + ' · ';
+        else if (info.branch === 'dev') branchLabel = t('branchDev') + ' · ';
+        else branchLabel = info.branch + ' · ';
+      }
+      let text = `[${branchLabel}${info.commit}`;
       if (info.date) text += ` · ${info.date}`;
       text += ']';
       appVersionInfoEl.textContent = text;
@@ -226,6 +255,9 @@ listen('download-progress', (event) => {
 
 // Download / Update button
 btnUpdate.addEventListener('click', async () => {
+  const branch = await showBranchSelector();
+  if (!branch) return;
+
   logEl.textContent = '';
   if (!logContainer.classList.contains('collapsed')) {
     logContainer.classList.add('collapsed');
@@ -236,7 +268,7 @@ btnUpdate.addEventListener('click', async () => {
   btnUpdate.disabled = true;
   btnReset.disabled = true;
   try {
-    const path = await invoke('ensure_app_downloaded', { force: true });
+    const path = await invoke('ensure_app_downloaded', { force: true, branch });
     appendLog('Completed: ' + path);
     await refreshStatus();
     hideProgress(true, t('progressUpdateComplete'));

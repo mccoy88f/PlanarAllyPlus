@@ -500,7 +500,14 @@
           "uninstall_success": "Compendio disinstallato",
           "no_compendiums": "Nessun compendio installato. Installa un file JSON per iniziare.",
           "install_submit": "Installa",
-          "install_cancel": "Annulla"
+          "install_cancel": "Annulla",
+          "load_all": "Carica tutti",
+          "translate": "Traduci",
+          "translate_loading": "Traduzione in corso...",
+          "translate_error": "Errore durante la traduzione",
+          "translated_to": "Contenuto tradotto in {lang}",
+          "clear_translation": "Cancella Traduzione",
+          "rerun_translation": "Riesegui Traduzione"
         },
         "DocumentsModal": {
           "title": "Documenti",

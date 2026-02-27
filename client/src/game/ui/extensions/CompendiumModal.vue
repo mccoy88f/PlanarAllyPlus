@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useToast } from "vue-toastification";
 
@@ -24,7 +24,7 @@ const props = defineProps<{
     onClose: () => void;
 }>();
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const toast = useToast();
 const modals = useModal();
 
@@ -80,6 +80,21 @@ const selectedItem = ref<{
     item: ItemFull;
 } | null>(null);
 const itemLoading = ref(false);
+const showIndex = ref(false);
+const currentIndex = ref<{ slug: string; name: string; items: { slug: string; name: string }[] }[]>([]);
+const indexLoading = ref(false);
+const indexCompendium = ref<CompendiumMeta | null>(null);
+const expandedIndexCollections = ref<Set<string>>(new Set());
+const aiConfigured = ref(false);
+const aiModel = ref("");
+const translateLoading = ref(false);
+const activeTranslationLang = ref<string | null>(null);
+const originalMarkdown = ref<string | null>(null);
+const originalIndex = ref<any[] | null>(null);
+const showTranslationTools = ref(false);
+const translationTagContainer = ref<HTMLElement | null>(null);
+const isTranslated = computed(() => !!activeTranslationLang.value);
+const currentMarkdown = ref<string>("");
 
 const installDialogOpen = ref(false);
 const installName = ref("");
@@ -122,27 +137,43 @@ const breadcrumb = computed(() => {
     const fallback = (label: string, slug: string) =>
         (label && label.trim()) ? label : (slug || "—");
     return [
-        { label: fallback(compendium.name, compendium.slug), slug: compendium.slug },
-        { label: fallback(collection.name, collection.slug), slug: collection.slug },
-        { label: fallback(item.name, item.slug), slug: item.slug },
+        { label: fallback(compendium.name, compendium.slug), slug: compendium.slug, type: "compendium" as const },
+        { label: fallback(collection.name, collection.slug), slug: collection.slug, type: "collection" as const },
+        { label: fallback(item.name, item.slug), slug: item.slug, type: "item" as const },
     ];
 });
+
+async function navigateBreadcrumb(index: number): Promise<void> {
+    if (!selectedItem.value) return;
+    const { compendium, collection } = selectedItem.value;
+    if (index === 0) {
+        // Navigate to compendium index
+        await showCompendiumIndex(compendium);
+    } else if (index === 1) {
+        // Expand the compendium and the collection in the sidebar
+        await ensureCompendiumExpanded(compendium.id);
+        await ensureCollectionExpanded(compendium.id, collection.slug);
+        // Select the first item if the current item doesn't belong to that collection
+        // (in practice the user is already on an item, so just expand sidebar)
+    }
+}
 
 const qeNames = ref<{ name: string; compendiumSlug?: string; collectionSlug: string; itemSlug: string }[]>([]);
 
 const selectedMarkdownHtml = computed(() => {
-    const raw = selectedItem.value?.item.markdown ?? "";
+    const raw = currentMarkdown.value || selectedItem.value?.item.markdown || "";
     const withLinks = !qeNames.value.length
         ? raw
         : injectQeLinks(raw, qeNames.value, selectedItem.value ? [selectedItem.value.item.name] : []);
     return renderQeMarkdown(withLinks);
 });
 
-const isSearchDebouncing = computed(
-    () =>
+const isSearchDebouncing = computed(() => {
+    return (
         searchQuery.value.trim().length > 0 &&
-        debouncedSearchQuery.value !== searchQuery.value.trim(),
-);
+        debouncedSearchQuery.value !== searchQuery.value.trim()
+    );
+});
 
 function formatName(name: string): string {
     return name.charAt(0).toUpperCase() + name.slice(1);
@@ -281,6 +312,7 @@ async function selectItem(
     collection: CollectionMeta,
     item: ItemMeta,
 ): Promise<void> {
+    showIndex.value = false;
     itemLoading.value = true;
     try {
         const r = await http.get(
@@ -288,7 +320,11 @@ async function selectItem(
         );
         if (r.ok) {
             const full = (await r.json()) as ItemFull;
+            originalMarkdown.value = null;
+            activeTranslationLang.value = null;
+            currentMarkdown.value = "";
             selectedItem.value = { compendium, collection, item: full };
+            await checkTranslation("item");
         }
     } catch {
         /* ignore */
@@ -298,6 +334,7 @@ async function selectItem(
 }
 
 async function selectFromSearch(result: SearchResult): Promise<void> {
+    showIndex.value = false;
     const compId = result.compendiumId ?? defaultId.value;
     if (!compId) return;
     const comp = compendiums.value.find((c) => c.id === compId);
@@ -331,6 +368,47 @@ async function selectFromSearch(result: SearchResult): Promise<void> {
     await selectItem(comp, coll, itemMeta);
     searchQuery.value = "";
     debouncedSearchQuery.value = "";
+}
+
+async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
+    selectedItem.value = null;
+    showIndex.value = true;
+    indexLoading.value = true;
+    indexCompendium.value = comp;
+    currentIndex.value = [];
+    expandedIndexCollections.value.clear();
+    try {
+        const r = await http.get(
+            `/api/extensions/compendium/index?compendium=${encodeURIComponent(comp.id)}`,
+        );
+        if (r.ok) {
+            const data = (await r.json()) as { index: any[] };
+            originalIndex.value = null;
+            activeTranslationLang.value = null;
+            currentMarkdown.value = "";
+            currentIndex.value = data.index;
+            await checkTranslation("index");
+        }
+    } catch {
+        /* ignore */
+    } finally {
+        indexLoading.value = false;
+    }
+}
+
+async function selectItemBySlug(collSlug: string, itemSlug: string): Promise<void> {
+    if (!indexCompendium.value) return;
+    const coll: CollectionMeta = { slug: collSlug, name: "", count: 0 };
+    const item: ItemMeta = { slug: itemSlug, name: "" };
+    await selectItem(indexCompendium.value, coll, item);
+}
+
+function toggleIndexCollection(collSlug: string): void {
+    if (expandedIndexCollections.value.has(collSlug)) {
+        expandedIndexCollections.value.delete(collSlug);
+    } else {
+        expandedIndexCollections.value.add(collSlug);
+    }
 }
 
 async function setDefault(compId: string): Promise<void> {
@@ -397,6 +475,221 @@ function onInstallFileChange(e: Event): void {
     }
     input.value = "";
 }
+
+async function checkAiConfig(): Promise<void> {
+    try {
+        const r = await http.get("/api/extensions/openrouter/settings");
+        if (r.ok) {
+            const data = await r.json();
+            aiConfigured.value = data.hasApiKey || data.hasGoogleKey;
+            aiModel.value = data.model || "google/gemini-2.0-flash-001";
+        }
+    } catch {
+        aiConfigured.value = false;
+    }
+}
+
+async function checkTranslation(type: "item" | "index"): Promise<void> {
+    const compId = type === "item" ? selectedItem.value?.compendium.id : indexCompendium.value?.id;
+    if (!compId) return;
+    
+    const lang = locale.value;
+    let url = `/api/extensions/compendium/translations?compendium=${encodeURIComponent(compId)}&lang=${encodeURIComponent(lang)}&type=${type}`;
+    if (type === "item" && selectedItem.value) {
+        url += `&collection=${encodeURIComponent(selectedItem.value.collection.slug)}&slug=${encodeURIComponent(selectedItem.value.item.slug)}`;
+    }
+    
+    try {
+        const r = await http.get(url);
+        if (r.ok) {
+            const data = await r.json();
+            if (data.content) {
+                if (type === "item" && selectedItem.value) {
+                    if (originalMarkdown.value === null) originalMarkdown.value = selectedItem.value.item.markdown;
+                    currentMarkdown.value = data.content;
+                    activeTranslationLang.value = lang;
+                } else if (type === "index" && currentIndex.value.length > 0) {
+                    if (originalIndex.value === null) originalIndex.value = JSON.parse(JSON.stringify(currentIndex.value));
+                    currentIndex.value = JSON.parse(data.content);
+                    activeTranslationLang.value = lang;
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error checking translation", e);
+    }
+}
+
+async function saveTranslationToDb(content: string, type: "item" | "index"): Promise<void> {
+    const compId = type === "item" ? selectedItem.value?.compendium.id : indexCompendium.value?.id;
+    if (!compId) return;
+
+    const payload: any = {
+        compendium: compId,
+        type,
+        lang: locale.value,
+        content: content
+    };
+
+    if (type === "item" && selectedItem.value) {
+        payload.collection = selectedItem.value.collection.slug;
+        payload.slug = selectedItem.value.item.slug;
+    }
+
+    try {
+        await http.postJson("/api/extensions/compendium/translations", payload);
+    } catch (e) {
+        console.error("Error saving translation", e);
+    }
+}
+
+function revertTranslationUI(): void {
+    if (!activeTranslationLang.value) return;
+
+    const isIndex = showIndex.value;
+    if (isIndex && originalIndex.value) {
+        currentIndex.value = JSON.parse(JSON.stringify(originalIndex.value));
+        originalIndex.value = null;
+    } else if (selectedItem.value && originalMarkdown.value !== null) {
+        currentMarkdown.value = originalMarkdown.value;
+        originalMarkdown.value = null;
+    }
+    activeTranslationLang.value = null;
+    showTranslationTools.value = false;
+}
+
+async function clearTranslation(): Promise<void> {
+    if (!activeTranslationLang.value) return;
+
+    // Delete from DB — only called from the tag menu "Cancella Traduzione"
+    const isIndex = showIndex.value;
+    const compId = isIndex ? indexCompendium.value?.id : selectedItem.value?.compendium.id;
+    if (compId) {
+        const lang = activeTranslationLang.value;
+        const payload: any = { compendium: compId, type: isIndex ? "index" : "item", lang };
+        if (!isIndex && selectedItem.value) {
+            payload.collection = selectedItem.value.collection.slug;
+            payload.slug = selectedItem.value.item.slug;
+        }
+        try {
+            await http.deleteJson("/api/extensions/compendium/translations", payload);
+        } catch (e) {
+            console.error("Error deleting translation from db", e);
+        }
+    }
+
+    revertTranslationUI();
+}
+
+async function rerunTranslation(): Promise<void> {
+    await clearTranslation();
+    await translateCurrentView();
+}
+
+async function translateCurrentView(): Promise<void> {
+    if (translateLoading.value) return;
+
+    if (activeTranslationLang.value === locale.value) {
+        revertTranslationUI();
+        return;
+    }
+
+    // Check if we have a cached translation first
+    await checkTranslation(selectedItem.value ? "item" : "index");
+    if (activeTranslationLang.value === locale.value) return;
+
+    const targetLang = locale.value.startsWith("it") ? "Italian" : "English";
+    console.log(`[Compendium AI] Starting translation to ${targetLang} using model ${aiModel.value}`);
+    
+    if (activeTranslationLang.value === locale.value) {
+        toast.info("Content already translated to " + targetLang);
+        return;
+    }
+
+    const systemPrompt = `You are a translator specialized in Dungeons & Dragons 5th Edition.
+Translate the provided content into ${targetLang}. 
+Maintain the original Markdown structure and all special tags like {@b ...}, {@i ...}, {@dice ...}, etc. 
+Do NOT translate these tags or their parameters. 
+Ensure terminology consistency with D&D 5e standards (e.g., "Saving Throw" -> "Tiro Salvezza" in Italian).`;
+
+    translateLoading.value = true;
+    try {
+        if (selectedItem.value) {
+            const raw = selectedItem.value.item.markdown;
+            const r = await http.postJson("/api/extensions/openrouter/chat", {
+                model: aiModel.value,
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: `Translate this content:\n\n${raw}` }
+                ]
+            });
+            if (r.ok) {
+                const data = await r.json();
+                const translated = data.choices?.[0]?.message?.content;
+                console.log("[Compendium AI] Translation received", { length: translated?.length });
+                if (translated) {
+                    if (!originalMarkdown.value) originalMarkdown.value = selectedItem.value.item.markdown;
+                    currentMarkdown.value = translated;
+                    activeTranslationLang.value = locale.value;
+                    await saveTranslationToDb(translated, "item");
+                } else {
+                    console.error("[Compendium AI] Empty translation response received");
+                    toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
+                }
+            } else {
+                toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
+            }
+        } else if (showIndex.value && currentIndex.value.length > 0) {
+            const indexJson = JSON.stringify(currentIndex.value, null, 2);
+            const r = await http.postJson("/api/extensions/openrouter/chat", {
+                model: aiModel.value,
+                messages: [
+                    { role: "system", content: systemPrompt + "\nOnly translate the 'name' values in the provided JSON. Keep everything else identical." },
+                    { role: "user", content: `Translate this index JSON:\n\n${indexJson}` }
+                ]
+            });
+            if (r.ok) {
+                const data = await r.json();
+                const translated = data.choices?.[0]?.message?.content;
+                if (translated) {
+                    try {
+                        const start = translated.indexOf("[");
+                        const end = translated.lastIndexOf("]") + 1;
+                        if (start !== -1 && end !== 0) {
+                            currentIndex.value = JSON.parse(translated.substring(start, end));
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse translated index", e);
+                        toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
+                    }
+                }
+            } else {
+                toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
+            }
+        }
+    } catch (e) {
+        console.error(e);
+        toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
+    } finally {
+        translateLoading.value = false;
+    }
+}
+
+function handleOutsideClick(event: MouseEvent): void {
+    if (showTranslationTools.value && translationTagContainer.value && !translationTagContainer.value.contains(event.target as Node)) {
+        showTranslationTools.value = false;
+    }
+}
+
+onMounted(async () => {
+    await loadCompendiums();
+    await checkAiConfig();
+    window.addEventListener("mousedown", handleOutsideClick);
+});
+
+onUnmounted(() => {
+    window.removeEventListener("mousedown", handleOutsideClick);
+});
 
 async function doInstall(): Promise<void> {
     if (installFiles.value.length > 0) {
@@ -651,7 +944,7 @@ onMounted(() => {
             </div>
         </template>
         <div class="ext-modal-body-wrapper">
-            <div v-if="installLoading" class="ext-progress-top-container">
+            <div v-if="installLoading || translateLoading" class="ext-progress-top-container">
                 <LoadingBar :progress="100" indeterminate height="6px" />
             </div>
             <div class="qe-body">
@@ -684,6 +977,17 @@ onMounted(() => {
                     @click="openInstallDialog"
                 >
                     <font-awesome-icon icon="plus" />
+                </button>
+                <button
+                    v-if="aiConfigured && (selectedItem || (showIndex && currentIndex.length > 0))"
+                    type="button"
+                    class="ext-search-add-btn translate-btn"
+                    :class="{ 'is-active': isTranslated }"
+                    :title="t('game.ui.extensions.CompendiumModal.translate')"
+                    :disabled="translateLoading"
+                    @click="translateCurrentView"
+                >
+                    <font-awesome-icon icon="language" />
                 </button>
             </div>
 
@@ -770,7 +1074,7 @@ onMounted(() => {
                                 <font-awesome-icon
                                     :icon="isExpanded(comp.id) ? 'chevron-down' : 'chevron-right'"
                                 />
-                                {{ comp.name }}
+                                <span class="qe-tree-comp-name" @click.stop="showCompendiumIndex(comp)">{{ comp.name }}</span>
                             </button>
                             <button
                                 v-if="!comp.isDefault"
@@ -846,8 +1150,29 @@ onMounted(() => {
                         <div class="qe-breadcrumb-path">
                             <template v-for="(crumb, i) in breadcrumb" :key="'crumb-' + i">
                                 <span v-if="i > 0" class="qe-breadcrumb-sep"> › </span>
-                                <span class="qe-breadcrumb-item">{{ crumb.label }}</span>
+                                <button
+                                    v-if="crumb.type !== 'item'"
+                                    class="qe-breadcrumb-link"
+                                    @click="navigateBreadcrumb(i)"
+                                >{{ crumb.label }}</button>
+                                <span v-else class="qe-breadcrumb-item">{{ crumb.label }}</span>
                             </template>
+                        </div>
+                        <div v-if="isTranslated" class="translation-tag-container" ref="translationTagContainer">
+                            <div class="translation-tag" @click.stop="showTranslationTools = !showTranslationTools">
+                                <font-awesome-icon icon="check-circle" class="me-1" />
+                                {{ t("game.ui.extensions.CompendiumModal.translated_to", { lang: activeTranslationLang === 'it' ? 'Italiano' : 'English' }) }}
+                                <font-awesome-icon icon="chevron-down" class="ms-1" />
+                            </div>
+                            
+                            <div v-if="showTranslationTools" class="translation-tools-popover">
+                                <button class="popover-btn" @click.stop="clearTranslation">
+                                    <font-awesome-icon icon="undo" /> {{ t("game.ui.extensions.CompendiumModal.clear_translation") }}
+                                </button>
+                                <button class="popover-btn" @click.stop="rerunTranslation">
+                                    <font-awesome-icon icon="sync" /> {{ t("game.ui.extensions.CompendiumModal.rerun_translation") }}
+                                </button>
+                            </div>
                         </div>
                         <button
                             class="qe-share-btn"
@@ -858,8 +1183,56 @@ onMounted(() => {
                             {{ t("game.ui.extensions.CompendiumModal.share") }}
                         </button>
                     </div>
+                    <div v-if="showIndex" class="qe-index-view">
+                        <div v-if="indexLoading" class="qe-loading-inline">
+                            {{ t("game.ui.extensions.CompendiumModal.loading") }}
+                        </div>
+                        <div v-else class="qe-index-container">
+                            <div class="qe-index-header">
+                                <h1 class="qe-index-title">{{ indexCompendium?.name }}</h1>
+                                <div v-if="isTranslated" class="translation-tag-container" ref="translationTagContainer">
+                                    <div class="translation-tag" @click.stop="showTranslationTools = !showTranslationTools">
+                                        <font-awesome-icon icon="check-circle" class="me-1" />
+                                        {{ t("game.ui.extensions.CompendiumModal.translated_to", { lang: activeTranslationLang === 'it' ? 'Italiano' : 'English' }) }}
+                                        <font-awesome-icon icon="chevron-down" class="ms-1" />
+                                    </div>
+                                    
+                                    <div v-if="showTranslationTools" class="translation-tools-popover">
+                                        <button class="popover-btn" @click.stop="clearTranslation">
+                                            <font-awesome-icon icon="undo" /> {{ t("game.ui.extensions.CompendiumModal.clear_translation") }}
+                                        </button>
+                                        <button class="popover-btn" @click.stop="rerunTranslation">
+                                            <font-awesome-icon icon="sync" /> {{ t("game.ui.extensions.CompendiumModal.rerun_translation") }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="qe-index-grid">
+                                <div v-for="coll in currentIndex" :key="coll.slug" class="qe-index-coll">
+                                    <h2 class="qe-index-coll-title">{{ formatName(coll.name) }}</h2>
+                                    <div class="qe-index-item-list">
+                                        <button 
+                                            v-for="item in (expandedIndexCollections.has(coll.slug) ? coll.items : coll.items.slice(0, 10))" 
+                                            :key="item.slug" 
+                                            class="qe-index-item-link"
+                                            @click="selectItemBySlug(coll.slug, item.slug)"
+                                        >
+                                            {{ item.name }}
+                                        </button>
+                                        <button 
+                                            v-if="coll.items.length > 10 && !expandedIndexCollections.has(coll.slug)"
+                                            class="qe-index-load-more"
+                                            @click="toggleIndexCollection(coll.slug)"
+                                        >
+                                            ... {{ t("game.ui.extensions.CompendiumModal.load_all") }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div
-                        v-if="selectedItem"
+                        v-else-if="selectedItem"
                         class="qe-markdown"
                         @click="handleMarkdownClick"
                     >
@@ -1151,6 +1524,108 @@ onMounted(() => {
     flex-direction: column;
     min-width: 0;
     overflow: hidden;
+    background: #fff;
+}
+
+.qe-index-view {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 2rem;
+    background: linear-gradient(135deg, #ffffff 0%, #f9fbff 100%);
+}
+
+.qe-index-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.qe-index-title {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: #1a2a3a;
+    margin-bottom: 2rem;
+    border-bottom: 3px solid #3498db;
+    padding-bottom: 0.5rem;
+    background: linear-gradient(to right, #1a2a3a, #3498db);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.qe-index-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 2rem;
+}
+
+.qe-index-coll {
+    background: #fff;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border: 1px solid #edf2f7;
+    transition: transform 0.2s, box-shadow 0.2s;
+
+    &:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    }
+}
+
+.qe-index-coll-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #2d3748;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.qe-index-item-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.qe-index-item-link {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.9rem;
+    color: #4a5568;
+    cursor: pointer;
+    border-radius: 0.35rem;
+    transition: background 0.2s, color 0.2s;
+
+    &:hover {
+        background: #ebf8ff;
+        color: #2b6cb0;
+        text-decoration: underline;
+    }
+}
+
+.qe-index-load-more {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+    color: #3498db;
+    cursor: pointer;
+    font-weight: 600;
+    font-style: italic;
+
+    &:hover {
+        color: #2980b9;
+        text-decoration: underline;
+    }
 }
 
 .qe-breadcrumb {
@@ -1178,6 +1653,24 @@ onMounted(() => {
 
     .qe-breadcrumb-item {
         text-transform: capitalize;
+    }
+
+    .qe-breadcrumb-link {
+        background: none;
+        border: none;
+        padding: 0;
+        margin: 0;
+        cursor: pointer;
+        color: #5b8ef0;
+        font-size: inherit;
+        font-family: inherit;
+        text-transform: capitalize;
+        text-decoration: none;
+
+        &:hover {
+            text-decoration: underline;
+            color: #3a6fd8;
+        }
     }
 
     .qe-share-btn {
@@ -1382,5 +1875,99 @@ onMounted(() => {
             cursor: not-allowed;
         }
     }
+}
+
+.translate-btn {
+    border-color: #2196f3 !important;
+    color: #2196f3 !important;
+    background: #fff !important;
+
+    &.is-active {
+        background: #2196f3 !important;
+        color: #fff !important;
+    }
+}
+
+.translate-btn:hover:not(:disabled) {
+    background: #e3f2fd !important;
+    &.is-active {
+        background: #1976d2 !important;
+    }
+}
+
+.translate-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.translation-tag-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.translation-tag {
+    background: #e3f2fd;
+    color: #1976d2;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    border: 1px solid #bbdefb;
+    margin: 0 0.5rem;
+
+    &:hover {
+        background: #bbdefb;
+    }
+}
+
+.translation-tools-popover {
+    position: absolute;
+    top: 100%;
+    left: 0.5rem;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    z-index: 100;
+    margin-top: 0.25rem;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    min-width: 150px;
+}
+
+.popover-btn {
+    border: none;
+    background: transparent;
+    padding: 0.5rem;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 2px;
+
+    &:hover {
+        background: #f5f5f5;
+    }
+
+    svg {
+        width: 14px;
+    }
+}
+
+.ms-1 { margin-left: 0.25rem !important; }
+.me-1 { margin-right: 0.25rem !important; }
+
+.qe-index-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
 }
 </style>

@@ -156,7 +156,7 @@ fn get_project_root() -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, String> {
+async fn ensure_app_downloaded(app: AppHandle, force: bool, branch: Option<String>) -> Result<String, String> {
     if cfg!(debug_assertions) {
         if let Some(root) = project_root_for_dev() {
             if root.join("scripts").exists() {
@@ -173,7 +173,11 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
         return Ok(get_project_root().unwrap().to_string_lossy().to_string());
     }
 
-    let zip_url = get_zip_url();
+    let zip_url = if let Some(b) = branch {
+        format!("https://github.com/mccoy88f/PlanarAllyPlus/archive/refs/heads/{}.zip", b)
+    } else {
+        get_zip_url()
+    };
 
     // Backup user data BEFORE download (if not first install)
     let backup_dir = if app_dir.exists() {
@@ -258,6 +262,7 @@ async fn ensure_app_downloaded(app: AppHandle, force: bool) -> Result<String, St
                             let short_date = date.split('T').next().unwrap_or(date);
                             let content = format!("{} {}", short_sha, short_date);
                             let _ = std::fs::write(root.join(".commit"), content.trim());
+                            let _ = std::fs::write(root.join(".branch"), branch.trim());
                         }
                     }
                 }
@@ -318,6 +323,12 @@ fn get_app_version_info() -> serde_json::Value {
         "server/version.txt",
     ];
 
+    let mut branch = if let Ok(content) = std::fs::read_to_string(root.join(".branch")) {
+        Some(content.trim().to_string())
+    } else {
+        None
+    };
+
     for candidate in &candidates {
         let p = root.join(candidate);
         if p.exists() {
@@ -331,7 +342,7 @@ fn get_app_version_info() -> serde_json::Value {
                 let commit = parts.next().unwrap_or("").trim().to_string();
                 let date = parts.next().map(|s| s.trim().to_string());
                 if !commit.is_empty() {
-                    return serde_json::json!({ "commit": commit, "date": date });
+                    return serde_json::json!({ "commit": commit, "date": date, "branch": branch });
                 }
             }
         }
@@ -349,12 +360,27 @@ fn get_app_version_info() -> serde_json::Value {
                 let mut parts = s.splitn(2, ' ');
                 let commit = parts.next().unwrap_or("").trim().to_string();
                 let date = parts.next().map(|d| d.trim().to_string());
-                return serde_json::json!({ "commit": commit, "date": date });
+                if branch.is_none() {
+                    // Try to get branch from git if not found in .branch
+                    let branch_output = std::process::Command::new("git")
+                        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+                        .current_dir(&root)
+                        .output();
+                    if let Ok(bout) = branch_output {
+                        if bout.status.success() {
+                            let b = String::from_utf8_lossy(&bout.stdout).trim().to_string();
+                            if !b.is_empty() {
+                                branch = Some(b);
+                            }
+                        }
+                    }
+                }
+                return serde_json::json!({ "commit": commit, "date": date, "branch": branch });
             }
         }
     }
 
-    serde_json::json!({ "commit": null, "date": null })
+    serde_json::json!({ "commit": null, "date": null, "branch": branch })
 }
 
 #[tauri::command]
@@ -410,7 +436,7 @@ async fn start_server(app: AppHandle, mode: String) -> Result<(), String> {
     kill_process_on_port(8000);
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-    ensure_app_downloaded(app.clone(), false).await?;
+    ensure_app_downloaded(app.clone(), false, None).await?;
     let root = get_project_root()?;
     let scripts = root.join("scripts");
 
