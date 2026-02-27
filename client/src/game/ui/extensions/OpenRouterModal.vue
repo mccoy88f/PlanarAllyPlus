@@ -25,8 +25,9 @@ export interface TaskDef {
     systemPrompt: string;
     userPrompt: string;
     /** Special task type: "import_character" shows file upload for character sheets,
-     *  "import_map" shows file upload for map images. Defaults to normal chat if omitted. */
-    type?: "import_character" | "import_map";
+     *  "import_map" shows file upload for map images,
+     *  "multimodal" shows file upload for custom vision tasks. Defaults to normal chat if omitted. */
+    type?: "import_character" | "import_map" | "multimodal";
 }
 
 const props = defineProps<{
@@ -182,6 +183,7 @@ const activeTab = ref<"settings" | "tasks">("tasks");
 const apiKey = ref("");
 const googleApiKey = ref("");
 const selectedModel = ref("openrouter/free");
+const selectedVisionModel = ref("gemini-2.0-flash");
 const selectedImageModel = ref("sourceful/riverflow-v2-fast");
 const models = ref<{ id: string; name: string; is_free: boolean; output_modalities?: string[] }[]>([]);
 const loadingModels = ref(false);
@@ -198,6 +200,7 @@ const maxTokens = ref(8192);
 const currentTask = ref<TaskDef | { id: "custom"; label: string; systemPrompt: string; userPrompt: string } | null>(null);
 const taskInput = ref("");
 const editingTask = ref<TaskDef | null>(null);
+const addTaskPickerVisible = ref(false);
 const editingTaskOriginal = ref<TaskDef | null>(null);
 
 const visible = computed(() => props.visible);
@@ -272,6 +275,7 @@ async function loadSettings(): Promise<void> {
                 hasApiKey: boolean;
                 hasGoogleKey: boolean;
                 model: string;
+                visionModel?: string;
                 basePrompt?: string;
                 tasks?: TaskDef[];
                 imageModel?: string;
@@ -281,6 +285,7 @@ async function loadSettings(): Promise<void> {
             apiKey.value = data.hasApiKey ? "********" : "";
             googleApiKey.value = data.hasGoogleKey ? "********" : "";
             selectedModel.value = data.model || "gemini-2.0-flash";
+            selectedVisionModel.value = data.visionModel || data.model || "gemini-2.0-flash";
             selectedImageModel.value = data.imageModel || "gemini-2.5-flash-image";
             defaultLanguage.value =
                 data.defaultLanguage === "en" ? "en" : "it";
@@ -329,6 +334,7 @@ async function saveSettings(): Promise<void> {
             apiKey?: string;
             googleApiKey?: string;
             model: string;
+            visionModel: string;
             basePrompt: string;
             tasks: TaskDef[];
             imageModel: string;
@@ -336,6 +342,7 @@ async function saveSettings(): Promise<void> {
             maxTokens: number;
         } = {
             model: selectedModel.value,
+            visionModel: selectedVisionModel.value,
             basePrompt: basePrompt.value.trim(),
             tasks: tasks.value,
             imageModel: selectedImageModel.value,
@@ -473,12 +480,14 @@ function selectTask(task: TaskDef | { id: "custom"; label: string; systemPrompt:
     if (fileInputRef.value) fileInputRef.value.value = "";
 }
 
-function addTask(): void {
+function addTask(type?: "multimodal"): void {
+    addTaskPickerVisible.value = false;
     const newTask: TaskDef = {
         id: `custom_${Date.now()}`,
         label: t("game.ui.extensions.OpenRouterModal.task_new_default"),
         systemPrompt: "",
         userPrompt: "",
+        ...(type ? { type } : {}),
     };
     tasks.value = [...tasks.value, newTask];
     currentTask.value = newTask;
@@ -652,7 +661,7 @@ async function runImportTask(): Promise<void> {
         const formData = new FormData();
         formData.append("file", selectedFile.value);
 
-        if (task.type === "import_character") {
+        if (task.type === "import_character" || task.type === "multimodal") {
             formData.append("systemPrompt", task.systemPrompt || "");
             formData.append("userPrompt", task.userPrompt || "");
 
@@ -870,7 +879,7 @@ onMounted(() => {
                     </div>
                 </div>
                 <div class="ext-ui-section openrouter-settings-section">
-                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.model") }}</h4>
+                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.model_text") }}</h4>
                     <div class="ext-ui-field openrouter-field">
                         <select v-model="selectedModel" class="ext-ui-select" :disabled="loadingModels">
                         <optgroup
@@ -937,17 +946,67 @@ onMounted(() => {
                         </select>
                         <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.default_language_hint") }}</p>
                     </div>
-                    <div class="ext-ui-field openrouter-field openrouter-field-inline">
-                        <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.max_tokens") }}</label>
-                        <input
-                            v-model.number="maxTokens"
-                            type="number"
-                            class="ext-ui-input"
-                            min="256"
-                            max="65536"
-                            step="256"
-                        />
-                        <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.max_tokens_hint") }}</p>
+                </div>
+                <div class="ext-ui-section openrouter-settings-section">
+                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.model_vision") }}</h4>
+                    <p class="ext-ui-hint" style="margin-bottom: 0.5rem;">{{ t("game.ui.extensions.OpenRouterModal.model_vision_hint") }}</p>
+                    <div class="ext-ui-field openrouter-field">
+                        <select v-model="selectedVisionModel" class="ext-ui-select" :disabled="loadingModels">
+                        <optgroup
+                            v-if="freeModels.length > 0"
+                            :label="t('game.ui.extensions.OpenRouterModal.model_free')"
+                        >
+                            <option
+                                v-for="m in freeModels"
+                                :key="m.id"
+                                :value="m.id"
+                            >
+                                {{ m.name }}
+                            </option>
+                        </optgroup>
+                        <optgroup
+                            v-if="paidModels.length > 0"
+                            :label="t('game.ui.extensions.OpenRouterModal.model_paid')"
+                        >
+                            <option
+                                v-for="m in paidModels"
+                                :key="m.id"
+                                :value="m.id"
+                            >
+                                {{ m.name }}
+                            </option>
+                        </optgroup>
+                        <optgroup
+                            v-if="models.filter(x => x.id.startsWith('gemini') && x.is_free).length > 0"
+                            label="Google AI Studio (Gratuito)"
+                        >
+                            <option
+                                v-for="m in models.filter(x => x.id.startsWith('gemini') && x.is_free)"
+                                :key="m.id"
+                                :value="m.id"
+                            >
+                                {{ m.name }}
+                            </option>
+                        </optgroup>
+                        <optgroup
+                            v-if="models.filter(x => x.id.startsWith('gemini') && !x.is_free).length > 0"
+                            label="Google AI Studio (A pagamento)"
+                        >
+                            <option
+                                v-for="m in models.filter(x => x.id.startsWith('gemini') && !x.is_free)"
+                                :key="m.id"
+                                :value="m.id"
+                            >
+                                {{ m.name }}
+                            </option>
+                        </optgroup>
+                        <option
+                            v-if="models.length === 0 && !loadingModels"
+                            value="gemini-2.0-flash"
+                        >
+                            gemini-2.0-flash (default)
+                        </option>
+                        </select>
                     </div>
                 </div>
                 <div class="ext-ui-section openrouter-settings-section">
@@ -1003,12 +1062,14 @@ onMounted(() => {
                 <div class="ext-ui-section openrouter-settings-section">
                     <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.base_prompt") }}</h4>
                     <div class="ext-ui-field openrouter-field">
-                    <textarea
-                        v-model="basePrompt"
-                        class="ext-ui-textarea"
-                        :placeholder="t('game.ui.extensions.OpenRouterModal.base_prompt_placeholder')"
-                        rows="3"
-                    />
+                        <textarea
+                            v-model="basePrompt"
+                            class="ext-ui-textarea"
+                            :placeholder="t('game.ui.extensions.OpenRouterModal.base_prompt_placeholder')"
+                            rows="6"
+                        />
+                    </div>
+                    <div class="openrouter-restore-default-row">
                         <button
                             type="button"
                             class="openrouter-restore-default"
@@ -1016,6 +1077,20 @@ onMounted(() => {
                         >
                             {{ t("game.ui.extensions.OpenRouterModal.restore_default") }}
                         </button>
+                    </div>
+                </div>
+                <div class="ext-ui-section openrouter-settings-section">
+                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.max_tokens") }}</h4>
+                    <div class="ext-ui-field openrouter-field openrouter-field-inline">
+                        <input
+                            v-model.number="maxTokens"
+                            type="number"
+                            class="ext-ui-input"
+                            min="256"
+                            max="65536"
+                            step="256"
+                        />
+                        <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.max_tokens_hint") }}</p>
                     </div>
                 </div>
             </div>
@@ -1079,9 +1154,18 @@ onMounted(() => {
                         </button>
                         <button
                             class="openrouter-add-task"
-                            @click="addTask"
+                            @click="addTaskPickerVisible = !addTaskPickerVisible"
                         >
                             + {{ t("game.ui.extensions.OpenRouterModal.task_add") }}
+                        </button>
+                    </div>
+                    <div v-if="addTaskPickerVisible" class="openrouter-add-task-picker">
+                        <span class="openrouter-add-task-picker-label">{{ t("game.ui.extensions.OpenRouterModal.task_add_type_label") }}</span>
+                        <button class="openrouter-add-task-type-btn" @click="addTask()">
+                            {{ t("game.ui.extensions.OpenRouterModal.task_add_type_text") }}
+                        </button>
+                        <button class="openrouter-add-task-type-btn openrouter-add-task-type-btn--multimodal" @click="addTask('multimodal')">
+                            {{ t("game.ui.extensions.OpenRouterModal.task_add_type_multimodal") }}
                         </button>
                     </div>
 
@@ -1128,7 +1212,7 @@ onMounted(() => {
                         ref="fileInputRef"
                         type="file"
                         style="display:none"
-                        :accept="(currentTask as TaskDef).type === 'import_character'
+                        :accept="(currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'multimodal'
                             ? '.png,.jpg,.jpeg,.pdf,.doc,.docx'
                             : '.png,.jpg,.jpeg'"
                         @change="onFileSelected"
@@ -1148,7 +1232,7 @@ onMounted(() => {
                         </div>
 
                         <!-- File upload for import tasks -->
-                        <template v-if="(currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'import_map'">
+                        <template v-if="(currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'import_map' || (currentTask as TaskDef).type === 'multimodal'">
                             <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.file_upload_label") }}</label>
                             <div class="ext-ui-field openrouter-file-upload">
                                 <button
@@ -1160,7 +1244,7 @@ onMounted(() => {
                                 </button>
                                 <span v-if="selectedFile" class="openrouter-file-name">{{ selectedFile.name }}</span>
                                 <span v-else class="openrouter-file-hint">
-                                    {{ (currentTask as TaskDef).type === 'import_character'
+                                    {{ (currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'multimodal'
                                         ? t("game.ui.extensions.OpenRouterModal.file_hint_character")
                                         : t("game.ui.extensions.OpenRouterModal.file_hint_map") }}
                                 </span>
@@ -1257,10 +1341,10 @@ onMounted(() => {
                             class="ext-ui-btn ext-ui-btn-success"
                             :disabled="runningTask
                                 || (currentTask.id === 'custom' && !customPrompt.trim())
-                                || (((currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'import_map') && !selectedFile)"
+                                || (((currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'import_map' || (currentTask as TaskDef).type === 'multimodal') && !selectedFile)"
                             @click="currentTask.id === 'custom'
                                 ? runCustomTask()
-                                : ((currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'import_map')
+                                : ((currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'import_map' || (currentTask as TaskDef).type === 'multimodal')
                                     ? runImportTask()
                                     : runTask(currentTask, taskInput)"
                         >
@@ -1465,6 +1549,52 @@ onMounted(() => {
     &--multimodal {
         color: #5a9fd4;
         border-bottom-color: #c8dff0;
+    }
+}
+
+.openrouter-restore-default-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+}
+
+.openrouter-add-task-picker {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.5rem 0.75rem;
+    background: #f7f7f7;
+    border: 1px solid #ddd;
+    border-radius: 0.25rem;
+    margin-top: 0.25rem;
+
+    .openrouter-add-task-picker-label {
+        font-size: 0.85em;
+        color: #555;
+        flex-shrink: 0;
+    }
+}
+
+.openrouter-add-task-type-btn {
+    padding: 0.35rem 0.85rem;
+    border: 1px solid #aaa;
+    border-radius: 0.25rem;
+    background: #fff;
+    cursor: pointer;
+    font-size: 0.88em;
+
+    &:hover {
+        background: #f0f0f0;
+    }
+
+    &--multimodal {
+        border-color: #5a9fd4;
+        color: #5a9fd4;
+
+        &:hover {
+            background: #eef5fc;
+        }
     }
 }
 

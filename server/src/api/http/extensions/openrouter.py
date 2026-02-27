@@ -300,10 +300,13 @@ async def get_settings(request: web.Request) -> web.Response:
         opts.openrouter_model = model
         opts.save()
 
+    vision_model = opts.openrouter_vision_model or model
+
     return web.json_response({
         "hasApiKey": has_openrouter,
         "hasGoogleKey": has_google,
         "model": model,
+        "visionModel": vision_model,
         "basePrompt": opts.openrouter_base_prompt or "",
         "tasks": tasks,
         "imageModel": _resolve_image_model(opts),
@@ -339,6 +342,8 @@ async def set_settings(request: web.Request) -> web.Response:
         opts.openrouter_tasks = json.dumps(body["tasks"]) if body.get("tasks") else None
     if "imageModel" in body:
         opts.openrouter_image_model = (body.get("imageModel") or "").strip() or None
+    if "visionModel" in body:
+        opts.openrouter_vision_model = (body.get("visionModel") or "").strip() or None
     if "defaultLanguage" in body:
         lang = (body.get("defaultLanguage") or "it").strip().lower()
         opts.openrouter_default_language = lang if lang in ("it", "en") else "it"
@@ -733,7 +738,7 @@ async def import_character(request: web.Request) -> web.Response:
         return web.HTTPBadRequest(text="No file provided")
 
     opts = UserOptions.get_by_id(user.default_options)
-    model = (opts.openrouter_model or DEFAULT_FREE_MODEL).strip()
+    model = (opts.openrouter_vision_model or opts.openrouter_model or DEFAULT_FREE_MODEL).strip()
     is_google = model.startswith("gemini")
     max_tokens = opts.openrouter_max_tokens or 8192
 
@@ -886,7 +891,7 @@ async def import_map(request: web.Request) -> web.Response:
         )
 
     opts = UserOptions.get_by_id(user.default_options)
-    model = (opts.openrouter_model or DEFAULT_FREE_MODEL).strip()
+    model = (opts.openrouter_vision_model or opts.openrouter_model or DEFAULT_FREE_MODEL).strip()
     is_google = model.startswith("gemini")
 
     if is_google:
