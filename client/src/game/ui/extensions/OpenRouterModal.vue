@@ -1456,8 +1456,8 @@ onMounted(() => {
     .ext-modal-header {
         width: 100%;
         flex-shrink: 0;
-        background: #fdfdfd;
-        padding: 0.35rem 1rem;
+        background: #fafafa;
+        padding: 0.5rem 1.5rem;
         border-bottom: 1px solid #eee;
     }
 }
@@ -1472,8 +1472,8 @@ onMounted(() => {
 }
 
 :deep(.ext-progress-top-container) {
-    padding: 0.25rem 1rem;
-    background: #fdfdfd;
+    padding: 0.25rem 1.5rem;
+    background: #fafafa;
 }
 
 .openrouter-settings {
@@ -1711,11 +1711,11 @@ onMounted(() => {
 .openrouter-task-toolbar {
     margin-bottom: 0;
     flex-shrink: 0;
-    background: #fdfdfd;
+    background: #fafafa;
     border: none;
     border-bottom: 1px solid #eee;
-    padding: 0 1rem;
-    min-height: 2.25rem;
+    padding: 0.625rem 1.5rem;
+    min-height: 2.75rem;
 }
 
 .openrouter-task-group-label {
