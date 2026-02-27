@@ -1104,12 +1104,47 @@ onMounted(() => {
             <div v-show="activeTab === 'tasks'" class="ext-body ext-two-col">
                 <section class="ext-ui-section ext-two-col-main openrouter-result-section">
                     <h3>{{ t("game.ui.extensions.OpenRouterModal.result") }}</h3>
-                    <div v-if="!result" class="ext-ui-empty openrouter-result-placeholder">
-                        {{ t("game.ui.extensions.OpenRouterModal.click_run") }}
-                    </div>
-                    <div v-else ref="resultRef" class="openrouter-result-container">
-                        <div class="openrouter-result-content">{{ result }}</div>
-                    </div>
+                    <!-- Map import preview with wall/door overlay -->
+                    <template v-if="importMapData">
+                        <p class="openrouter-map-preview-summary">{{ result }}</p>
+                        <div class="openrouter-map-preview">
+                            <img :src="importMapData.url" class="openrouter-preview-image" :alt="importMapData.name ?? 'map'" />
+                            <svg
+                                class="openrouter-preview-overlay"
+                                :viewBox="`0 0 ${importMapData.gridCells.width} ${importMapData.gridCells.height}`"
+                                preserveAspectRatio="none"
+                            >
+                                <!-- Walls -->
+                                <line
+                                    v-for="(line, i) in importMapData.walls?.lines ?? []"
+                                    :key="'w' + i"
+                                    :x1="line[0][0]" :y1="line[0][1]"
+                                    :x2="line[1][0]" :y2="line[1][1]"
+                                    stroke="#00e676" stroke-width="0.08" stroke-linecap="round"
+                                />
+                                <!-- Doors -->
+                                <rect
+                                    v-for="(door, i) in importMapData.doors ?? []"
+                                    :key="'d' + i"
+                                    :x="door.x + 0.15" :y="door.y + 0.15"
+                                    width="0.7" height="0.7"
+                                    fill="none" stroke="#ffaa00" stroke-width="0.08"
+                                />
+                            </svg>
+                            <div class="openrouter-preview-legend">
+                                <span class="openrouter-legend-wall">{{ t("game.ui.extensions.OpenRouterModal.preview_legend_wall") }}</span>
+                                <span v-if="(importMapData.doors ?? []).length > 0" class="openrouter-legend-door">{{ t("game.ui.extensions.OpenRouterModal.preview_legend_door") }}</span>
+                            </div>
+                        </div>
+                    </template>
+                    <template v-else>
+                        <div v-if="!result" class="ext-ui-empty openrouter-result-placeholder">
+                            {{ t("game.ui.extensions.OpenRouterModal.click_run") }}
+                        </div>
+                        <div v-else ref="resultRef" class="openrouter-result-container">
+                            <div class="openrouter-result-content">{{ result }}</div>
+                        </div>
+                    </template>
                 </section>
 
                 <section class="ext-ui-section ext-two-col-side openrouter-params-section">
@@ -1477,6 +1512,58 @@ onMounted(() => {
         font-weight: 600;
         font-size: 1.1em;
         flex-shrink: 0;
+    }
+}
+
+.openrouter-map-preview-summary {
+    font-size: 0.85em;
+    color: #555;
+    margin-bottom: 0.5rem;
+    white-space: pre-line;
+}
+
+.openrouter-map-preview {
+    position: relative;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: 0.25rem;
+    border: 1px solid #ddd;
+
+    .openrouter-preview-image {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    .openrouter-preview-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+    }
+
+    .openrouter-preview-legend {
+        position: absolute;
+        bottom: 0.4rem;
+        left: 0.4rem;
+        display: flex;
+        gap: 0.75rem;
+        font-size: 0.75em;
+        font-weight: 600;
+
+        span {
+            padding: 0.15rem 0.4rem;
+            border-radius: 0.2rem;
+            background: rgba(0,0,0,0.55);
+        }
+
+        .openrouter-legend-wall { color: #00e676; }
+        .openrouter-legend-door { color: #ffaa00; }
     }
 }
 

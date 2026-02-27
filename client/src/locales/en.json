@@ -477,6 +477,8 @@
           "note_created": "Note created",
           "import_to_sheet": "Import to character sheet",
           "import_to_map": "Import map",
+          "preview_legend_wall": "Detected walls",
+          "preview_legend_door": "Detected doors",
           "import_success": "Character imported to sheet",
           "import_map_success": "Map imported to scene",
           "import_error": "Import failed",

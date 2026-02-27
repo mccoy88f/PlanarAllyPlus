@@ -477,6 +477,8 @@
           "note_created": "Nota creata",
           "import_to_sheet": "Importa su scheda personaggio",
           "import_to_map": "Importa mappa",
+          "preview_legend_wall": "Muri rilevati",
+          "preview_legend_door": "Porte rilevate",
           "import_success": "Personaggio importato nella scheda",
           "import_map_success": "Mappa importata nella scena",
           "import_error": "Importazione fallita",
