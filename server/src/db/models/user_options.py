@@ -46,6 +46,7 @@ class UserOptions(BaseDbModel):
     openrouter_base_prompt = cast(str | None, TextField(default=None, null=True))
     openrouter_tasks = cast(str | None, TextField(default=None, null=True))
     openrouter_image_model = cast(str | None, TextField(default=None, null=True))
+    openrouter_vision_model = cast(str | None, TextField(default=None, null=True))
     openrouter_default_language = cast(str | None, TextField(default="it", null=True))
     openrouter_max_tokens = cast(int | None, IntegerField(default=8192, null=True))
     ai_provider = cast(str | None, TextField(default="openrouter", null=True))
@@ -84,6 +85,7 @@ class UserOptions(BaseDbModel):
             openrouter_base_prompt=None,
             openrouter_tasks=None,
             openrouter_image_model=None,
+            openrouter_vision_model=None,
             openrouter_default_language=None,
             openrouter_max_tokens=None,
             ai_provider=None,

@@ -15,12 +15,19 @@ import type { NoteId } from "../../systems/notes/types";
 import { extensionsState } from "../../systems/extensions/state";
 import LoadingBar from "../../../core/components/LoadingBar.vue";
 import { closeOpenRouterModal, focusExtension, openExtensionModal } from "../../systems/extensions/ui";
+import { addDungeonToMap, type WallData, type DoorData } from "../../dungeongen";
+import { toGP } from "../../../core/geometry";
+import type { AssetId } from "../../../assets/models";
 
 export interface TaskDef {
     id: string;
     label: string;
     systemPrompt: string;
     userPrompt: string;
+    /** Special task type: "import_character" shows file upload for character sheets,
+     *  "import_map" shows file upload for map images,
+     *  "multimodal" shows file upload for custom vision tasks. Defaults to normal chat if omitted. */
+    type?: "import_character" | "import_map" | "multimodal";
 }
 
 const props = defineProps<{
@@ -73,11 +80,39 @@ Rispondi SOLO con il JSON completo, senza markdown (\`\`\`json) né testo prima 
         userPrompt: "Scrivi una breve avventura per una sessione one-shot.",
     },
     {
-        id: "improve_map",
-        label: "Migliora mappa (realistica)",
-        systemPrompt:
-            "Sei un esperto di descrizioni per mappe da tavolo e giochi di ruolo. Dato una descrizione di una mappa, migliorala rendendola più realistica e immersiva. Aggiungi dettagli ambientali, atmosfera, suggerimenti per il DM su come descriverla ai giocatori. Non inserire mai segnalini o personaggi.",
-        userPrompt: "Migliora questa descrizione di mappa rendendola più realistica:",
+        id: "import_character_sheet",
+        label: "Importa scheda personaggio",
+        type: "import_character" as const,
+        systemPrompt: `Sei un esperto di giochi di ruolo D&D 5e. Analizza il contenuto allegato (scheda personaggio, stat block NPC, PDF o documento) ed estrai tutte le informazioni del personaggio.
+
+Il documento potrebbe essere:
+- Una scheda personaggio tradizionale D&D 5e (anche su più pagine)
+- Uno stat block NPC (formato D&D Beyond o simile) con sezioni Traits, Actions, CR, ecc.
+Se sono presenti più immagini/pagine, appartengono tutte allo stesso personaggio: consolida i dati in un unico JSON.
+
+Regole per stat block NPC:
+- CR (Challenge Rating) → usa il valore XP come currentXp (es. CR 1/4 = 50 XP, CR 1/2 = 100, CR 1 = 200)
+- Tratti e abilità passivi → campo featuresTraits
+- Azioni di attacco → array attacks (nome, bonus, danno)
+- Incantesimi "at will" → cantrips
+- Incantesimi "X/day each" → incantesimi di livello appropriato (lvl1Spells, lvl2Spells, ecc.)
+- Tipo creatura (es. "Small Humanoid") → race.fullName
+- Sensi (Darkvision, ecc.) → campo otherProficiencies o featuresTraits
+
+Compila il seguente template JSON con TUTTI i dati trovati. Rispondi SOLO con il JSON completo, senza testo aggiuntivo, senza blocchi markdown.
+
+Template (rispetta questa struttura esatta):
+${CHARACTER_SHEET_TEMPLATE}
+
+alignmentId: 0="", 1="Lawful Good", 2="Neutral Good", 3="Chaotic Good", 4="Lawful Neutral", 5="Neutral", 6="Chaotic Neutral", 7="Lawful Evil", 8="Neutral Evil", 9="Chaotic Evil"`,
+        userPrompt: "Estrai i dati del personaggio da questa scheda e compila il JSON. Rispondi SOLO con il JSON completo.",
+    },
+    {
+        id: "import_map",
+        label: "Importa mappa da immagine",
+        type: "import_map" as const,
+        systemPrompt: "",
+        userPrompt: "",
     },
 ];
 
@@ -114,11 +149,39 @@ Reply ONLY with the complete JSON, no markdown (\`\`\`json) or text before or af
         userPrompt: "Write a short adventure for a one-shot session.",
     },
     {
-        id: "improve_map",
-        label: "Improve map (realistic)",
-        systemPrompt:
-            "You are an expert in descriptions for tabletop maps and RPGs. Given a map description, improve it to make it more realistic and immersive. Add environmental details, atmosphere, suggestions for the DM on how to describe it to players. Never include markers or characters.",
-        userPrompt: "Improve this map description to make it more realistic:",
+        id: "import_character_sheet",
+        label: "Import character sheet",
+        type: "import_character" as const,
+        systemPrompt: `You are an expert in D&D 5e tabletop RPGs. Analyze the attached content (character sheet, NPC stat block, PDF or document) and extract all character information.
+
+The document may be:
+- A traditional D&D 5e character sheet (possibly spanning multiple pages)
+- An NPC stat block (D&D Beyond format or similar) with Traits, Actions, CR sections, etc.
+If multiple images/pages are provided, they all belong to the same character: consolidate data into a single JSON.
+
+Rules for NPC stat blocks:
+- CR (Challenge Rating) → use XP value as currentXp (e.g. CR 1/4 = 50 XP, CR 1/2 = 100, CR 1 = 200)
+- Passive traits and abilities → featuresTraits field
+- Attack actions → attacks array (name, bonus, damage)
+- "At will" spells → cantrips
+- "X/day each" spells → appropriate spell level (lvl1Spells, lvl2Spells, etc.)
+- Creature type (e.g. "Small Humanoid") → race.fullName
+- Senses (Darkvision, etc.) → otherProficiencies or featuresTraits field
+
+Fill in the following JSON template with ALL data found. Reply ONLY with the complete JSON, without any additional text or markdown blocks.
+
+Template (follow this exact structure):
+${CHARACTER_SHEET_TEMPLATE}
+
+alignmentId: 0="", 1="Lawful Good", 2="Neutral Good", 3="Chaotic Good", 4="Lawful Neutral", 5="Neutral", 6="Chaotic Neutral", 7="Lawful Evil", 8="Neutral Evil", 9="Chaotic Evil"`,
+        userPrompt: "Extract character data from this sheet and fill in the JSON. Reply ONLY with the complete JSON.",
+    },
+    {
+        id: "import_map",
+        label: "Import map from image",
+        type: "import_map" as const,
+        systemPrompt: "",
+        userPrompt: "",
     },
 ];
 
@@ -134,6 +197,7 @@ const activeTab = ref<"settings" | "tasks">("tasks");
 const apiKey = ref("");
 const googleApiKey = ref("");
 const selectedModel = ref("openrouter/free");
+const selectedVisionModel = ref("gemini-2.0-flash");
 const selectedImageModel = ref("sourceful/riverflow-v2-fast");
 const models = ref<{ id: string; name: string; is_free: boolean; output_modalities?: string[] }[]>([]);
 const loadingModels = ref(false);
@@ -150,6 +214,8 @@ const maxTokens = ref(8192);
 const currentTask = ref<TaskDef | { id: "custom"; label: string; systemPrompt: string; userPrompt: string } | null>(null);
 const taskInput = ref("");
 const editingTask = ref<TaskDef | null>(null);
+const addTaskPickerVisible = ref(false);
+const taskSearch = ref("");
 const editingTaskOriginal = ref<TaskDef | null>(null);
 
 const visible = computed(() => props.visible);
@@ -162,6 +228,15 @@ const paidModels = computed(() => models.value.filter((m) => !m.is_free && !m.id
 
 const openRouterImageModels = computed(() => models.value.filter((m) => (m.output_modalities ?? []).includes("image") && !m.id.startsWith("gemini")));
 const googleImageModels = computed(() => imageModelsList.value.filter((m) => (m.output_modalities ?? []).includes("image")));
+
+const textTasks = computed(() => {
+    const q = taskSearch.value.trim().toLowerCase();
+    return tasks.value.filter((t) => !t.type && (!q || getTaskLabel(t).toLowerCase().includes(q)));
+});
+const multimodalTasks = computed(() => {
+    const q = taskSearch.value.trim().toLowerCase();
+    return tasks.value.filter((t) => !!t.type && (!q || getTaskLabel(t).toLowerCase().includes(q)));
+});
 
 async function loadModels(): Promise<void> {
     loadingModels.value = true;
@@ -221,6 +296,7 @@ async function loadSettings(): Promise<void> {
                 hasApiKey: boolean;
                 hasGoogleKey: boolean;
                 model: string;
+                visionModel?: string;
                 basePrompt?: string;
                 tasks?: TaskDef[];
                 imageModel?: string;
@@ -230,6 +306,7 @@ async function loadSettings(): Promise<void> {
             apiKey.value = data.hasApiKey ? "********" : "";
             googleApiKey.value = data.hasGoogleKey ? "********" : "";
             selectedModel.value = data.model || "gemini-2.0-flash";
+            selectedVisionModel.value = data.visionModel || data.model || "gemini-2.0-flash";
             selectedImageModel.value = data.imageModel || "gemini-2.5-flash-image";
             defaultLanguage.value =
                 data.defaultLanguage === "en" ? "en" : "it";
@@ -248,13 +325,22 @@ async function loadSettings(): Promise<void> {
             const defaultTasks = getDefaultTasks(lang);
             const jsonTask = defaultTasks.find((d) => d.id === "generate_character_json");
             const hasJsonTask = loadedTasks.some((t) => t.id === "generate_character_json");
+            let finalTasks: TaskDef[];
             if (jsonTask && !hasJsonTask) {
-                tasks.value = [loadedTasks[0], jsonTask, ...loadedTasks.slice(1)].filter(
+                finalTasks = [loadedTasks[0], jsonTask, ...loadedTasks.slice(1)].filter(
                     (x): x is TaskDef => x != null,
                 );
             } else {
-                tasks.value = loadedTasks;
+                finalTasks = loadedTasks;
             }
+            // Backward compat: add new special tasks if missing
+            for (const specialId of ["import_character_sheet", "import_map"]) {
+                if (!finalTasks.some((t) => t.id === specialId)) {
+                    const t = defaultTasks.find((d) => d.id === specialId);
+                    if (t) finalTasks.push(t);
+                }
+            }
+            tasks.value = finalTasks;
         }
     } catch {
         defaultLanguage.value = "it";
@@ -269,6 +355,7 @@ async function saveSettings(): Promise<void> {
             apiKey?: string;
             googleApiKey?: string;
             model: string;
+            visionModel: string;
             basePrompt: string;
             tasks: TaskDef[];
             imageModel: string;
@@ -276,6 +363,7 @@ async function saveSettings(): Promise<void> {
             maxTokens: number;
         } = {
             model: selectedModel.value,
+            visionModel: selectedVisionModel.value,
             basePrompt: basePrompt.value.trim(),
             tasks: tasks.value,
             imageModel: selectedImageModel.value,
@@ -299,6 +387,7 @@ async function saveSettings(): Promise<void> {
             }
             // Add reloading models on save
             await loadModels();
+            activeTab.value = "tasks";
         } else {
             const err = await resp.json().catch(() => ({}));
             toast.error((err as { error?: string }).error || t("game.ui.extensions.OpenRouterModal.save_error"));
@@ -408,14 +497,20 @@ function selectTask(task: TaskDef | { id: "custom"; label: string; systemPrompt:
     editingTask.value = null;
     taskInput.value = "";
     result.value = "";
+    selectedFile.value = null;
+    selectedFiles.value = [];
+    importMapData.value = null;
+    if (fileInputRef.value) fileInputRef.value.value = "";
 }
 
-function addTask(): void {
+function addTask(type?: "multimodal"): void {
+    addTaskPickerVisible.value = false;
     const newTask: TaskDef = {
         id: `custom_${Date.now()}`,
         label: t("game.ui.extensions.OpenRouterModal.task_new_default"),
         systemPrompt: "",
         userPrompt: "",
+        ...(type ? { type } : {}),
     };
     tasks.value = [...tasks.value, newTask];
     currentTask.value = newTask;
@@ -493,6 +588,20 @@ function extractJsonFromResult(text: string): unknown | null {
 
 const importingToSheet = ref(false);
 
+// File upload state (for import_character and import_map tasks)
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const selectedFile = ref<File | null>(null);
+const selectedFiles = ref<File[]>([]); // multi-page support for import_character
+const importingToMap = ref(false);
+const importMapData = ref<{
+    url: string;
+    assetId: AssetId;
+    gridCells: { width: number; height: number };
+    walls?: WallData;
+    doors?: DoorData[];
+    name?: string;
+} | null>(null);
+
 async function importCharacterToSheet(): Promise<void> {
     if (!result.value.trim()) return;
     const parsed = extractJsonFromResult(result.value);
@@ -546,8 +655,138 @@ async function importCharacterToSheet(): Promise<void> {
 
 
 const showImportToSheetButton = computed(
-    () => currentTask.value?.id === "generate_character_json",
+    () => currentTask.value?.id === "generate_character_json" || currentTask.value?.id === "import_character_sheet",
 );
+
+const showImportMapButton = computed(
+    () => currentTask.value?.id === "import_map" && importMapData.value !== null,
+);
+
+function onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const task = currentTask.value as TaskDef | null;
+    if (task?.type === "import_character") {
+        selectedFiles.value = Array.from(input.files || []);
+        selectedFile.value = selectedFiles.value[0] ?? null;
+    } else {
+        selectedFile.value = input.files?.[0] ?? null;
+        selectedFiles.value = selectedFile.value ? [selectedFile.value] : [];
+    }
+    result.value = "";
+    importMapData.value = null;
+}
+
+async function runImportTask(): Promise<void> {
+    const task = currentTask.value as TaskDef | null;
+    if (!task) return;
+
+    const filesToUpload = task.type === "import_character" ? selectedFiles.value : (selectedFile.value ? [selectedFile.value] : []);
+    if (filesToUpload.length === 0) {
+        toast.error(t("game.ui.extensions.OpenRouterModal.file_required"));
+        return;
+    }
+
+    runningTask.value = true;
+    result.value = "";
+    importMapData.value = null;
+
+    try {
+        const formData = new FormData();
+        for (const f of filesToUpload) {
+            formData.append("file", f);
+        }
+
+        if (task.type === "import_character" || task.type === "multimodal") {
+            formData.append("systemPrompt", task.systemPrompt || "");
+            formData.append("userPrompt", task.userPrompt || "");
+
+            const resp = await fetch("/api/extensions/openrouter/import-character", {
+                method: "POST",
+                body: formData,
+                credentials: "include",
+            });
+            if (resp.ok) {
+                const data = (await resp.json()) as { result?: string };
+                result.value = data.result ?? "";
+            } else {
+                const err = (await resp.json().catch(() => ({}))) as { error?: string };
+                toast.error(err.error || t("game.ui.extensions.OpenRouterModal.request_error"));
+            }
+        } else if (task.type === "import_map") {
+            const resp = await fetch("/api/extensions/openrouter/import-map", {
+                method: "POST",
+                body: formData,
+                credentials: "include",
+            });
+            if (resp.ok) {
+                const data = (await resp.json()) as {
+                    url: string;
+                    assetId: AssetId;
+                    gridCells: { width: number; height: number };
+                    walls?: WallData;
+                    doors?: DoorData[];
+                    name?: string;
+                };
+                importMapData.value = {
+                    url: data.url,
+                    assetId: data.assetId,
+                    gridCells: data.gridCells,
+                    walls: data.walls,
+                    doors: data.doors,
+                    name: data.name,
+                };
+                const lang = defaultLanguage.value;
+                const wallCount = data.walls?.lines?.length ?? 0;
+                const doorCount = data.doors?.length ?? 0;
+                if (lang === "it") {
+                    result.value =
+                        `Mappa analizzata con successo!\n` +
+                        `• Griglia: ${data.gridCells.width} × ${data.gridCells.height} celle\n` +
+                        `• Muri: ${wallCount} segmenti rilevati\n` +
+                        `• Porte: ${doorCount} rilevate\n\n` +
+                        `Clicca "Importa mappa" per caricarla nella scena corrente.`;
+                } else {
+                    result.value =
+                        `Map analyzed successfully!\n` +
+                        `• Grid: ${data.gridCells.width} × ${data.gridCells.height} cells\n` +
+                        `• Walls: ${wallCount} segments detected\n` +
+                        `• Doors: ${doorCount} detected\n\n` +
+                        `Click "Import map" to place it on the current scene.`;
+                }
+            } else {
+                const err = (await resp.json().catch(() => ({}))) as { error?: string };
+                toast.error(err.error || t("game.ui.extensions.OpenRouterModal.request_error"));
+            }
+        }
+    } catch (e) {
+        toast.error(t("game.ui.extensions.OpenRouterModal.request_error"));
+        console.error(e);
+    } finally {
+        runningTask.value = false;
+    }
+}
+
+async function importMapToCanvas(): Promise<void> {
+    if (!importMapData.value) return;
+    importingToMap.value = true;
+    try {
+        const { url, gridCells, walls, doors, name } = importMapData.value;
+        const mapName = name ?? selectedFile.value?.name ?? "imported_map";
+        await addDungeonToMap(url, gridCells, toGP(0, 0), {
+            seed: mapName,
+            name: mapName,
+            walls,
+            doors,
+            wallPadding: 0,
+        });
+        toast.success(t("game.ui.extensions.OpenRouterModal.import_map_success"));
+    } catch (e) {
+        toast.error(t("game.ui.extensions.OpenRouterModal.import_error"));
+        console.error(e);
+    } finally {
+        importingToMap.value = false;
+    }
+}
 
 async function createNoteFromResult(): Promise<void> {
     if (!result.value.trim()) return;
@@ -588,6 +827,10 @@ watch(visible, async (v) => {
         currentTask.value = null;
         customPrompt.value = "";
         editingTask.value = null;
+        selectedFile.value = null;
+        selectedFiles.value = [];
+        importMapData.value = null;
+        if (fileInputRef.value) fileInputRef.value.value = "";
     }
 });
 
@@ -673,7 +916,7 @@ onMounted(() => {
                     </div>
                 </div>
                 <div class="ext-ui-section openrouter-settings-section">
-                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.model") }}</h4>
+                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.model_text") }}</h4>
                     <div class="ext-ui-field openrouter-field">
                         <select v-model="selectedModel" class="ext-ui-select" :disabled="loadingModels">
                         <optgroup
@@ -740,17 +983,67 @@ onMounted(() => {
                         </select>
                         <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.default_language_hint") }}</p>
                     </div>
-                    <div class="ext-ui-field openrouter-field openrouter-field-inline">
-                        <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.max_tokens") }}</label>
-                        <input
-                            v-model.number="maxTokens"
-                            type="number"
-                            class="ext-ui-input"
-                            min="256"
-                            max="65536"
-                            step="256"
-                        />
-                        <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.max_tokens_hint") }}</p>
+                </div>
+                <div class="ext-ui-section openrouter-settings-section">
+                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.model_vision") }}</h4>
+                    <p class="ext-ui-hint" style="margin-bottom: 0.5rem;">{{ t("game.ui.extensions.OpenRouterModal.model_vision_hint") }}</p>
+                    <div class="ext-ui-field openrouter-field">
+                        <select v-model="selectedVisionModel" class="ext-ui-select" :disabled="loadingModels">
+                        <optgroup
+                            v-if="freeModels.length > 0"
+                            :label="t('game.ui.extensions.OpenRouterModal.model_free')"
+                        >
+                            <option
+                                v-for="m in freeModels"
+                                :key="m.id"
+                                :value="m.id"
+                            >
+                                {{ m.name }}
+                            </option>
+                        </optgroup>
+                        <optgroup
+                            v-if="paidModels.length > 0"
+                            :label="t('game.ui.extensions.OpenRouterModal.model_paid')"
+                        >
+                            <option
+                                v-for="m in paidModels"
+                                :key="m.id"
+                                :value="m.id"
+                            >
+                                {{ m.name }}
+                            </option>
+                        </optgroup>
+                        <optgroup
+                            v-if="models.filter(x => x.id.startsWith('gemini') && x.is_free).length > 0"
+                            label="Google AI Studio (Gratuito)"
+                        >
+                            <option
+                                v-for="m in models.filter(x => x.id.startsWith('gemini') && x.is_free)"
+                                :key="m.id"
+                                :value="m.id"
+                            >
+                                {{ m.name }}
+                            </option>
+                        </optgroup>
+                        <optgroup
+                            v-if="models.filter(x => x.id.startsWith('gemini') && !x.is_free).length > 0"
+                            label="Google AI Studio (A pagamento)"
+                        >
+                            <option
+                                v-for="m in models.filter(x => x.id.startsWith('gemini') && !x.is_free)"
+                                :key="m.id"
+                                :value="m.id"
+                            >
+                                {{ m.name }}
+                            </option>
+                        </optgroup>
+                        <option
+                            v-if="models.length === 0 && !loadingModels"
+                            value="gemini-2.0-flash"
+                        >
+                            gemini-2.0-flash (default)
+                        </option>
+                        </select>
                     </div>
                 </div>
                 <div class="ext-ui-section openrouter-settings-section">
@@ -806,12 +1099,14 @@ onMounted(() => {
                 <div class="ext-ui-section openrouter-settings-section">
                     <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.base_prompt") }}</h4>
                     <div class="ext-ui-field openrouter-field">
-                    <textarea
-                        v-model="basePrompt"
-                        class="ext-ui-textarea"
-                        :placeholder="t('game.ui.extensions.OpenRouterModal.base_prompt_placeholder')"
-                        rows="3"
-                    />
+                        <textarea
+                            v-model="basePrompt"
+                            class="ext-ui-textarea"
+                            :placeholder="t('game.ui.extensions.OpenRouterModal.base_prompt_placeholder')"
+                            rows="6"
+                        />
+                    </div>
+                    <div class="openrouter-restore-default-row">
                         <button
                             type="button"
                             class="openrouter-restore-default"
@@ -821,33 +1116,118 @@ onMounted(() => {
                         </button>
                     </div>
                 </div>
+                <div class="ext-ui-section openrouter-settings-section">
+                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.max_tokens") }}</h4>
+                    <div class="ext-ui-field openrouter-field openrouter-field-inline">
+                        <input
+                            v-model.number="maxTokens"
+                            type="number"
+                            class="ext-ui-input"
+                            min="256"
+                            max="65536"
+                            step="256"
+                        />
+                        <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.max_tokens_hint") }}</p>
+                    </div>
+                </div>
+                <div class="ext-ui-section openrouter-settings-section">
+                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.tasks") }}</h4>
+                    <p class="ext-ui-hint" style="margin-bottom: 0.5rem;">{{ t("game.ui.extensions.OpenRouterModal.save_tasks_hint") }}</p>
+                    <button
+                        type="button"
+                        class="ext-ui-btn"
+                        @click="restoreDefaultTasks"
+                    >
+                        {{ t("game.ui.extensions.OpenRouterModal.restore_default_tasks") }}
+                    </button>
+                </div>
             </div>
 
             <div v-show="activeTab === 'tasks'" class="ext-body ext-two-col">
                 <section class="ext-ui-section ext-two-col-main openrouter-result-section">
                     <h3>{{ t("game.ui.extensions.OpenRouterModal.result") }}</h3>
-                    <div v-if="!result" class="ext-ui-empty openrouter-result-placeholder">
-                        {{ t("game.ui.extensions.OpenRouterModal.click_run") }}
-                    </div>
-                    <div v-else ref="resultRef" class="openrouter-result-container">
-                        <div class="openrouter-result-content">{{ result }}</div>
-                    </div>
+                    <!-- Map import preview with wall/door overlay -->
+                    <template v-if="importMapData">
+                        <p class="openrouter-map-preview-summary">{{ result }}</p>
+                        <div class="openrouter-map-preview">
+                            <img :src="importMapData.url" class="openrouter-preview-image" :alt="importMapData.name ?? 'map'" />
+                            <svg
+                                class="openrouter-preview-overlay"
+                                :viewBox="`0 0 ${importMapData.gridCells.width} ${importMapData.gridCells.height}`"
+                                preserveAspectRatio="none"
+                            >
+                                <!-- Walls -->
+                                <line
+                                    v-for="(line, i) in importMapData.walls?.lines ?? []"
+                                    :key="'w' + i"
+                                    :x1="line[0][0]" :y1="line[0][1]"
+                                    :x2="line[1][0]" :y2="line[1][1]"
+                                    stroke="#00e676" stroke-width="0.08" stroke-linecap="round"
+                                />
+                                <!-- Doors -->
+                                <rect
+                                    v-for="(door, i) in importMapData.doors ?? []"
+                                    :key="'d' + i"
+                                    :x="door.x + 0.15" :y="door.y + 0.15"
+                                    width="0.7" height="0.7"
+                                    fill="none" stroke="#ffaa00" stroke-width="0.08"
+                                />
+                            </svg>
+                            <div class="openrouter-preview-legend">
+                                <span class="openrouter-legend-wall">{{ t("game.ui.extensions.OpenRouterModal.preview_legend_wall") }}</span>
+                                <span v-if="(importMapData.doors ?? []).length > 0" class="openrouter-legend-door">{{ t("game.ui.extensions.OpenRouterModal.preview_legend_door") }}</span>
+                            </div>
+                        </div>
+                    </template>
+                    <template v-else>
+                        <div v-if="!result" class="ext-ui-empty openrouter-result-placeholder">
+                            {{ t("game.ui.extensions.OpenRouterModal.click_run") }}
+                        </div>
+                        <div v-else ref="resultRef" class="openrouter-result-container">
+                            <div class="openrouter-result-content">{{ result }}</div>
+                        </div>
+                    </template>
                 </section>
 
                 <section class="ext-ui-section ext-two-col-side openrouter-params-section">
-                    <div class="openrouter-tasks-header">
-                        <span class="openrouter-tasks-title">{{ t("game.ui.extensions.OpenRouterModal.tasks") }}</span>
+                    <div class="ext-toolbar-bar ext-search-bar openrouter-task-toolbar">
+                        <font-awesome-icon icon="search" class="ext-search-icon" />
+                        <input
+                            v-model="taskSearch"
+                            type="text"
+                            class="ext-search-input"
+                            :placeholder="t('game.ui.extensions.OpenRouterModal.task_search_placeholder')"
+                        />
                         <button
                             type="button"
-                            class="openrouter-restore-tasks"
-                            @click="restoreDefaultTasks"
+                            class="ext-search-add-btn"
+                            :title="t('game.ui.extensions.OpenRouterModal.task_add')"
+                            @click="addTaskPickerVisible = !addTaskPickerVisible"
                         >
-                            {{ t("game.ui.extensions.OpenRouterModal.restore_default_tasks") }}
+                            <font-awesome-icon icon="plus" />
+                        </button>
+                        <button
+                            type="button"
+                            class="ext-search-add-btn"
+                            :title="t('game.ui.extensions.OpenRouterModal.settings')"
+                            @click="activeTab = 'settings'; addTaskPickerVisible = false"
+                        >
+                            <font-awesome-icon icon="cog" />
                         </button>
                     </div>
                     <div class="openrouter-task-list">
+                        <span class="openrouter-task-group-label">{{ t("game.ui.extensions.OpenRouterModal.task_group_text") }}</span>
                         <button
-                            v-for="task in tasks"
+                            v-for="task in textTasks"
+                            :key="task.id"
+                            :class="{ active: currentTask?.id === task.id }"
+                            @click="selectTask(task)"
+                        >
+                            {{ getTaskLabel(task) }}
+                        </button>
+                        <span class="openrouter-task-group-label openrouter-task-group-label--multimodal">{{ t("game.ui.extensions.OpenRouterModal.task_group_multimodal") }}</span>
+                        <button
+                            v-for="task in multimodalTasks"
                             :key="task.id"
                             :class="{ active: currentTask?.id === task.id }"
                             @click="selectTask(task)"
@@ -872,9 +1252,18 @@ onMounted(() => {
                         </button>
                         <button
                             class="openrouter-add-task"
-                            @click="addTask"
+                            @click="addTaskPickerVisible = !addTaskPickerVisible"
                         >
                             + {{ t("game.ui.extensions.OpenRouterModal.task_add") }}
+                        </button>
+                    </div>
+                    <div v-if="addTaskPickerVisible" class="openrouter-add-task-picker">
+                        <span class="openrouter-add-task-picker-label">{{ t("game.ui.extensions.OpenRouterModal.task_add_type_label") }}</span>
+                        <button class="openrouter-add-task-type-btn" @click="addTask()">
+                            {{ t("game.ui.extensions.OpenRouterModal.task_add_type_text") }}
+                        </button>
+                        <button class="openrouter-add-task-type-btn openrouter-add-task-type-btn--multimodal" @click="addTask('multimodal')">
+                            {{ t("game.ui.extensions.OpenRouterModal.task_add_type_multimodal") }}
                         </button>
                     </div>
 
@@ -916,6 +1305,18 @@ onMounted(() => {
                 </div>
 
                 <div v-else-if="currentTask" class="openrouter-task-panel">
+                    <!-- Hidden file input for import tasks -->
+                    <input
+                        ref="fileInputRef"
+                        type="file"
+                        style="display:none"
+                        :accept="(currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'multimodal'
+                            ? '.png,.jpg,.jpeg,.pdf,.doc,.docx'
+                            : '.png,.jpg,.jpeg'"
+                        :multiple="(currentTask as TaskDef).type === 'import_character'"
+                        @change="onFileSelected"
+                    />
+
                     <template v-if="currentTask.id !== 'custom'">
                         <button
                             class="openrouter-edit-inline"
@@ -923,15 +1324,45 @@ onMounted(() => {
                         >
                             {{ t("game.ui.extensions.OpenRouterModal.task_edit") }}
                         </button>
-                        <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.input_optional") }}</label>
-                        <div class="ext-ui-field">
-                            <textarea
-                                v-model="taskInput"
-                                class="ext-ui-textarea"
-                                :placeholder="t('game.ui.extensions.OpenRouterModal.input_placeholder')"
-                                rows="3"
-                            />
+
+                        <!-- Multimodal hint -->
+                        <div v-if="(currentTask as TaskDef).type" class="openrouter-multimodal-hint">
+                            {{ t("game.ui.extensions.OpenRouterModal.task_multimodal_hint") }}
                         </div>
+
+                        <!-- File upload for import tasks -->
+                        <template v-if="(currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'import_map' || (currentTask as TaskDef).type === 'multimodal'">
+                            <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.file_upload_label") }}</label>
+                            <div class="ext-ui-field openrouter-file-upload">
+                                <button
+                                    type="button"
+                                    class="ext-ui-btn"
+                                    @click="fileInputRef?.click()"
+                                >
+                                    {{ t("game.ui.extensions.OpenRouterModal.file_select") }}
+                                </button>
+                                <span v-if="(currentTask as TaskDef).type === 'import_character' && selectedFiles.length > 1" class="openrouter-file-name">{{ selectedFiles.length }} file selezionati</span>
+                                <span v-else-if="selectedFile" class="openrouter-file-name">{{ selectedFile.name }}</span>
+                                <span v-else class="openrouter-file-hint">
+                                    {{ (currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'multimodal'
+                                        ? t("game.ui.extensions.OpenRouterModal.file_hint_character")
+                                        : t("game.ui.extensions.OpenRouterModal.file_hint_map") }}
+                                </span>
+                            </div>
+                        </template>
+
+                        <!-- Standard textarea for regular tasks -->
+                        <template v-else>
+                            <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.input_optional") }}</label>
+                            <div class="ext-ui-field">
+                                <textarea
+                                    v-model="taskInput"
+                                    class="ext-ui-textarea"
+                                    :placeholder="t('game.ui.extensions.OpenRouterModal.input_placeholder')"
+                                    rows="6"
+                                />
+                            </div>
+                        </template>
                     </template>
                     <template v-else>
                         <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.custom_prompt") }}</label>
@@ -940,7 +1371,7 @@ onMounted(() => {
                                 v-model="customPrompt"
                                 class="ext-ui-textarea"
                                 :placeholder="t('game.ui.extensions.OpenRouterModal.custom_placeholder')"
-                                rows="4"
+                                rows="7"
                             />
                         </div>
                     </template>
@@ -948,26 +1379,15 @@ onMounted(() => {
                 </section>
             </div>
             <div class="ext-bottom-bar openrouter-bottom-bar">
-                <div class="openrouter-bottom-tabs">
-                    <button
-                        type="button"
-                        class="ext-ui-btn"
-                        :class="{ 'ext-ui-btn-success': activeTab === 'tasks' }"
-                        @click="activeTab = 'tasks'"
-                    >
-                        {{ t("game.ui.extensions.OpenRouterModal.tasks") }}
-                    </button>
-                    <button
-                        type="button"
-                        class="ext-ui-btn"
-                        :class="{ 'ext-ui-btn-success': activeTab === 'settings' }"
-                        @click="activeTab = 'settings'"
-                    >
-                        {{ t("game.ui.extensions.OpenRouterModal.settings") }}
-                    </button>
-                </div>
                 <div class="openrouter-bottom-actions">
                     <template v-if="activeTab === 'settings'">
+                        <button
+                            type="button"
+                            class="ext-ui-btn"
+                            @click="activeTab = 'tasks'"
+                        >
+                            {{ t("common.cancel") }}
+                        </button>
                         <button
                             type="button"
                             class="ext-ui-btn ext-ui-btn-success"
@@ -988,7 +1408,16 @@ onMounted(() => {
                             {{ importingToSheet ? "..." : t("game.ui.extensions.OpenRouterModal.import_to_sheet") }}
                         </button>
                         <button
-                            v-if="result.trim()"
+                            v-if="showImportMapButton"
+                            type="button"
+                            class="ext-ui-btn ext-ui-btn-primary"
+                            :disabled="importingToMap"
+                            @click="importMapToCanvas"
+                        >
+                            {{ importingToMap ? "..." : t("game.ui.extensions.OpenRouterModal.import_to_map") }}
+                        </button>
+                        <button
+                            v-if="result.trim() && currentTask?.id !== 'import_map'"
                             type="button"
                             class="ext-ui-btn ext-ui-btn-success"
                             @click="createNoteFromResult"
@@ -999,8 +1428,15 @@ onMounted(() => {
                             v-if="currentTask"
                             type="button"
                             class="ext-ui-btn ext-ui-btn-success"
-                            :disabled="runningTask || (currentTask.id === 'custom' && !customPrompt.trim())"
-                            @click="currentTask.id === 'custom' ? runCustomTask() : runTask(currentTask, taskInput)"
+                            :disabled="runningTask
+                                || (currentTask.id === 'custom' && !customPrompt.trim())
+                                || ((currentTask as TaskDef).type === 'import_character' && selectedFiles.length === 0)
+                                || (((currentTask as TaskDef).type === 'import_map' || (currentTask as TaskDef).type === 'multimodal') && !selectedFile)"
+                            @click="currentTask.id === 'custom'
+                                ? runCustomTask()
+                                : ((currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'import_map' || (currentTask as TaskDef).type === 'multimodal')
+                                    ? runImportTask()
+                                    : runTask(currentTask, taskInput)"
                         >
                             {{ runningTask ? "..." : t("game.ui.extensions.OpenRouterModal.run") }}
                         </button>
@@ -1037,17 +1473,11 @@ onMounted(() => {
     display: flex;
     flex-direction: row;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 1rem;
 }
 
 .openrouter-bottom-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.openrouter-bottom-tabs {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -1130,6 +1560,58 @@ onMounted(() => {
     }
 }
 
+.openrouter-map-preview-summary {
+    font-size: 0.85em;
+    color: #555;
+    margin-bottom: 0.5rem;
+    white-space: pre-line;
+}
+
+.openrouter-map-preview {
+    position: relative;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: 0.25rem;
+    border: 1px solid #ddd;
+
+    .openrouter-preview-image {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    .openrouter-preview-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+    }
+
+    .openrouter-preview-legend {
+        position: absolute;
+        bottom: 0.4rem;
+        left: 0.4rem;
+        display: flex;
+        gap: 0.75rem;
+        font-size: 0.75em;
+        font-weight: 600;
+
+        span {
+            padding: 0.15rem 0.4rem;
+            border-radius: 0.2rem;
+            background: rgba(0,0,0,0.55);
+        }
+
+        .openrouter-legend-wall { color: #00e676; }
+        .openrouter-legend-door { color: #ffaa00; }
+    }
+}
+
 .openrouter-result-placeholder {
     flex: 1;
     display: flex;
@@ -1162,31 +1644,82 @@ onMounted(() => {
     flex-shrink: 0;
 }
 
-.openrouter-tasks-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+.openrouter-task-toolbar {
     margin-bottom: 0.5rem;
+    flex-shrink: 0;
+}
 
-    .openrouter-tasks-title {
-        font-weight: 500;
+.openrouter-task-group-label {
+    width: 100%;
+    font-size: 0.72em;
+    font-weight: 700;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.35rem 0 0.1rem;
+    border-bottom: 1px solid #e8e8e8;
+    margin-bottom: 0.1rem;
+
+    &--multimodal {
+        color: #5a9fd4;
+        border-bottom-color: #c8dff0;
     }
 }
 
-.openrouter-restore-tasks {
-    font-size: 0.85em;
-    padding: 0.25rem 0.5rem;
-    background: transparent;
-    border: 1px dashed #999;
+.openrouter-restore-default-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+}
+
+.openrouter-add-task-picker {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.5rem 0.75rem;
+    background: #f7f7f7;
+    border: 1px solid #ddd;
     border-radius: 0.25rem;
+    margin-top: 0.25rem;
+
+    .openrouter-add-task-picker-label {
+        font-size: 0.85em;
+        color: #555;
+        flex-shrink: 0;
+    }
+}
+
+.openrouter-add-task-type-btn {
+    padding: 0.35rem 0.85rem;
+    border: 1px solid #aaa;
+    border-radius: 0.25rem;
+    background: #fff;
     cursor: pointer;
-    color: #666;
+    font-size: 0.88em;
 
     &:hover {
-        background: #f5f5f5;
+        background: #f0f0f0;
     }
+
+    &--multimodal {
+        border-color: #5a9fd4;
+        color: #5a9fd4;
+
+        &:hover {
+            background: #eef5fc;
+        }
+    }
+}
+
+.openrouter-multimodal-hint {
+    font-size: 0.82em;
+    color: #5a9fd4;
+    background: #eef5fc;
+    border: 1px solid #c8dff0;
+    border-radius: 0.25rem;
+    padding: 0.4rem 0.6rem;
+    margin-bottom: 0.5rem;
 }
 
 .openrouter-task-list {
@@ -1298,5 +1831,28 @@ onMounted(() => {
     white-space: pre-wrap;
     word-wrap: break-word;
     font-size: 0.95em;
+}
+
+.openrouter-file-upload {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.openrouter-file-name {
+    font-size: 0.9em;
+    color: #333;
+    font-weight: 500;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.openrouter-file-hint {
+    font-size: 0.85em;
+    color: #888;
+    font-style: italic;
 }
 </style>
