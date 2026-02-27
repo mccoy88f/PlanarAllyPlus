@@ -1139,29 +1139,31 @@ onMounted(() => {
                 </div>
             </div>
 
-            <div v-show="activeTab === 'tasks'" class="ext-toolbar-bar ext-search-bar openrouter-task-toolbar">
-                <font-awesome-icon icon="search" class="ext-search-icon" />
-                <input
-                    v-model="taskSearch"
-                    type="text"
-                    class="ext-search-input"
-                    :placeholder="t('game.ui.extensions.OpenRouterModal.task_search_placeholder')"
-                />
+            <div v-show="activeTab === 'tasks'" class="ext-toolbar-bar openrouter-task-toolbar">
+                <div class="ext-search-bar">
+                    <font-awesome-icon icon="search" class="ext-search-icon" />
+                    <input
+                        v-model="taskSearch"
+                        type="text"
+                        class="ext-search-input"
+                        :placeholder="t('game.ui.extensions.OpenRouterModal.task_search_placeholder')"
+                    />
+                    <button
+                        type="button"
+                        class="ext-search-add-btn"
+                        :title="t('game.ui.extensions.OpenRouterModal.task_add')"
+                        @click="addTaskPickerVisible = !addTaskPickerVisible"
+                    >
+                        <font-awesome-icon icon="plus" />
+                    </button>
+                </div>
                 <button
                     type="button"
-                    class="ext-search-add-btn"
-                    :title="t('game.ui.extensions.OpenRouterModal.task_add')"
-                    @click="addTaskPickerVisible = !addTaskPickerVisible"
-                >
-                    <font-awesome-icon icon="plus" />
-                </button>
-                <button
-                    type="button"
-                    class="ext-search-add-btn"
+                    class="ext-toolbar-btn"
                     :title="t('game.ui.extensions.OpenRouterModal.settings')"
                     @click="activeTab = 'settings'; addTaskPickerVisible = false"
                 >
-                    <font-awesome-icon icon="cog" />
+                    <font-awesome-icon icon="gear" />
                 </button>
             </div>
 
@@ -1456,7 +1458,7 @@ onMounted(() => {
         flex-shrink: 0;
         background: #fdfdfd;
         padding: 0.35rem 1rem;
-        border-bottom: none !important;
+        border-bottom: 1px solid #eee;
     }
 }
 </style>
@@ -1470,7 +1472,7 @@ onMounted(() => {
 }
 
 :deep(.ext-progress-top-container) {
-    padding: 0.25rem 1.5rem;
+    padding: 0.25rem 1rem;
     background: #fdfdfd;
 }
 
@@ -1710,8 +1712,9 @@ onMounted(() => {
     margin-bottom: 0;
     flex-shrink: 0;
     background: #fdfdfd;
+    border: none;
     border-bottom: 1px solid #eee;
-    padding: 0.4rem 1.5rem;
+    padding: 0 1rem;
     min-height: 2.25rem;
 }
 
