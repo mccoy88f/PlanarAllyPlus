@@ -881,7 +881,7 @@ onMounted(() => {
                 </div>
             </div>
         </template>
-        <div class="ext-modal-body-wrapper openrouter-body">
+        <div class="ext-modal-body-wrapper">
             <div v-if="runningTask || savingSettings" class="ext-progress-top-container">
                 <LoadingBar :progress="100" indeterminate height="6px" />
             </div>
@@ -1458,20 +1458,6 @@ onMounted(() => {
 </style>
 
 <style scoped lang="scss">
-
-.openrouter-body {
-    padding: 1rem 1.5rem 0;
-    overflow: hidden;
-}
-
-.openrouter-bottom-bar {
-    margin: 1rem -1.5rem 0 -1.5rem;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 1rem;
-}
 
 .openrouter-bottom-actions {
     display: flex;
