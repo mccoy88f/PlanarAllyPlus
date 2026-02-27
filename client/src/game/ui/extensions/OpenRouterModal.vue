@@ -736,6 +736,7 @@ async function importMapToCanvas(): Promise<void> {
             name: mapName,
             walls,
             doors,
+            wallPadding: 0,
         });
         toast.success(t("game.ui.extensions.OpenRouterModal.import_map_success"));
     } catch (e) {
