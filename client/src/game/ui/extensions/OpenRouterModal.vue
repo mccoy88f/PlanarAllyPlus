@@ -1247,12 +1247,6 @@ onMounted(() => {
                         >
                             {{ t("game.ui.extensions.OpenRouterModal.task_custom") }}
                         </button>
-                        <button
-                            class="openrouter-add-task"
-                            @click="addTaskPickerVisible = !addTaskPickerVisible"
-                        >
-                            + {{ t("game.ui.extensions.OpenRouterModal.task_add") }}
-                        </button>
                     </div>
                     <div v-if="addTaskPickerVisible" class="openrouter-add-task-picker">
                         <span class="openrouter-add-task-picker-label">{{ t("game.ui.extensions.OpenRouterModal.task_add_type_label") }}</span>
@@ -1460,8 +1454,7 @@ onMounted(() => {
         width: 100%;
         flex-shrink: 0;
         background: #fdfdfd;
-        border-bottom: 1px solid #eee;
-        padding: 0.75rem 1.25rem;
+        padding: 0.5rem 1rem;
     }
 }
 </style>
@@ -1711,7 +1704,7 @@ onMounted(() => {
     flex-shrink: 0;
     background: #fdfdfd;
     border-bottom: 1px solid #eee;
-    padding: 0.75rem 1.25rem;
+    padding: 0.625rem 1.5rem;
 }
 
 .openrouter-task-group-label {
