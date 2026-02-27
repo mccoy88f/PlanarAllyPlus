@@ -19,7 +19,7 @@ jobs:
               id: meta
               uses: docker/metadata-action@v5
               with:
-                  images: kruptein/planarally
+                  images: mccoy88f/planarallyplus
 
             - name: Set up QEMU
               uses: docker/setup-qemu-action@v3
