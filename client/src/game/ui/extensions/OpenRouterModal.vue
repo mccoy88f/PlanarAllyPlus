@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useToast } from "vue-toastification";
 
+import VueMarkdown from "vue-markdown-render";
 import type { ApiNote, ApiNoteRoom } from "../../../apiTypes";
 import Modal from "../../../core/components/modals/Modal.vue";
 import { uuidv4 } from "../../../core/utils";
@@ -320,6 +321,7 @@ async function loadSettings(): Promise<void> {
                           label: t.label,
                           systemPrompt: t.systemPrompt,
                           userPrompt: t.userPrompt,
+                          ...(t.type ? { type: t.type } : {}),
                       }))
                     : getDefaultTasks(lang);
             const defaultTasks = getDefaultTasks(lang);
@@ -333,11 +335,15 @@ async function loadSettings(): Promise<void> {
             } else {
                 finalTasks = loadedTasks;
             }
-            // Backward compat: add new special tasks if missing
+            // Backward compat: add new special tasks if missing, or fix type if lost
             for (const specialId of ["import_character_sheet", "import_map"]) {
-                if (!finalTasks.some((t) => t.id === specialId)) {
+                const existing = finalTasks.find((t) => t.id === specialId);
+                if (!existing) {
                     const t = defaultTasks.find((d) => d.id === specialId);
                     if (t) finalTasks.push(t);
+                } else if (!existing.type) {
+                    const def = defaultTasks.find((d) => d.id === specialId);
+                    if (def?.type) existing.type = def.type;
                 }
             }
             tasks.value = finalTasks;
@@ -735,24 +741,14 @@ async function runImportTask(): Promise<void> {
                     doors: data.doors,
                     name: data.name,
                 };
-                const lang = defaultLanguage.value;
                 const wallCount = data.walls?.lines?.length ?? 0;
                 const doorCount = data.doors?.length ?? 0;
-                if (lang === "it") {
-                    result.value =
-                        `Mappa analizzata con successo!\n` +
-                        `• Griglia: ${data.gridCells.width} × ${data.gridCells.height} celle\n` +
-                        `• Muri: ${wallCount} segmenti rilevati\n` +
-                        `• Porte: ${doorCount} rilevate\n\n` +
-                        `Clicca "Importa mappa" per caricarla nella scena corrente.`;
-                } else {
-                    result.value =
-                        `Map analyzed successfully!\n` +
-                        `• Grid: ${data.gridCells.width} × ${data.gridCells.height} cells\n` +
-                        `• Walls: ${wallCount} segments detected\n` +
-                        `• Doors: ${doorCount} detected\n\n` +
-                        `Click "Import map" to place it on the current scene.`;
-                }
+                result.value = t("game.ui.extensions.OpenRouterModal.map_analysis_success", {
+                    width: data.gridCells.width,
+                    height: data.gridCells.height,
+                    walls: wallCount,
+                    doors: doorCount,
+                });
             } else {
                 const err = (await resp.json().catch(() => ({}))) as { error?: string };
                 toast.error(err.error || t("game.ui.extensions.OpenRouterModal.request_error"));
@@ -945,7 +941,7 @@ onMounted(() => {
                         </optgroup>
                         <optgroup
                             v-if="models.filter(x => x.id.startsWith('gemini') && x.is_free).length > 0"
-                            label="Google AI Studio (Gratuito)"
+                            :label="t('game.ui.extensions.OpenRouterModal.model_google_free')"
                         >
                             <option
                                 v-for="m in models.filter(x => x.id.startsWith('gemini') && x.is_free)"
@@ -957,7 +953,7 @@ onMounted(() => {
                         </optgroup>
                         <optgroup
                             v-if="models.filter(x => x.id.startsWith('gemini') && !x.is_free).length > 0"
-                            label="Google AI Studio (A pagamento)"
+                            :label="t('game.ui.extensions.OpenRouterModal.model_google_paid')"
                         >
                             <option
                                 v-for="m in models.filter(x => x.id.startsWith('gemini') && !x.is_free)"
@@ -1015,7 +1011,7 @@ onMounted(() => {
                         </optgroup>
                         <optgroup
                             v-if="models.filter(x => x.id.startsWith('gemini') && x.is_free).length > 0"
-                            label="Google AI Studio (Gratuito)"
+                            :label="t('game.ui.extensions.OpenRouterModal.model_google_free')"
                         >
                             <option
                                 v-for="m in models.filter(x => x.id.startsWith('gemini') && x.is_free)"
@@ -1027,7 +1023,7 @@ onMounted(() => {
                         </optgroup>
                         <optgroup
                             v-if="models.filter(x => x.id.startsWith('gemini') && !x.is_free).length > 0"
-                            label="Google AI Studio (A pagamento)"
+                            :label="t('game.ui.extensions.OpenRouterModal.model_google_paid')"
                         >
                             <option
                                 v-for="m in models.filter(x => x.id.startsWith('gemini') && !x.is_free)"
@@ -1064,7 +1060,7 @@ onMounted(() => {
                             </optgroup>
                             <optgroup
                                 v-if="googleImageModels.filter(m => m.is_free).length > 0"
-                                label="Google AI Studio (Gratuito)"
+                                :label="t('game.ui.extensions.OpenRouterModal.model_google_free')"
                             >
                                 <option
                                     v-for="m in googleImageModels.filter(m => m.is_free)"
@@ -1076,7 +1072,7 @@ onMounted(() => {
                             </optgroup>
                             <optgroup
                                 v-if="googleImageModels.filter(m => !m.is_free).length > 0"
-                                label="Google AI Studio (A pagamento)"
+                                :label="t('game.ui.extensions.OpenRouterModal.model_google_paid')"
                             >
                                 <option
                                     v-for="m in googleImageModels.filter(m => !m.is_free)"
@@ -1184,7 +1180,7 @@ onMounted(() => {
                             {{ t("game.ui.extensions.OpenRouterModal.click_run") }}
                         </div>
                         <div v-else ref="resultRef" class="openrouter-result-container">
-                            <div class="openrouter-result-content">{{ result }}</div>
+                            <VueMarkdown class="openrouter-result-content openrouter-markdown" :source="result" />
                         </div>
                     </template>
                 </section>
@@ -1341,7 +1337,7 @@ onMounted(() => {
                                 >
                                     {{ t("game.ui.extensions.OpenRouterModal.file_select") }}
                                 </button>
-                                <span v-if="(currentTask as TaskDef).type === 'import_character' && selectedFiles.length > 1" class="openrouter-file-name">{{ selectedFiles.length }} file selezionati</span>
+                                <span v-if="(currentTask as TaskDef).type === 'import_character' && selectedFiles.length > 1" class="openrouter-file-name">{{ t("game.ui.extensions.OpenRouterModal.files_selected", { count: selectedFiles.length }) }}</span>
                                 <span v-else-if="selectedFile" class="openrouter-file-name">{{ selectedFile.name }}</span>
                                 <span v-else class="openrouter-file-hint">
                                     {{ (currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'multimodal'
@@ -1630,6 +1626,77 @@ onMounted(() => {
     flex-direction: column;
     gap: 0.75rem;
     overflow: hidden;
+}
+
+.openrouter-result-content.openrouter-markdown {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem 0.75rem;
+    background: #fafafa;
+    border: 1px solid #e8e8e8;
+    border-radius: 0.25rem;
+    font-size: 0.93em;
+    line-height: 1.6;
+    white-space: normal;
+    word-break: break-word;
+
+    :deep(h1), :deep(h2), :deep(h3) {
+        margin: 0.75rem 0 0.4rem;
+        font-weight: 600;
+    }
+    :deep(h1) { font-size: 1.2em; }
+    :deep(h2) { font-size: 1.1em; }
+    :deep(h3) { font-size: 1em; }
+    :deep(p) { margin: 0.4rem 0; }
+    :deep(ul), :deep(ol) { padding-left: 1.5rem; margin: 0.4rem 0; }
+    :deep(li) { margin: 0.15rem 0; }
+    :deep(strong) { font-weight: 700; }
+    :deep(em) { font-style: italic; }
+    :deep(code) {
+        background: #f0f0f0;
+        border-radius: 0.2rem;
+        padding: 0.1em 0.3em;
+        font-family: monospace;
+        font-size: 0.9em;
+    }
+    :deep(pre) {
+        background: #f0f0f0;
+        border-radius: 0.3rem;
+        padding: 0.6rem 0.8rem;
+        overflow-x: auto;
+        margin: 0.5rem 0;
+
+        code {
+            background: none;
+            padding: 0;
+        }
+    }
+    :deep(blockquote) {
+        border-left: 3px solid #ccc;
+        margin: 0.5rem 0;
+        padding: 0.2rem 0.75rem;
+        color: #555;
+    }
+    :deep(hr) {
+        border: none;
+        border-top: 1px solid #ddd;
+        margin: 0.75rem 0;
+    }
+    :deep(table) {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 0.5rem 0;
+        font-size: 0.9em;
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 0.3rem 0.6rem;
+        }
+        th {
+            background: #f0f0f0;
+            font-weight: 600;
+        }
+    }
 }
 
 .openrouter-result-actions {
