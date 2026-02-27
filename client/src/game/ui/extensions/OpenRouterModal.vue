@@ -15,12 +15,18 @@ import type { NoteId } from "../../systems/notes/types";
 import { extensionsState } from "../../systems/extensions/state";
 import LoadingBar from "../../../core/components/LoadingBar.vue";
 import { closeOpenRouterModal, focusExtension, openExtensionModal } from "../../systems/extensions/ui";
+import { addDungeonToMap, type WallData, type DoorData } from "../../dungeongen";
+import { toGP } from "../../../core/geometry";
+import type { AssetId } from "../../../assets/models";
 
 export interface TaskDef {
     id: string;
     label: string;
     systemPrompt: string;
     userPrompt: string;
+    /** Special task type: "import_character" shows file upload for character sheets,
+     *  "import_map" shows file upload for map images. Defaults to normal chat if omitted. */
+    type?: "import_character" | "import_map";
 }
 
 const props = defineProps<{
@@ -79,6 +85,27 @@ Rispondi SOLO con il JSON completo, senza markdown (\`\`\`json) né testo prima 
             "Sei un esperto di descrizioni per mappe da tavolo e giochi di ruolo. Dato una descrizione di una mappa, migliorala rendendola più realistica e immersiva. Aggiungi dettagli ambientali, atmosfera, suggerimenti per il DM su come descriverla ai giocatori. Non inserire mai segnalini o personaggi.",
         userPrompt: "Migliora questa descrizione di mappa rendendola più realistica:",
     },
+    {
+        id: "import_character_sheet",
+        label: "Importa scheda personaggio",
+        type: "import_character" as const,
+        systemPrompt: `Sei un esperto di giochi di ruolo D&D 5e. Analizza il contenuto allegato (scheda personaggio cartacea scansionata, PDF o documento) ed estrai tutte le informazioni del personaggio.
+
+Compila il seguente template JSON con TUTTI i dati trovati nel documento. Rispondi SOLO con il JSON completo, senza testo aggiuntivo, senza blocchi markdown.
+
+Template (rispetta questa struttura esatta):
+${CHARACTER_SHEET_TEMPLATE}
+
+alignmentId: 0="", 1="Lawful Good", 2="Neutral Good", 3="Chaotic Good", 4="Lawful Neutral", 5="Neutral", 6="Chaotic Neutral", 7="Lawful Evil", 8="Neutral Evil", 9="Chaotic Evil"`,
+        userPrompt: "Estrai i dati del personaggio da questa scheda e compila il JSON. Rispondi SOLO con il JSON completo.",
+    },
+    {
+        id: "import_map",
+        label: "Importa mappa da immagine",
+        type: "import_map" as const,
+        systemPrompt: "",
+        userPrompt: "",
+    },
 ];
 
 const DEFAULT_TASKS_EN: TaskDef[] = [
@@ -119,6 +146,27 @@ Reply ONLY with the complete JSON, no markdown (\`\`\`json) or text before or af
         systemPrompt:
             "You are an expert in descriptions for tabletop maps and RPGs. Given a map description, improve it to make it more realistic and immersive. Add environmental details, atmosphere, suggestions for the DM on how to describe it to players. Never include markers or characters.",
         userPrompt: "Improve this map description to make it more realistic:",
+    },
+    {
+        id: "import_character_sheet",
+        label: "Import character sheet",
+        type: "import_character" as const,
+        systemPrompt: `You are an expert in D&D 5e tabletop RPGs. Analyze the attached content (scanned paper character sheet, PDF or document) and extract all character information.
+
+Fill in the following JSON template with ALL data found in the document. Reply ONLY with the complete JSON, without any additional text or markdown blocks.
+
+Template (follow this exact structure):
+${CHARACTER_SHEET_TEMPLATE}
+
+alignmentId: 0="", 1="Lawful Good", 2="Neutral Good", 3="Chaotic Good", 4="Lawful Neutral", 5="Neutral", 6="Chaotic Neutral", 7="Lawful Evil", 8="Neutral Evil", 9="Chaotic Evil"`,
+        userPrompt: "Extract character data from this sheet and fill in the JSON. Reply ONLY with the complete JSON.",
+    },
+    {
+        id: "import_map",
+        label: "Import map from image",
+        type: "import_map" as const,
+        systemPrompt: "",
+        userPrompt: "",
     },
 ];
 
@@ -248,13 +296,22 @@ async function loadSettings(): Promise<void> {
             const defaultTasks = getDefaultTasks(lang);
             const jsonTask = defaultTasks.find((d) => d.id === "generate_character_json");
             const hasJsonTask = loadedTasks.some((t) => t.id === "generate_character_json");
+            let finalTasks: TaskDef[];
             if (jsonTask && !hasJsonTask) {
-                tasks.value = [loadedTasks[0], jsonTask, ...loadedTasks.slice(1)].filter(
+                finalTasks = [loadedTasks[0], jsonTask, ...loadedTasks.slice(1)].filter(
                     (x): x is TaskDef => x != null,
                 );
             } else {
-                tasks.value = loadedTasks;
+                finalTasks = loadedTasks;
             }
+            // Backward compat: add new special tasks if missing
+            for (const specialId of ["import_character_sheet", "import_map"]) {
+                if (!finalTasks.some((t) => t.id === specialId)) {
+                    const t = defaultTasks.find((d) => d.id === specialId);
+                    if (t) finalTasks.push(t);
+                }
+            }
+            tasks.value = finalTasks;
         }
     } catch {
         defaultLanguage.value = "it";
@@ -408,6 +465,9 @@ function selectTask(task: TaskDef | { id: "custom"; label: string; systemPrompt:
     editingTask.value = null;
     taskInput.value = "";
     result.value = "";
+    selectedFile.value = null;
+    importMapData.value = null;
+    if (fileInputRef.value) fileInputRef.value.value = "";
 }
 
 function addTask(): void {
@@ -493,6 +553,19 @@ function extractJsonFromResult(text: string): unknown | null {
 
 const importingToSheet = ref(false);
 
+// File upload state (for import_character and import_map tasks)
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const selectedFile = ref<File | null>(null);
+const importingToMap = ref(false);
+const importMapData = ref<{
+    url: string;
+    assetId: AssetId;
+    gridCells: { width: number; height: number };
+    walls?: WallData;
+    doors?: DoorData[];
+    name?: string;
+} | null>(null);
+
 async function importCharacterToSheet(): Promise<void> {
     if (!result.value.trim()) return;
     const parsed = extractJsonFromResult(result.value);
@@ -546,8 +619,126 @@ async function importCharacterToSheet(): Promise<void> {
 
 
 const showImportToSheetButton = computed(
-    () => currentTask.value?.id === "generate_character_json",
+    () => currentTask.value?.id === "generate_character_json" || currentTask.value?.id === "import_character_sheet",
 );
+
+const showImportMapButton = computed(
+    () => currentTask.value?.id === "import_map" && importMapData.value !== null,
+);
+
+function onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    selectedFile.value = input.files?.[0] ?? null;
+    result.value = "";
+    importMapData.value = null;
+}
+
+async function runImportTask(): Promise<void> {
+    const task = currentTask.value as TaskDef | null;
+    if (!task) return;
+    if (!selectedFile.value) {
+        toast.error(t("game.ui.extensions.OpenRouterModal.file_required"));
+        return;
+    }
+
+    runningTask.value = true;
+    result.value = "";
+    importMapData.value = null;
+
+    try {
+        const formData = new FormData();
+        formData.append("file", selectedFile.value);
+
+        if (task.type === "import_character") {
+            formData.append("systemPrompt", task.systemPrompt || "");
+            formData.append("userPrompt", task.userPrompt || "");
+
+            const resp = await fetch("/api/extensions/openrouter/import-character", {
+                method: "POST",
+                body: formData,
+                credentials: "include",
+            });
+            if (resp.ok) {
+                const data = (await resp.json()) as { result?: string };
+                result.value = data.result ?? "";
+            } else {
+                const err = (await resp.json().catch(() => ({}))) as { error?: string };
+                toast.error(err.error || t("game.ui.extensions.OpenRouterModal.request_error"));
+            }
+        } else if (task.type === "import_map") {
+            const resp = await fetch("/api/extensions/openrouter/import-map", {
+                method: "POST",
+                body: formData,
+                credentials: "include",
+            });
+            if (resp.ok) {
+                const data = (await resp.json()) as {
+                    url: string;
+                    assetId: AssetId;
+                    gridCells: { width: number; height: number };
+                    walls?: WallData;
+                    doors?: DoorData[];
+                    name?: string;
+                };
+                importMapData.value = {
+                    url: data.url,
+                    assetId: data.assetId,
+                    gridCells: data.gridCells,
+                    walls: data.walls,
+                    doors: data.doors,
+                    name: data.name,
+                };
+                const lang = defaultLanguage.value;
+                const wallCount = data.walls?.lines?.length ?? 0;
+                const doorCount = data.doors?.length ?? 0;
+                if (lang === "it") {
+                    result.value =
+                        `Mappa analizzata con successo!\n` +
+                        `• Griglia: ${data.gridCells.width} × ${data.gridCells.height} celle\n` +
+                        `• Muri: ${wallCount} segmenti rilevati\n` +
+                        `• Porte: ${doorCount} rilevate\n\n` +
+                        `Clicca "Importa mappa" per caricarla nella scena corrente.`;
+                } else {
+                    result.value =
+                        `Map analyzed successfully!\n` +
+                        `• Grid: ${data.gridCells.width} × ${data.gridCells.height} cells\n` +
+                        `• Walls: ${wallCount} segments detected\n` +
+                        `• Doors: ${doorCount} detected\n\n` +
+                        `Click "Import map" to place it on the current scene.`;
+                }
+            } else {
+                const err = (await resp.json().catch(() => ({}))) as { error?: string };
+                toast.error(err.error || t("game.ui.extensions.OpenRouterModal.request_error"));
+            }
+        }
+    } catch (e) {
+        toast.error(t("game.ui.extensions.OpenRouterModal.request_error"));
+        console.error(e);
+    } finally {
+        runningTask.value = false;
+    }
+}
+
+async function importMapToCanvas(): Promise<void> {
+    if (!importMapData.value) return;
+    importingToMap.value = true;
+    try {
+        const { url, gridCells, walls, doors, name } = importMapData.value;
+        const mapName = name ?? selectedFile.value?.name ?? "imported_map";
+        await addDungeonToMap(url, gridCells, toGP(0, 0), {
+            seed: mapName,
+            name: mapName,
+            walls,
+            doors,
+        });
+        toast.success(t("game.ui.extensions.OpenRouterModal.import_map_success"));
+    } catch (e) {
+        toast.error(t("game.ui.extensions.OpenRouterModal.import_error"));
+        console.error(e);
+    } finally {
+        importingToMap.value = false;
+    }
+}
 
 async function createNoteFromResult(): Promise<void> {
     if (!result.value.trim()) return;
@@ -588,6 +779,9 @@ watch(visible, async (v) => {
         currentTask.value = null;
         customPrompt.value = "";
         editingTask.value = null;
+        selectedFile.value = null;
+        importMapData.value = null;
+        if (fileInputRef.value) fileInputRef.value.value = "";
     }
 });
 
@@ -916,6 +1110,17 @@ onMounted(() => {
                 </div>
 
                 <div v-else-if="currentTask" class="openrouter-task-panel">
+                    <!-- Hidden file input for import tasks -->
+                    <input
+                        ref="fileInputRef"
+                        type="file"
+                        style="display:none"
+                        :accept="(currentTask as TaskDef).type === 'import_character'
+                            ? '.png,.jpg,.jpeg,.pdf,.doc,.docx'
+                            : '.png,.jpg,.jpeg'"
+                        @change="onFileSelected"
+                    />
+
                     <template v-if="currentTask.id !== 'custom'">
                         <button
                             class="openrouter-edit-inline"
@@ -923,15 +1128,39 @@ onMounted(() => {
                         >
                             {{ t("game.ui.extensions.OpenRouterModal.task_edit") }}
                         </button>
-                        <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.input_optional") }}</label>
-                        <div class="ext-ui-field">
-                            <textarea
-                                v-model="taskInput"
-                                class="ext-ui-textarea"
-                                :placeholder="t('game.ui.extensions.OpenRouterModal.input_placeholder')"
-                                rows="3"
-                            />
-                        </div>
+
+                        <!-- File upload for import tasks -->
+                        <template v-if="(currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'import_map'">
+                            <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.file_upload_label") }}</label>
+                            <div class="ext-ui-field openrouter-file-upload">
+                                <button
+                                    type="button"
+                                    class="ext-ui-btn"
+                                    @click="fileInputRef?.click()"
+                                >
+                                    {{ t("game.ui.extensions.OpenRouterModal.file_select") }}
+                                </button>
+                                <span v-if="selectedFile" class="openrouter-file-name">{{ selectedFile.name }}</span>
+                                <span v-else class="openrouter-file-hint">
+                                    {{ (currentTask as TaskDef).type === 'import_character'
+                                        ? t("game.ui.extensions.OpenRouterModal.file_hint_character")
+                                        : t("game.ui.extensions.OpenRouterModal.file_hint_map") }}
+                                </span>
+                            </div>
+                        </template>
+
+                        <!-- Standard textarea for regular tasks -->
+                        <template v-else>
+                            <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.input_optional") }}</label>
+                            <div class="ext-ui-field">
+                                <textarea
+                                    v-model="taskInput"
+                                    class="ext-ui-textarea"
+                                    :placeholder="t('game.ui.extensions.OpenRouterModal.input_placeholder')"
+                                    rows="3"
+                                />
+                            </div>
+                        </template>
                     </template>
                     <template v-else>
                         <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.custom_prompt") }}</label>
@@ -988,7 +1217,16 @@ onMounted(() => {
                             {{ importingToSheet ? "..." : t("game.ui.extensions.OpenRouterModal.import_to_sheet") }}
                         </button>
                         <button
-                            v-if="result.trim()"
+                            v-if="showImportMapButton"
+                            type="button"
+                            class="ext-ui-btn ext-ui-btn-primary"
+                            :disabled="importingToMap"
+                            @click="importMapToCanvas"
+                        >
+                            {{ importingToMap ? "..." : t("game.ui.extensions.OpenRouterModal.import_to_map") }}
+                        </button>
+                        <button
+                            v-if="result.trim() && currentTask?.id !== 'import_map'"
                             type="button"
                             class="ext-ui-btn ext-ui-btn-success"
                             @click="createNoteFromResult"
@@ -999,8 +1237,14 @@ onMounted(() => {
                             v-if="currentTask"
                             type="button"
                             class="ext-ui-btn ext-ui-btn-success"
-                            :disabled="runningTask || (currentTask.id === 'custom' && !customPrompt.trim())"
-                            @click="currentTask.id === 'custom' ? runCustomTask() : runTask(currentTask, taskInput)"
+                            :disabled="runningTask
+                                || (currentTask.id === 'custom' && !customPrompt.trim())
+                                || (((currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'import_map') && !selectedFile)"
+                            @click="currentTask.id === 'custom'
+                                ? runCustomTask()
+                                : ((currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'import_map')
+                                    ? runImportTask()
+                                    : runTask(currentTask, taskInput)"
                         >
                             {{ runningTask ? "..." : t("game.ui.extensions.OpenRouterModal.run") }}
                         </button>
@@ -1298,5 +1542,28 @@ onMounted(() => {
     white-space: pre-wrap;
     word-wrap: break-word;
     font-size: 0.95em;
+}
+
+.openrouter-file-upload {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.openrouter-file-name {
+    font-size: 0.9em;
+    color: #333;
+    font-weight: 500;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.openrouter-file-hint {
+    font-size: 0.85em;
+    color: #888;
+    font-style: italic;
 }
 </style>
