@@ -83,9 +83,23 @@ Rispondi SOLO con il JSON completo, senza markdown (\`\`\`json) né testo prima 
         id: "import_character_sheet",
         label: "Importa scheda personaggio",
         type: "import_character" as const,
-        systemPrompt: `Sei un esperto di giochi di ruolo D&D 5e. Analizza il contenuto allegato (scheda personaggio cartacea scansionata, PDF o documento) ed estrai tutte le informazioni del personaggio.
+        systemPrompt: `Sei un esperto di giochi di ruolo D&D 5e. Analizza il contenuto allegato (scheda personaggio, stat block NPC, PDF o documento) ed estrai tutte le informazioni del personaggio.
 
-Compila il seguente template JSON con TUTTI i dati trovati nel documento. Rispondi SOLO con il JSON completo, senza testo aggiuntivo, senza blocchi markdown.
+Il documento potrebbe essere:
+- Una scheda personaggio tradizionale D&D 5e (anche su più pagine)
+- Uno stat block NPC (formato D&D Beyond o simile) con sezioni Traits, Actions, CR, ecc.
+Se sono presenti più immagini/pagine, appartengono tutte allo stesso personaggio: consolida i dati in un unico JSON.
+
+Regole per stat block NPC:
+- CR (Challenge Rating) → usa il valore XP come currentXp (es. CR 1/4 = 50 XP, CR 1/2 = 100, CR 1 = 200)
+- Tratti e abilità passivi → campo featuresTraits
+- Azioni di attacco → array attacks (nome, bonus, danno)
+- Incantesimi "at will" → cantrips
+- Incantesimi "X/day each" → incantesimi di livello appropriato (lvl1Spells, lvl2Spells, ecc.)
+- Tipo creatura (es. "Small Humanoid") → race.fullName
+- Sensi (Darkvision, ecc.) → campo otherProficiencies o featuresTraits
+
+Compila il seguente template JSON con TUTTI i dati trovati. Rispondi SOLO con il JSON completo, senza testo aggiuntivo, senza blocchi markdown.
 
 Template (rispetta questa struttura esatta):
 ${CHARACTER_SHEET_TEMPLATE}
@@ -138,9 +152,23 @@ Reply ONLY with the complete JSON, no markdown (\`\`\`json) or text before or af
         id: "import_character_sheet",
         label: "Import character sheet",
         type: "import_character" as const,
-        systemPrompt: `You are an expert in D&D 5e tabletop RPGs. Analyze the attached content (scanned paper character sheet, PDF or document) and extract all character information.
+        systemPrompt: `You are an expert in D&D 5e tabletop RPGs. Analyze the attached content (character sheet, NPC stat block, PDF or document) and extract all character information.
 
-Fill in the following JSON template with ALL data found in the document. Reply ONLY with the complete JSON, without any additional text or markdown blocks.
+The document may be:
+- A traditional D&D 5e character sheet (possibly spanning multiple pages)
+- An NPC stat block (D&D Beyond format or similar) with Traits, Actions, CR sections, etc.
+If multiple images/pages are provided, they all belong to the same character: consolidate data into a single JSON.
+
+Rules for NPC stat blocks:
+- CR (Challenge Rating) → use XP value as currentXp (e.g. CR 1/4 = 50 XP, CR 1/2 = 100, CR 1 = 200)
+- Passive traits and abilities → featuresTraits field
+- Attack actions → attacks array (name, bonus, damage)
+- "At will" spells → cantrips
+- "X/day each" spells → appropriate spell level (lvl1Spells, lvl2Spells, etc.)
+- Creature type (e.g. "Small Humanoid") → race.fullName
+- Senses (Darkvision, etc.) → otherProficiencies or featuresTraits field
+
+Fill in the following JSON template with ALL data found. Reply ONLY with the complete JSON, without any additional text or markdown blocks.
 
 Template (follow this exact structure):
 ${CHARACTER_SHEET_TEMPLATE}
@@ -470,6 +498,7 @@ function selectTask(task: TaskDef | { id: "custom"; label: string; systemPrompt:
     taskInput.value = "";
     result.value = "";
     selectedFile.value = null;
+    selectedFiles.value = [];
     importMapData.value = null;
     if (fileInputRef.value) fileInputRef.value.value = "";
 }
@@ -562,6 +591,7 @@ const importingToSheet = ref(false);
 // File upload state (for import_character and import_map tasks)
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const selectedFile = ref<File | null>(null);
+const selectedFiles = ref<File[]>([]); // multi-page support for import_character
 const importingToMap = ref(false);
 const importMapData = ref<{
     url: string;
@@ -634,7 +664,14 @@ const showImportMapButton = computed(
 
 function onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    selectedFile.value = input.files?.[0] ?? null;
+    const task = currentTask.value as TaskDef | null;
+    if (task?.type === "import_character") {
+        selectedFiles.value = Array.from(input.files || []);
+        selectedFile.value = selectedFiles.value[0] ?? null;
+    } else {
+        selectedFile.value = input.files?.[0] ?? null;
+        selectedFiles.value = selectedFile.value ? [selectedFile.value] : [];
+    }
     result.value = "";
     importMapData.value = null;
 }
@@ -642,7 +679,9 @@ function onFileSelected(event: Event): void {
 async function runImportTask(): Promise<void> {
     const task = currentTask.value as TaskDef | null;
     if (!task) return;
-    if (!selectedFile.value) {
+
+    const filesToUpload = task.type === "import_character" ? selectedFiles.value : (selectedFile.value ? [selectedFile.value] : []);
+    if (filesToUpload.length === 0) {
         toast.error(t("game.ui.extensions.OpenRouterModal.file_required"));
         return;
     }
@@ -653,7 +692,9 @@ async function runImportTask(): Promise<void> {
 
     try {
         const formData = new FormData();
-        formData.append("file", selectedFile.value);
+        for (const f of filesToUpload) {
+            formData.append("file", f);
+        }
 
         if (task.type === "import_character" || task.type === "multimodal") {
             formData.append("systemPrompt", task.systemPrompt || "");
@@ -787,6 +828,7 @@ watch(visible, async (v) => {
         customPrompt.value = "";
         editingTask.value = null;
         selectedFile.value = null;
+        selectedFiles.value = [];
         importMapData.value = null;
         if (fileInputRef.value) fileInputRef.value.value = "";
     }
@@ -1271,6 +1313,7 @@ onMounted(() => {
                         :accept="(currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'multimodal'
                             ? '.png,.jpg,.jpeg,.pdf,.doc,.docx'
                             : '.png,.jpg,.jpeg'"
+                        :multiple="(currentTask as TaskDef).type === 'import_character'"
                         @change="onFileSelected"
                     />
 
@@ -1298,7 +1341,8 @@ onMounted(() => {
                                 >
                                     {{ t("game.ui.extensions.OpenRouterModal.file_select") }}
                                 </button>
-                                <span v-if="selectedFile" class="openrouter-file-name">{{ selectedFile.name }}</span>
+                                <span v-if="(currentTask as TaskDef).type === 'import_character' && selectedFiles.length > 1" class="openrouter-file-name">{{ selectedFiles.length }} file selezionati</span>
+                                <span v-else-if="selectedFile" class="openrouter-file-name">{{ selectedFile.name }}</span>
                                 <span v-else class="openrouter-file-hint">
                                     {{ (currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'multimodal'
                                         ? t("game.ui.extensions.OpenRouterModal.file_hint_character")
@@ -1386,7 +1430,8 @@ onMounted(() => {
                             class="ext-ui-btn ext-ui-btn-success"
                             :disabled="runningTask
                                 || (currentTask.id === 'custom' && !customPrompt.trim())
-                                || (((currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'import_map' || (currentTask as TaskDef).type === 'multimodal') && !selectedFile)"
+                                || ((currentTask as TaskDef).type === 'import_character' && selectedFiles.length === 0)
+                                || (((currentTask as TaskDef).type === 'import_map' || (currentTask as TaskDef).type === 'multimodal') && !selectedFile)"
                             @click="currentTask.id === 'custom'
                                 ? runCustomTask()
                                 : ((currentTask as TaskDef).type === 'import_character' || (currentTask as TaskDef).type === 'import_map' || (currentTask as TaskDef).type === 'multimodal')

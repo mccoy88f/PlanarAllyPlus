@@ -675,6 +675,80 @@ async def _vision_call(
         return {"text": content}
 
 
+async def _vision_call_multi(
+    api_key: str,
+    model: str,
+    system_prompt: str,
+    user_text: str,
+    images: list[tuple[str, str]],  # list of (base64_data, mime_type)
+    max_tokens: int,
+    is_google: bool,
+    referer: str = "https://planarally.io",
+) -> dict:
+    """Call a vision-capable AI model with one or more image/document attachments."""
+    if is_google:
+        parts: list[dict] = [{"text": user_text}]
+        for b64, mime in images:
+            parts.append({"inline_data": {"mime_type": mime, "data": b64}})
+        payload: dict = {
+            "contents": [{"parts": parts}],
+            "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.3},
+        }
+        if system_prompt:
+            payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+        url = f"{GOOGLE_AI_API}/models/{model}:generateContent?key={api_key}"
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload) as resp:
+                text = await resp.text()
+                if resp.status != 200:
+                    try:
+                        err_data = json.loads(text)
+                        err_msg = (err_data.get("error") or {}).get("message", text)
+                    except Exception:
+                        err_msg = text
+                    return {"error": err_msg}
+                data = json.loads(text)
+        cands = data.get("candidates") or []
+        if not cands:
+            return {"error": "No response from vision model"}
+        out_parts = (cands[0].get("content") or {}).get("parts") or []
+        out_text = " ".join(p.get("text", "") for p in out_parts).strip()
+        return {"text": out_text}
+    else:
+        # OpenRouter
+        content: list[dict] = []
+        for b64, mime in images:
+            data_url = f"data:{mime};base64,{b64}"
+            content.append({"type": "image_url", "image_url": {"url": data_url}})
+        content.append({"type": "text", "text": user_text})
+        messages: list = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": content})
+        payload = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.3}
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": referer,
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{OPENROUTER_API}/chat/completions", json=payload, headers=headers) as resp:
+                text = await resp.text()
+                if resp.status != 200:
+                    try:
+                        err_data = json.loads(text)
+                        err_msg = err_data.get("error", {}).get("message", text)
+                    except Exception:
+                        err_msg = text
+                    return {"error": err_msg}
+                data = json.loads(text)
+        choices = data.get("choices") or []
+        if not choices:
+            return {"error": "No response from vision model"}
+        out_content = (choices[0].get("message") or {}).get("content", "")
+        return {"text": out_content}
+
+
 def _parse_json_response(text: str) -> dict | None:
     """Extract and parse JSON from an AI response (strips markdown code blocks)."""
     text = text.strip()
@@ -716,12 +790,11 @@ def _extract_docx_text(file_bytes: bytes) -> str:
 # ── Import Character Sheet ─────────────────────────────────────────────────────
 
 async def import_character(request: web.Request) -> web.Response:
-    """Import a character sheet from an uploaded file (image/PDF/DOCX) using AI vision."""
+    """Import a character sheet from one or more uploaded files (images/PDFs/DOCX) using AI vision."""
     user = await get_authorized_user(request)
 
     reader = await request.multipart()
-    file_bytes: bytes | None = None
-    filename = ""
+    files: list[tuple[str, bytes]] = []  # (filename, bytes)
     system_prompt = ""
     user_prompt = ""
 
@@ -729,12 +802,13 @@ async def import_character(request: web.Request) -> web.Response:
         if part.name == "file":
             filename = part.filename or ""
             file_bytes = await part.read()
+            files.append((filename, file_bytes))
         elif part.name == "systemPrompt":
             system_prompt = await part.text()
         elif part.name == "userPrompt":
             user_prompt = await part.text()
 
-    if not file_bytes:
+    if not files:
         return web.HTTPBadRequest(text="No file provided")
 
     opts = UserOptions.get_by_id(user.default_options)
@@ -758,62 +832,59 @@ async def import_character(request: web.Request) -> web.Response:
             )
 
     referer = str(request.url.origin()) if request.url.absolute else "https://planarally.io"
-    ext = Path(filename).suffix.lower()
 
-    if ext in {".png", ".jpg", ".jpeg"}:
-        mime_type = "image/jpeg" if ext in {".jpg", ".jpeg"} else "image/png"
-        b64 = base64.b64encode(file_bytes).decode("ascii")
-        result = await _vision_call(api_key, model, system_prompt, user_prompt or "Estrai i dati del personaggio da questa scheda e compila il JSON.", b64, mime_type, max_tokens, is_google, referer)
+    # Parse each uploaded file into image parts or text parts
+    image_parts: list[tuple[str, str]] = []  # (base64_data, mime_type)
+    text_parts: list[str] = []
 
-    elif ext == ".pdf":
-        if is_google:
-            # Gemini supports PDF natively as inline_data
-            b64 = base64.b64encode(file_bytes).decode("ascii")
-            result = await _vision_call(api_key, model, system_prompt, user_prompt or "Estrai i dati del personaggio da questo documento PDF e compila il JSON.", b64, "application/pdf", max_tokens, is_google, referer)
-        else:
+    for fname, fbytes in files:
+        ext = Path(fname).suffix.lower()
+        if ext in {".png", ".jpg", ".jpeg"}:
+            mime_type = "image/jpeg" if ext in {".jpg", ".jpeg"} else "image/png"
+            b64 = base64.b64encode(fbytes).decode("ascii")
+            image_parts.append((b64, mime_type))
+        elif ext == ".pdf":
+            if is_google:
+                b64 = base64.b64encode(fbytes).decode("ascii")
+                image_parts.append((b64, "application/pdf"))
+            else:
+                try:
+                    text_parts.append(_extract_pdf_text(fbytes))
+                except ImportError as e:
+                    return web.json_response(
+                        {"error": f"Impossibile elaborare il PDF: {e}. Usa Google AI (supporta PDF nativamente) oppure carica un'immagine."},
+                        status=400,
+                    )
+        elif ext in {".docx", ".doc"}:
             try:
-                text_content = _extract_pdf_text(file_bytes)
-            except ImportError as e:
+                text_parts.append(_extract_docx_text(fbytes))
+            except (ImportError, Exception) as e:
                 return web.json_response(
-                    {"error": f"Impossibile elaborare il PDF: {e}. Usa Google AI (supporta PDF nativamente) oppure carica un'immagine."},
+                    {"error": f"Impossibile elaborare il file DOC/DOCX: {e}. Installa python-docx oppure carica un'immagine o PDF."},
                     status=400,
                 )
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"{user_prompt}\n\nContenuto scheda:\n{text_content}"},
-            ]
-            result_raw = await _chat_google(api_key, model, messages, max_tokens, 0.3) if is_google else None
-            if result_raw is None:
-                payload = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.3}
-                headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "HTTP-Referer": referer}
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(f"{OPENROUTER_API}/chat/completions", json=payload, headers=headers) as resp:
-                        text_r = await resp.text()
-                        if resp.status != 200:
-                            try:
-                                err_data = json.loads(text_r)
-                                err_msg = err_data.get("error", {}).get("message", text_r)
-                            except Exception:
-                                err_msg = text_r
-                            return web.json_response({"error": err_msg}, status=resp.status)
-                        data = json.loads(text_r)
-                content = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
-                result = {"text": content}
-            else:
-                content = (result_raw.get("choices") or [{}])[0].get("message", {}).get("content", "")
-                result = {"text": content}
-
-    elif ext in {".docx", ".doc"}:
-        try:
-            text_content = _extract_docx_text(file_bytes)
-        except (ImportError, Exception) as e:
+        else:
             return web.json_response(
-                {"error": f"Impossibile elaborare il file DOC/DOCX: {e}. Installa python-docx oppure carica un'immagine o PDF."},
+                {"error": f"Tipo di file non supportato: {ext}. Usa PNG, JPG, PDF o DOCX."},
                 status=400,
             )
+
+    default_prompt = user_prompt or "Estrai i dati del personaggio da questa scheda e compila il JSON."
+
+    if image_parts:
+        # Vision call: send all images in a single request
+        full_prompt = default_prompt
+        if text_parts:
+            full_prompt += "\n\nContenuto testuale aggiuntivo:\n" + "\n---\n".join(text_parts)
+        result = await _vision_call_multi(
+            api_key, model, system_prompt, full_prompt, image_parts, max_tokens, is_google, referer
+        )
+    elif text_parts:
+        # Text-only: use chat completion
+        full_content = default_prompt + "\n\nContenuto scheda:\n" + "\n---\n".join(text_parts)
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"{user_prompt}\n\nContenuto scheda:\n{text_content}"},
+            {"role": "user", "content": full_content},
         ]
         if is_google:
             result_raw = await _chat_google(api_key, model, messages, max_tokens, 0.3)
@@ -835,12 +906,8 @@ async def import_character(request: web.Request) -> web.Response:
                     data = json.loads(text_r)
             content = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
             result = {"text": content}
-
     else:
-        return web.json_response(
-            {"error": f"Tipo di file non supportato: {ext}. Usa PNG, JPG, PDF o DOCX."},
-            status=400,
-        )
+        return web.json_response({"error": "Nessun contenuto da elaborare."}, status=400)
 
     if "error" in result:
         return web.json_response({"error": result["error"]}, status=502)
