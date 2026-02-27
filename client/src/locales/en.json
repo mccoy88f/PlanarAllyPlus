@@ -451,6 +451,7 @@
           "task_improve_map": "Improve map (realistic)",
           "task_import_character_sheet": "Import character sheet",
           "task_import_map": "Import map from image",
+          "task_search_placeholder": "Search tasks...",
           "task_group_text": "Text tasks",
           "task_group_multimodal": "Multimodal tasks (vision)",
           "task_multimodal_hint": "This task requires a model with vision support (image/PDF analysis).",

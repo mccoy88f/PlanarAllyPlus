@@ -934,7 +934,7 @@ async def import_map(request: web.Request) -> web.Response:
         asset_path.parent.mkdir(parents=True, exist_ok=True)
         asset_path.write_bytes(file_bytes)
 
-    folder = Asset.get_or_create_extension_folder(user, "openrouter")
+    folder = Asset.get_or_create_extension_folder(user, "AI generator")
     stem = Path(filename).stem
     asset_name = f"{stem}_{uuid.uuid4().hex[:6]}{ext}"
     asset = Asset.create(name=asset_name, file_hash=h, owner=user, parent=folder)

@@ -451,6 +451,7 @@
           "task_improve_map": "Migliora mappa (realistica)",
           "task_import_character_sheet": "Importa scheda personaggio",
           "task_import_map": "Importa mappa da immagine",
+          "task_search_placeholder": "Cerca task...",
           "task_group_text": "Task testuali",
           "task_group_multimodal": "Task multimodali (vision)",
           "task_multimodal_hint": "Questo task richiede un modello con supporto vision (analisi immagini/PDF).",

@@ -80,13 +80,6 @@ Rispondi SOLO con il JSON completo, senza markdown (\`\`\`json) né testo prima 
         userPrompt: "Scrivi una breve avventura per una sessione one-shot.",
     },
     {
-        id: "improve_map",
-        label: "Migliora mappa (realistica)",
-        systemPrompt:
-            "Sei un esperto di descrizioni per mappe da tavolo e giochi di ruolo. Dato una descrizione di una mappa, migliorala rendendola più realistica e immersiva. Aggiungi dettagli ambientali, atmosfera, suggerimenti per il DM su come descriverla ai giocatori. Non inserire mai segnalini o personaggi.",
-        userPrompt: "Migliora questa descrizione di mappa rendendola più realistica:",
-    },
-    {
         id: "import_character_sheet",
         label: "Importa scheda personaggio",
         type: "import_character" as const,
@@ -142,13 +135,6 @@ Reply ONLY with the complete JSON, no markdown (\`\`\`json) or text before or af
         userPrompt: "Write a short adventure for a one-shot session.",
     },
     {
-        id: "improve_map",
-        label: "Improve map (realistic)",
-        systemPrompt:
-            "You are an expert in descriptions for tabletop maps and RPGs. Given a map description, improve it to make it more realistic and immersive. Add environmental details, atmosphere, suggestions for the DM on how to describe it to players. Never include markers or characters.",
-        userPrompt: "Improve this map description to make it more realistic:",
-    },
-    {
         id: "import_character_sheet",
         label: "Import character sheet",
         type: "import_character" as const,
@@ -201,6 +187,7 @@ const currentTask = ref<TaskDef | { id: "custom"; label: string; systemPrompt: s
 const taskInput = ref("");
 const editingTask = ref<TaskDef | null>(null);
 const addTaskPickerVisible = ref(false);
+const taskSearch = ref("");
 const editingTaskOriginal = ref<TaskDef | null>(null);
 
 const visible = computed(() => props.visible);
@@ -214,8 +201,14 @@ const paidModels = computed(() => models.value.filter((m) => !m.is_free && !m.id
 const openRouterImageModels = computed(() => models.value.filter((m) => (m.output_modalities ?? []).includes("image") && !m.id.startsWith("gemini")));
 const googleImageModels = computed(() => imageModelsList.value.filter((m) => (m.output_modalities ?? []).includes("image")));
 
-const textTasks = computed(() => tasks.value.filter((t) => !t.type));
-const multimodalTasks = computed(() => tasks.value.filter((t) => !!t.type));
+const textTasks = computed(() => {
+    const q = taskSearch.value.trim().toLowerCase();
+    return tasks.value.filter((t) => !t.type && (!q || getTaskLabel(t).toLowerCase().includes(q)));
+});
+const multimodalTasks = computed(() => {
+    const q = taskSearch.value.trim().toLowerCase();
+    return tasks.value.filter((t) => !!t.type && (!q || getTaskLabel(t).toLowerCase().includes(q)));
+});
 
 async function loadModels(): Promise<void> {
     loadingModels.value = true;
@@ -366,6 +359,7 @@ async function saveSettings(): Promise<void> {
             }
             // Add reloading models on save
             await loadModels();
+            activeTab.value = "tasks";
         } else {
             const err = await resp.json().catch(() => ({}));
             toast.error((err as { error?: string }).error || t("game.ui.extensions.OpenRouterModal.save_error"));
@@ -1093,6 +1087,17 @@ onMounted(() => {
                         <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.max_tokens_hint") }}</p>
                     </div>
                 </div>
+                <div class="ext-ui-section openrouter-settings-section">
+                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.tasks") }}</h4>
+                    <p class="ext-ui-hint" style="margin-bottom: 0.5rem;">{{ t("game.ui.extensions.OpenRouterModal.save_tasks_hint") }}</p>
+                    <button
+                        type="button"
+                        class="ext-ui-btn"
+                        @click="restoreDefaultTasks"
+                    >
+                        {{ t("game.ui.extensions.OpenRouterModal.restore_default_tasks") }}
+                    </button>
+                </div>
             </div>
 
             <div v-show="activeTab === 'tasks'" class="ext-body ext-two-col">
@@ -1107,14 +1112,29 @@ onMounted(() => {
                 </section>
 
                 <section class="ext-ui-section ext-two-col-side openrouter-params-section">
-                    <div class="openrouter-tasks-header">
-                        <span class="openrouter-tasks-title">{{ t("game.ui.extensions.OpenRouterModal.tasks") }}</span>
+                    <div class="ext-toolbar-bar ext-search-bar openrouter-task-toolbar">
+                        <font-awesome-icon icon="search" class="ext-search-icon" />
+                        <input
+                            v-model="taskSearch"
+                            type="text"
+                            class="ext-search-input"
+                            :placeholder="t('game.ui.extensions.OpenRouterModal.task_search_placeholder')"
+                        />
                         <button
                             type="button"
-                            class="openrouter-restore-tasks"
-                            @click="restoreDefaultTasks"
+                            class="ext-search-add-btn"
+                            :title="t('game.ui.extensions.OpenRouterModal.task_add')"
+                            @click="addTaskPickerVisible = !addTaskPickerVisible"
                         >
-                            {{ t("game.ui.extensions.OpenRouterModal.restore_default_tasks") }}
+                            <font-awesome-icon icon="plus" />
+                        </button>
+                        <button
+                            type="button"
+                            class="ext-search-add-btn"
+                            :title="t('game.ui.extensions.OpenRouterModal.settings')"
+                            @click="activeTab = 'settings'; addTaskPickerVisible = false"
+                        >
+                            <font-awesome-icon icon="cog" />
                         </button>
                     </div>
                     <div class="openrouter-task-list">
@@ -1259,7 +1279,7 @@ onMounted(() => {
                                     v-model="taskInput"
                                     class="ext-ui-textarea"
                                     :placeholder="t('game.ui.extensions.OpenRouterModal.input_placeholder')"
-                                    rows="3"
+                                    rows="6"
                                 />
                             </div>
                         </template>
@@ -1271,7 +1291,7 @@ onMounted(() => {
                                 v-model="customPrompt"
                                 class="ext-ui-textarea"
                                 :placeholder="t('game.ui.extensions.OpenRouterModal.custom_placeholder')"
-                                rows="4"
+                                rows="7"
                             />
                         </div>
                     </template>
@@ -1279,26 +1299,15 @@ onMounted(() => {
                 </section>
             </div>
             <div class="ext-bottom-bar openrouter-bottom-bar">
-                <div class="openrouter-bottom-tabs">
-                    <button
-                        type="button"
-                        class="ext-ui-btn"
-                        :class="{ 'ext-ui-btn-success': activeTab === 'tasks' }"
-                        @click="activeTab = 'tasks'"
-                    >
-                        {{ t("game.ui.extensions.OpenRouterModal.tasks") }}
-                    </button>
-                    <button
-                        type="button"
-                        class="ext-ui-btn"
-                        :class="{ 'ext-ui-btn-success': activeTab === 'settings' }"
-                        @click="activeTab = 'settings'"
-                    >
-                        {{ t("game.ui.extensions.OpenRouterModal.settings") }}
-                    </button>
-                </div>
                 <div class="openrouter-bottom-actions">
                     <template v-if="activeTab === 'settings'">
+                        <button
+                            type="button"
+                            class="ext-ui-btn"
+                            @click="activeTab = 'tasks'"
+                        >
+                            {{ t("common.cancel") }}
+                        </button>
                         <button
                             type="button"
                             class="ext-ui-btn ext-ui-btn-success"
@@ -1383,17 +1392,11 @@ onMounted(() => {
     display: flex;
     flex-direction: row;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 1rem;
 }
 
 .openrouter-bottom-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.openrouter-bottom-tabs {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -1508,31 +1511,9 @@ onMounted(() => {
     flex-shrink: 0;
 }
 
-.openrouter-tasks-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+.openrouter-task-toolbar {
     margin-bottom: 0.5rem;
-
-    .openrouter-tasks-title {
-        font-weight: 500;
-    }
-}
-
-.openrouter-restore-tasks {
-    font-size: 0.85em;
-    padding: 0.25rem 0.5rem;
-    background: transparent;
-    border: 1px dashed #999;
-    border-radius: 0.25rem;
-    cursor: pointer;
-    color: #666;
-
-    &:hover {
-        background: #f5f5f5;
-    }
+    flex-shrink: 0;
 }
 
 .openrouter-task-group-label {
