@@ -1171,7 +1171,7 @@ onMounted(() => {
                     :title="t('game.ui.extensions.OpenRouterModal.task_edit_mode_toggle')"
                     @click="editMode = !editMode; addTaskPickerVisible = false"
                 >
-                    <font-awesome-icon :icon="editMode ? 'lock-open' : 'lock'" :style="{ color: editMode ? '#f44336' : '#4caf50' }" />
+                    <font-awesome-icon :icon="editMode ? ['fas', 'lock-open'] : ['fas', 'lock']" :style="{ color: editMode ? '#f44336' : '#4caf50' }" />
                 </button>
                 <button
                     type="button"
@@ -1242,6 +1242,9 @@ onMounted(() => {
                         </button>
                         <button class="openrouter-add-task-type-btn openrouter-add-task-type-btn--multimodal" @click="addTask('multimodal')">
                             {{ t("game.ui.extensions.OpenRouterModal.task_add_type_multimodal") }}
+                        </button>
+                        <button class="openrouter-add-task-type-btn openrouter-cancel-btn" @click="addTaskPickerVisible = false" style="margin-top: 0.25rem">
+                            {{ t("common.cancel") }}
                         </button>
                     </div>
                     
@@ -1406,7 +1409,7 @@ onMounted(() => {
                     </template>
                     <template v-else-if="editingTask">
                         <button
-                            v-if="editingTask.id.startsWith('custom_') && editingTaskOriginal"
+                            v-if="editingTask.id.startsWith('custom_') && editingTaskOriginal !== null"
                             class="ext-ui-btn ext-ui-btn-danger"
                             @click="deleteTask(editingTask); cancelEditTask()"
                         >
@@ -1454,7 +1457,7 @@ onMounted(() => {
                             {{ t("game.ui.extensions.OpenRouterModal.create_note") }}
                         </button>
                         <button
-                            v-if="currentTask"
+                            v-if="currentTask && !editingTask"
                             type="button"
                             class="ext-ui-btn ext-ui-btn-success"
                             :disabled="runningTask

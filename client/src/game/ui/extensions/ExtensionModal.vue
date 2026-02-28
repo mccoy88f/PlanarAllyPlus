@@ -306,9 +306,6 @@ const extensionModalClass = computed(() => {
 </style>
 
 <style lang="scss" scoped>
-.extension-modal--has-top-bar .ext-modal-header {
-    border-bottom: none;
-}
 
 .ext-modal-body {
     flex: 1;
