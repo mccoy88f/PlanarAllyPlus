@@ -82,6 +82,7 @@ async def upload_zip(request: web.Request) -> web.Response:
     data = b""
     filename = "archive.zip"
     target_path = ""
+    static_extract = False
     async for part in reader:
         if part.name == "file":
             data = await part.read()
@@ -90,6 +91,9 @@ async def upload_zip(request: web.Request) -> web.Response:
         elif part.name == "targetPath":
             raw = await part.read()
             target_path = raw.decode("utf-8").strip() if raw else ""
+        elif part.name == "staticExtract":
+            raw = await part.read()
+            static_extract = (raw.decode("utf-8").strip().lower() == "true") if raw else False
 
     if not data:
         return web.HTTPBadRequest(text="No file in 'file' field")
@@ -125,35 +129,43 @@ async def upload_zip(request: web.Request) -> web.Response:
                     continue
 
                 file_data = zf.read(name)
-                hashname = hashlib.sha1(file_data).hexdigest()
-                full_hash_path = ASSETS_DIR / get_asset_hash_subpath(hashname)
+                
+                if static_extract:
+                    # Extract directly to the folder structure
+                    full_static_path = ASSETS_DIR / base_path_str / rel
+                    full_static_path.parent.mkdir(parents=True, exist_ok=True)
+                    full_static_path.write_bytes(file_data)
+                    files_extracted.append(rel)
+                else:
+                    hashname = hashlib.sha1(file_data).hexdigest()
+                    full_hash_path = ASSETS_DIR / get_asset_hash_subpath(hashname)
 
-                if not full_hash_path.exists():
-                    full_hash_path.parent.mkdir(parents=True, exist_ok=True)
-                    full_hash_path.write_bytes(file_data)
+                    if not full_hash_path.exists():
+                        full_hash_path.parent.mkdir(parents=True, exist_ok=True)
+                        full_hash_path.write_bytes(file_data)
 
-                parent_folder = target_folder
-                rel_path = Path(rel)
-                for part in rel_path.parent.parts:
-                    if part:
-                        parent_folder, _ = Asset.get_or_create(
-                            name=part, owner=user, parent=parent_folder
-                        )
+                    parent_folder = target_folder
+                    rel_path = Path(rel)
+                    for part in rel_path.parent.parts:
+                        if part:
+                            parent_folder, _ = Asset.get_or_create(
+                                name=part, owner=user, parent=parent_folder
+                            )
 
-                asset = Asset.create(
-                    name=rel_path.name,
-                    file_hash=hashname,
-                    owner=user,
-                    parent=parent_folder,
-                )
-                asset_ids.append(asset.id)
-                file_hashes.append(hashname)
-                files_extracted.append(rel)
+                    asset = Asset.create(
+                        name=rel_path.name,
+                        file_hash=hashname,
+                        owner=user,
+                        parent=parent_folder,
+                    )
+                    asset_ids.append(asset.id)
+                    file_hashes.append(hashname)
+                    files_extracted.append(rel)
 
-                try:
-                    generate_thumbnail_for_asset(rel_path.name, hashname)
-                except Exception:
-                    pass
+                    try:
+                        generate_thumbnail_for_asset(rel_path.name, hashname)
+                    except Exception:
+                        pass
 
             folders_created: set[str] = {str(Path(f).parent) for f in files_extracted if "/" in f or "\\" in f}
             folders_created.discard(".")
