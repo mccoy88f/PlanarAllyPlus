@@ -1462,7 +1462,7 @@ onMounted(() => {
 
 .qe-sidebar-resizer {
     flex-shrink: 0;
-    width: 5px;
+    width: 3px;
     cursor: col-resize;
     background: #eee;
     transition: background 0.15s;

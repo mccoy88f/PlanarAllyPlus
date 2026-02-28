@@ -78,6 +78,23 @@
       min-width: 0.5rem;
     }
 
+    .cs-sidebar-resizer {
+      flex-shrink: 0;
+      width: 3px;
+      cursor: col-resize;
+      background: #dee2e6;
+      transition: background 0.15s;
+      z-index: 5;
+    }
+
+    .cs-sidebar-resizer:hover {
+      background: #c0d0e0;
+    }
+
+    body.cs-sidebar-hidden .cs-sidebar-resizer {
+      display: none;
+    }
+
     .cs-sidebar-toggle {
       position: absolute;
       left: 0;
@@ -323,6 +340,7 @@
         <div id="noRoom" style="display:none; padding:1rem; color:#666">Apri una partita per gestire le schede.</div>
       </div>
     </aside>
+    <div id="sidebarResizer" class="cs-sidebar-resizer"></div>
     <main class="cs-main">
       <button type="button" id="sidebarToggle" class="ext-sidebar-toggle cs-sidebar-toggle"
         title="Mostra/Nascondi elenco schede" aria-label="Toggle sidebar">◀</button>
@@ -1187,13 +1205,57 @@
       document.getElementById('exportPdfBtn').textContent = t('print');
       var sidebarVisible = true;
       var sidebarEl = document.getElementById('sidebar');
+      var sidebarWidth = 220;
+
+      function applySidebarWidth() {
+        sidebarEl.style.width = sidebarWidth + 'px';
+        sidebarEl.style.minWidth = sidebarWidth + 'px';
+      }
+
       document.getElementById('sidebarToggle').onclick = function () {
         sidebarVisible = !sidebarVisible;
         document.body.classList.toggle('cs-sidebar-hidden', !sidebarVisible);
         sidebarEl.classList.toggle('ext-sidebar-collapsed', !sidebarVisible);
+        if (sidebarVisible) {
+          applySidebarWidth();
+        } else {
+          sidebarEl.style.width = '';
+          sidebarEl.style.minWidth = '';
+        }
         this.textContent = sidebarVisible ? '◀' : '▶';
         this.title = sidebarVisible ? (locale === 'it' ? 'Nascondi elenco' : 'Hide list') : (locale === 'it' ? 'Mostra elenco' : 'Show list');
       };
+
+      var resizerEl = document.getElementById('sidebarResizer');
+      var isResizingSidebar = false;
+      var resizeSidebarStartX = 0;
+      var resizeSidebarStartWidth = 0;
+
+      resizerEl.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        isResizingSidebar = true;
+        resizeSidebarStartX = e.clientX;
+        resizeSidebarStartWidth = sidebarEl.offsetWidth;
+        document.addEventListener('mousemove', onSidebarResize);
+        document.addEventListener('mouseup', stopSidebarResize);
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+      });
+
+      function onSidebarResize(e) {
+        if (!isResizingSidebar) return;
+        var delta = e.clientX - resizeSidebarStartX;
+        sidebarWidth = Math.min(500, Math.max(150, resizeSidebarStartWidth + delta));
+        applySidebarWidth();
+      }
+
+      function stopSidebarResize() {
+        isResizingSidebar = false;
+        document.removeEventListener('mousemove', onSidebarResize);
+        document.removeEventListener('mouseup', stopSidebarResize);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
       loadList(openSheetId);
     })();
   </script>
