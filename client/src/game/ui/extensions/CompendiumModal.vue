@@ -1437,6 +1437,7 @@ onMounted(() => {
     overflow-x: hidden;
     min-height: 0;
     padding: 0.5rem 0;
+    background: #fafafa;
 
     .qe-tree-compendium {
         margin-bottom: 0.5rem;

@@ -201,26 +201,27 @@ onMounted(() => {
                     />
                 </div>
             </div>
-        <div class="ext-toolbar-bar">
-            <input
-                ref="uploadInput"
-                type="file"
-                accept=".pdf,application/pdf"
-                multiple
-                class="ext-ui-file-input"
-                @change="onFileSelected"
-            />
-            <button
-                type="button"
-                class="ext-ui-btn ext-ui-btn-primary"
-                :disabled="uploading"
-                @click="triggerUpload"
-            >
-                <font-awesome-icon icon="upload" />
-                {{ t("common.upload") }}
-            </button>
-        </div>
+        </template>
         <div class="ext-modal-body-wrapper">
+            <div class="ext-toolbar-bar">
+                <input
+                    ref="uploadInput"
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    multiple
+                    class="ext-ui-file-input"
+                    @change="onFileSelected"
+                />
+                <button
+                    type="button"
+                    class="ext-ui-btn ext-ui-btn-primary"
+                    :disabled="uploading"
+                    @click="triggerUpload"
+                >
+                    <font-awesome-icon icon="upload" />
+                    {{ t("common.upload") }}
+                </button>
+            </div>
             <div v-if="uploading" class="ext-progress-top-container">
                 <LoadingBar
                     :progress="uploadProgress"
