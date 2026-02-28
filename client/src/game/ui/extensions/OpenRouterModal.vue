@@ -218,6 +218,7 @@ const editingTask = ref<TaskDef | null>(null);
 const addTaskPickerVisible = ref(false);
 const taskSearch = ref("");
 const editingTaskOriginal = ref<TaskDef | null>(null);
+const editMode = ref(false);
 
 const visible = computed(() => props.visible);
 
@@ -499,6 +500,10 @@ async function runCustomTask(): Promise<void> {
 }
 
 function selectTask(task: TaskDef | { id: "custom"; label: string; systemPrompt: string; userPrompt: string }): void {
+    if (editMode.value && task.id !== "custom") {
+        startEditTask(task as TaskDef);
+        return;
+    }
     currentTask.value = task;
     editingTask.value = null;
     taskInput.value = "";
@@ -552,12 +557,14 @@ function cancelEditTask(): void {
     }
     editingTask.value = null;
     editingTaskOriginal.value = null;
+    editMode.value = false;
 }
 
 async function saveEditTask(): Promise<void> {
     await saveSettings();
     editingTask.value = null;
     editingTaskOriginal.value = null;
+    editMode.value = false;
 }
 
 function getTaskLabel(task: TaskDef): string {
@@ -1152,7 +1159,7 @@ onMounted(() => {
                         type="button"
                         class="ext-search-add-btn"
                         :title="t('game.ui.extensions.OpenRouterModal.task_add')"
-                        @click="addTaskPickerVisible = !addTaskPickerVisible"
+                        @click="addTaskPickerVisible = !addTaskPickerVisible; editMode = false"
                     >
                         <font-awesome-icon icon="plus" />
                     </button>
@@ -1160,8 +1167,17 @@ onMounted(() => {
                 <button
                     type="button"
                     class="ext-toolbar-btn"
+                    :class="{ 'openrouter-edit-active': editMode }"
+                    :title="t('game.ui.extensions.OpenRouterModal.task_edit_mode_toggle')"
+                    @click="editMode = !editMode; addTaskPickerVisible = false"
+                >
+                    <font-awesome-icon :icon="editMode ? 'lock-open' : 'lock'" :style="{ color: editMode ? '#f44336' : '#4caf50' }" />
+                </button>
+                <button
+                    type="button"
+                    class="ext-toolbar-btn"
                     :title="t('game.ui.extensions.OpenRouterModal.settings')"
-                    @click="activeTab = 'settings'; addTaskPickerVisible = false"
+                    @click="activeTab = 'settings'; addTaskPickerVisible = false; editMode = false"
                 >
                     <font-awesome-icon icon="gear" />
                 </button>
@@ -1214,6 +1230,11 @@ onMounted(() => {
                 </section>
 
                 <section class="ext-ui-section ext-two-col-side openrouter-params-section">
+                    <div v-if="editMode && !editingTask && !addTaskPickerVisible" class="openrouter-edit-mode-indicator">
+                        <font-awesome-icon icon="lock-open" />
+                        <span>{{ t("game.ui.extensions.OpenRouterModal.edit_mode_active") }}</span>
+                    </div>
+
                     <div v-if="addTaskPickerVisible" class="openrouter-add-task-picker">
                         <span class="openrouter-add-task-picker-label">{{ t("game.ui.extensions.OpenRouterModal.task_add_type_label") }}</span>
                         <button class="openrouter-add-task-type-btn" @click="addTask()">
@@ -1223,8 +1244,8 @@ onMounted(() => {
                             {{ t("game.ui.extensions.OpenRouterModal.task_add_type_multimodal") }}
                         </button>
                     </div>
-
-                    <div class="openrouter-task-list">
+                    
+                    <div v-if="!editingTask && !addTaskPickerVisible" class="openrouter-task-list">
                         <span class="openrouter-task-group-label">{{ t("game.ui.extensions.OpenRouterModal.task_group_text") }}</span>
                         <button
                             v-for="task in textTasks"
@@ -1274,31 +1295,8 @@ onMounted(() => {
                     <div class="ext-ui-field">
                         <textarea v-model="editingTask.userPrompt" class="ext-ui-textarea" rows="2" />
                     </div>
-                    <div class="openrouter-edit-actions">
-                        <button
-                            v-if="editingTask.id.startsWith('custom_')"
-                            class="ext-ui-btn ext-ui-btn-danger openrouter-delete-btn"
-                            @click="deleteTask(editingTask); cancelEditTask()"
-                        >
-                            {{ t("game.ui.extensions.OpenRouterModal.task_delete") }}
-                        </button>
-                        <button
-                            class="ext-ui-btn openrouter-cancel-btn"
-                            @click="cancelEditTask"
-                        >
-                            {{ t("common.cancel") }}
-                        </button>
-                        <button
-                            class="ext-ui-btn ext-ui-btn-success openrouter-save-btn-inline"
-                            :disabled="savingSettings"
-                            @click="saveEditTask"
-                        >
-                            {{ savingSettings ? "..." : t("common.save") }}
-                        </button>
                     </div>
-                </div>
-
-                <div v-else-if="currentTask" class="openrouter-task-panel">
+                    <div v-else-if="currentTask" class="openrouter-task-panel">
                     <!-- Hidden file input for import tasks -->
                     <input
                         ref="fileInputRef"
@@ -1312,12 +1310,6 @@ onMounted(() => {
                     />
 
                     <template v-if="currentTask.id !== 'custom'">
-                        <button
-                            class="openrouter-edit-inline"
-                            @click="startEditTask(currentTask as TaskDef)"
-                        >
-                            {{ t("game.ui.extensions.OpenRouterModal.task_edit") }}
-                        </button>
 
                         <!-- Multimodal hint -->
                         <div v-if="(currentTask as TaskDef).type" class="openrouter-multimodal-hint">
@@ -1373,6 +1365,18 @@ onMounted(() => {
                 </section>
             </div>
             <div class="ext-bottom-bar openrouter-bottom-bar">
+                <!-- Far left actions -->
+                <div class="openrouter-bottom-left-actions">
+                    <button
+                        v-if="editMode"
+                        type="button"
+                        class="ext-ui-btn"
+                        @click="restoreDefaultTasks"
+                    >
+                        {{ t("game.ui.extensions.OpenRouterModal.restore_default_tasks") }}
+                    </button>
+                </div>
+
                 <div class="openrouter-bottom-actions">
                     <template v-if="activeTab === 'settings'">
                         <button
@@ -1387,6 +1391,28 @@ onMounted(() => {
                             class="ext-ui-btn ext-ui-btn-success"
                             :disabled="savingSettings"
                             @click="saveSettings"
+                        >
+                            {{ savingSettings ? "..." : t("common.save") }}
+                        </button>
+                    </template>
+                    <template v-else-if="editingTask">
+                        <button
+                            v-if="editingTask.id.startsWith('custom_')"
+                            class="ext-ui-btn ext-ui-btn-danger"
+                            @click="deleteTask(editingTask); cancelEditTask()"
+                        >
+                            {{ t("game.ui.extensions.OpenRouterModal.task_delete") }}
+                        </button>
+                        <button
+                            class="ext-ui-btn"
+                            @click="cancelEditTask"
+                        >
+                            {{ t("common.cancel") }}
+                        </button>
+                        <button
+                            class="ext-ui-btn ext-ui-btn-success"
+                            :disabled="savingSettings"
+                            @click="saveEditTask"
                         >
                             {{ savingSettings ? "..." : t("common.save") }}
                         </button>
@@ -1716,6 +1742,46 @@ onMounted(() => {
     border-bottom: 1px solid #eee;
     padding: 0.625rem 1.5rem;
     min-height: 2.75rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.openrouter-edit-active {
+    background-color: #ffebee !important;
+    border-color: #ef9a9a !important;
+}
+
+.openrouter-edit-mode-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    margin-bottom: 0.5rem;
+    background-color: #ffebee;
+    color: #c62828;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.openrouter-bottom-bar {
+    display: flex;
+    justify-content: space-between !important;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    background: #fafafa;
+    border-top: 1px solid #eee;
+}
+
+.openrouter-bottom-left-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.openrouter-bottom-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-left: auto;
 }
 
 .openrouter-task-group-label {

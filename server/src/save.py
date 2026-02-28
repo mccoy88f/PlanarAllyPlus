@@ -754,7 +754,14 @@ def upgrade(
     elif version == 121:
         # Add UserOptions.openrouter_vision_model (AI Generator: vision model for map import)
         with db.atomic():
-            db.execute_sql("ALTER TABLE user_options ADD COLUMN openrouter_vision_model TEXT DEFAULT NULL")
+            column_exists = False
+            cursor = db.execute_sql("PRAGMA table_info(user_options)")
+            for row in cursor.fetchall():
+                if row[1] == "openrouter_vision_model":
+                    column_exists = True
+                    break
+            if not column_exists:
+                db.execute_sql("ALTER TABLE user_options ADD COLUMN openrouter_vision_model TEXT DEFAULT NULL")
     else:
         raise UnknownVersionException(f"No upgrade code for save format {version} was found.")
     inc_save_version(db)

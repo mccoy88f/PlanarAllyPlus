@@ -131,4 +131,14 @@ class UserOptions(BaseDbModel):
             initiative_open_on_activate=self.initiative_open_on_activate,  # type: ignore
             render_all_floors=self.render_all_floors,  # type: ignore
             extensions_enabled=self.extensions_enabled,  # type: ignore
+            openrouter_api_key=self.openrouter_api_key,  # type: ignore
+            openrouter_model=self.openrouter_model,  # type: ignore
+            openrouter_base_prompt=self.openrouter_base_prompt,  # type: ignore
+            openrouter_tasks=self.openrouter_tasks,  # type: ignore
+            openrouter_image_model=self.openrouter_image_model,  # type: ignore
+            openrouter_vision_model=self.openrouter_vision_model,  # type: ignore
+            openrouter_default_language=self.openrouter_default_language,  # type: ignore
+            openrouter_max_tokens=self.openrouter_max_tokens,  # type: ignore
+            ai_provider=self.ai_provider,  # type: ignore
+            google_ai_api_key=self.google_ai_api_key,  # type: ignore
         )

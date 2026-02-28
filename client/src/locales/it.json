@@ -465,6 +465,8 @@
           "task_add_type_label": "Che tipo di task vuoi creare?",
           "task_add_type_text": "Testuale (solo testo)",
           "task_add_type_multimodal": "Multimodale (con allegato)",
+          "task_edit_mode_toggle": "Attiva/disattiva modalità modifica",
+          "edit_mode_active": "Modalità Modifica Task Attiva",
           "task_delete": "Elimina",
           "task_edit": "Modifica task",
           "task_label": "Nome task",
