@@ -1395,9 +1395,18 @@ onMounted(() => {
                             {{ savingSettings ? "..." : t("common.save") }}
                         </button>
                     </template>
+                    <template v-else-if="addTaskPickerVisible">
+                        <button
+                            type="button"
+                            class="ext-ui-btn"
+                            @click="addTaskPickerVisible = false"
+                        >
+                            {{ t("common.cancel") }}
+                        </button>
+                    </template>
                     <template v-else-if="editingTask">
                         <button
-                            v-if="editingTask.id.startsWith('custom_')"
+                            v-if="editingTask.id.startsWith('custom_') && editingTaskOriginal"
                             class="ext-ui-btn ext-ui-btn-danger"
                             @click="deleteTask(editingTask); cancelEditTask()"
                         >
@@ -1417,7 +1426,7 @@ onMounted(() => {
                             {{ savingSettings ? "..." : t("common.save") }}
                         </button>
                     </template>
-                    <template v-else>
+                    <template v-else-if="!editMode">
                         <button
                             v-if="showImportToSheetButton && result.trim()"
                             type="button"

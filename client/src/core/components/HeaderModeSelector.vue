@@ -30,8 +30,8 @@ const emit = defineEmits<{
     display: flex;
     justify-content: center;
     padding: 0.75rem 0;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-    background-color: white;
+    border-bottom: 1px solid #eee;
+    background-color: #fafafa;
 }
 
 :deep(.mode-toggle-group) {

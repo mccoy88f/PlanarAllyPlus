@@ -11,11 +11,13 @@
 .ext-ui-root {
     box-sizing: border-box;
 }
+
 .ext-ui-root *,
 .ext-ui-root *::before,
 .ext-ui-root *::after {
     box-sizing: inherit;
 }
+
 .ext-ui-root {
     margin: 0;
     padding: 0;
@@ -31,15 +33,18 @@
     font-size: 1.25rem;
     font-weight: 600;
 }
+
 .ext-ui-subtitle {
     margin: 0 0 0.75rem;
     font-size: 1rem;
     font-weight: 600;
     color: #555;
 }
+
 .ext-ui-text {
     margin: 0.25rem 0;
 }
+
 .ext-ui-muted {
     color: #666;
     font-style: italic;
@@ -61,36 +66,44 @@
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
 }
+
 .ext-ui-btn:hover {
     background: #f5f5f5;
     border-color: #999;
 }
+
 .ext-ui-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
 }
+
 .ext-ui-btn-primary {
     background: #2196f3;
     border-color: #2196f3;
     color: #fff;
 }
+
 .ext-ui-btn-primary:hover:not(:disabled) {
     background: #1976d2;
     border-color: #1976d2;
 }
+
 .ext-ui-btn-danger {
     background: #fff;
     border-color: #c62828;
     color: #c62828;
 }
+
 .ext-ui-btn-danger:hover:not(:disabled) {
     background: #ffebee;
 }
+
 .ext-ui-btn-success {
     background: #2e7d32;
     border-color: #2e7d32;
     color: #fff;
 }
+
 .ext-ui-btn-success:hover:not(:disabled) {
     background: #1b5e20;
     border-color: #1b5e20;
@@ -110,6 +123,7 @@
     border-radius: 0.25rem;
     background: #fff;
 }
+
 .ext-ui-input:focus,
 .ext-ui-select:focus,
 .ext-ui-textarea:focus,
@@ -119,6 +133,7 @@
     outline: none;
     border-color: #888;
 }
+
 .ext-ui-input:disabled,
 .ext-ui-select:disabled,
 .ext-ui-textarea:disabled,
@@ -128,10 +143,12 @@
     background: #f5f5f5;
     cursor: not-allowed;
 }
+
 .ext-ui-textarea {
     min-height: 4rem;
     resize: vertical;
 }
+
 .ext-ui-label {
     display: block;
     margin-bottom: 0.25rem;
@@ -144,14 +161,17 @@
 .ext-ui-field {
     margin-bottom: 1rem;
 }
+
 .ext-ui-field .ext-ui-label {
     margin-bottom: 0.35rem;
 }
+
 .ext-ui-field .ext-ui-hint {
     margin-top: 0.25rem;
     font-size: 0.8rem;
     color: #666;
 }
+
 .ext-ui-field.has-error .ext-ui-input,
 .ext-ui-field.has-error .ext-ui-select,
 .ext-ui-field.has-error .ext-ui-textarea,
@@ -160,6 +180,7 @@
 .ext-ui-field.has-error .ext-ui-multiselect {
     border-color: #c62828;
 }
+
 .ext-ui-field .ext-ui-field-error {
     margin-top: 0.25rem;
     font-size: 0.8rem;
@@ -186,6 +207,7 @@
     font-size: 0.95rem;
     user-select: none;
 }
+
 .ext-ui-checkbox input[type="checkbox"] {
     width: 1.1em;
     height: 1.1em;
@@ -193,6 +215,7 @@
     cursor: pointer;
     flex-shrink: 0;
 }
+
 .ext-ui-checkbox:has(input:disabled) {
     opacity: 0.6;
     cursor: not-allowed;
@@ -204,9 +227,11 @@
     flex-direction: column;
     gap: 0.5rem;
 }
+
 .ext-ui-checkbox-group .ext-ui-label {
     margin-bottom: 0.35rem;
 }
+
 .ext-ui-checkbox-group .ext-ui-checkbox {
     margin: 0;
 }
@@ -227,6 +252,7 @@
     max-height: 12rem;
     overflow-y: auto;
 }
+
 .ext-ui-multiselect-list-item {
     display: flex;
     align-items: center;
@@ -235,12 +261,15 @@
     cursor: pointer;
     border-bottom: 1px solid #eee;
 }
+
 .ext-ui-multiselect-list-item:last-child {
     border-bottom: none;
 }
+
 .ext-ui-multiselect-list-item:hover {
     background: #f5f5f5;
 }
+
 .ext-ui-multiselect-list-item input[type="checkbox"] {
     width: 1.1em;
     height: 1.1em;
@@ -248,6 +277,7 @@
     cursor: pointer;
     flex-shrink: 0;
 }
+
 .ext-ui-multiselect-list-item label {
     display: flex;
     align-items: center;
@@ -257,6 +287,7 @@
     cursor: pointer;
     margin: 0;
 }
+
 .ext-ui-multiselect-list-item span,
 .ext-ui-multiselect-list-item label {
     overflow: hidden;
@@ -270,6 +301,7 @@
     margin: 0;
     padding: 0;
 }
+
 .ext-ui-list-item {
     display: flex;
     align-items: center;
@@ -279,15 +311,18 @@
     border-radius: 0.25rem;
     border: 1px solid transparent;
 }
+
 .ext-ui-list-item:hover {
     background: #f5f5f5;
     border-color: #eee;
 }
+
 .ext-ui-list-item-content {
     flex: 1;
     min-width: 0;
     cursor: pointer;
 }
+
 .ext-ui-list-item-name {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -301,11 +336,13 @@
     align-items: flex-start;
     gap: 0.15rem;
 }
+
 .ext-ui-list-item-content.ext-ui-stacked .ext-ui-list-item-subtitle {
     font-size: 0.75rem;
     color: #666;
     text-transform: capitalize;
 }
+
 .ext-ui-list-item-content.ext-ui-stacked .ext-ui-list-item-name {
     font-weight: 500;
     white-space: normal;
@@ -319,14 +356,17 @@
     border-radius: 0.25rem;
     font-size: 0.9rem;
 }
+
 .ext-ui-msg-success {
     background: #e8f5e9;
     color: #2e7d32;
 }
+
 .ext-ui-msg-error {
     background: #ffebee;
     color: #c62828;
 }
+
 .ext-ui-msg-info {
     background: #e3f2fd;
     color: #1565c0;
@@ -346,6 +386,7 @@
     padding-top: 1rem;
     border-top: 1px solid #eee;
 }
+
 .ext-ui-section-title {
     margin: 0 0 0.5rem;
     font-size: 0.9rem;
@@ -366,6 +407,7 @@
     border-bottom: 1px solid #eee;
     background: #f9f9f9;
 }
+
 .ext-modal-title {
     margin: 0;
     font-size: 1.1rem;
@@ -374,20 +416,24 @@
     align-items: center;
     gap: 0.5rem;
 }
+
 .ext-modal-icon {
     flex-shrink: 0;
 }
+
 .ext-modal-actions {
     display: flex;
     gap: 0.5rem;
     align-items: center;
 }
+
 .ext-modal-btn,
 .ext-modal-close {
     font-size: 1.1rem;
     cursor: pointer;
     flex-shrink: 0;
 }
+
 .ext-modal-btn:hover,
 .ext-modal-close:hover {
     opacity: 0.7;
@@ -416,12 +462,14 @@
     gap: 1.5rem;
     overflow: auto;
 }
+
 /* First-level sections in two-col: no top border/margin (avoids double gray lines) */
-.ext-two-col > .ext-ui-section {
+.ext-two-col>.ext-ui-section {
     margin-top: 0;
     padding-top: 0;
     border-top: none;
 }
+
 .ext-two-col-side {
     flex: 1;
     min-width: 220px;
@@ -429,12 +477,14 @@
     position: relative;
     z-index: 1;
 }
+
 .ext-two-col-main {
     flex: 1;
     min-width: 200px;
     position: relative;
     z-index: 0;
 }
+
 /* Side column with 2-col form grid (labels + inputs) */
 .ext-two-col-side.ext-two-col-form {
     display: grid;
@@ -442,36 +492,44 @@
     gap: 0 1rem;
     align-content: start;
 }
+
 .ext-two-col-form .ext-ui-section-title {
     grid-column: 1 / -1;
     margin: 0 0 0.75rem;
 }
+
 .ext-two-col-form .ext-ui-field,
 .ext-two-col-form .ext-ui-field.ext-two-col-checkbox {
     grid-column: span 1;
 }
+
 .ext-two-col-form .ext-ui-field.ext-two-col-full {
     grid-column: 1 / -1;
 }
+
 .ext-two-col-form.ext-ui-section {
     margin-top: 0;
     padding-top: 0;
     border-top: none;
 }
+
 /* Side column single-column layout (no grid) - avoids dropdown overlap with main */
 .ext-two-col-side.ext-two-col-single {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
 }
+
 .ext-two-col-single.ext-ui-section {
     margin-top: 0;
     padding-top: 0;
     border-top: none;
 }
+
 .ext-two-col-single .ext-ui-section-title {
     margin: 0 0 0.25rem;
 }
+
 /* Wrapper for modal body + bottom bar (flex column) */
 .ext-modal-body-wrapper {
     flex: 1;
@@ -494,12 +552,16 @@
     padding: 0.625rem 1.5rem;
     border-bottom: 1px solid #eee;
     background: #fafafa;
+    border-radius: 0;
+    margin: 0;
 }
+
 .ext-toolbar-bar .ext-toolbar-btn,
 .ext-toolbar-bar .ext-ui-btn,
 .ext-toolbar-bar .ext-search-add-btn {
     flex-shrink: 0;
 }
+
 .ext-bottom-bar {
     flex-shrink: 0;
     display: flex;
@@ -513,6 +575,7 @@
     border-radius: 0;
     background: #fafafa;
 }
+
 .ext-bottom-bar .ext-toolbar-btn,
 .ext-bottom-bar .ext-ui-btn {
     flex-shrink: 0;
@@ -525,17 +588,19 @@
     gap: 0.5rem;
     padding: 0.5rem 0;
     margin-bottom: 0.5rem;
-    background: #f5f5f5;
-    border-radius: 0.25rem;
-    border: 1px solid #eee;
+    background: transparent;
+    border-radius: 0;
+    border: none;
 }
+
 /* When search bar is the toolbar bar (same element), keep standard bar padding */
 .ext-toolbar-bar.ext-search-bar {
     padding: 0.625rem 1.5rem;
     margin-bottom: 0;
 }
+
 /* When search bar is a child of toolbar bar, let it grow and blend in (no separate box) */
-.ext-toolbar-bar > .ext-search-bar {
+.ext-toolbar-bar>.ext-search-bar {
     flex: 1;
     min-width: 0;
     margin: 0;
@@ -544,6 +609,7 @@
     border: none;
     border-radius: 0;
 }
+
 .ext-search-icon {
     flex-shrink: 0;
     width: 24px;
@@ -557,9 +623,11 @@
     background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23666'%3E%3Cpath d='M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z'/%3E%3C/svg%3E") no-repeat center;
     background-size: 18px 18px;
 }
-.ext-search-icon > * {
+
+.ext-search-icon>* {
     display: none;
 }
+
 .ext-search-bar .ext-search-input {
     flex: 1;
     min-width: 0;
@@ -568,14 +636,17 @@
     border-radius: 0.25rem;
     font-size: 0.95rem;
 }
+
 .ext-search-bar .ext-search-input:focus {
     outline: none;
     border-color: #888;
 }
+
 .ext-search-bar .ext-ui-select {
     min-width: 140px;
     flex-shrink: 0;
 }
+
 .ext-search-bar .ext-search-add-btn {
     flex-shrink: 0;
     margin-left: auto;
@@ -592,6 +663,7 @@
     align-items: center;
     justify-content: center;
 }
+
 .ext-search-bar .ext-search-add-btn:hover {
     background: #e8f5e9;
 }
@@ -610,9 +682,11 @@
     cursor: pointer;
     flex-shrink: 0;
 }
+
 .ext-ui-icon-btn:hover {
     color: #333;
 }
+
 .ext-ui-icon-btn-danger:hover {
     color: #c62828;
 }
@@ -632,48 +706,60 @@
     justify-content: center;
     flex-shrink: 0;
 }
+
 .ext-action-btn:hover {
     background: #e9ecef;
     color: #333;
 }
+
 .ext-action-btn.delete:hover {
     background: #dc3545;
     color: #fff;
 }
+
 .ext-action-btn.visibility {
     color: #555;
 }
+
 .ext-action-btn.visibility:hover {
     background: #e8f4fc;
     color: #069;
 }
+
 .ext-action-btn.visibility.visibility-on {
     background: #e8f4fc;
     color: #069;
 }
+
 .ext-action-btn.visibility.visibility-on:hover {
     background: #d0e8f7;
     color: #047;
 }
+
 .ext-action-btn.star {
     color: #ccc;
 }
+
 .ext-action-btn.star:hover {
     background: transparent;
     color: #f9a825;
 }
+
 .ext-action-btn.star.active {
     color: #f9a825;
     cursor: default;
 }
+
 .ext-action-btn.star.active:hover {
     background: transparent;
     color: #f9a825;
 }
+
 .ext-action-btn svg {
     width: 14px;
     height: 14px;
 }
+
 .ext-item-actions {
     display: flex;
     gap: 2px;
@@ -681,6 +767,7 @@
     opacity: 0;
     transition: opacity 0.15s;
 }
+
 .ext-ui-list-item:hover .ext-item-actions,
 .ext-ui-list-item:focus-within .ext-item-actions {
     opacity: 1;
@@ -700,12 +787,15 @@
     overflow: hidden;
     transition: width 0.2s ease, min-width 0.2s ease, padding 0.2s ease;
 }
+
 .ext-sidebar.ext-sidebar-left {
     border-right: 1px solid #dee2e6;
 }
+
 .ext-sidebar.ext-sidebar-right {
     border-left: 1px solid #dee2e6;
 }
+
 .ext-sidebar-content {
     flex: 1;
     min-width: 0;
@@ -713,9 +803,11 @@
     overflow-x: hidden;
     padding: 0.5rem;
 }
+
 .ext-sidebar.ext-sidebar-collapsed .ext-sidebar-content {
     display: none;
 }
+
 .ext-sidebar-toggle {
     flex-shrink: 0;
     width: 24px;
@@ -732,22 +824,27 @@
     font-size: 0.75rem;
     transition: background 0.15s, color 0.15s;
 }
+
 .ext-sidebar-toggle:hover {
     background: #dee2e6;
     color: #333;
 }
+
 .ext-sidebar.ext-sidebar-right .ext-sidebar-toggle {
     border-radius: 4px 0 0 4px;
 }
+
 /* Default widths - override in your extension */
 .ext-sidebar.ext-sidebar-left:not(.ext-sidebar-collapsed) {
     width: 220px;
     min-width: 180px;
 }
+
 .ext-sidebar.ext-sidebar-right:not(.ext-sidebar-collapsed) {
     width: 260px;
     min-width: 200px;
 }
+
 .ext-sidebar.ext-sidebar-collapsed {
     width: 0;
     min-width: 0;
@@ -755,11 +852,12 @@
     border-left: none;
     border-right: none;
 }
+
 .ext-sidebar.ext-sidebar-collapsed .ext-sidebar-toggle {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* ==========================================================================
@@ -781,30 +879,36 @@
     flex-shrink: 0;
     transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
+
 .ext-toolbar-btn:hover {
     background: #f5f5f5;
     border-color: #999;
     color: #333;
 }
+
 .ext-toolbar-btn svg,
 .ext-toolbar-btn .fa-icon {
     width: 16px;
     height: 16px;
 }
+
 /* Add button (create/upload) - green accent */
 .ext-toolbar-btn.ext-toolbar-btn-add {
     border-color: #2e7d32;
     color: #2e7d32;
 }
+
 .ext-toolbar-btn.ext-toolbar-btn-add:hover {
     background: #e8f5e9;
     border-color: #1b5e20;
     color: #1b5e20;
 }
+
 /* More/overflow button */
 .ext-toolbar-btn.ext-toolbar-btn-more {
     border-color: #ddd;
 }
+
 /* Standard icon/button sizes in toolbars - 32x32 for icon-only buttons */
 .ext-toolbar-bar .ext-search-add-btn,
 .ext-toolbar-bar .ext-toolbar-btn,
@@ -818,6 +922,7 @@
     align-items: center;
     justify-content: center;
 }
+
 .ext-toolbar-bar .ext-search-add-btn svg,
 .ext-toolbar-bar .ext-toolbar-btn svg,
 .ext-toolbar-bar .ext-search-add-btn .fa-icon,
@@ -861,12 +966,10 @@
 }
 
 .pa-loading-bar-indeterminate {
-    background: linear-gradient(
-        90deg,
-        var(--primary-accent, #42b983) 25%,
-        rgba(255, 255, 255, 0.4) 50%,
-        var(--primary-accent, #42b983) 75%
-    );
+    background: linear-gradient(90deg,
+            var(--primary-accent, #42b983) 25%,
+            rgba(255, 255, 255, 0.4) 50%,
+            var(--primary-accent, #42b983) 75%);
     background-size: 200% 100%;
     animation: loading-bar-stripes 1.5s linear infinite;
 }
@@ -881,6 +984,7 @@
     0% {
         background-position: 200% 0;
     }
+
     100% {
         background-position: -200% 0;
     }
