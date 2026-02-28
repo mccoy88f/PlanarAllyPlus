@@ -451,6 +451,11 @@
     border-top: 1px solid #eee;
 }
 
+/* Avoid double border when a header-mode-selector (with its own border-bottom) precedes ext-body */
+.header-mode-selector + .ext-body {
+    border-top: none;
+}
+
 /* ==========================================================================
    Two-column layout - form/sidebar left, main content right
    Use with .ext-two-col as container, .ext-two-col-side and .ext-two-col-main
