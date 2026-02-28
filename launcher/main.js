@@ -266,6 +266,7 @@ btnUpdate.addEventListener('click', async () => {
   }
   showProgress(true, t('progressDownloading'));
   btnUpdate.disabled = true;
+  btnStart.disabled = true;
   btnReset.disabled = true;
   try {
     const path = await invoke('ensure_app_downloaded', { force: true, branch });

@@ -78,6 +78,23 @@
       min-width: 0.5rem;
     }
 
+    .cs-sidebar-resizer {
+      flex-shrink: 0;
+      width: 3px;
+      cursor: col-resize;
+      background: #dee2e6;
+      transition: background 0.15s;
+      z-index: 5;
+    }
+
+    .cs-sidebar-resizer:hover {
+      background: #c0d0e0;
+    }
+
+    body.cs-sidebar-hidden .cs-sidebar-resizer {
+      display: none;
+    }
+
     .cs-sidebar-toggle {
       position: absolute;
       left: 0;
@@ -323,6 +340,7 @@
         <div id="noRoom" style="display:none; padding:1rem; color:#666">Apri una partita per gestire le schede.</div>
       </div>
     </aside>
+    <div id="sidebarResizer" class="cs-sidebar-resizer"></div>
     <main class="cs-main">
       <button type="button" id="sidebarToggle" class="ext-sidebar-toggle cs-sidebar-toggle"
         title="Mostra/Nascondi elenco schede" aria-label="Toggle sidebar">◀</button>
@@ -456,6 +474,9 @@
 
       var SKILL_KEYS = ['acrobatics', 'animalHandling', 'arcana', 'athletics', 'deception', 'history', 'insight', 'intimidation', 'investigation', 'medicine', 'nature', 'perception', 'performance', 'persuasion', 'religion', 'sleightOfHand', 'stealth', 'survival'];
       var SKILL_HINTS = { acrobatics: '(Dex)', animalHandling: '(Wis)', arcana: '(Int)', athletics: '(Str)', deception: '(Cha)', history: '(Int)', insight: '(Wis)', intimidation: '(Cha)', investigation: '(Int)', medicine: '(Wis)', nature: '(Int)', perception: '(Wis)', performance: '(Cha)', persuasion: '(Cha)', religion: '(Int)', sleightOfHand: '(Dex)', stealth: '(Dex)', survival: '(Wis)' };
+      // D&D Beyond alignmentId → English name mapping (index = id, 0 = unaligned)
+      var ALIGNMENT_NAMES = ['', 'Lawful Good', 'Neutral Good', 'Chaotic Good', 'Lawful Neutral', 'Neutral', 'Chaotic Neutral', 'Lawful Evil', 'Neutral Evil', 'Chaotic Evil'];
+      var ALIGNMENT_MAP = { 'Lawful Good': 1, 'Neutral Good': 2, 'Chaotic Good': 3, 'Lawful Neutral': 4, 'Neutral': 5, 'Chaotic Neutral': 6, 'Lawful Evil': 7, 'Neutral Evil': 8, 'Chaotic Evil': 9 };
 
       function toFormData(d) {
         var s = d || {}, pa = s.planarally || {}, st = pa.savingThrows || {}, sk = pa.skills || {};
@@ -470,7 +491,7 @@
           playerName: ds.playerName || '',
           faction: ds.faction || '',
           race: race.baseName || race.fullName || ds.race || '',
-          alignment: s.alignmentId != null ? String(s.alignmentId) : (ds.alignment || ''),
+          alignment: (ds.alignment && isNaN(Number(ds.alignment))) ? ds.alignment : (s.alignmentId != null ? (ALIGNMENT_NAMES[s.alignmentId] || String(s.alignmentId)) : (ds.alignment || '')),
           xp: s.currentXp != null ? String(s.currentXp) : (ds.xp || '0'),
           dciNo: ds.dciNo || '',
           str: String(stats[0] && stats[0].value != null ? stats[0].value : (ds.str || 10)),
@@ -545,7 +566,7 @@
         var level = parseInt(clParts[clParts.length - 1], 10) || 1;
         var className = clParts.slice(0, -1).join(' ') || '';
         var dndsheets = {
-          playerName: fd.playerName || '', faction: fd.faction || '', dciNo: fd.dciNo || '', passivePerception: fd.passivePerception || '',
+          playerName: fd.playerName || '', faction: fd.faction || '', dciNo: fd.dciNo || '', alignment: fd.alignment || '', passivePerception: fd.passivePerception || '',
           strMod: fd.strMod || '', dexMod: fd.dexMod || '', conMod: fd.conMod || '', intMod: fd.intMod || '', wisMod: fd.wisMod || '', chaMod: fd.chaMod || '',
           equipment2: fd.equipment2 || '', attacks: (fd.attacks || []).slice(0, 3),
           age: fd.age || '', height: fd.height || '', weight: fd.weight || '', eyes: fd.eyes || '', skin: fd.skin || '', hair: fd.hair || '',
@@ -561,7 +582,7 @@
           classes: [{ definition: { name: className }, subclassDefinition: null, level: level }],
           race: { baseName: fd.race || '', fullName: fd.race || '', weightSpeeds: { normal: { walk: parseInt(fd.speed || 30, 10) || 30 } } },
           background: { definition: { name: fd.background || '' } },
-          alignmentId: fd.alignment ? parseInt(fd.alignment, 10) : null,
+          alignmentId: fd.alignment ? (ALIGNMENT_MAP[fd.alignment] != null ? ALIGNMENT_MAP[fd.alignment] : (parseInt(fd.alignment, 10) || null)) : null,
           currentXp: parseInt(fd.xp || 0, 10) || 0,
           inspiration: fd.inspiration === '1',
           baseHitPoints: parseInt(fd.maxHp || 0, 10) || 0,
@@ -1184,13 +1205,57 @@
       document.getElementById('exportPdfBtn').textContent = t('print');
       var sidebarVisible = true;
       var sidebarEl = document.getElementById('sidebar');
+      var sidebarWidth = 220;
+
+      function applySidebarWidth() {
+        sidebarEl.style.width = sidebarWidth + 'px';
+        sidebarEl.style.minWidth = sidebarWidth + 'px';
+      }
+
       document.getElementById('sidebarToggle').onclick = function () {
         sidebarVisible = !sidebarVisible;
         document.body.classList.toggle('cs-sidebar-hidden', !sidebarVisible);
         sidebarEl.classList.toggle('ext-sidebar-collapsed', !sidebarVisible);
+        if (sidebarVisible) {
+          applySidebarWidth();
+        } else {
+          sidebarEl.style.width = '';
+          sidebarEl.style.minWidth = '';
+        }
         this.textContent = sidebarVisible ? '◀' : '▶';
         this.title = sidebarVisible ? (locale === 'it' ? 'Nascondi elenco' : 'Hide list') : (locale === 'it' ? 'Mostra elenco' : 'Show list');
       };
+
+      var resizerEl = document.getElementById('sidebarResizer');
+      var isResizingSidebar = false;
+      var resizeSidebarStartX = 0;
+      var resizeSidebarStartWidth = 0;
+
+      resizerEl.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        isResizingSidebar = true;
+        resizeSidebarStartX = e.clientX;
+        resizeSidebarStartWidth = sidebarEl.offsetWidth;
+        document.addEventListener('mousemove', onSidebarResize);
+        document.addEventListener('mouseup', stopSidebarResize);
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+      });
+
+      function onSidebarResize(e) {
+        if (!isResizingSidebar) return;
+        var delta = e.clientX - resizeSidebarStartX;
+        sidebarWidth = Math.min(500, Math.max(150, resizeSidebarStartWidth + delta));
+        applySidebarWidth();
+      }
+
+      function stopSidebarResize() {
+        isResizingSidebar = false;
+        document.removeEventListener('mousemove', onSidebarResize);
+        document.removeEventListener('mouseup', stopSidebarResize);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
       loadList(openSheetId);
     })();
   </script>

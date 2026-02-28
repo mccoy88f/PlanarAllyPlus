@@ -77,6 +77,7 @@ export async function addDungeonToMap(
         imageHeight?: number;
         syncSquareSize?: number;
         padding?: number;
+        wallPadding?: number;
         name?: string;
         params?: DungeonGenParams | BuildingGenParams;
         seed: string;
@@ -151,7 +152,7 @@ export async function addDungeonToMap(
             const walls = options?.walls;
             if (walls && fowLayer) {
                 const scale = dungeonMeta ? (gridSize / dungeonMeta.syncSquareSize) : 1;
-                const basePadding = dungeonMeta?.padding ?? 50;
+                const basePadding = options?.wallPadding ?? (dungeonMeta?.padding ?? 50);
                 const scaledPadding = basePadding * scale;
                 const wallOffset = addP(refPoint, new Vector(scaledPadding, scaledPadding));
 
@@ -176,7 +177,7 @@ export async function addDungeonToMap(
             const doorData = options?.doors;
             if (doorData && layer) {
                 const scale = dungeonMeta ? (gridSize / dungeonMeta.syncSquareSize) : 1;
-                const basePadding = dungeonMeta?.padding ?? 50;
+                const basePadding = options?.wallPadding ?? (dungeonMeta?.padding ?? 50);
                 const scaledPadding = basePadding * scale;
                 const doorOffset = addP(refPoint, new Vector(scaledPadding, scaledPadding));
 

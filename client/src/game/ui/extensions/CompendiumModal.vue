@@ -103,6 +103,35 @@ const installFiles = ref<{ file: File; name: string }[]>([]);
 const installLoading = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
+const sidebarWidth = ref(260);
+let isResizing = false;
+let resizeStartX = 0;
+let resizeStartWidth = 0;
+
+function startResize(e: MouseEvent): void {
+    isResizing = true;
+    resizeStartX = e.clientX;
+    resizeStartWidth = sidebarWidth.value;
+    document.addEventListener("mousemove", onResize);
+    document.addEventListener("mouseup", stopResize);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+}
+
+function onResize(e: MouseEvent): void {
+    if (!isResizing) return;
+    const delta = e.clientX - resizeStartX;
+    sidebarWidth.value = Math.min(500, Math.max(150, resizeStartWidth + delta));
+}
+
+function stopResize(): void {
+    isResizing = false;
+    document.removeEventListener("mousemove", onResize);
+    document.removeEventListener("mouseup", stopResize);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+}
+
 const collectionsFor = (compId: string) => collectionsByComp.value.get(compId) ?? [];
 const itemsFor = (compId: string, collSlug: string) =>
     itemsByKey.value.get(`${compId}/${collSlug}`) ?? [];
@@ -689,6 +718,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
     window.removeEventListener("mousedown", handleOutsideClick);
+    stopResize();
 });
 
 async function doInstall(): Promise<void> {
@@ -1059,7 +1089,7 @@ onMounted(() => {
             </div>
 
             <div v-else-if="!loading" class="qe-main">
-                <nav class="qe-tree">
+                <nav class="qe-tree" :style="{ width: sidebarWidth + 'px' }">
                     <div
                         v-for="comp in compendiums"
                         :key="comp.id"
@@ -1145,6 +1175,7 @@ onMounted(() => {
                         </div>
                     </div>
                 </nav>
+                <div class="qe-sidebar-resizer" @mousedown.prevent="startResize" />
                 <div class="qe-content-area">
                     <div v-if="selectedItem" class="qe-breadcrumb">
                         <div class="qe-breadcrumb-path">
@@ -1427,16 +1458,29 @@ onMounted(() => {
     flex: 1;
     min-height: 0;
     overflow: hidden;
+    border-top: 1px solid #eee;
+}
+
+.qe-sidebar-resizer {
+    flex-shrink: 0;
+    width: 3px;
+    cursor: col-resize;
+    background: #eee;
+    transition: background 0.15s;
+
+    &:hover {
+        background: #c0d0e0;
+    }
 }
 
 .qe-tree {
-    width: 260px;
     flex-shrink: 0;
-    border-right: 1px solid #eee;
+    border-right: none;
     overflow-y: auto;
     overflow-x: hidden;
     min-height: 0;
     padding: 0.5rem 0;
+    background: #fafafa;
 
     .qe-tree-compendium {
         margin-bottom: 0.5rem;

@@ -46,6 +46,7 @@ class UserOptions(BaseDbModel):
     openrouter_base_prompt = cast(str | None, TextField(default=None, null=True))
     openrouter_tasks = cast(str | None, TextField(default=None, null=True))
     openrouter_image_model = cast(str | None, TextField(default=None, null=True))
+    openrouter_vision_model = cast(str | None, TextField(default=None, null=True))
     openrouter_default_language = cast(str | None, TextField(default="it", null=True))
     openrouter_max_tokens = cast(int | None, IntegerField(default=8192, null=True))
     ai_provider = cast(str | None, TextField(default="openrouter", null=True))
@@ -84,6 +85,7 @@ class UserOptions(BaseDbModel):
             openrouter_base_prompt=None,
             openrouter_tasks=None,
             openrouter_image_model=None,
+            openrouter_vision_model=None,
             openrouter_default_language=None,
             openrouter_max_tokens=None,
             ai_provider=None,
@@ -129,4 +131,14 @@ class UserOptions(BaseDbModel):
             initiative_open_on_activate=self.initiative_open_on_activate,  # type: ignore
             render_all_floors=self.render_all_floors,  # type: ignore
             extensions_enabled=self.extensions_enabled,  # type: ignore
+            openrouter_api_key=self.openrouter_api_key,  # type: ignore
+            openrouter_model=self.openrouter_model,  # type: ignore
+            openrouter_base_prompt=self.openrouter_base_prompt,  # type: ignore
+            openrouter_tasks=self.openrouter_tasks,  # type: ignore
+            openrouter_image_model=self.openrouter_image_model,  # type: ignore
+            openrouter_vision_model=self.openrouter_vision_model,  # type: ignore
+            openrouter_default_language=self.openrouter_default_language,  # type: ignore
+            openrouter_max_tokens=self.openrouter_max_tokens,  # type: ignore
+            ai_provider=self.ai_provider,  # type: ignore
+            google_ai_api_key=self.google_ai_api_key,  # type: ignore
         )

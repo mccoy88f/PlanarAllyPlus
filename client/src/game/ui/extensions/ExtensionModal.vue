@@ -164,7 +164,9 @@ const extensionModalClass = computed(() => {
         ext?.id === "time-manager" ||
         ext?.folder === "time-manager" ||
         ext?.id === "ambient-music" ||
-        ext?.folder === "ambient-music";
+        ext?.folder === "ambient-music" ||
+        ext?.id === "openrouter" ||
+        ext?.folder === "openrouter";
     let cls = base;
     if (ext?.id === "assets-installer" || ext?.folder === "assets-installer") {
         cls += " extension-modal--compact";
@@ -180,7 +182,7 @@ const extensionModalClass = computed(() => {
     if (ext?.id === "ambient-music" || ext?.folder === "ambient-music") {
         cls += " extension-modal--ambient-music";
     }
-    if (ext?.id === "character-sheet" || ext?.folder === "character-sheet" || ext?.id === "guida" || ext?.folder === "guida") {
+    if (ext?.id === "character-sheet" || ext?.folder === "character-sheet" || ext?.id === "guida" || ext?.folder === "guida" || ext?.id === "openrouter" || ext?.folder === "openrouter") {
         cls += " extension-modal--wide";
     }
     if (hasTopBar) {
@@ -304,9 +306,6 @@ const extensionModalClass = computed(() => {
 </style>
 
 <style lang="scss" scoped>
-.extension-modal--has-top-bar .ext-modal-header {
-    border-bottom: none;
-}
 
 .ext-modal-body {
     flex: 1;

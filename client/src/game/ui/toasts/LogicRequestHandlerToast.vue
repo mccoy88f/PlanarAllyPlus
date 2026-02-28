@@ -75,7 +75,7 @@ function showArea(): void {
 </template>
 
 <style lang="scss" scoped>
-@import "vue-toastification/src/scss/_variables";
+@use "vue-toastification/src/scss/variables";
 
 .toast-container {
     display: grid;
@@ -91,7 +91,7 @@ function showArea(): void {
         .action {
             padding: 5px;
             background-color: white;
-            color: $vt-color-info;
+            color: variables.$vt-color-info;
             border-radius: 7px;
 
             &:hover {

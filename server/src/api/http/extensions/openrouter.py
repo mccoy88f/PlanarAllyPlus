@@ -1,8 +1,11 @@
 """AI Generator extension - OpenRouter and Google AI Studio."""
 
 import base64
+import hashlib
 import json
+import re
 import uuid
+from pathlib import Path
 from urllib.parse import unquote
 
 import aiohttp
@@ -297,10 +300,13 @@ async def get_settings(request: web.Request) -> web.Response:
         opts.openrouter_model = model
         opts.save()
 
+    vision_model = opts.openrouter_vision_model or model
+
     return web.json_response({
         "hasApiKey": has_openrouter,
         "hasGoogleKey": has_google,
         "model": model,
+        "visionModel": vision_model,
         "basePrompt": opts.openrouter_base_prompt or "",
         "tasks": tasks,
         "imageModel": _resolve_image_model(opts),
@@ -336,6 +342,8 @@ async def set_settings(request: web.Request) -> web.Response:
         opts.openrouter_tasks = json.dumps(body["tasks"]) if body.get("tasks") else None
     if "imageModel" in body:
         opts.openrouter_image_model = (body.get("imageModel") or "").strip() or None
+    if "visionModel" in body:
+        opts.openrouter_vision_model = (body.get("visionModel") or "").strip() or None
     if "defaultLanguage" in body:
         lang = (body.get("defaultLanguage") or "it").strip().lower()
         opts.openrouter_default_language = lang if lang in ("it", "en") else "it"
@@ -569,7 +577,6 @@ async def transform_image(request: web.Request) -> web.Response:
         return web.json_response({"error": str(e)}, status=502)
 
     try:
-        import hashlib
         h = hashlib.sha1(img_bytes).hexdigest()
         asset_path = ASSETS_DIR / get_asset_hash_subpath(h)
         if not asset_path.exists():
@@ -585,3 +592,426 @@ async def transform_image(request: web.Request) -> web.Response:
         # sees the result, but replace will not work without assetId.
         url = _save_generated_image(result_data_url)
         return web.json_response({"imageUrl": url})
+
+
+# ── Vision helpers ─────────────────────────────────────────────────────────────
+
+async def _vision_call(
+    api_key: str,
+    model: str,
+    system_prompt: str,
+    user_text: str,
+    base64_data: str,
+    mime_type: str,
+    max_tokens: int,
+    is_google: bool,
+    referer: str = "https://planarally.io",
+) -> dict:
+    """Call a vision-capable AI model with an image/document attachment."""
+    if is_google:
+        payload: dict = {
+            "contents": [{
+                "parts": [
+                    {"text": user_text},
+                    {"inline_data": {"mime_type": mime_type, "data": base64_data}},
+                ],
+            }],
+            "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.3},
+        }
+        if system_prompt:
+            payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+        url = f"{GOOGLE_AI_API}/models/{model}:generateContent?key={api_key}"
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload) as resp:
+                text = await resp.text()
+                if resp.status != 200:
+                    try:
+                        err_data = json.loads(text)
+                        err_msg = (err_data.get("error") or {}).get("message", text)
+                    except Exception:
+                        err_msg = text
+                    return {"error": err_msg}
+                data = json.loads(text)
+        cands = data.get("candidates") or []
+        if not cands:
+            return {"error": "No response from vision model"}
+        parts = (cands[0].get("content") or {}).get("parts") or []
+        out_text = " ".join(p.get("text", "") for p in parts).strip()
+        return {"text": out_text}
+    else:
+        # OpenRouter
+        data_url = f"data:{mime_type};base64,{base64_data}"
+        messages: list = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": data_url}},
+                {"type": "text", "text": user_text},
+            ],
+        })
+        payload = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.3}
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": referer,
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{OPENROUTER_API}/chat/completions", json=payload, headers=headers) as resp:
+                text = await resp.text()
+                if resp.status != 200:
+                    try:
+                        err_data = json.loads(text)
+                        err_msg = err_data.get("error", {}).get("message", text)
+                    except Exception:
+                        err_msg = text
+                    return {"error": err_msg}
+                data = json.loads(text)
+        choices = data.get("choices") or []
+        if not choices:
+            return {"error": "No response from vision model"}
+        content = (choices[0].get("message") or {}).get("content", "")
+        return {"text": content}
+
+
+async def _vision_call_multi(
+    api_key: str,
+    model: str,
+    system_prompt: str,
+    user_text: str,
+    images: list[tuple[str, str]],  # list of (base64_data, mime_type)
+    max_tokens: int,
+    is_google: bool,
+    referer: str = "https://planarally.io",
+) -> dict:
+    """Call a vision-capable AI model with one or more image/document attachments."""
+    if is_google:
+        parts: list[dict] = [{"text": user_text}]
+        for b64, mime in images:
+            parts.append({"inline_data": {"mime_type": mime, "data": b64}})
+        payload: dict = {
+            "contents": [{"parts": parts}],
+            "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.3},
+        }
+        if system_prompt:
+            payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+        url = f"{GOOGLE_AI_API}/models/{model}:generateContent?key={api_key}"
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload) as resp:
+                text = await resp.text()
+                if resp.status != 200:
+                    try:
+                        err_data = json.loads(text)
+                        err_msg = (err_data.get("error") or {}).get("message", text)
+                    except Exception:
+                        err_msg = text
+                    return {"error": err_msg}
+                data = json.loads(text)
+        cands = data.get("candidates") or []
+        if not cands:
+            return {"error": "No response from vision model"}
+        out_parts = (cands[0].get("content") or {}).get("parts") or []
+        out_text = " ".join(p.get("text", "") for p in out_parts).strip()
+        return {"text": out_text}
+    else:
+        # OpenRouter
+        content: list[dict] = []
+        for b64, mime in images:
+            data_url = f"data:{mime};base64,{b64}"
+            content.append({"type": "image_url", "image_url": {"url": data_url}})
+        content.append({"type": "text", "text": user_text})
+        messages: list = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": content})
+        payload = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.3}
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": referer,
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{OPENROUTER_API}/chat/completions", json=payload, headers=headers) as resp:
+                text = await resp.text()
+                if resp.status != 200:
+                    try:
+                        err_data = json.loads(text)
+                        err_msg = err_data.get("error", {}).get("message", text)
+                    except Exception:
+                        err_msg = text
+                    return {"error": err_msg}
+                data = json.loads(text)
+        choices = data.get("choices") or []
+        if not choices:
+            return {"error": "No response from vision model"}
+        out_content = (choices[0].get("message") or {}).get("content", "")
+        return {"text": out_content}
+
+
+def _parse_json_response(text: str) -> dict | None:
+    """Extract and parse JSON from an AI response (strips markdown code blocks)."""
+    text = text.strip()
+    m = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    if m:
+        text = m.group(1).strip()
+    try:
+        result = json.loads(text)
+        return result if isinstance(result, dict) else None
+    except json.JSONDecodeError:
+        return None
+
+
+def _extract_pdf_text(file_bytes: bytes) -> str:
+    """Extract text from PDF bytes using available libraries."""
+    try:
+        import pdfminer.high_level
+        import io
+        return pdfminer.high_level.extract_text(io.BytesIO(file_bytes))
+    except ImportError:
+        pass
+    try:
+        import fitz  # type: ignore[import]  # PyMuPDF
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        return "\n".join(page.get_text() for page in doc)
+    except ImportError:
+        pass
+    raise ImportError("No PDF text extraction library found. Install pdfminer.six or PyMuPDF, or use Google AI with a PDF.")
+
+
+def _extract_docx_text(file_bytes: bytes) -> str:
+    """Extract text from DOCX bytes using python-docx."""
+    import io
+    import docx  # type: ignore[import]  # python-docx
+    doc = docx.Document(io.BytesIO(file_bytes))
+    return "\n".join(para.text for para in doc.paragraphs if para.text.strip())
+
+
+# ── Import Character Sheet ─────────────────────────────────────────────────────
+
+async def import_character(request: web.Request) -> web.Response:
+    """Import a character sheet from one or more uploaded files (images/PDFs/DOCX) using AI vision."""
+    user = await get_authorized_user(request)
+
+    reader = await request.multipart()
+    files: list[tuple[str, bytes]] = []  # (filename, bytes)
+    system_prompt = ""
+    user_prompt = ""
+
+    async for part in reader:
+        if part.name == "file":
+            filename = part.filename or ""
+            file_bytes = await part.read()
+            files.append((filename, file_bytes))
+        elif part.name == "systemPrompt":
+            system_prompt = await part.text()
+        elif part.name == "userPrompt":
+            user_prompt = await part.text()
+
+    if not files:
+        return web.HTTPBadRequest(text="No file provided")
+
+    opts = UserOptions.get_by_id(user.default_options)
+    model = (opts.openrouter_vision_model or opts.openrouter_model or DEFAULT_FREE_MODEL).strip()
+    is_google = model.startswith("gemini")
+    max_tokens = opts.openrouter_max_tokens or 8192
+
+    if is_google:
+        api_key = (opts.google_ai_api_key or "").strip()
+        if not api_key:
+            return web.json_response(
+                {"error": "Google AI API key not configured. Set it in the AI Generator settings."},
+                status=400,
+            )
+    else:
+        api_key = (opts.openrouter_api_key or "").strip()
+        if not api_key:
+            return web.json_response(
+                {"error": "OpenRouter API key not configured. Set it in the AI Generator settings."},
+                status=400,
+            )
+
+    referer = str(request.url.origin()) if request.url.absolute else "https://planarally.io"
+
+    # Parse each uploaded file into image parts or text parts
+    image_parts: list[tuple[str, str]] = []  # (base64_data, mime_type)
+    text_parts: list[str] = []
+
+    for fname, fbytes in files:
+        ext = Path(fname).suffix.lower()
+        if ext in {".png", ".jpg", ".jpeg"}:
+            mime_type = "image/jpeg" if ext in {".jpg", ".jpeg"} else "image/png"
+            b64 = base64.b64encode(fbytes).decode("ascii")
+            image_parts.append((b64, mime_type))
+        elif ext == ".pdf":
+            if is_google:
+                b64 = base64.b64encode(fbytes).decode("ascii")
+                image_parts.append((b64, "application/pdf"))
+            else:
+                try:
+                    text_parts.append(_extract_pdf_text(fbytes))
+                except ImportError as e:
+                    return web.json_response(
+                        {"error": f"Impossibile elaborare il PDF: {e}. Usa Google AI (supporta PDF nativamente) oppure carica un'immagine."},
+                        status=400,
+                    )
+        elif ext in {".docx", ".doc"}:
+            try:
+                text_parts.append(_extract_docx_text(fbytes))
+            except (ImportError, Exception) as e:
+                return web.json_response(
+                    {"error": f"Impossibile elaborare il file DOC/DOCX: {e}. Installa python-docx oppure carica un'immagine o PDF."},
+                    status=400,
+                )
+        else:
+            return web.json_response(
+                {"error": f"Tipo di file non supportato: {ext}. Usa PNG, JPG, PDF o DOCX."},
+                status=400,
+            )
+
+    default_prompt = user_prompt or "Estrai i dati del personaggio da questa scheda e compila il JSON."
+
+    if image_parts:
+        # Vision call: send all images in a single request
+        full_prompt = default_prompt
+        if text_parts:
+            full_prompt += "\n\nContenuto testuale aggiuntivo:\n" + "\n---\n".join(text_parts)
+        result = await _vision_call_multi(
+            api_key, model, system_prompt, full_prompt, image_parts, max_tokens, is_google, referer
+        )
+    elif text_parts:
+        # Text-only: use chat completion
+        full_content = default_prompt + "\n\nContenuto scheda:\n" + "\n---\n".join(text_parts)
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": full_content},
+        ]
+        if is_google:
+            result_raw = await _chat_google(api_key, model, messages, max_tokens, 0.3)
+            content = (result_raw.get("choices") or [{}])[0].get("message", {}).get("content", "")
+            result = {"text": content}
+        else:
+            payload = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.3}
+            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "HTTP-Referer": referer}
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"{OPENROUTER_API}/chat/completions", json=payload, headers=headers) as resp:
+                    text_r = await resp.text()
+                    if resp.status != 200:
+                        try:
+                            err_data = json.loads(text_r)
+                            err_msg = err_data.get("error", {}).get("message", text_r)
+                        except Exception:
+                            err_msg = text_r
+                        return web.json_response({"error": err_msg}, status=resp.status)
+                    data = json.loads(text_r)
+            content = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
+            result = {"text": content}
+    else:
+        return web.json_response({"error": "Nessun contenuto da elaborare."}, status=400)
+
+    if "error" in result:
+        return web.json_response({"error": result["error"]}, status=502)
+
+    return web.json_response({"result": result.get("text", "")})
+
+
+# ── Import Map from Image ──────────────────────────────────────────────────────
+
+_MAP_ANALYSIS_PROMPT = (
+    "You are an expert tabletop RPG map analyzer. Analyze this map image carefully.\n\n"
+    "Your task:\n"
+    "1. Count the grid cells: how many columns (width) and rows (height) does the map have?\n"
+    "2. Identify walls and room dividers as line segments in grid coordinates.\n"
+    "   Each wall segment is [[x1,y1],[x2,y2]] where coordinates are GRID CELL CORNERS.\n"
+    "   Origin (0,0) is the TOP-LEFT corner of the map.\n"
+    "3. Identify doors: the cell they occupy (x,y) counted from top-left (0-indexed), "
+    "and the wall face direction (north/south/east/west).\n\n"
+    "Return ONLY a valid JSON object with EXACTLY this structure (no markdown, no extra text):\n"
+    '{"gridCells":{"width":N,"height":N},"walls":{"lines":[[[x1,y1],[x2,y2]],...]}'
+    ',"doors":[{"x":N,"y":N,"direction":"north","type":"normal"},...]}\n\n'
+    "Be precise with wall positions. Walls define room boundaries and corridors. "
+    "If the map has no visible doors, return an empty doors array."
+)
+
+
+async def import_map(request: web.Request) -> web.Response:
+    """Import a map from an uploaded image using AI vision to detect grid, walls and doors."""
+    user = await get_authorized_user(request)
+
+    reader = await request.multipart()
+    file_bytes: bytes | None = None
+    filename = ""
+
+    async for part in reader:
+        if part.name == "file":
+            filename = part.filename or "map.png"
+            file_bytes = await part.read()
+
+    if not file_bytes:
+        return web.HTTPBadRequest(text="No file provided")
+
+    ext = Path(filename).suffix.lower()
+    if ext not in {".png", ".jpg", ".jpeg"}:
+        return web.json_response(
+            {"error": "Solo immagini PNG/JPG sono supportate per l'analisi mappa."},
+            status=400,
+        )
+
+    opts = UserOptions.get_by_id(user.default_options)
+    model = (opts.openrouter_vision_model or opts.openrouter_model or DEFAULT_FREE_MODEL).strip()
+    is_google = model.startswith("gemini")
+
+    if is_google:
+        api_key = (opts.google_ai_api_key or "").strip()
+        if not api_key:
+            return web.json_response(
+                {"error": "Google AI API key not configured. Set it in the AI Generator settings."},
+                status=400,
+            )
+    else:
+        api_key = (opts.openrouter_api_key or "").strip()
+        if not api_key:
+            return web.json_response(
+                {"error": "OpenRouter API key not configured. Set it in the AI Generator settings."},
+                status=400,
+            )
+
+    mime_type = "image/jpeg" if ext in {".jpg", ".jpeg"} else "image/png"
+    b64 = base64.b64encode(file_bytes).decode("ascii")
+    referer = str(request.url.origin()) if request.url.absolute else "https://planarally.io"
+
+    result = await _vision_call(
+        api_key, model, "", _MAP_ANALYSIS_PROMPT, b64, mime_type, 4096, is_google, referer
+    )
+
+    if "error" in result:
+        return web.json_response({"error": result["error"]}, status=502)
+
+    map_data = _parse_json_response(result.get("text", ""))
+    if not map_data or "gridCells" not in map_data:
+        return web.json_response(
+            {"error": "L'AI non ha restituito dati mappa validi. Riprova con un modello con visione (es. Gemini o modello multimodale OpenRouter)."},
+            status=502,
+        )
+
+    # Save image as PlanarAlly asset
+    h = hashlib.sha1(file_bytes).hexdigest()
+    asset_path = ASSETS_DIR / get_asset_hash_subpath(h)
+    if not asset_path.exists():
+        asset_path.parent.mkdir(parents=True, exist_ok=True)
+        asset_path.write_bytes(file_bytes)
+
+    folder = Asset.get_or_create_extension_folder(user, "AI generator")
+    stem = Path(filename).stem
+    asset_name = f"{stem}_{uuid.uuid4().hex[:6]}{ext}"
+    asset = Asset.create(name=asset_name, file_hash=h, owner=user, parent=folder)
+    asset_url = f"/static/assets/{get_asset_hash_subpath(h).as_posix()}"
+
+    return web.json_response({
+        "url": asset_url,
+        "assetId": asset.id,
+        "name": stem,
+        "gridCells": map_data.get("gridCells", {"width": 20, "height": 15}),
+        "walls": map_data.get("walls"),
+        "doors": map_data.get("doors", []),
+    })

@@ -279,25 +279,26 @@ async function onAddClick(): Promise<void> {
                 </div>
             </div>
         </template>
-        <div class="ext-toolbar-bar ext-search-bar">
-            <font-awesome-icon icon="search" class="ext-search-icon" />
-            <input
-                v-model="searchQuery"
-                type="text"
-                class="ext-search-input"
-                :placeholder="t('game.ui.extensions.ExtensionsManager.search_placeholder')"
-            />
-            <button
-                type="button"
-                class="ext-search-add-btn"
-                :disabled="installing"
-                :title="t('game.ui.extensions.ExtensionsManager.add_extension')"
-                @click="onAddClick"
-            >
-                <font-awesome-icon icon="plus" />
-            </button>
-        </div>
-        <div id="extensions-body" class="ext-body" @click="$emit('focus')">
+        <div class="ext-modal-body-wrapper">
+            <div class="ext-toolbar-bar ext-search-bar">
+                <font-awesome-icon icon="search" class="ext-search-icon" />
+                <input
+                    v-model="searchQuery"
+                    type="text"
+                    class="ext-search-input"
+                    :placeholder="t('game.ui.extensions.ExtensionsManager.search_placeholder')"
+                />
+                <button
+                    type="button"
+                    class="ext-search-add-btn"
+                    :disabled="installing"
+                    :title="t('game.ui.extensions.ExtensionsManager.add_extension')"
+                    @click="onAddClick"
+                >
+                    <font-awesome-icon icon="plus" />
+                </button>
+            </div>
+            <div id="extensions-body" class="ext-body" @click="$emit('focus')">
                 <section class="extensions-list">
                     <div class="section-header">{{ t("game.ui.extensions.ExtensionsManager.installed") }}</div>
                     <div v-if="filteredExtensions.length === 0" class="empty-message">
@@ -348,6 +349,7 @@ async function onAddClick(): Promise<void> {
                     </div>
                 </section>
             </div>
+        </div>
         <input
             ref="uploadInput"
             type="file"

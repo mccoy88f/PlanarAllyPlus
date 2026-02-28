@@ -34,6 +34,16 @@ class ApiUserOptions(TypeIdModel):
     render_all_floors: bool
 
     extensions_enabled: bool
+    openrouter_api_key: str | None = None
+    openrouter_model: str | None = None
+    openrouter_base_prompt: str | None = None
+    openrouter_tasks: str | None = None
+    openrouter_image_model: str | None = None
+    openrouter_vision_model: str | None = None
+    openrouter_default_language: str | None = "it"
+    openrouter_max_tokens: int | None = 8192
+    ai_provider: str | None = "openrouter"
+    google_ai_api_key: str | None = None
 
 
 class ApiOptionalUserOptions(TypeIdModel):
@@ -67,3 +77,13 @@ class ApiOptionalUserOptions(TypeIdModel):
     render_all_floors: bool | None = None
 
     extensions_enabled: bool | None = None
+    openrouter_api_key: str | None = None
+    openrouter_model: str | None = None
+    openrouter_base_prompt: str | None = None
+    openrouter_tasks: str | None = None
+    openrouter_image_model: str | None = None
+    openrouter_vision_model: str | None = None
+    openrouter_default_language: str | None = None
+    openrouter_max_tokens: int | None = None
+    ai_provider: str | None = None
+    google_ai_api_key: str | None = None
