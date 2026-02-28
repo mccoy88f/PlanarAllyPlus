@@ -215,6 +215,15 @@
         </div>
         <div id="selectedPath" class="ai-selected-path"></div>
         <div style="margin-top: 1rem;">
+            <div style="margin-bottom: 0.75rem;">
+                <label style="display: flex; align-items: start; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" id="staticExtractInput" style="margin-top: 0.2rem;" />
+                    <span style="font-size: 0.9rem;">
+                        <span id="staticExtractLabelText" style="font-weight: 500;"></span><br/>
+                        <span id="staticExtractDescText" style="color: #6c757d; font-size: 0.85rem;"></span>
+                    </span>
+                </label>
+            </div>
             <input type="file" id="fileInput" class="ext-ui-file-input" accept=".zip,application/zip" />
             <button type="button" id="uploadBtn" class="ext-ui-btn ext-ui-btn-primary"></button>
         </div>
@@ -252,7 +261,9 @@
                     confirm_uninstall: "Uninstall \"{{name}}\"? Files will be removed.",
                     root: "Asset",
                     installed_title: "Installed packs",
-                    installed_on: "Installed on {{date}}"
+                    installed_on: "Installed on {{date}}",
+                    static_extract_label: "Extract as Static Assets",
+                    static_extract_desc: "Files will be extracted directly without creating Database records. Perfect for Compendium/Guide modules. Warning: These assets will NOT be visible in the in-game Asset Manager."
                 },
                 it: {
                     title: "Assets Installer",
@@ -272,7 +283,9 @@
                     confirm_uninstall: "Disinstallare \"{{name}}\"? I file saranno rimossi.",
                     root: "Asset",
                     installed_title: "Pacchetti installati",
-                    installed_on: "Installato il {{date}}"
+                    installed_on: "Installato il {{date}}",
+                    static_extract_label: "Estrai come Asset Statici",
+                    static_extract_desc: "I file verranno estratti direttamente senza creare record nel Database. Perfetto per moduli Compendium/Guida. Attenzione: Questi asset NON saranno visibili nell'Asset Manager del gioco."
                 }
             };
 
@@ -305,6 +318,8 @@
             document.getElementById('uploadSectionTitle').textContent = t('upload_section');
             document.getElementById('folderLabel').textContent = t('folder');
             document.getElementById('installedTitle').textContent = t('installed_title');
+            document.getElementById('staticExtractLabelText').textContent = t('static_extract_label');
+            document.getElementById('staticExtractDescText').textContent = t('static_extract_desc');
 
             var listEl = document.getElementById('list');
             var loadingEl = document.getElementById('loading');
@@ -314,6 +329,7 @@
             var folderTreeEl = document.getElementById('folderTree');
             var selectedPathEl = document.getElementById('selectedPath');
             var msgEl = document.getElementById('msg');
+            var staticExtractInput = document.getElementById('staticExtractInput');
 
             var selectedPath = '';
 
@@ -494,6 +510,9 @@
                 var formData = new FormData();
                 formData.append('file', file);
                 formData.append('targetPath', selectedPath);
+                if (staticExtractInput.checked) {
+                    formData.append('staticExtract', 'true');
+                }
 
                 uploadBtn.disabled = true;
                 uploadProgressContainer.style.display = 'flex';
