@@ -593,10 +593,11 @@
     border: none;
 }
 
-/* When search bar is the toolbar bar (same element), keep standard bar padding */
+/* When search bar is the toolbar bar (same element), keep standard bar padding and background */
 .ext-toolbar-bar.ext-search-bar {
     padding: 0.625rem 1.5rem;
     margin-bottom: 0;
+    background: #fafafa;
 }
 
 /* When search bar is a child of toolbar bar, let it grow and blend in (no separate box) */
