@@ -1458,6 +1458,7 @@ onMounted(() => {
     flex: 1;
     min-height: 0;
     overflow: hidden;
+    border-top: 1px solid #eee;
 }
 
 .qe-sidebar-resizer {
