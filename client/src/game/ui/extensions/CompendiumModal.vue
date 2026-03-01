@@ -1791,6 +1791,11 @@ onMounted(() => {
         padding-left: 1.5rem;
     }
 
+    :deep(img) {
+        max-width: 100%;
+        height: auto;
+    }
+
     :deep(a[href^="qe:"], a.qe-internal-link) {
         color: #333;
         text-decoration: underline;
