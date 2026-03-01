@@ -384,7 +384,7 @@ def _build_generic_item_markdown(item: dict, type_key: str) -> str:
 def _create_sqlite_schema(conn) -> None:
     """Creates tables, indexes, FTS and triggers on an open connection."""
     conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("CREATE TABLE collections (id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL)")
+    conn.execute("CREATE TABLE collections (id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, parent_slug TEXT DEFAULT NULL)")
     conn.execute("""
         CREATE TABLE items (
             id INTEGER PRIMARY KEY, collection_id INTEGER NOT NULL, slug TEXT NOT NULL,
@@ -394,6 +394,7 @@ def _create_sqlite_schema(conn) -> None:
     """)
     conn.execute("CREATE INDEX idx_items_collection ON items(collection_id)")
     conn.execute("CREATE INDEX idx_items_slug ON items(slug)")
+    conn.execute("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     conn.execute("CREATE TABLE IF NOT EXISTS translations (id INTEGER PRIMARY KEY, type TEXT NOT NULL, collection_slug TEXT, item_slug TEXT, lang TEXT NOT NULL, content TEXT NOT NULL, UNIQUE(type, collection_slug, item_slug, lang))")
     conn.execute("CREATE VIRTUAL TABLE items_fts USING fts5(name, markdown, content='items', content_rowid='id', tokenize='unicode61')")
     conn.execute("""
@@ -433,13 +434,22 @@ def _insert_item_safe(conn, coll_id: int, slug: str, name: str, md: str) -> None
             pass
 
 
-def _get_or_create_collection(conn, slug: str, name: str) -> int:
+def _get_or_create_collection(conn, slug: str, name: str, parent_slug: str | None = None) -> int:
     """Returns the collection id, creating it if needed."""
     row = conn.execute("SELECT id FROM collections WHERE slug = ?", (slug,)).fetchone()
     if row:
         return row[0]
-    conn.execute("INSERT INTO collections (slug, name) VALUES (?, ?)", (slug, name))
+    conn.execute("INSERT INTO collections (slug, name, parent_slug) VALUES (?, ?, ?)", (slug, name, parent_slug))
     return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def _extract_and_save_metadata(conn, data: dict) -> None:
+    """Extracts required metadata fields from root JSON dict and saves to SQLite."""
+    keys = ["title", "author", "date", "website", "license"]
+    for k in keys:
+        val = data.get(k)
+        if val is not None and isinstance(val, str) and val.strip():
+            conn.execute("INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)", (k, val.strip()))
 
 
 def _convert_generic_5etools_to_sqlite(data: dict, db_path: Path) -> bool:
@@ -465,6 +475,8 @@ def _convert_generic_5etools_to_sqlite(data: dict, db_path: Path) -> bool:
         db_path.unlink()
     conn = sqlite3.connect(db_path)
     _create_sqlite_schema(conn)
+
+    _extract_and_save_metadata(conn, data)
 
     # Group by (type_key, source)
     from collections import defaultdict
@@ -511,6 +523,8 @@ def _convert_5etools_to_sqlite(data: dict, db_path: Path) -> bool:
     conn = sqlite3.connect(db_path)
     _create_sqlite_schema(conn)
 
+    _extract_and_save_metadata(conn, data)
+
     for section in sections:
         sec_name = section.get("name", "Unknown Section")
         sec_slug = _slugify(sec_name)
@@ -530,11 +544,13 @@ def _convert_5etools_to_sqlite(data: dict, db_path: Path) -> bool:
             if intro_entries:
                 md = _entries_to_markdown(intro_entries)
                 _insert_item_safe(conn, coll_id, sec_slug, sec_name, md)
-            for sub in sub_sections:
+            for i, sub in enumerate(sub_sections):
                 sub_name = sub.get("name")
                 sub_slug = _slugify(sub_name)
+                sub_coll_slug = f"{sec_slug}-{sub_slug}-{i}"
+                sub_coll_id = _get_or_create_collection(conn, sub_coll_slug, sub_name, parent_slug=sec_slug)
                 md = _entries_to_markdown([sub])
-                _insert_item_safe(conn, coll_id, sub_slug, sub_name, md)
+                _insert_item_safe(conn, sub_coll_id, sub_coll_slug, sub_name, md)
 
     conn.commit()
     conn.close()
@@ -567,16 +583,22 @@ def _convert_json_to_sqlite(json_path: Path, db_path: Path) -> bool:
             db_path.unlink()
         conn = sqlite3.connect(db_path)
         _create_sqlite_schema(conn)
+        _extract_and_save_metadata(conn, data)
         for coll in collections:
-            slug = coll.get("slug", "")
-            name = coll.get("name", slug)
-            conn.execute("INSERT INTO collections (slug, name) VALUES (?, ?)", (slug, name))
-            coll_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-            for item in coll.get("items", []):
-                conn.execute(
-                    "INSERT INTO items (collection_id, slug, name, markdown) VALUES (?, ?, ?, ?)",
-                    (coll_id, item.get("slug", ""), item.get("name", ""), item.get("markdown", "")),
-                )
+            def insert_recursive(c_obj, parent_slug=None):
+                slug = c_obj.get("slug", "")
+                name = c_obj.get("name", slug)
+                conn.execute("INSERT INTO collections (slug, name, parent_slug) VALUES (?, ?, ?)", (slug, name, parent_slug))
+                coll_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+                for item in c_obj.get("items", []):
+                    conn.execute(
+                        "INSERT INTO items (collection_id, slug, name, markdown) VALUES (?, ?, ?, ?)",
+                        (coll_id, item.get("slug", ""), item.get("name", ""), item.get("markdown", "")),
+                    )
+                for sub_coll in c_obj.get("collections", []):
+                    insert_recursive(sub_coll, slug)
+                    
+            insert_recursive(coll)
         conn.commit()
         conn.close()
         return True
@@ -595,6 +617,11 @@ def _ensure_sqlite(comp_id: str) -> bool:
         # Ensure translations table exists for legacy DBs
         conn = sqlite3.connect(db_path)
         conn.execute("CREATE TABLE IF NOT EXISTS translations (id INTEGER PRIMARY KEY, type TEXT NOT NULL, collection_slug TEXT, item_slug TEXT, lang TEXT NOT NULL, content TEXT NOT NULL, UNIQUE(type, collection_slug, item_slug, lang))")
+        conn.execute("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        try:
+            conn.execute("ALTER TABLE collections ADD COLUMN parent_slug TEXT DEFAULT NULL")
+        except sqlite3.OperationalError:
+            pass
         conn.commit()
         conn.close()
         return True
@@ -735,6 +762,35 @@ async def set_default_compendium(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "defaultId": comp_id})
 
 
+async def rename_compendium(request: web.Request) -> web.Response:
+    """Rinomina un compendio: PATCH /compendiums/:id/rename."""
+    await get_authorized_user(request)
+    comp_id = request.match_info.get("compendium_id", "").strip()
+    if not comp_id:
+        return web.json_response({"error": "compendium_id required"}, status=400)
+    
+    try:
+        body = await request.json()
+        new_name = body.get("name", "").strip()
+    except Exception:
+        new_name = ""
+        
+    if not new_name:
+        return web.json_response({"error": "name is required"}, status=400)
+        
+    if not _get_compendium(comp_id):
+        return web.json_response({"error": "Compendium not found"}, status=404)
+        
+    config = _load_config()
+    for c in config["compendiums"]:
+        if c.get("id") == comp_id:
+            c["name"] = new_name
+            break
+            
+    _save_config(config)
+    return web.json_response({"ok": True, "id": comp_id, "name": new_name})
+
+
 async def get_collections(request: web.Request) -> web.Response:
     """Elenco collezioni per compendium. Query: compendium=id o slug (obbligatorio)."""
     await get_authorized_user(request)
@@ -747,7 +803,7 @@ async def get_collections(request: web.Request) -> web.Response:
         conn = _get_conn(comp_id)
         rows = conn.execute(
             """
-            SELECT c.slug, c.name, COUNT(i.id) as count
+            SELECT c.slug, c.name, c.parent_slug, COUNT(i.id) as count
             FROM collections c
             LEFT JOIN items i ON i.collection_id = c.id
             GROUP BY c.id
@@ -755,7 +811,7 @@ async def get_collections(request: web.Request) -> web.Response:
             """
         ).fetchall()
         conn.close()
-        collections = [{"slug": r[0], "name": r[1], "count": r[2]} for r in rows]
+        collections = [{"slug": r[0], "name": r[1], "parentSlug": r[2], "count": r[3]} for r in rows]
         return web.json_response({"collections": collections})
     except Exception as e:
         return web.json_response({"error": str(e), "collections": []}, status=500)
@@ -772,7 +828,7 @@ async def get_index(request: web.Request) -> web.Response:
         # Reperiamo tutte le collezioni e i relativi item
         rows = conn.execute(
             """
-            SELECT c.slug, c.name, i.slug, i.name
+            SELECT c.slug, c.name, c.parent_slug, i.slug, i.name
             FROM collections c
             LEFT JOIN items i ON i.collection_id = c.id
             ORDER BY c.id, i.name
@@ -781,16 +837,30 @@ async def get_index(request: web.Request) -> web.Response:
         conn.close()
 
         index = []
-        current_coll = None
-        for c_slug, c_name, i_slug, i_name in rows:
-            if not current_coll or current_coll["slug"] != c_slug:
-                current_coll = {"slug": c_slug, "name": c_name, "items": []}
-                index.append(current_coll)
+        coll_map = {}
+        for c_slug, c_name, p_slug, i_slug, i_name in rows:
+            if c_slug not in coll_map:
+                coll_map[c_slug] = {"slug": c_slug, "name": c_name, "parentSlug": p_slug, "items": [], "collections": []}
             if i_slug:
-                current_coll["items"].append({"slug": i_slug, "name": i_name})
-        return web.json_response({"index": index})
+                coll_map[c_slug]["items"].append({"slug": i_slug, "name": i_name})
+
+        # Build tree for index
+        for c in coll_map.values():
+            if c["parentSlug"] and c["parentSlug"] in coll_map:
+                coll_map[c["parentSlug"]]["collections"].append(c)
+            else:
+                index.append(c)
+                
+        # Get metadata
+        try:
+            meta_rows = conn.execute("SELECT key, value FROM metadata").fetchall()
+            metadata = {r[0]: r[1] for r in meta_rows}
+        except sqlite3.OperationalError:
+            metadata = {}
+            
+        return web.json_response({"index": index, "metadata": metadata})
     except Exception as e:
-        return web.json_response({"error": str(e), "index": []}, status=500)
+        return web.json_response({"error": str(e), "index": [], "metadata": {}}, status=500)
 
 
 async def get_items(request: web.Request) -> web.Response:

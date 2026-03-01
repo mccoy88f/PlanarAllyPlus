@@ -216,16 +216,13 @@
         <div id="selectedPath" class="ai-selected-path"></div>
         <div style="margin-top: 1rem;">
             <div style="margin-bottom: 0.75rem;">
-                <label style="display: flex; align-items: start; gap: 0.5rem; cursor: pointer;">
-                    <input type="checkbox" id="staticExtractInput" style="margin-top: 0.2rem;" />
-                    <span style="font-size: 0.9rem;">
-                        <span id="staticExtractLabelText" style="font-weight: 500;"></span><br/>
-                        <span id="staticExtractDescText" style="color: #6c757d; font-size: 0.85rem;"></span>
-                    </span>
-                </label>
+                <span id="staticExtractDescText" style="display: block; color: #6c757d; font-size: 0.85rem; margin-bottom: 0.5rem;"></span>
             </div>
-            <input type="file" id="fileInput" class="ext-ui-file-input" accept=".zip,application/zip" />
-            <button type="button" id="uploadBtn" class="ext-ui-btn ext-ui-btn-primary"></button>
+            <input type="file" id="fileInput" class="ext-ui-file-input" accept=".zip,application/zip" style="display: none;" />
+            <div style="display: flex; gap: 0.5rem;">
+                <button type="button" id="uploadBtn" class="ext-ui-btn ext-ui-btn-primary"></button>
+                <button type="button" id="uploadStaticBtn" class="ext-ui-btn ext-ui-btn-primary" style="background-color: #6c757d; border-color: #6c757d;"></button>
+            </div>
         </div>
     </section>
 
@@ -245,8 +242,9 @@
             var TRANSLATIONS = {
                 en: {
                     title: "Assets Installer",
-                    upload_zip: "Upload ZIP",
-                    upload_section: "Upload ZIP file",
+                    upload_zip: "Install Asset ZIP",
+                    upload_zip_static: "Install Static Asset ZIP",
+                    upload_section: "Install ZIP file",
                     upload_instructions: "Select a ZIP file to upload by clicking below:",
                     folder: "Destination folder (click to select)",
                     loading: "Loading...",
@@ -262,13 +260,13 @@
                     root: "Asset",
                     installed_title: "Installed packs",
                     installed_on: "Installed on {{date}}",
-                    static_extract_label: "Extract as Static Assets",
-                    static_extract_desc: "Files will be extracted directly without creating Database records. Perfect for Compendium/Guide modules. Warning: These assets will NOT be visible in the in-game Asset Manager."
+                    static_extract_desc: "Choose 'Install Asset ZIP' for normal assets (visible in the in-game Asset Manager). Choose 'Install Static Asset ZIP' to extract files directly without creating Database records. Static assets are always installed in the root folder (subfolders are not supported). Perfect for Compendium/Guide modules."
                 },
                 it: {
                     title: "Assets Installer",
-                    upload_zip: "Carica ZIP",
-                    upload_section: "Carica file ZIP",
+                    upload_zip: "Installa Asset ZIP",
+                    upload_zip_static: "Installa Asset ZIP Statico",
+                    upload_section: "Installa file ZIP",
                     upload_instructions: "Seleziona un file ZIP da caricare cliccando qui sotto:",
                     folder: "Cartella di destinazione (clicca per selezionare)",
                     loading: "Caricamento...",
@@ -284,8 +282,7 @@
                     root: "Asset",
                     installed_title: "Pacchetti installati",
                     installed_on: "Installato il {{date}}",
-                    static_extract_label: "Estrai come Asset Statici",
-                    static_extract_desc: "I file verranno estratti direttamente senza creare record nel Database. Perfetto per moduli Compendium/Guida. Attenzione: Questi asset NON saranno visibili nell'Asset Manager del gioco."
+                    static_extract_desc: "Scegli 'Installa Asset ZIP' per caricare gli asset normalmente (visibili nell'Asset Manager del gioco). Scegli 'Installa Asset ZIP Statico' per estrarre i file direttamente senza creare record nel Database. Gli asset statici si installano sempre nella root (le sottocartelle non sono supportate). Perfetto per moduli Compendium/Guida."
                 }
             };
 
@@ -315,10 +312,10 @@
             function api(path) { return base() + path; }
 
             document.getElementById('uploadBtn').textContent = t('upload_zip');
+            document.getElementById('uploadStaticBtn').textContent = t('upload_zip_static');
             document.getElementById('uploadSectionTitle').textContent = t('upload_section');
             document.getElementById('folderLabel').textContent = t('folder');
             document.getElementById('installedTitle').textContent = t('installed_title');
-            document.getElementById('staticExtractLabelText').textContent = t('static_extract_label');
             document.getElementById('staticExtractDescText').textContent = t('static_extract_desc');
 
             var listEl = document.getElementById('list');
@@ -326,12 +323,13 @@
             var emptyEl = document.getElementById('empty');
             var fileInput = document.getElementById('fileInput');
             var uploadBtn = document.getElementById('uploadBtn');
+            var uploadStaticBtn = document.getElementById('uploadStaticBtn');
             var folderTreeEl = document.getElementById('folderTree');
             var selectedPathEl = document.getElementById('selectedPath');
             var msgEl = document.getElementById('msg');
-            var staticExtractInput = document.getElementById('staticExtractInput');
 
             var selectedPath = '';
+            var isStaticUpload = false;
 
             function showMsg(text, isError) {
                 msgEl.textContent = text;
@@ -502,7 +500,15 @@
             var uploadProgressText = document.getElementById('uploadProgressText');
             var uploadProgressLabel = document.getElementById('uploadProgressLabel');
 
-            uploadBtn.addEventListener('click', function () { fileInput.click(); });
+            uploadBtn.addEventListener('click', function () {
+                isStaticUpload = false;
+                fileInput.click();
+            });
+
+            uploadStaticBtn.addEventListener('click', function () {
+                isStaticUpload = true;
+                fileInput.click();
+            });
 
             fileInput.addEventListener('change', function () {
                 var file = fileInput.files && fileInput.files[0];
@@ -510,11 +516,12 @@
                 var formData = new FormData();
                 formData.append('file', file);
                 formData.append('targetPath', selectedPath);
-                if (staticExtractInput.checked) {
+                if (isStaticUpload) {
                     formData.append('staticExtract', 'true');
                 }
 
                 uploadBtn.disabled = true;
+                uploadStaticBtn.disabled = true;
                 uploadProgressContainer.style.display = 'flex';
                 uploadProgressBar.style.width = '0%';
                 uploadProgressText.textContent = '0%';
@@ -551,6 +558,7 @@
                 function finalizeUpload() {
                     uploadProgressContainer.style.display = 'none';
                     uploadBtn.disabled = false;
+                    uploadStaticBtn.disabled = false;
                     fileInput.value = '';
                 }
 

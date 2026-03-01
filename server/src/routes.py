@@ -180,6 +180,10 @@ main_app.router.add_put(
     f"{subpath}/api/extensions/compendium/compendiums/{{compendium_id}}/default",
     extensions.compendium.set_default_compendium,
 )
+main_app.router.add_patch(
+    f"{subpath}/api/extensions/compendium/compendiums/{{compendium_id}}/rename",
+    extensions.compendium.rename_compendium,
+)
 main_app.router.add_get(
     f"{subpath}/api/extensions/compendium/collections",
     extensions.compendium.get_collections,
