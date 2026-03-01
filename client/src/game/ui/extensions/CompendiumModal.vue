@@ -140,6 +140,12 @@ const subCollectionsFor = (compId: string, parentSlug: string) => collectionsFor
 
 const itemsFor = (compId: string, collSlug: string) =>
     itemsByKey.value.get(`${compId}/${collSlug}`) ?? [];
+
+const interleavedChildrenFor = (compId: string, collSlug: string) => {
+    const subs = subCollectionsFor(compId, collSlug).map((c) => ({ ...c, type: "collection" as const }));
+    const items = itemsFor(compId, collSlug).map((i) => ({ ...i, type: "item" as const }));
+    return [...subs, ...items].sort((a, b: any) => ((a as any).order ?? 0) - ((b as any).order ?? 0));
+};
 const isExpanded = (compId: string, collSlug?: string) => {
     if (!collSlug) return expandedComps.value.has(compId);
     return expandedColls.value.get(compId)?.has(collSlug) ?? false;
@@ -1215,57 +1221,59 @@ onMounted(() => {
                                     v-show="isExpanded(comp.id, coll.slug)"
                                     class="qe-tree-items"
                                 >
-                                    <div
-                                        v-for="subColl in subCollectionsFor(comp.id, coll.slug)"
-                                        :key="subColl.slug"
-                                        class="qe-tree-collection qe-tree-subcollection"
-                                    >
-                                        <button
-                                            class="qe-tree-toggle coll"
-                                            :class="{ expanded: isExpanded(comp.id, subColl.slug) }"
-                                            @click="toggleCollection(comp.id, subColl.slug)"
-                                        >
-                                            <font-awesome-icon
-                                                :icon="isExpanded(comp.id, subColl.slug) ? 'chevron-down' : 'chevron-right'"
-                                            />
-                                            {{ formatName(subColl.name) }}
-                                            <span class="qe-tree-count">({{ subColl.count }})</span>
-                                        </button>
+                                    <template v-for="child in interleavedChildrenFor(comp.id, coll.slug)" :key="child.slug">
+                                        <!-- COLLECTION CHILD -->
                                         <div
-                                            v-show="isExpanded(comp.id, subColl.slug)"
-                                            class="qe-tree-items"
+                                            v-if="child.type === 'collection'"
+                                            class="qe-tree-collection qe-tree-subcollection"
                                         >
                                             <button
-                                                v-for="item in itemsFor(comp.id, subColl.slug)"
-                                                :key="item.slug"
-                                                class="qe-tree-item"
-                                                :class="{
-                                                    active:
-                                                        selectedItem?.compendium.id === comp.id &&
-                                                        selectedItem?.collection.slug === subColl.slug &&
-                                                        selectedItem?.item.slug === item.slug,
-                                                }"
-                                                @click="selectItem(comp, subColl, item)"
+                                                class="qe-tree-toggle coll"
+                                                :class="{ expanded: isExpanded(comp.id, child.slug) }"
+                                                @click="toggleCollection(comp.id, child.slug)"
                                             >
-                                                {{ item.name }}
+                                                <font-awesome-icon
+                                                    :icon="isExpanded(comp.id, child.slug) ? 'chevron-down' : 'chevron-right'"
+                                                />
+                                                {{ formatName(child.name) }}
+                                                <span class="qe-tree-count">({{ child.count }})</span>
                                             </button>
+                                            <div
+                                                v-show="isExpanded(comp.id, child.slug)"
+                                                class="qe-tree-items"
+                                            >
+                                                <button
+                                                    v-for="subItem in itemsFor(comp.id, child.slug)"
+                                                    :key="subItem.slug"
+                                                    class="qe-tree-item"
+                                                    :class="{
+                                                        active:
+                                                            selectedItem?.compendium.id === comp.id &&
+                                                            selectedItem?.collection.slug === child.slug &&
+                                                            selectedItem?.item.slug === subItem.slug,
+                                                    }"
+                                                    @click="selectItem(comp, child, subItem)"
+                                                >
+                                                    {{ subItem.name }}
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
-                                    
-                                    <button
-                                        v-for="item in itemsFor(comp.id, coll.slug)"
-                                        :key="item.slug"
-                                        class="qe-tree-item"
-                                        :class="{
-                                            active:
-                                                selectedItem?.compendium.id === comp.id &&
-                                                selectedItem?.collection.slug === coll.slug &&
-                                                selectedItem?.item.slug === item.slug,
-                                        }"
-                                        @click="selectItem(comp, coll, item)"
-                                    >
-                                        {{ item.name }}
-                                    </button>
+
+                                        <!-- ITEM CHILD -->
+                                        <button
+                                            v-else
+                                            class="qe-tree-item"
+                                            :class="{
+                                                active:
+                                                    selectedItem?.compendium.id === comp.id &&
+                                                    selectedItem?.collection.slug === coll.slug &&
+                                                    selectedItem?.item.slug === child.slug,
+                                            }"
+                                            @click="selectItem(comp, coll, child)"
+                                        >
+                                            {{ child.name }}
+                                        </button>
+                                    </template>
                                 </div>
                             </div>
                         </div>

@@ -384,11 +384,11 @@ def _build_generic_item_markdown(item: dict, type_key: str) -> str:
 def _create_sqlite_schema(conn) -> None:
     """Creates tables, indexes, FTS and triggers on an open connection."""
     conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("CREATE TABLE collections (id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, parent_slug TEXT DEFAULT NULL)")
+    conn.execute("CREATE TABLE collections (id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, parent_slug TEXT DEFAULT NULL, display_order INTEGER DEFAULT 0)")
     conn.execute("""
         CREATE TABLE items (
             id INTEGER PRIMARY KEY, collection_id INTEGER NOT NULL, slug TEXT NOT NULL,
-            name TEXT NOT NULL, markdown TEXT NOT NULL,
+            name TEXT NOT NULL, markdown TEXT NOT NULL, display_order INTEGER DEFAULT 0,
             FOREIGN KEY (collection_id) REFERENCES collections(id), UNIQUE(collection_id, slug)
         )
     """)
@@ -588,12 +588,14 @@ def _convert_json_to_sqlite(json_path: Path, db_path: Path) -> bool:
             def insert_recursive(c_obj, parent_slug=None):
                 slug = c_obj.get("slug", "")
                 name = c_obj.get("name", slug)
-                conn.execute("INSERT INTO collections (slug, name, parent_slug) VALUES (?, ?, ?)", (slug, name, parent_slug))
+                order = c_obj.get("order", 0)
+                conn.execute("INSERT INTO collections (slug, name, parent_slug, display_order) VALUES (?, ?, ?, ?)", (slug, name, parent_slug, order))
                 coll_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
                 for item in c_obj.get("items", []):
+                    i_order = item.get("order", 0)
                     conn.execute(
-                        "INSERT INTO items (collection_id, slug, name, markdown) VALUES (?, ?, ?, ?)",
-                        (coll_id, item.get("slug", ""), item.get("name", ""), item.get("markdown", "")),
+                        "INSERT INTO items (collection_id, slug, name, markdown, display_order) VALUES (?, ?, ?, ?, ?)",
+                        (coll_id, item.get("slug", ""), item.get("name", ""), item.get("markdown", ""), i_order),
                     )
                 for sub_coll in c_obj.get("collections", []):
                     insert_recursive(sub_coll, slug)
@@ -620,6 +622,14 @@ def _ensure_sqlite(comp_id: str) -> bool:
         conn.execute("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         try:
             conn.execute("ALTER TABLE collections ADD COLUMN parent_slug TEXT DEFAULT NULL")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            conn.execute("ALTER TABLE collections ADD COLUMN display_order INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            conn.execute("ALTER TABLE items ADD COLUMN display_order INTEGER DEFAULT 0")
         except sqlite3.OperationalError:
             pass
         # Backfill metadata from JSON if metadata table is empty
@@ -813,15 +823,15 @@ async def get_collections(request: web.Request) -> web.Response:
         conn = _get_conn(comp_id)
         rows = conn.execute(
             """
-            SELECT c.slug, c.name, c.parent_slug, COUNT(i.id) as count
+            SELECT c.slug, c.name, c.parent_slug, c.display_order, COUNT(i.id) as count
             FROM collections c
             LEFT JOIN items i ON i.collection_id = c.id
             GROUP BY c.id
-            ORDER BY c.id
+            ORDER BY c.display_order
             """
         ).fetchall()
         conn.close()
-        collections = [{"slug": r[0], "name": r[1], "parentSlug": r[2], "count": r[3]} for r in rows]
+        collections = [{"slug": r[0], "name": r[1], "parentSlug": r[2], "order": r[3], "count": r[4]} for r in rows]
         return web.json_response({"collections": collections})
     except Exception as e:
         return web.json_response({"error": str(e), "collections": []}, status=500)
@@ -838,20 +848,20 @@ async def get_index(request: web.Request) -> web.Response:
         # Reperiamo tutte le collezioni e i relativi item
         rows = conn.execute(
             """
-            SELECT c.slug, c.name, c.parent_slug, i.slug, i.name
+            SELECT c.slug, c.name, c.parent_slug, i.slug, i.name, c.display_order, i.display_order
             FROM collections c
             LEFT JOIN items i ON i.collection_id = c.id
-            ORDER BY c.id, i.id
+            ORDER BY c.display_order, i.display_order
             """
         ).fetchall()
 
         index = []
         coll_map = {}
-        for c_slug, c_name, p_slug, i_slug, i_name in rows:
+        for c_slug, c_name, p_slug, i_slug, i_name, c_order, i_order in rows:
             if c_slug not in coll_map:
-                coll_map[c_slug] = {"slug": c_slug, "name": c_name, "parentSlug": p_slug, "items": [], "collections": []}
+                coll_map[c_slug] = {"slug": c_slug, "name": c_name, "parentSlug": p_slug, "order": c_order, "items": [], "collections": []}
             if i_slug:
-                coll_map[c_slug]["items"].append({"slug": i_slug, "name": i_name})
+                coll_map[c_slug]["items"].append({"slug": i_slug, "name": i_name, "order": i_order})
 
         # Build tree for index
         for c in coll_map.values():
@@ -887,16 +897,16 @@ async def get_items(request: web.Request) -> web.Response:
         conn = _get_conn(comp_id)
         rows = conn.execute(
             """
-            SELECT i.slug, i.name
+            SELECT i.slug, i.name, i.display_order
             FROM items i
             JOIN collections c ON i.collection_id = c.id
             WHERE c.slug = ?
-            ORDER BY i.id
+            ORDER BY i.display_order
             """,
             (slug,),
         ).fetchall()
         conn.close()
-        items = [{"slug": r[0], "name": r[1]} for r in rows]
+        items = [{"slug": r[0], "name": r[1], "order": r[2]} for r in rows]
         return web.json_response({"items": items})
     except Exception as e:
         return web.json_response({"error": str(e), "items": []}, status=500)
