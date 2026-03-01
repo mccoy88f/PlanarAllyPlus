@@ -844,7 +844,6 @@ async def get_index(request: web.Request) -> web.Response:
             ORDER BY c.id, i.name
             """
         ).fetchall()
-        conn.close()
 
         index = []
         coll_map = {}
@@ -867,10 +866,12 @@ async def get_index(request: web.Request) -> web.Response:
             metadata = {r[0]: r[1] for r in meta_rows}
         except sqlite3.OperationalError:
             metadata = {}
-            
+
+        conn.close()
         return web.json_response({"index": index, "metadata": metadata})
     except Exception as e:
         return web.json_response({"error": str(e), "index": [], "metadata": {}}, status=500)
+
 
 
 async def get_items(request: web.Request) -> web.Response:
