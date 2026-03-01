@@ -203,6 +203,13 @@ onMounted(() => {
             </div>
         </template>
         <div class="ext-modal-body-wrapper">
+            <div v-if="uploading" class="ext-progress-top-container">
+                <LoadingBar
+                    :progress="uploadProgress"
+                    :label="`${t('game.ui.extensions.DocumentsModal.uploading')} ${uploadingFilename}...`"
+                    height="6px"
+                />
+            </div>
             <div class="ext-toolbar-bar">
                 <input
                     ref="uploadInput"
@@ -221,13 +228,6 @@ onMounted(() => {
                     <font-awesome-icon icon="upload" />
                     {{ t("common.upload") }}
                 </button>
-            </div>
-            <div v-if="uploading" class="ext-progress-top-container">
-                <LoadingBar
-                    :progress="uploadProgress"
-                    :label="`${t('game.ui.extensions.DocumentsModal.uploading')} ${uploadingFilename}...`"
-                    height="6px"
-                />
             </div>
             <div class="documents-modal-body ext-body">
                 <div v-if="loading" class="ext-ui-loading">

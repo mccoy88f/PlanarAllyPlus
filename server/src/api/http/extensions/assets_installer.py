@@ -179,6 +179,7 @@ async def upload_zip(request: web.Request) -> web.Response:
                 "basePath": base_path_str,
                 "assetIds": asset_ids,
                 "fileHashes": file_hashes,
+                "isStatic": static_extract,
                 "installedAt": datetime.now(timezone.utc).isoformat(),
             }
 
@@ -237,6 +238,7 @@ async def list_installs(request: web.Request) -> web.Response:
             "name": i["name"],
             "fileCount": len(i.get("files", [])),
             "basePath": i.get("basePath", ""),
+            "isStatic": i.get("isStatic", False),
             "installedAt": i.get("installedAt"),
         }
         for i in installs

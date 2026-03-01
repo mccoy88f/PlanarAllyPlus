@@ -325,7 +325,14 @@
 </head>
 
 <body class="ext-ui-root cs-root">
-  <div class="ext-toolbar-bar cs-top-bar">
+  <div id="loadingBar" class="ext-progress-top-container" style="display:none">
+    <div class="pa-loading-bar-wrapper">
+      <div class="pa-loading-bar-track">
+        <div class="pa-loading-bar-fill pa-loading-bar-indeterminate" style="width: 100%"></div>
+      </div>
+    </div>
+  </div>
+  <div id="topBar" class="ext-toolbar-bar cs-top-bar">
     <div class="ext-search-bar">
       <span class="ext-search-icon" aria-hidden="true">&#128269;</span>
       <input type="text" id="sheetSearchInput" class="ext-search-input" placeholder="" />
@@ -467,6 +474,7 @@
       var sheets = [], characters = [], selectedId = null, currentData = {}, currentTab = 'stats', editingEnabled = false;
       var sheetList = document.getElementById('sheetList');
       var loading = document.getElementById('loading');
+      var loadingBar = document.getElementById('loadingBar');
       var noRoom = document.getElementById('noRoom');
       var selectPrompt = document.getElementById('selectPrompt');
       var sheetPanel = document.getElementById('sheetPanel');
@@ -972,13 +980,14 @@
       }
 
       function loadList(openId) {
-        if (!roomCreator || !roomName) { loading.style.display = 'none'; noRoom.style.display = 'block'; return; }
-        noRoom.style.display = 'none'; loading.style.display = 'block'; sheetList.style.display = 'none';
-        qs('/api/extensions/character-sheet/list').then(function (r) { return r.json(); }).then(function (data) {
-          loading.style.display = 'none'; sheets = data.sheets || []; characters = data.characters || [];
-          sheetList.style.display = 'block';
+        if (!roomCreator || !roomName) { loading.style.display = 'none'; loadingBar.style.display = 'none'; noRoom.style.display = 'block'; return; }
+        noRoom.style.display = 'none'; loading.style.display = 'block'; loadingBar.style.display = 'block'; sheetList.style.display = 'none';
+        fetch(api('/api/extensions/character-sheet/list') + '?room_creator=' + encodeURIComponent(roomCreator) + '&room_name=' + encodeURIComponent(roomName), { credentials: 'include' }).then(function (r) {
+          return r.ok ? r.json() : { sheets: [], characters: [] };
+        }).then(function (data) {
+          loading.style.display = 'none'; loadingBar.style.display = 'none'; sheets = data.sheets || []; characters = data.characters || [];
           renderSheetList(openId);
-        }).catch(function () { loading.style.display = 'none'; noRoom.style.display = 'block'; });
+        }).catch(function () { loading.style.display = 'none'; loadingBar.style.display = 'none'; noRoom.style.display = 'block'; });
       }
 
       function mergeQeLinksFromData(data) {

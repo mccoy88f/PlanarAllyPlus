@@ -265,6 +265,14 @@
 </head>
 
 <body class="ext-ui-root doc-root">
+    <div id="uploadProgress" class="ext-progress-top-container" style="display:none">
+        <div class="pa-loading-bar-wrapper">
+            <div class="pa-loading-bar-track">
+                <div id="uploadProgressBar" class="pa-loading-bar-fill pa-loading-bar-indeterminate"
+                    style="width: 100%"></div>
+            </div>
+        </div>
+    </div>
     <div id="topBar" class="ext-toolbar-bar doc-top-bar" style="display:none">
         <div class="ext-search-bar">
             <span class="ext-search-icon" aria-hidden="true">&#128269;</span>
@@ -283,14 +291,6 @@
                     <path
                         d="M3 3v8h8V3H3zm6 6H5V5h4v4zm-6 4v8h8v-8H3zm6 6H5v-4h4v4zm4-16v8h8V3h-8zm6 6h-4V5h4v4zm-6 4v8h8v-8h-8zm6 6h-4v-4h4v4z" />
                 </svg></button>
-        </div>
-    </div>
-    <div id="uploadProgress" class="ext-progress-top-container" style="display:none">
-        <div class="pa-loading-bar-wrapper">
-            <div class="pa-loading-bar-track">
-                <div id="uploadProgressBar" class="pa-loading-bar-fill pa-loading-bar-indeterminate"
-                    style="width: 100%"></div>
-            </div>
         </div>
     </div>
     <div id="content" class="doc-content">
@@ -809,6 +809,8 @@
             if (viewMode === 'grid') {
                 document.getElementById('viewGridBtn').classList.add('active');
                 document.getElementById('viewListBtn').classList.remove('active');
+                listEl.classList.add('doc-grid');
+                listEl.style.display = 'grid';
             }
 
             document.getElementById('viewListBtn').addEventListener('click', function () {

@@ -1430,7 +1430,7 @@ onMounted(() => {
                 <input
                     ref="fileInputRef"
                     type="file"
-                    accept=".json,application/json"
+                    accept=".json"
                     multiple
                     style="display: none"
                     @change="onInstallFileChange"
