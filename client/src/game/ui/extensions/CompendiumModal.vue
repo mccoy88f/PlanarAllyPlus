@@ -38,6 +38,7 @@ interface CompendiumMeta {
 interface CollectionMeta {
     slug: string;
     name: string;
+    parentSlug: string | null;
     count: number;
 }
 
@@ -84,6 +85,7 @@ const showIndex = ref(false);
 const currentIndex = ref<{ slug: string; name: string; items: { slug: string; name: string }[] }[]>([]);
 const indexLoading = ref(false);
 const indexCompendium = ref<CompendiumMeta | null>(null);
+const indexMetadata = ref<Record<string, string>>({});
 const expandedIndexCollections = ref<Set<string>>(new Set());
 const aiConfigured = ref(false);
 const aiModel = ref("");
@@ -133,8 +135,17 @@ function stopResize(): void {
 }
 
 const collectionsFor = (compId: string) => collectionsByComp.value.get(compId) ?? [];
+const rootCollectionsFor = (compId: string) => collectionsFor(compId).filter(c => !c.parentSlug);
+const subCollectionsFor = (compId: string, parentSlug: string) => collectionsFor(compId).filter(c => c.parentSlug === parentSlug);
+
 const itemsFor = (compId: string, collSlug: string) =>
     itemsByKey.value.get(`${compId}/${collSlug}`) ?? [];
+
+const interleavedChildrenFor = (compId: string, collSlug: string) => {
+    const subs = subCollectionsFor(compId, collSlug).map((c) => ({ ...c, type: "collection" as const }));
+    const items = itemsFor(compId, collSlug).map((i) => ({ ...i, type: "item" as const }));
+    return [...subs, ...items].sort((a, b: any) => ((a as any).order ?? 0) - ((b as any).order ?? 0));
+};
 const isExpanded = (compId: string, collSlug?: string) => {
     if (!collSlug) return expandedComps.value.has(compId);
     return expandedColls.value.get(compId)?.has(collSlug) ?? false;
@@ -165,11 +176,21 @@ const breadcrumb = computed(() => {
     const { compendium, collection, item } = selectedItem.value;
     const fallback = (label: string, slug: string) =>
         (label && label.trim()) ? label : (slug || "—");
-    return [
+
+    const crumbs = [
         { label: fallback(compendium.name, compendium.slug), slug: compendium.slug, type: "compendium" as const },
-        { label: fallback(collection.name, collection.slug), slug: collection.slug, type: "collection" as const },
-        { label: fallback(item.name, item.slug), slug: item.slug, type: "item" as const },
     ];
+
+    if (collection.parentSlug) {
+        const parent = collectionsFor(compendium.id).find(c => c.slug === collection.parentSlug);
+        if (parent) {
+            crumbs.push({ label: fallback(parent.name, parent.slug), slug: parent.slug, type: "collection" as const });
+        }
+    }
+
+    crumbs.push({ label: fallback(collection.name, collection.slug), slug: collection.slug, type: "collection" as const });
+    crumbs.push({ label: fallback(item.name, item.slug), slug: item.slug, type: "item" as const });
+    return crumbs;
 });
 
 async function navigateBreadcrumb(index: number): Promise<void> {
@@ -240,7 +261,7 @@ function handleMarkdownClick(e: MouseEvent): void {
         ? compendiums.value.find((c) => c.slug === compSlug)
         : compendiums.value.find((c) => c.isDefault) ?? compendiums.value[0];
     if (!comp) return;
-    const coll: CollectionMeta = { slug: collSlug, name: "", count: 0 };
+    const coll: CollectionMeta = { slug: collSlug, name: "", parentSlug: null, count: 0 };
     const item: ItemMeta = { slug: itemSlug, name: "" };
     selectItem(comp, coll, item);
 }
@@ -391,6 +412,7 @@ async function selectFromSearch(result: SearchResult): Promise<void> {
     const coll: CollectionMeta = {
         slug: result.collectionSlug,
         name: result.collectionName,
+        parentSlug: null,
         count: 0,
     };
     const itemMeta: ItemMeta = { slug: result.itemSlug, name: result.itemName };
@@ -411,11 +433,12 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
             `/api/extensions/compendium/index?compendium=${encodeURIComponent(comp.id)}`,
         );
         if (r.ok) {
-            const data = (await r.json()) as { index: any[] };
+            const data = (await r.json()) as { index: any[], metadata?: Record<string, string> };
             originalIndex.value = null;
             activeTranslationLang.value = null;
             currentMarkdown.value = "";
             currentIndex.value = data.index;
+            indexMetadata.value = data.metadata || {};
             await checkTranslation("index");
         }
     } catch {
@@ -427,7 +450,7 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
 
 async function selectItemBySlug(collSlug: string, itemSlug: string): Promise<void> {
     if (!indexCompendium.value) return;
-    const coll: CollectionMeta = { slug: collSlug, name: "", count: 0 };
+    const coll: CollectionMeta = { slug: collSlug, name: "", parentSlug: null, count: 0 };
     const item: ItemMeta = { slug: itemSlug, name: "" };
     await selectItem(indexCompendium.value, coll, item);
 }
@@ -450,6 +473,28 @@ async function setDefault(compId: string): Promise<void> {
             for (const c of compendiums.value) {
                 (c as { isDefault: boolean }).isDefault = c.id === compId;
             }
+            invalidateQeNamesCache();
+            qeNames.value = await getQeNames();
+        }
+    } catch {
+        /* ignore */
+    }
+}
+
+async function renameCompendium(comp: CompendiumMeta): Promise<void> {
+    const newName = await modals.prompt(
+        t("game.ui.extensions.CompendiumModal.rename"),
+        t("game.ui.extensions.CompendiumModal.rename_prompt")
+    );
+    if (!newName || !newName.trim() || newName.trim() === comp.name) return;
+    
+    try {
+        const r = await http.patchJson(
+            `/api/extensions/compendium/compendiums/${encodeURIComponent(comp.id)}/rename`,
+            { name: newName.trim() }
+        );
+        if (r.ok) {
+            comp.name = newName.trim();
             invalidateQeNamesCache();
             qeNames.value = await getQeNames();
         }
@@ -491,9 +536,21 @@ function onInstallFileChange(e: Event): void {
     const files = input.files;
     if (files && files.length > 0) {
         if (files.length === 1) {
-            installFile.value = files[0]!;
+            const file = files[0]!;
+            installFile.value = file;
             installFiles.value = [];
-            if (!installName.value) installName.value = files[0]!.name.replace(/\.json$/i, "") || "Compendium";
+            
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const content = ev.target?.result as string;
+                    const json = JSON.parse(content);
+                    installName.value = json.name || json.title || file.name.replace(/\.json$/i, "") || "Compendium";
+                } catch (err) {
+                    if (!installName.value) installName.value = file.name.replace(/\.json$/i, "") || "Compendium";
+                }
+            };
+            reader.readAsText(file);
         } else {
             installFile.value = null;
             installName.value = "";
@@ -1126,6 +1183,14 @@ onMounted(() => {
                             </button>
                             <button
                                 type="button"
+                                class="ext-action-btn"
+                                :title="t('game.ui.extensions.CompendiumModal.rename')"
+                                @click.stop="renameCompendium(comp)"
+                            >
+                                <font-awesome-icon icon="edit" />
+                            </button>
+                            <button
+                                type="button"
                                 class="ext-action-btn delete"
                                 :title="t('game.ui.extensions.CompendiumModal.uninstall')"
                                 @click.stop="uninstallCompendium(comp)"
@@ -1135,7 +1200,7 @@ onMounted(() => {
                         </div>
                         <div v-show="isExpanded(comp.id)" class="qe-tree-collections">
                             <div
-                                v-for="coll in collectionsFor(comp.id)"
+                                v-for="coll in rootCollectionsFor(comp.id)"
                                 :key="coll.slug"
                                 class="qe-tree-collection"
                             >
@@ -1156,20 +1221,59 @@ onMounted(() => {
                                     v-show="isExpanded(comp.id, coll.slug)"
                                     class="qe-tree-items"
                                 >
-                                    <button
-                                        v-for="item in itemsFor(comp.id, coll.slug)"
-                                        :key="item.slug"
-                                        class="qe-tree-item"
-                                        :class="{
-                                            active:
-                                                selectedItem?.compendium.id === comp.id &&
-                                                selectedItem?.collection.slug === coll.slug &&
-                                                selectedItem?.item.slug === item.slug,
-                                        }"
-                                        @click="selectItem(comp, coll, item)"
-                                    >
-                                        {{ item.name }}
-                                    </button>
+                                    <template v-for="child in interleavedChildrenFor(comp.id, coll.slug)" :key="child.slug">
+                                        <!-- COLLECTION CHILD -->
+                                        <div
+                                            v-if="child.type === 'collection'"
+                                            class="qe-tree-collection qe-tree-subcollection"
+                                        >
+                                            <button
+                                                class="qe-tree-toggle coll"
+                                                :class="{ expanded: isExpanded(comp.id, child.slug) }"
+                                                @click="toggleCollection(comp.id, child.slug)"
+                                            >
+                                                <font-awesome-icon
+                                                    :icon="isExpanded(comp.id, child.slug) ? 'chevron-down' : 'chevron-right'"
+                                                />
+                                                {{ formatName(child.name) }}
+                                                <span class="qe-tree-count">({{ child.count }})</span>
+                                            </button>
+                                            <div
+                                                v-show="isExpanded(comp.id, child.slug)"
+                                                class="qe-tree-items"
+                                            >
+                                                <button
+                                                    v-for="subItem in itemsFor(comp.id, child.slug)"
+                                                    :key="subItem.slug"
+                                                    class="qe-tree-item"
+                                                    :class="{
+                                                        active:
+                                                            selectedItem?.compendium.id === comp.id &&
+                                                            selectedItem?.collection.slug === child.slug &&
+                                                            selectedItem?.item.slug === subItem.slug,
+                                                    }"
+                                                    @click="selectItem(comp, child, subItem)"
+                                                >
+                                                    {{ subItem.name }}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- ITEM CHILD -->
+                                        <button
+                                            v-else
+                                            class="qe-tree-item"
+                                            :class="{
+                                                active:
+                                                    selectedItem?.compendium.id === comp.id &&
+                                                    selectedItem?.collection.slug === coll.slug &&
+                                                    selectedItem?.item.slug === child.slug,
+                                            }"
+                                            @click="selectItem(comp, coll, child)"
+                                        >
+                                            {{ child.name }}
+                                        </button>
+                                    </template>
                                 </div>
                             </div>
                         </div>
@@ -1220,7 +1324,7 @@ onMounted(() => {
                         </div>
                         <div v-else class="qe-index-container">
                             <div class="qe-index-header">
-                                <h1 class="qe-index-title">{{ indexCompendium?.name }}</h1>
+                                <h1 class="qe-index-title">{{ indexMetadata.title || indexCompendium?.name }}</h1>
                                 <div v-if="isTranslated" class="translation-tag-container" ref="translationTagContainer">
                                     <div class="translation-tag" @click.stop="showTranslationTools = !showTranslationTools">
                                         <font-awesome-icon icon="check-circle" class="me-1" />
@@ -1258,7 +1362,36 @@ onMounted(() => {
                                             ... {{ t("game.ui.extensions.CompendiumModal.load_all") }}
                                         </button>
                                     </div>
+                                    <div v-if="coll.collections && coll.collections.length > 0" class="qe-index-subcolls">
+                                        <div v-for="subColl in coll.collections" :key="subColl.slug" class="qe-index-subcoll">
+                                            <h3 class="qe-index-subcoll-title">{{ formatName(subColl.name) }}</h3>
+                                            <div class="qe-index-item-list">
+                                                <button
+                                                    v-for="item in (expandedIndexCollections.has(subColl.slug) ? subColl.items : subColl.items.slice(0, 10))"
+                                                    :key="item.slug"
+                                                    class="qe-index-item-link"
+                                                    @click="selectItemBySlug(subColl.slug, item.slug)"
+                                                >
+                                                    {{ item.name }}
+                                                </button>
+                                                <button
+                                                    v-if="subColl.items.length > 10 && !expandedIndexCollections.has(subColl.slug)"
+                                                    class="qe-index-load-more"
+                                                    @click="toggleIndexCollection(subColl.slug)"
+                                                >
+                                                    ... {{ t("game.ui.extensions.CompendiumModal.load_all") }}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
+                            </div>
+                            
+                            <div v-if="Object.keys(indexMetadata).length > 0 && (indexMetadata.author || indexMetadata.date || indexMetadata.website || indexMetadata.license)" class="qe-index-metadata">
+                                <div v-if="indexMetadata.author" class="qe-metadata-row"><strong>{{ t('game.ui.extensions.CompendiumModal.author') }}:</strong> {{ indexMetadata.author }}</div>
+                                <div v-if="indexMetadata.date" class="qe-metadata-row"><strong>{{ t('game.ui.extensions.CompendiumModal.date') }}:</strong> {{ indexMetadata.date }}</div>
+                                <div v-if="indexMetadata.website" class="qe-metadata-row"><strong>{{ t('game.ui.extensions.CompendiumModal.website') }}:</strong> <a :href="indexMetadata.website" target="_blank">{{ indexMetadata.website }}</a></div>
+                                <div v-if="indexMetadata.license" class="qe-metadata-row"><strong>{{ t('game.ui.extensions.CompendiumModal.license') }}:</strong> {{ indexMetadata.license }}</div>
                             </div>
                         </div>
                     </div>
@@ -1627,6 +1760,49 @@ onMounted(() => {
     letter-spacing: 0.05em;
 }
 
+.qe-index-subcolls {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.qe-index-subcoll-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px dashed #e2e8f0;
+}
+
+.qe-index-metadata {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e2e8f0;
+    font-size: 0.9rem;
+    color: #718096;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.qe-metadata-row strong {
+    color: #4a5568;
+    margin-right: 0.4rem;
+}
+
+.qe-metadata-row a {
+    color: #4299e1;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.qe-metadata-row a:hover {
+    color: #2b6cb0;
+    text-decoration: underline;
+}
+
 .qe-index-item-list {
     display: flex;
     flex-direction: column;
@@ -1789,6 +1965,13 @@ onMounted(() => {
     :deep(ol) {
         margin: 0.4rem 0;
         padding-left: 1.5rem;
+    }
+
+    :deep(img) {
+        max-width: 34%;
+        height: auto;
+        display: block;
+        margin: 0.5rem auto;
     }
 
     :deep(a[href^="qe:"], a.qe-internal-link) {
