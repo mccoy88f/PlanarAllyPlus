@@ -636,7 +636,7 @@
             let currentFolderId = null;
             let items = [];
             let folderPath = [];
-            let viewMode = 'list';
+            let viewMode = localStorage.getItem('doc-view-mode') || 'list';
             var pencilSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
             var folderSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>';
             var trashSvg = '<svg viewBox="0 0 448 512" fill="currentColor"><path d="M135.2 17.69L128 32H32C14.33 32 0 46.33 0 64v384c0 17.67 14.33 32 32 32h384c17.67 0 32-14.33 32-32V64c0-17.67-14.33-32-32-32h-96l-7.2-14.31A32 32 0 0 0 276.8 0H171.2a32 32 0 0 0-36 17.69zM64 96h384v352H64V96zm32 32v288h64V128H96zm128 0v288h64V128h-64zm128 0v288h64V128h-64z"/></svg>';
@@ -804,8 +804,16 @@
 
             document.getElementById('viewListBtn').title = t('view_list');
             document.getElementById('viewGridBtn').title = t('view_grid');
+
+            // Apply saved view mode on load
+            if (viewMode === 'grid') {
+                document.getElementById('viewGridBtn').classList.add('active');
+                document.getElementById('viewListBtn').classList.remove('active');
+            }
+
             document.getElementById('viewListBtn').addEventListener('click', function () {
                 viewMode = 'list';
+                localStorage.setItem('doc-view-mode', 'list');
                 document.getElementById('viewListBtn').classList.add('active');
                 document.getElementById('viewGridBtn').classList.remove('active');
                 listEl.classList.remove('doc-grid');
@@ -813,6 +821,7 @@
             });
             document.getElementById('viewGridBtn').addEventListener('click', function () {
                 viewMode = 'grid';
+                localStorage.setItem('doc-view-mode', 'grid');
                 document.getElementById('viewGridBtn').classList.add('active');
                 document.getElementById('viewListBtn').classList.remove('active');
                 listEl.classList.add('doc-grid');
