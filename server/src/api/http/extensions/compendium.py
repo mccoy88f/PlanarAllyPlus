@@ -817,7 +817,7 @@ async def get_collections(request: web.Request) -> web.Response:
             FROM collections c
             LEFT JOIN items i ON i.collection_id = c.id
             GROUP BY c.id
-            ORDER BY c.slug
+            ORDER BY c.id
             """
         ).fetchall()
         conn.close()
@@ -841,7 +841,7 @@ async def get_index(request: web.Request) -> web.Response:
             SELECT c.slug, c.name, c.parent_slug, i.slug, i.name
             FROM collections c
             LEFT JOIN items i ON i.collection_id = c.id
-            ORDER BY c.id, i.name
+            ORDER BY c.id, i.id
             """
         ).fetchall()
 
@@ -891,7 +891,7 @@ async def get_items(request: web.Request) -> web.Response:
             FROM items i
             JOIN collections c ON i.collection_id = c.id
             WHERE c.slug = ?
-            ORDER BY i.name
+            ORDER BY i.id
             """,
             (slug,),
         ).fetchall()
@@ -1070,7 +1070,7 @@ async def get_db(request: web.Request) -> web.Response:
         collections = []
         for cid, cslug, cname in coll_rows:
             items = conn.execute(
-                "SELECT slug, name, markdown FROM items WHERE collection_id = ? ORDER BY name",
+                "SELECT slug, name, markdown FROM items WHERE collection_id = ? ORDER BY id",
                 (cid,),
             ).fetchall()
             collections.append({
