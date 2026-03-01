@@ -1962,7 +1962,8 @@ onMounted(() => {
     :deep(img) {
         max-width: 34%;
         height: auto;
-        text-align: center;
+        display: block;
+        margin: 0.5rem auto;
     }
 
     :deep(a[href^="qe:"], a.qe-internal-link) {
