@@ -622,12 +622,22 @@ def _ensure_sqlite(comp_id: str) -> bool:
             conn.execute("ALTER TABLE collections ADD COLUMN parent_slug TEXT DEFAULT NULL")
         except sqlite3.OperationalError:
             pass
+        # Backfill metadata from JSON if metadata table is empty
+        count = conn.execute("SELECT COUNT(*) FROM metadata").fetchone()[0]
+        if count == 0 and json_path.exists():
+            try:
+                with open(json_path, encoding="utf-8") as f:
+                    data = json.load(f)
+                _extract_and_save_metadata(conn, data)
+            except Exception:
+                pass
         conn.commit()
         conn.close()
         return True
     if not json_path.exists():
         return False
     return _convert_json_to_sqlite(json_path, db_path)
+
 
 
 def _get_conn(comp_id: str):
