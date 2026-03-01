@@ -530,9 +530,21 @@ function onInstallFileChange(e: Event): void {
     const files = input.files;
     if (files && files.length > 0) {
         if (files.length === 1) {
-            installFile.value = files[0]!;
+            const file = files[0]!;
+            installFile.value = file;
             installFiles.value = [];
-            if (!installName.value) installName.value = files[0]!.name.replace(/\.json$/i, "") || "Compendium";
+            
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const content = ev.target?.result as string;
+                    const json = JSON.parse(content);
+                    installName.value = json.name || json.title || file.name.replace(/\.json$/i, "") || "Compendium";
+                } catch (err) {
+                    if (!installName.value) installName.value = file.name.replace(/\.json$/i, "") || "Compendium";
+                }
+            };
+            reader.readAsText(file);
         } else {
             installFile.value = null;
             installName.value = "";
@@ -1169,7 +1181,7 @@ onMounted(() => {
                                 :title="t('game.ui.extensions.CompendiumModal.rename')"
                                 @click.stop="renameCompendium(comp)"
                             >
-                                <font-awesome-icon icon="pen" />
+                                <font-awesome-icon icon="edit" />
                             </button>
                             <button
                                 type="button"

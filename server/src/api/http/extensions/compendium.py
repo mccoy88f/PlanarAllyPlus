@@ -620,7 +620,7 @@ def _ensure_sqlite(comp_id: str) -> bool:
         conn.execute("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         try:
             conn.execute("ALTER TABLE collections ADD COLUMN parent_slug TEXT DEFAULT NULL")
-        except sqlite3.OperationalError:
+        except sqlite3.OperationalError as e:\n            if "duplicate column name" not in str(e):\n                raise
             pass
         conn.commit()
         conn.close()
