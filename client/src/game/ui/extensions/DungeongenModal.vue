@@ -540,10 +540,10 @@ async function makeRealisticWithAI(): Promise<void> {
             </div>
         </template>
         <div class="ext-modal-body-wrapper">
-            <HeaderModeSelector v-model="mode" :options="modeOptions" />
             <div v-if="generating || makingRealistic" class="ext-progress-top-container">
                 <LoadingBar :progress="100" indeterminate height="6px" />
             </div>
+            <HeaderModeSelector v-model="mode" :options="modeOptions" />
             <div class="ext-body ext-two-col">
                 <section class="ext-ui-section ext-two-col-side ext-two-col-single">
                     <h3 class="ext-ui-section-title">{{ t("game.ui.extensions.DungeongenModal.settings") }}</h3>

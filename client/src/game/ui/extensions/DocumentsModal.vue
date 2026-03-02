@@ -205,8 +205,7 @@ onMounted(() => {
         <div class="ext-modal-body-wrapper">
             <div v-if="uploading" class="ext-progress-top-container">
                 <LoadingBar
-                    :progress="uploadProgress"
-                    :label="`${t('game.ui.extensions.DocumentsModal.uploading')} ${uploadingFilename}...`"
+                    indeterminate
                     height="6px"
                 />
             </div>
