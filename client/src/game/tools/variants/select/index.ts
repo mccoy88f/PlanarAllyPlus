@@ -574,8 +574,7 @@ class SelectTool extends Tool implements ISelectTool {
                     shape,
                     targetPoint,
                     this.resizePoint,
-                    (event !== undefined && ctrlOrCmdPressed(event)) ||
-                    (event instanceof TouchEvent && event.touches.length === 2),
+                    event !== undefined && ctrlOrCmdPressed(event),
                     true,
                 );
             } else if (this.mode === SelectOperations.Rotate) {
@@ -799,7 +798,7 @@ class SelectTool extends Tool implements ISelectTool {
                             });
                         sel.resizeToGrid(
                             this.resizePoint,
-                            ctrlOrCmdPressed(event) || (event instanceof TouchEvent && event.touches.length === 2),
+                            event !== undefined && ctrlOrCmdPressed(event),
                         );
                         if (props.blocksVision !== VisionBlock.No) {
                             visionState.addToTriangulation({ target: TriangulationTarget.VISION, shape: sel.id });
@@ -821,7 +820,7 @@ class SelectTool extends Tool implements ISelectTool {
                         this.operationList.toPoint = sel.points[this.resizePoint]!;
                         this.operationList.resizePoint = this.resizePoint;
                         this.operationList.retainAspectRatio =
-                            ctrlOrCmdPressed(event) || (event instanceof TouchEvent && event.touches.length === 2);
+                            event !== undefined && ctrlOrCmdPressed(event);
                         this.operationReady = true;
                     }
                 }
