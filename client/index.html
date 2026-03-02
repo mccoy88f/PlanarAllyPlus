@@ -20,6 +20,17 @@
             }
         </script>
     <title>PlanarAlly Plus</title>
+    <link rel="manifest" href="%BASE_URL%manifest.json" />
+    <meta name="theme-color" content="#7c253e" />
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('%BASE_URL%sw.js')
+                    .then(reg => console.log('PWA Service Worker registered'))
+                    .catch(err => console.log('PWA Service Worker failed: ', err));
+            });
+        }
+    </script>
 </head>
 
 <body>

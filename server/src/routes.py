@@ -49,6 +49,8 @@ async def root_dev(request):
 main_app.router.add_static(f"{subpath}/static/assets", ASSETS_DIR)
 main_app.router.add_static(f"{subpath}/static/thumbnails", THUMBNAILS_DIR)
 main_app.router.add_static(f"{subpath}/static", STATIC_DIR)
+main_app.router.add_get(f"{subpath}/manifest.json", lambda r: web.FileResponse(STATIC_DIR / "manifest.json"))
+main_app.router.add_get(f"{subpath}/sw.js", lambda r: web.FileResponse(STATIC_DIR / "sw.js"))
 
 
 def _make_guida_docs_handler(docs_dir):

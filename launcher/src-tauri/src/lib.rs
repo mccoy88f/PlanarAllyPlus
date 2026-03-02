@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, Submenu};
+use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 use tokio::process::Child;
@@ -498,17 +499,24 @@ async fn start_server(app: AppHandle, mode: String) -> Result<(), String> {
         (cmd, args)
     };
 
-    let mut child = tokio::process::Command::new(&cmd)
-        .args(&args)
+    let mut command = tokio::process::Command::new(&cmd);
+    command.args(&args)
         .current_dir(&root)
         .env("PYTHONUNBUFFERED", "1")
         .env("NO_COLOR", "1")
         .env("FORCE_COLOR", "0")
         .env("TERM", "dumb")
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Start failed: {}", e))?;
+        .stderr(std::process::Stdio::piped());
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let mut child = command.spawn().map_err(|e| format!("Start failed: {}", e))?;
 
     let stdout = child.stdout.take().ok_or("cannot capture stdout")?;
     let stderr = child.stderr.take().ok_or("cannot capture stderr")?;
@@ -587,13 +595,8 @@ async fn start_server(app: AppHandle, mode: String) -> Result<(), String> {
 #[tauri::command]
 async fn stop_server(app: AppHandle) -> Result<(), String> {
     let child = app.state::<ServerState>().0.lock().unwrap().take();
-    if let Some(mut c) = child {
-        let _ = c.kill().await;
-        let exit = c
-            .wait()
-            .await
-            .unwrap_or(std::process::ExitStatus::default());
-        let code = exit.code().unwrap_or(-1);
+    if let Some(c) = child {
+        let code = kill_server_process(c).await.unwrap_or(-1);
         let _ = app.emit("server-stopped", code);
     }
     Ok(())
@@ -608,12 +611,45 @@ async fn restart_server(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 async fn get_local_ip() -> Result<String, String> {
+    // Try the default active route first
+    if let Ok(ip) = local_ip_address::local_ip() {
+        if let std::net::IpAddr::V4(ipv4) = ip {
+            if !ipv4.is_loopback() && !ipv4.is_link_local() {
+                return Ok(ip.to_string());
+            }
+        }
+    }
+
+    // Fallback if the active route detection fails or returns an APIPA address
     local_ip_address::list_afinet_netifas()
         .map_err(|e| e.to_string())?
         .into_iter()
-        .find(|(_, ip)| !ip.is_loopback() && matches!(ip, std::net::IpAddr::V4(_)))
-        .map(|(_, ip)| ip.to_string())
+        .filter_map(|(_, ip)| {
+            if let std::net::IpAddr::V4(ipv4) = ip {
+                if !ipv4.is_loopback() && !ipv4.is_link_local() {
+                    return Some(ip.to_string());
+                }
+            }
+            None
+        })
+        .next()
         .ok_or_else(|| "No local IP found".to_string())
+}
+
+async fn kill_server_process(mut child: tokio::process::Child) -> Option<i32> {
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(pid) = child.id() {
+            use std::os::windows::process::CommandExt;
+            let _ = tokio::process::Command::new("taskkill")
+                .args(&["/F", "/T", "/PID", &pid.to_string()])
+                .creation_flags(0x08000000)
+                .output()
+                .await;
+        }
+    }
+    let _ = child.kill().await;
+    child.wait().await.ok().and_then(|s| s.code())
 }
 
 #[tauri::command]
@@ -628,9 +664,8 @@ fn open_browser_url(app: AppHandle, url: String) -> Result<(), String> {
 async fn exit_app(app: AppHandle) -> Result<(), String> {
     // Stop server first, then exit
     let child = app.state::<ServerState>().0.lock().unwrap().take();
-    if let Some(mut c) = child {
-        let _ = c.kill().await;
-        let _ = c.wait().await;
+    if let Some(c) = child {
+        kill_server_process(c).await;
     }
     app.exit(0);
     Ok(())
@@ -644,24 +679,76 @@ pub fn run() {
         .setup(|app| {
             // Menu with "Show Window" so user can reopen after closing via X (window hides)
             let lang = std::env::var("LANG").unwrap_or_default();
-            let (show_text, submenu_text) = if lang.starts_with("it") {
-                ("Mostra finestra", "PlanarAlly Plus Launcher")
+            let (show_text, submenu_text, quit_text) = if lang.starts_with("it") {
+                ("Mostra finestra", "PlanarAlly Plus Launcher", "Esci")
             } else {
-                ("Show Window", "PlanarAlly Plus Launcher")
+                ("Show Window", "PlanarAlly Plus Launcher", "Quit")
             };
             let show_item = MenuItem::with_id(app, "show-window", show_text, true, None::<&str>)?;
-            let submenu = Submenu::with_id_and_items(app, "main", submenu_text, true, &[&show_item])?;
+            let quit_item = MenuItem::with_id(app, "quit", quit_text, true, None::<&str>)?;
+            let submenu = Submenu::with_id_and_items(app, "main", submenu_text, true, &[&show_item, &quit_item])?;
             let menu = Menu::with_items(app, &[&submenu])?;
             app.set_menu(menu)?;
+
+            let tray_menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&tray_menu)
+                .menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show-window" => {
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    }
+                    "quit" => {
+                        let app_clone = app.clone();
+                        let child = app.state::<ServerState>().0.lock().unwrap().take();
+                        tauri::async_runtime::spawn(async move {
+                            if let Some(c) = child {
+                                kill_server_process(c).await;
+                            }
+                            app_clone.exit(0);
+                        });
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: tauri::tray::MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        if let Some(win) = tray.app_handle().get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
             Ok(())
         })
-        .on_menu_event(|app, event| {
-            if event.id.as_ref() == "show-window" {
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "show-window" => {
                 if let Some(win) = app.get_webview_window("main") {
                     let _ = win.show();
                     let _ = win.set_focus();
                 }
             }
+            "quit" => {
+                let app_clone = app.clone();
+                let child = app.state::<ServerState>().0.lock().unwrap().take();
+                tauri::async_runtime::spawn(async move {
+                    if let Some(c) = child {
+                        kill_server_process(c).await;
+                    }
+                    app_clone.exit(0);
+                });
+            }
+            _ => {}
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -686,7 +773,7 @@ pub fn run() {
         .expect("error while building tauri application");
 
     app.run(|app_handle, event| {
-        // macOS: show window when user clicks dock icon (Reopen with no visible windows)
+        #[cfg(target_os = "macos")]
         if let tauri::RunEvent::Reopen { has_visible_windows, .. } = event {
             if !has_visible_windows {
                 if let Some(win) = app_handle.get_webview_window("main") {

@@ -66,7 +66,7 @@ if %errorlevel% neq 0 exit /b 1
 
 echo Installo dipendenze server...
 cd ..\server
-call uv sync --no-group dev
+call uv sync --python 3.13 --no-group dev
 if %errorlevel% neq 0 exit /b 1
 
 echo.
@@ -74,4 +74,4 @@ echo === Avvio server PlanarAlly Plus ===
 echo Apri http://localhost:8000 nel browser
 echo.
 
-uv run planarally.py
+uv run --python 3.13 planarally.py

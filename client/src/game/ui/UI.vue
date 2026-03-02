@@ -74,7 +74,6 @@ const showChangelog = computed(() => {
     const version = localStorage.getItem("last-version");
     if (version !== coreState.version.release) {
         localStorage.setItem("last-version", coreState.version.release);
-        return true;
     }
     return false;
 });

@@ -1,0 +1,38 @@
+{
+    "name": "PlanarAlly Plus",
+    "short_name": "PlanarAlly+",
+    "description": "PlanarAlly Plus - Multi-user tabletop environment",
+    "start_url": "dashboard/games/list",
+    "scope": "./",
+    "display": "standalone",
+    "background_color": "#000",
+    "theme_color": "#7c253e",
+    "icons": [
+        {
+            "src": "static/pa-logo.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "static/pwa-icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "static/pwa-icon-128.png",
+            "sizes": "128x128",
+            "type": "image/png"
+        },
+        {
+            "src": "static/pwa-icon-64.png",
+            "sizes": "64x64",
+            "type": "image/png"
+        },
+        {
+            "src": "static/favicon.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

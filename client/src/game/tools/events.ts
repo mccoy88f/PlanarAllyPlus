@@ -12,6 +12,10 @@ import { uiState } from "../systems/ui/state";
 
 import { activeTool, getActiveTool, getFeatures, toolMap } from "./tools";
 
+let isTwoFingerTapCandidate = false;
+let touchStartTime = 0;
+let touchStartPoint = { x: 0, y: 0 };
+
 function isPanModeButton(button: number): boolean {
     const mode = playerSettingsState.raw.mousePanMode.value;
     if (mode === 3) return [1, 2].includes(button);
@@ -227,7 +231,18 @@ export function touchStart(event: TouchEvent): void {
     const tool = getActiveTool();
 
     if (event.touches.length === 2) {
-        tool.scaling = true;
+        if (tool.active.value) {
+            tool.scaling = false;
+            isTwoFingerTapCandidate = false;
+        } else {
+            tool.scaling = true;
+            isTwoFingerTapCandidate = true;
+            touchStartTime = Date.now();
+            touchStartPoint = { x: event.touches[0]!.pageX, y: event.touches[0]!.pageY };
+        }
+    } else {
+        isTwoFingerTapCandidate = false;
+        tool.scaling = false;
     }
 
     for (const permitted of tool.permittedTools) {
@@ -251,6 +266,14 @@ export function touchStart(event: TouchEvent): void {
 
 export async function touchMove(event: TouchEvent): Promise<void> {
     if ((event.target as HTMLElement).tagName !== "CANVAS") return;
+
+    if (event.touches.length !== 2) {
+        isTwoFingerTapCandidate = false;
+    } else if (isTwoFingerTapCandidate) {
+        const dx = event.touches[0]!.pageX - touchStartPoint.x;
+        const dy = event.touches[0]!.pageY - touchStartPoint.y;
+        if (Math.hypot(dx, dy) > 10) isTwoFingerTapCandidate = false;
+    }
 
     const tool = getActiveTool();
 
@@ -312,6 +335,18 @@ export function touchEnd(event: TouchEvent): void {
     if ((event.target as HTMLElement).tagName !== "CANVAS") return;
 
     const tool = getActiveTool();
+
+    if (isTwoFingerTapCandidate && event.touches.length === 0 && Date.now() - touchStartTime < 500) {
+        isTwoFingerTapCandidate = false;
+        const mockEvent = new MouseEvent("contextmenu", {
+            button: 2,
+            clientX: event.changedTouches[0]?.clientX,
+            clientY: event.changedTouches[0]?.clientY,
+            bubbles: true,
+            cancelable: true,
+        });
+        void contextMenu(mockEvent);
+    }
 
     for (const permitted of tool.permittedTools) {
         if (!(permitted.early ?? false)) continue;
