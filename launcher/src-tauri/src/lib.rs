@@ -616,11 +616,28 @@ async fn restart_server(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 async fn get_local_ip() -> Result<String, String> {
+    // Try the default active route first
+    if let Ok(ip) = local_ip_address::local_ip() {
+        if let std::net::IpAddr::V4(ipv4) = ip {
+            if !ipv4.is_loopback() && !ipv4.is_link_local() {
+                return Ok(ip.to_string());
+            }
+        }
+    }
+
+    // Fallback if the active route detection fails or returns an APIPA address
     local_ip_address::list_afinet_netifas()
         .map_err(|e| e.to_string())?
         .into_iter()
-        .find(|(_, ip)| !ip.is_loopback() && matches!(ip, std::net::IpAddr::V4(_)))
-        .map(|(_, ip)| ip.to_string())
+        .filter_map(|(_, ip)| {
+            if let std::net::IpAddr::V4(ipv4) = ip {
+                if !ipv4.is_loopback() && !ipv4.is_link_local() {
+                    return Some(ip.to_string());
+                }
+            }
+            None
+        })
+        .next()
         .ok_or_else(|| "No local IP found".to_string())
 }
 
