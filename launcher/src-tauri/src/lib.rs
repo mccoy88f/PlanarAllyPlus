@@ -498,17 +498,24 @@ async fn start_server(app: AppHandle, mode: String) -> Result<(), String> {
         (cmd, args)
     };
 
-    let mut child = tokio::process::Command::new(&cmd)
-        .args(&args)
+    let mut command = tokio::process::Command::new(&cmd);
+    command.args(&args)
         .current_dir(&root)
         .env("PYTHONUNBUFFERED", "1")
         .env("NO_COLOR", "1")
         .env("FORCE_COLOR", "0")
         .env("TERM", "dumb")
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Start failed: {}", e))?;
+        .stderr(std::process::Stdio::piped());
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let mut child = command.spawn().map_err(|e| format!("Start failed: {}", e))?;
 
     let stdout = child.stdout.take().ok_or("cannot capture stdout")?;
     let stderr = child.stderr.take().ok_or("cannot capture stderr")?;
