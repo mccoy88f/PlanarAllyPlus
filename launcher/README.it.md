@@ -29,6 +29,15 @@ Esempio per un fork su branch `main`:
 }
 ```
 
+## Prerequisiti
+
+Se desideri compilare il launcher dal codice sorgente, o avviare l'app dopo che il launcher la scarica, il tuo sistema deve avere installati i seguenti strumenti:
+
+- [Node.js](https://nodejs.org/) (minimo Node 20+, fornisce `npm`)
+- [Python](https://www.python.org/) 3.13 (Python 3.14+ attualmente non è supportato)
+- [uv](https://docs.astral.sh/uv/) (Gestore di pacchetti Python, `curl -LsSf https://astral.sh/uv/install.sh | sh` oppure, su Windows, `irm https://astral.sh/uv/install.ps1 | iex`)
+- [Rust](https://rustup.rs/) (fornisce `cargo`, richiesto solo per compilare il launcher)
+
 ## Build per piattaforme
 
 ```bash
