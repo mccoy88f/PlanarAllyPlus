@@ -201,6 +201,10 @@ main_app.router.add_get(
     extensions.compendium.get_item,
 )
 main_app.router.add_get(
+    f"{subpath}/api/extensions/compendium/next",
+    extensions.compendium.get_next_item,
+)
+main_app.router.add_get(
     f"{subpath}/api/extensions/compendium/search",
     extensions.compendium.search,
 )

@@ -155,8 +155,7 @@
         }
 
         .ai-list-container {
-            max-height: 50vh;
-            overflow-y: auto;
+            /* no max-height or overflow-y to allow scrolling with modal */
             min-height: 4rem;
         }
 
@@ -200,12 +199,14 @@
 
 <body class="ext-ui-root ai-root">
     <div id="uploadProgressContainer" class="ext-progress-top-container" style="display: none;">
-        <label id="uploadProgressLabel" class="pa-loading-bar-label">Uploading...</label>
-        <div class="pa-loading-bar-track">
-            <div id="uploadProgressBar" class="pa-loading-bar-fill" style="width: 0%"></div>
+        <div class="pa-loading-bar-wrapper">
+            <div class="pa-loading-bar-track">
+                <div id="uploadProgressBar" class="pa-loading-bar-fill pa-loading-bar-indeterminate"
+                    style="width: 100%"></div>
+            </div>
         </div>
-        <div id="uploadProgressText" class="pa-loading-bar-text">0%</div>
     </div>
+    <div id="msg"></div>
     <section class="ext-ui-section ai-section">
         <h3 class="ext-ui-section-title" id="uploadSectionTitle"></h3>
         <p id="uploadInstructions" style="font-size: 0.9em; margin-bottom: 1rem; color: #555;"></p>
@@ -216,12 +217,14 @@
         <div id="selectedPath" class="ai-selected-path"></div>
         <div style="margin-top: 1rem;">
             <div style="margin-bottom: 0.75rem;">
-                <span id="staticExtractDescText" style="display: block; color: #6c757d; font-size: 0.85rem; margin-bottom: 0.5rem;"></span>
+                <span id="staticExtractDescText"
+                    style="display: block; color: #6c757d; font-size: 0.85rem; margin-bottom: 0.5rem;"></span>
             </div>
-            <input type="file" id="fileInput" class="ext-ui-file-input" accept=".zip,application/zip" style="display: none;" />
+            <input type="file" id="fileInput" class="ext-ui-file-input" accept=".zip" style="display: none;" />
             <div style="display: flex; gap: 0.5rem;">
                 <button type="button" id="uploadBtn" class="ext-ui-btn ext-ui-btn-primary"></button>
-                <button type="button" id="uploadStaticBtn" class="ext-ui-btn ext-ui-btn-primary" style="background-color: #6c757d; border-color: #6c757d;"></button>
+                <button type="button" id="uploadStaticBtn" class="ext-ui-btn ext-ui-btn-primary"
+                    style="background-color: #6c757d; border-color: #6c757d;"></button>
             </div>
         </div>
     </section>
@@ -234,8 +237,6 @@
             <ul id="list" class="ai-list ext-ui-list" style="display:none"></ul>
         </div>
     </section>
-
-    <div id="msg"></div>
 
     <script>
         (function () {
@@ -252,6 +253,7 @@
                     file_count: "{{n}} file(s)",
                     uninstall: "Uninstall",
                     upload_success: "Asset pack installed successfully.",
+                    upload_success_filename: "Asset pack {{name}} installed successfully.",
                     upload_failed: "Upload failed.",
                     uninstall_success: "Asset pack uninstalled.",
                     uninstall_failed: "Uninstall failed.",
@@ -260,6 +262,7 @@
                     root: "Asset",
                     installed_title: "Installed packs",
                     installed_on: "Installed on {{date}}",
+                    installed_on_static: "Installed (static) on {{date}}",
                     static_extract_desc: "Choose 'Install Asset ZIP' for normal assets (visible in the in-game Asset Manager). Choose 'Install Static Asset ZIP' to extract files directly without creating Database records. Static assets are always installed in the root folder (subfolders are not supported). Perfect for Compendium/Guide modules."
                 },
                 it: {
@@ -274,6 +277,7 @@
                     file_count: "{{n}} file",
                     uninstall: "Disinstalla",
                     upload_success: "Pacchetto installato correttamente.",
+                    upload_success_filename: "Pacchetto {{name}} installato correttamente.",
                     upload_failed: "Caricamento fallito.",
                     uninstall_success: "Pacchetto disinstallato.",
                     uninstall_failed: "Disinstallazione fallita.",
@@ -282,6 +286,7 @@
                     root: "Asset",
                     installed_title: "Pacchetti installati",
                     installed_on: "Installato il {{date}}",
+                    installed_on_static: "Installato (statico) il {{date}}",
                     static_extract_desc: "Scegli 'Installa Asset ZIP' per caricare gli asset normalmente (visibili nell'Asset Manager del gioco). Scegli 'Installa Asset ZIP Statico' per estrarre i file direttamente senza creare record nel Database. Gli asset statici si installano sempre nella root (le sottocartelle non sono supportate). Perfetto per moduli Compendium/Guida."
                 }
             };
@@ -426,7 +431,10 @@
                 meta += ' &middot; ' + (path ? path : t('root'));
                 if (it.installedAt) {
                     var dateStr = formatInstallDate(it.installedAt);
-                    if (dateStr) meta += ' &middot; ' + t('installed_on', { date: dateStr });
+                    if (dateStr) {
+                        var key = it.isStatic ? 'installed_on_static' : 'installed_on';
+                        meta += ' &middot; ' + t(key, { date: dateStr });
+                    }
                 }
                 return '<li class="ext-ui-list-item ai-item" data-id="' + it.id + '">' +
                     '<div class="ext-ui-list-item-content"><span class="ext-ui-list-item-name ai-item-name">' + nameEsc + '</span><div class="ext-ui-muted ai-item-meta">' + meta + '</div></div>' +
@@ -497,8 +505,6 @@
 
             var uploadProgressContainer = document.getElementById('uploadProgressContainer');
             var uploadProgressBar = document.getElementById('uploadProgressBar');
-            var uploadProgressText = document.getElementById('uploadProgressText');
-            var uploadProgressLabel = document.getElementById('uploadProgressLabel');
 
             uploadBtn.addEventListener('click', function () {
                 isStaticUpload = false;
@@ -523,9 +529,7 @@
                 uploadBtn.disabled = true;
                 uploadStaticBtn.disabled = true;
                 uploadProgressContainer.style.display = 'flex';
-                uploadProgressBar.style.width = '0%';
-                uploadProgressText.textContent = '0%';
-                uploadProgressLabel.textContent = t('loading') + ' ' + file.name + '...';
+                uploadProgressBar.style.width = '100%';
 
                 var xhr = new XMLHttpRequest();
                 xhr.open('POST', api('/api/extensions/assets-installer/upload'), true);
@@ -533,15 +537,13 @@
 
                 xhr.upload.onprogress = function (event) {
                     if (event.lengthComputable) {
-                        var percent = Math.round((event.loaded / event.total) * 100);
-                        uploadProgressBar.style.width = percent + '%';
-                        uploadProgressText.textContent = percent + '%';
+                        // Progress is currently standardized as indeterminate across all extensions
                     }
                 };
 
                 xhr.onload = function () {
                     if (xhr.status >= 200 && xhr.status < 300) {
-                        showMsg(t('upload_success'), false);
+                        showMsg(t('upload_success_filename', { name: file.name }), false);
                         loadList();
                         loadFolders();
                     } else {

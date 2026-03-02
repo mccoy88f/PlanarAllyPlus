@@ -36,6 +36,7 @@ client/node_modules/**
 server/planarallyserver.log*
 server/planar.save*
 server/*.sqlite*
+extensions/compendium/db/*.db*
 server/save_backups
 server/server_config.cfg
 

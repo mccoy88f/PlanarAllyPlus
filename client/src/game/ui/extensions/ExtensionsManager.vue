@@ -10,6 +10,7 @@ import { useModal } from "../../../core/plugins/modals/plugin";
 import { extensionsState } from "../../systems/extensions/state";
 import { closeExtensionsManager } from "../../systems/extensions/ui";
 import { modalSystem } from "../../systems/modals";
+import LoadingBar from "../../../core/components/LoadingBar.vue";
 import type { ModalIndex } from "../../systems/modals/types";
 
 const emit = defineEmits<(e: "close" | "focus") => void>();
@@ -280,6 +281,9 @@ async function onAddClick(): Promise<void> {
             </div>
         </template>
         <div class="ext-modal-body-wrapper">
+            <div v-if="installing" class="ext-progress-top-container">
+                <LoadingBar :progress="100" indeterminate height="6px" />
+            </div>
             <div class="ext-toolbar-bar ext-search-bar">
                 <font-awesome-icon icon="search" class="ext-search-icon" />
                 <input

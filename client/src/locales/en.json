@@ -501,6 +501,7 @@
         },
         "CompendiumModal": {
           "title": "Compendium",
+          "continue_reading": "Continue reading the next item: {name}",
           "loading": "Loading...",
           "search_placeholder": "Search in compendiums...",
           "searching": "Searching...",

@@ -1201,3 +1201,99 @@ async def delete_translation(request: web.Request) -> web.Response:
         return web.json_response({"ok": True})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
+
+
+async def get_next_item(request: web.Request) -> web.Response:
+    """Ritorna il prossimo item secondo l'alberatura (DFS). Query: compendium, collection, slug."""
+    await get_authorized_user(request)
+    comp_param = request.query.get("compendium", "").strip()
+    comp_id = _resolve_compendium_id(comp_param)
+    coll_slug = request.query.get("collection", "").strip()
+    item_slug = request.query.get("slug", "").strip()
+
+    if not comp_id or not coll_slug or not item_slug:
+        return web.json_response({"next": None})
+    
+    if not _ensure_sqlite(comp_id):
+        return web.json_response({"next": None})
+
+    try:
+        conn = _get_conn(comp_id)
+        # 1. Carichiamo tutte le collezioni e gli item per ricostruire l'albero in memoria
+        coll_rows = conn.execute("SELECT id, slug, name, parent_slug, display_order FROM collections").fetchall()
+        item_rows = conn.execute("SELECT collection_id, slug, name, display_order FROM items").fetchall()
+        conn.close()
+
+        # 2. Mappe per la ricostruzione gerarchica
+        colls_by_slug = {}
+        colls_by_parent = {} # parent_slug -> [slugs]
+        items_by_coll_id = {} # collection_id -> [items]
+        
+        for cid, slug, name, p_slug, order in coll_rows:
+            colls_by_slug[slug] = {"id": cid, "slug": slug, "name": name, "order": order or 0}
+            if p_slug not in colls_by_parent: colls_by_parent[p_slug] = []
+            colls_by_parent[p_slug].append(slug)
+            
+        for c_id, slug, name, order in item_rows:
+            if c_id not in items_by_coll_id: items_by_coll_id[c_id] = []
+            items_by_coll_id[c_id].append({"slug": slug, "name": name, "order": order or 0})
+
+        # 3. Funzione ricorsiva per appiattire l'alberatura seguendo l'ordine visuale (DFS)
+        all_flattened_items = []
+
+        def traverse(current_coll_slug):
+            c_info = colls_by_slug.get(current_coll_slug)
+            if not c_info:
+                return
+            
+            c_id = c_info["id"]
+            
+            # Elementi contenuti in questa collezione (sotto-collezioni e item)
+            sub_slugs = colls_by_parent.get(current_coll_slug, [])
+            sub_colls = [colls_by_slug[s] for s in sub_slugs]
+            items = items_by_coll_id.get(c_id, [])
+            
+            # Interleviamo sotto-collezioni e item in base al display_order
+            entries = []
+            for sc in sub_colls:
+                entries.append({"type": "coll", "slug": sc["slug"], "order": sc["order"]})
+            for it in items:
+                entries.append({"type": "item", "data": it, "order": it["order"]})
+            
+            # Stesso ordinamento del frontend (interleavedChildrenFor)
+            entries.sort(key=lambda x: x["order"])
+            
+            for entry in entries:
+                if entry["type"] == "item":
+                    it = entry["data"]
+                    all_flattened_items.append({
+                        "collectionSlug": current_coll_slug,
+                        "collectionName": c_info["name"],
+                        "itemSlug": it["slug"],
+                        "itemName": it["name"]
+                    })
+                else:
+                    # Entriamo ricorsivamente nella sotto-collezione
+                    traverse(entry["slug"])
+
+        # Iniziamo la traversata dalle collezioni radice
+        root_slugs = colls_by_parent.get(None, [])
+        roots = [colls_by_slug[s] for s in root_slugs]
+        roots.sort(key=lambda x: x["order"])
+        
+        for r in roots:
+            # Una collezione radice può contenere item direttamente
+            # Se vogliamo includere anche i suoi item, dobbiamo chiamare traverse()
+            traverse(r["slug"])
+
+        # 4. Cerchiamo l'elemento successivo a quello corrente
+        found_current = False
+        for entry in all_flattened_items:
+            if found_current:
+                return web.json_response({"next": entry})
+            if entry["collectionSlug"] == coll_slug and entry["itemSlug"] == item_slug:
+                found_current = True
+                
+        return web.json_response({"next": None})
+    except Exception as e:
+        return web.json_response({"error": str(e), "next": None}, status=500)
