@@ -80,6 +80,12 @@ const selectedItem = ref<{
     collection: CollectionMeta;
     item: ItemFull;
 } | null>(null);
+const nextItem = ref<{
+    itemSlug: string;
+    itemName: string;
+    collectionSlug: string;
+    collectionName: string;
+} | null>(null);
 const itemLoading = ref(false);
 const showIndex = ref(false);
 const currentIndex = ref<{ slug: string; name: string; items: { slug: string; name: string }[] }[]>([]);
@@ -375,6 +381,7 @@ async function selectItem(
             currentMarkdown.value = "";
             selectedItem.value = { compendium, collection, item: full };
             await checkTranslation("item");
+            await fetchNextItem(compendium.id, collection.slug, item.slug);
         }
     } catch {
         /* ignore */
@@ -419,6 +426,40 @@ async function selectFromSearch(result: SearchResult): Promise<void> {
     await selectItem(comp, coll, itemMeta);
     searchQuery.value = "";
     debouncedSearchQuery.value = "";
+}
+
+async function fetchNextItem(compId: string, collSlug: string, itemSlug: string): Promise<void> {
+    nextItem.value = null;
+    try {
+        const r = await http.get(
+            `/api/extensions/compendium/next?compendium=${encodeURIComponent(compId)}&collection=${encodeURIComponent(collSlug)}&slug=${encodeURIComponent(itemSlug)}`,
+        );
+        if (r.ok) {
+            const data = (await r.json()) as {
+                next: { itemSlug: string; itemName: string; collectionSlug: string; collectionName: string } | null;
+            };
+            nextItem.value = data.next;
+        }
+    } catch {
+        /* ignore */
+    }
+}
+
+async function navigateToNextItem(): Promise<void> {
+    if (!nextItem.value || !selectedItem.value) return;
+    const comp = selectedItem.value.compendium;
+    const { collectionSlug, collectionName, itemSlug, itemName } = nextItem.value;
+
+    await ensureCollectionExpanded(comp.id, collectionSlug);
+
+    const coll: CollectionMeta = {
+        slug: collectionSlug,
+        name: collectionName,
+        parentSlug: null,
+        count: 0,
+    };
+    const itemMeta: ItemMeta = { slug: itemSlug, name: itemName };
+    await selectItem(comp, coll, itemMeta);
 }
 
 async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
@@ -1406,12 +1447,17 @@ onMounted(() => {
                         >
                             {{ t("game.ui.extensions.CompendiumModal.loading") }}
                         </div>
-                        <!-- eslint-disable-next-line vue/no-v-html -->
-                        <div
-                            v-else
-                            class="qe-markdown-content"
-                            v-html="selectedMarkdownHtml"
-                        />
+                        <div v-else>
+                            <div
+                                class="qe-markdown-content"
+                                v-html="selectedMarkdownHtml"
+                            />
+                            <div v-if="nextItem" class="qe-continue-reading">
+                                <button class="qe-continue-link" @click="navigateToNextItem">
+                                    {{ t("game.ui.extensions.CompendiumModal.continue_reading", { name: nextItem.itemName }) }}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                     <div v-else class="qe-empty">
                         {{ t("game.ui.extensions.CompendiumModal.select_item") }}
@@ -1845,6 +1891,36 @@ onMounted(() => {
     &:hover {
         color: #2980b9;
         text-decoration: underline;
+    }
+}
+
+.qe-continue-reading {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.qe-continue-link {
+    background: transparent;
+    border: none;
+    color: #3182ce;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 1.05rem;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: color 0.2s, transform 0.2s;
+    
+    &:hover {
+        color: #2b6cb0;
+        transform: translateX(4px);
+    }
+
+    &::after {
+        content: " →";
+        font-size: 1.2rem;
     }
 }
 

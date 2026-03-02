@@ -1201,3 +1201,53 @@ async def delete_translation(request: web.Request) -> web.Response:
         return web.json_response({"ok": True})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
+
+
+async def get_next_item(request: web.Request) -> web.Response:
+    """Ritorna il prossimo item secondo l'alberatura. Query: compendium, collection, slug."""
+    await get_authorized_user(request)
+    comp_param = request.query.get("compendium", "").strip()
+    comp_id = _resolve_compendium_id(comp_param)
+    coll_slug = request.query.get("collection", "").strip()
+    item_slug = request.query.get("slug", "").strip()
+
+    if not comp_id or not coll_slug or not item_slug:
+        return web.json_response({"next": None})
+    
+    if not _ensure_sqlite(comp_id):
+        return web.json_response({"next": None})
+
+    try:
+        conn = _get_conn(comp_id)
+        # Reperiamo tutti gli item in ordine di alberatura (collezione + item)
+        rows = conn.execute(
+            """
+            SELECT c.slug, c.name, i.slug, i.name
+            FROM collections c
+            LEFT JOIN items i ON i.collection_id = c.id
+            ORDER BY c.display_order, i.display_order
+            """
+        ).fetchall()
+        
+        found_current = False
+        for c_slug, c_name, i_slug, i_name in rows:
+            if found_current:
+                if i_slug: # Vogliamo il prossimo ITEM
+                    conn.close()
+                    return web.json_response({
+                        "next": {
+                            "collectionSlug": c_slug,
+                            "collectionName": c_name,
+                            "itemSlug": i_slug,
+                            "itemName": i_name
+                        }
+                    })
+                continue # Se è una riga di sola collezione, proseguiamo al primo item disponibile
+            
+            if c_slug == coll_slug and i_slug == item_slug:
+                found_current = True
+        
+        conn.close()
+        return web.json_response({"next": None})
+    except Exception as e:
+        return web.json_response({"error": str(e), "next": None}, status=500)
