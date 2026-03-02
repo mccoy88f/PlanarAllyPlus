@@ -199,8 +199,10 @@
 
 <body class="ext-ui-root ai-root">
     <div id="uploadProgressContainer" class="ext-progress-top-container" style="display: none;">
-        <div class="pa-loading-bar-track">
-            <div id="uploadProgressBar" class="pa-loading-bar-fill" style="width: 0%"></div>
+        <div class="pa-loading-bar-wrapper">
+            <div class="pa-loading-bar-track">
+                <div id="uploadProgressBar" class="pa-loading-bar-fill" style="width: 0%"></div>
+            </div>
         </div>
     </div>
     <section class="ext-ui-section ai-section">
@@ -501,8 +503,6 @@
 
             var uploadProgressContainer = document.getElementById('uploadProgressContainer');
             var uploadProgressBar = document.getElementById('uploadProgressBar');
-            var uploadProgressText = document.getElementById('uploadProgressText');
-            var uploadProgressLabel = document.getElementById('uploadProgressLabel');
 
             uploadBtn.addEventListener('click', function () {
                 isStaticUpload = false;
@@ -528,8 +528,6 @@
                 uploadStaticBtn.disabled = true;
                 uploadProgressContainer.style.display = 'flex';
                 uploadProgressBar.style.width = '0%';
-                uploadProgressText.textContent = '0%';
-                uploadProgressLabel.textContent = t('loading') + ' ' + file.name + '...';
 
                 var xhr = new XMLHttpRequest();
                 xhr.open('POST', api('/api/extensions/assets-installer/upload'), true);
@@ -539,7 +537,6 @@
                     if (event.lengthComputable) {
                         var percent = Math.round((event.loaded / event.total) * 100);
                         uploadProgressBar.style.width = percent + '%';
-                        uploadProgressText.textContent = percent + '%';
                     }
                 };
 
