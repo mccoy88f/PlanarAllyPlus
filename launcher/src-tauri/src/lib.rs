@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, Submenu};
+use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 use tokio::process::Child;
@@ -651,24 +652,76 @@ pub fn run() {
         .setup(|app| {
             // Menu with "Show Window" so user can reopen after closing via X (window hides)
             let lang = std::env::var("LANG").unwrap_or_default();
-            let (show_text, submenu_text) = if lang.starts_with("it") {
-                ("Mostra finestra", "PlanarAlly Plus Launcher")
+            let (show_text, submenu_text, quit_text) = if lang.starts_with("it") {
+                ("Mostra finestra", "PlanarAlly Plus Launcher", "Esci")
             } else {
-                ("Show Window", "PlanarAlly Plus Launcher")
+                ("Show Window", "PlanarAlly Plus Launcher", "Quit")
             };
             let show_item = MenuItem::with_id(app, "show-window", show_text, true, None::<&str>)?;
-            let submenu = Submenu::with_id_and_items(app, "main", submenu_text, true, &[&show_item])?;
+            let quit_item = MenuItem::with_id(app, "quit", quit_text, true, None::<&str>)?;
+            let submenu = Submenu::with_id_and_items(app, "main", submenu_text, true, &[&show_item, &quit_item])?;
             let menu = Menu::with_items(app, &[&submenu])?;
             app.set_menu(menu)?;
+
+            let tray_menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&tray_menu)
+                .menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show-window" => {
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    }
+                    "quit" => {
+                        let child = app.state::<ServerState>().0.lock().unwrap().take();
+                        tauri::async_runtime::spawn(async move {
+                            if let Some(mut c) = child {
+                                let _ = c.kill().await;
+                                let _ = c.wait().await;
+                            }
+                        });
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: tauri::tray::MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        if let Some(win) = tray.app_handle().get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
             Ok(())
         })
-        .on_menu_event(|app, event| {
-            if event.id.as_ref() == "show-window" {
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "show-window" => {
                 if let Some(win) = app.get_webview_window("main") {
                     let _ = win.show();
                     let _ = win.set_focus();
                 }
             }
+            "quit" => {
+                let child = app.state::<ServerState>().0.lock().unwrap().take();
+                tauri::async_runtime::spawn(async move {
+                    if let Some(mut c) = child {
+                        let _ = c.kill().await;
+                        let _ = c.wait().await;
+                    }
+                });
+                app.exit(0);
+            }
+            _ => {}
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
