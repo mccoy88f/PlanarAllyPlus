@@ -1,0 +1,22 @@
+{
+    "name": "PlanarAlly Plus",
+    "short_name": "PlanarAlly+",
+    "description": "PlanarAlly Plus - Multi-user tabletop environment",
+    "start_url": "./",
+    "display": "standalone",
+    "background_color": "#000",
+    "theme_color": "#7c253e",
+    "icons": [
+        {
+            "src": "/static/pa-logo.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "/static/favicon.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

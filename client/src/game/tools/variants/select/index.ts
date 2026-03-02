@@ -325,7 +325,8 @@ class SelectTool extends Tool implements ISelectTool {
                 }
             }
             if (this.hasFeature(SelectFeatures.Resize, features)) {
-                this.resizePoint = shape.getPointIndex(gp, l2gz(5));
+                const hitRadius = event instanceof TouchEvent ? l2gz(25) : l2gz(5);
+                this.resizePoint = shape.getPointIndex(gp, hitRadius);
                 if (this.resizePoint >= 0) {
                     // Resize case, a corner is selected
                     this.currentSelection = [shape];
@@ -573,7 +574,8 @@ class SelectTool extends Tool implements ISelectTool {
                     shape,
                     targetPoint,
                     this.resizePoint,
-                    event !== undefined && ctrlOrCmdPressed(event),
+                    (event !== undefined && ctrlOrCmdPressed(event)) ||
+                    (event instanceof TouchEvent && event.touches.length === 2),
                     true,
                 );
             } else if (this.mode === SelectOperations.Rotate) {
@@ -795,7 +797,10 @@ class SelectTool extends Tool implements ISelectTool {
                                 target: TriangulationTarget.VISION,
                                 shape: sel.id,
                             });
-                        sel.resizeToGrid(this.resizePoint, ctrlOrCmdPressed(event));
+                        sel.resizeToGrid(
+                            this.resizePoint,
+                            ctrlOrCmdPressed(event) || (event instanceof TouchEvent && event.touches.length === 2),
+                        );
                         if (props.blocksVision !== VisionBlock.No) {
                             visionState.addToTriangulation({ target: TriangulationTarget.VISION, shape: sel.id });
                             recalcVision = true;
@@ -815,7 +820,8 @@ class SelectTool extends Tool implements ISelectTool {
                     if (this.operationList?.type === "resize" && this.resizePoint < sel.points.length) {
                         this.operationList.toPoint = sel.points[this.resizePoint]!;
                         this.operationList.resizePoint = this.resizePoint;
-                        this.operationList.retainAspectRatio = event !== undefined && ctrlOrCmdPressed(event);
+                        this.operationList.retainAspectRatio =
+                            ctrlOrCmdPressed(event) || (event instanceof TouchEvent && event.touches.length === 2);
                         this.operationReady = true;
                     }
                 }
