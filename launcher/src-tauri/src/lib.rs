@@ -595,13 +595,8 @@ async fn start_server(app: AppHandle, mode: String) -> Result<(), String> {
 #[tauri::command]
 async fn stop_server(app: AppHandle) -> Result<(), String> {
     let child = app.state::<ServerState>().0.lock().unwrap().take();
-    if let Some(mut c) = child {
-        let _ = c.kill().await;
-        let exit = c
-            .wait()
-            .await
-            .unwrap_or(std::process::ExitStatus::default());
-        let code = exit.code().unwrap_or(-1);
+    if let Some(c) = child {
+        let code = kill_server_process(c).await.unwrap_or(-1);
         let _ = app.emit("server-stopped", code);
     }
     Ok(())
@@ -641,6 +636,22 @@ async fn get_local_ip() -> Result<String, String> {
         .ok_or_else(|| "No local IP found".to_string())
 }
 
+async fn kill_server_process(mut child: tokio::process::Child) -> Option<i32> {
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(pid) = child.id() {
+            use std::os::windows::process::CommandExt;
+            let _ = tokio::process::Command::new("taskkill")
+                .args(&["/F", "/T", "/PID", &pid.to_string()])
+                .creation_flags(0x08000000)
+                .output()
+                .await;
+        }
+    }
+    let _ = child.kill().await;
+    child.wait().await.ok().and_then(|s| s.code())
+}
+
 #[tauri::command]
 fn open_browser_url(app: AppHandle, url: String) -> Result<(), String> {
     if !url.starts_with("http://") && !url.starts_with("https://") {
@@ -653,9 +664,8 @@ fn open_browser_url(app: AppHandle, url: String) -> Result<(), String> {
 async fn exit_app(app: AppHandle) -> Result<(), String> {
     // Stop server first, then exit
     let child = app.state::<ServerState>().0.lock().unwrap().take();
-    if let Some(mut c) = child {
-        let _ = c.kill().await;
-        let _ = c.wait().await;
+    if let Some(c) = child {
+        kill_server_process(c).await;
     }
     app.exit(0);
     Ok(())
@@ -693,14 +703,14 @@ pub fn run() {
                         }
                     }
                     "quit" => {
+                        let app_clone = app.clone();
                         let child = app.state::<ServerState>().0.lock().unwrap().take();
                         tauri::async_runtime::spawn(async move {
-                            if let Some(mut c) = child {
-                                let _ = c.kill().await;
-                                let _ = c.wait().await;
+                            if let Some(c) = child {
+                                kill_server_process(c).await;
                             }
+                            app_clone.exit(0);
                         });
-                        app.exit(0);
                     }
                     _ => {}
                 })
@@ -729,14 +739,14 @@ pub fn run() {
                 }
             }
             "quit" => {
+                let app_clone = app.clone();
                 let child = app.state::<ServerState>().0.lock().unwrap().take();
                 tauri::async_runtime::spawn(async move {
-                    if let Some(mut c) = child {
-                        let _ = c.kill().await;
-                        let _ = c.wait().await;
+                    if let Some(c) = child {
+                        kill_server_process(c).await;
                     }
+                    app_clone.exit(0);
                 });
-                app.exit(0);
             }
             _ => {}
         })
