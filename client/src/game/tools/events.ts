@@ -244,7 +244,12 @@ export function touchStart(event: TouchEvent): void {
                     bubbles: true,
                     cancelable: true,
                 });
+                Object.defineProperty(mockEvent, "target", { value: event.target });
                 void contextMenu(mockEvent);
+                if (tool.active.value) {
+                    tool.active.value = false;
+                    void tool.onTouchEnd(event, getFeatures(activeTool.value));
+                }
                 longPressTimeout = undefined;
             }, 500);
         }
