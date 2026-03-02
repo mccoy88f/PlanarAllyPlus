@@ -277,13 +277,13 @@ export function touchStart(event: TouchEvent): void {
 export async function touchMove(event: TouchEvent): Promise<void> {
     if ((event.target as HTMLElement).tagName !== "CANVAS") return;
 
-    if (event.touches.length === 1) {
+    if (event.touches.length === 1 && longPressTimeout !== undefined) {
         const dx = event.touches[0]!.pageX - touchStartPoint.x;
         const dy = event.touches[0]!.pageY - touchStartPoint.y;
-        if (Math.hypot(dx, dy) > 10) {
-            window.clearTimeout(longPressTimeout);
-            longPressTimeout = undefined;
-        }
+        if (Math.hypot(dx, dy) < 10) return;
+
+        window.clearTimeout(longPressTimeout);
+        longPressTimeout = undefined;
     } else {
         window.clearTimeout(longPressTimeout);
         longPressTimeout = undefined;
