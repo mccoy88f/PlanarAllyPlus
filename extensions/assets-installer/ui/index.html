@@ -206,6 +206,7 @@
             </div>
         </div>
     </div>
+    <div id="msg"></div>
     <section class="ext-ui-section ai-section">
         <h3 class="ext-ui-section-title" id="uploadSectionTitle"></h3>
         <p id="uploadInstructions" style="font-size: 0.9em; margin-bottom: 1rem; color: #555;"></p>
@@ -237,8 +238,6 @@
         </div>
     </section>
 
-    <div id="msg"></div>
-
     <script>
         (function () {
             var TRANSLATIONS = {
@@ -254,6 +253,7 @@
                     file_count: "{{n}} file(s)",
                     uninstall: "Uninstall",
                     upload_success: "Asset pack installed successfully.",
+                    upload_success_filename: "Asset pack {{name}} installed successfully.",
                     upload_failed: "Upload failed.",
                     uninstall_success: "Asset pack uninstalled.",
                     uninstall_failed: "Uninstall failed.",
@@ -277,6 +277,7 @@
                     file_count: "{{n}} file",
                     uninstall: "Disinstalla",
                     upload_success: "Pacchetto installato correttamente.",
+                    upload_success_filename: "Pacchetto {{name}} installato correttamente.",
                     upload_failed: "Caricamento fallito.",
                     uninstall_success: "Pacchetto disinstallato.",
                     uninstall_failed: "Disinstallazione fallita.",
@@ -542,7 +543,7 @@
 
                 xhr.onload = function () {
                     if (xhr.status >= 200 && xhr.status < 300) {
-                        showMsg(t('upload_success'), false);
+                        showMsg(t('upload_success_filename', { name: file.name }), false);
                         loadList();
                         loadFolders();
                     } else {
