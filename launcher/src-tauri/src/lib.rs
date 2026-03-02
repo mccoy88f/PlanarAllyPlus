@@ -686,7 +686,7 @@ pub fn run() {
         .expect("error while building tauri application");
 
     app.run(|app_handle, event| {
-        // macOS: show window when user clicks dock icon (Reopen with no visible windows)
+        #[cfg(target_os = "macos")]
         if let tauri::RunEvent::Reopen { has_visible_windows, .. } = event {
             if !has_visible_windows {
                 if let Some(win) = app_handle.get_webview_window("main") {
