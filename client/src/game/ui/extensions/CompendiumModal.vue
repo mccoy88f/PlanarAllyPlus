@@ -142,15 +142,15 @@ function stopResize(): void {
 }
 
 const collectionsFor = (compId: string) => collectionsByComp.value.get(compId) ?? [];
-const rootCollectionsFor = (compId: string) => collectionsFor(compId).filter(c => !c.parentSlug);
-const subCollectionsFor = (compId: string, parentSlug: string) => collectionsFor(compId).filter(c => c.parentSlug === parentSlug);
+const rootCollectionsFor = (compId: string) => collectionsFor(compId).filter((c: CollectionMeta) => !c.parentSlug);
+const subCollectionsFor = (compId: string, parentSlug: string) => collectionsFor(compId).filter((c: CollectionMeta) => c.parentSlug === parentSlug);
 
 const itemsFor = (compId: string, collSlug: string) =>
     itemsByKey.value.get(`${compId}/${collSlug}`) ?? [];
 
 const interleavedChildrenFor = (compId: string, collSlug: string) => {
-    const subs = subCollectionsFor(compId, collSlug).map((c) => ({ ...c, type: "collection" as const }));
-    const items = itemsFor(compId, collSlug).map((i) => ({ ...i, type: "item" as const }));
+    const subs = subCollectionsFor(compId, collSlug).map((c: CollectionMeta) => ({ ...c, type: "collection" as const }));
+    const items = itemsFor(compId, collSlug).map((i: ItemMeta) => ({ ...i, type: "item" as const }));
     return [...subs, ...items].sort((a, b: any) => ((a as any).order ?? 0) - ((b as any).order ?? 0));
 };
 const isExpanded = (compId: string, collSlug?: string) => {
@@ -174,7 +174,7 @@ const searchResultCompendiums = computed(() => {
 const filteredSearchResults = computed(() => {
     if (!searchCompendiumFilter.value) return searchResultsAll.value;
     return searchResultsAll.value.filter(
-        (r) => (r.compendiumId ?? defaultId.value) === searchCompendiumFilter.value,
+        (r: SearchResult) => (r.compendiumId ?? defaultId.value) === searchCompendiumFilter.value,
     );
 });
 
@@ -184,19 +184,19 @@ const breadcrumb = computed(() => {
     const fallback = (label: string, slug: string) =>
         (label && label.trim()) ? label : (slug || "—");
 
-    const crumbs = [
-        { label: fallback(compendium.name, compendium.slug), slug: compendium.slug, type: "compendium" as const },
+    const crumbs: { label: string; slug: string; type: "compendium" | "collection" | "item" }[] = [
+        { label: fallback(compendium.name, compendium.slug), slug: compendium.slug, type: "compendium" },
     ];
 
     if (collection.parentSlug) {
-        const parent = collectionsFor(compendium.id).find(c => c.slug === collection.parentSlug);
+        const parent = collectionsFor(compendium.id).find((c: CollectionMeta) => c.slug === collection.parentSlug);
         if (parent) {
-            crumbs.push({ label: fallback(parent.name, parent.slug), slug: parent.slug, type: "collection" as const });
+            crumbs.push({ label: fallback(parent.name, parent.slug), slug: parent.slug, type: "collection" });
         }
     }
 
-    crumbs.push({ label: fallback(collection.name, collection.slug), slug: collection.slug, type: "collection" as const });
-    crumbs.push({ label: fallback(item.name, item.slug), slug: item.slug, type: "item" as const });
+    crumbs.push({ label: fallback(collection.name, collection.slug), slug: collection.slug, type: "collection" });
+    crumbs.push({ label: fallback(item.name, item.slug), slug: item.slug, type: "item" });
     return crumbs;
 });
 
@@ -319,8 +319,8 @@ async function ensureCompendiumExpanded(compId: string): Promise<void> {
 async function ensureCollectionExpanded(compId: string, collSlug: string): Promise<void> {
     const set = expandedColls.value.get(compId);
     if (!set?.has(collSlug)) {
-        const next = new Map(expandedColls.value);
-        next.set(compId, new Set([...(next.get(compId) ?? []), collSlug]));
+        const next = new Map<string, Set<string>>(expandedColls.value);
+        next.set(compId, new Set<string>([...(next.get(compId) ?? []), collSlug]));
         expandedColls.value = next;
     }
     const key = `${compId}/${collSlug}`;
@@ -339,8 +339,8 @@ async function ensureCollectionExpanded(compId: string, collSlug: string): Promi
 }
 
 async function toggleCollection(compId: string, collSlug: string): Promise<void> {
-    const next = new Map(expandedColls.value);
-    const set = new Set(next.get(compId) ?? []);
+    const next = new Map<string, Set<string>>(expandedColls.value);
+    const set = new Set<string>(next.get(compId) ?? []);
     if (set.has(collSlug)) {
         set.delete(collSlug);
     } else {
@@ -395,13 +395,13 @@ async function selectFromSearch(result: SearchResult): Promise<void> {
     showIndex.value = false;
     const compId = result.compendiumId ?? defaultId.value;
     if (!compId) return;
-    const comp = compendiums.value.find((c) => c.id === compId);
+    const comp = compendiums.value.find((c: CompendiumMeta) => c.id === compId);
     if (!comp) return;
     expandedComps.value = new Set([...expandedComps.value, compId]);
     await toggleCompendium(compId);
-    expandedColls.value = new Map(expandedColls.value).set(
+    expandedColls.value = new Map<string, Set<string>>(expandedColls.value).set(
         compId,
-        new Set([...(expandedColls.value.get(compId) ?? []), result.collectionSlug]),
+        new Set<string>([...(expandedColls.value.get(compId) ?? []), result.collectionSlug]),
     );
     const key = `${compId}/${result.collectionSlug}`;
     if (!itemsByKey.value.has(key)) {
@@ -666,7 +666,7 @@ async function saveTranslationToDb(content: string, type: "item" | "index"): Pro
 
     try {
         await http.postJson("/api/extensions/compendium/translations", payload);
-    } catch (e) {
+    } catch (e: unknown) {
         console.error("Error saving translation", e);
     }
 }
@@ -701,7 +701,7 @@ async function clearTranslation(): Promise<void> {
         }
         try {
             await http.deleteJson("/api/extensions/compendium/translations", payload);
-        } catch (e) {
+        } catch (e: unknown) {
             console.error("Error deleting translation from db", e);
         }
     }
@@ -786,7 +786,7 @@ Ensure terminology consistency with D&D 5e standards (e.g., "Saving Throw" -> "T
                         if (start !== -1 && end !== 0) {
                             currentIndex.value = JSON.parse(translated.substring(start, end));
                         }
-                    } catch (e) {
+                    } catch (e: unknown) {
                         console.error("Failed to parse translated index", e);
                         toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
                     }
@@ -795,7 +795,7 @@ Ensure terminology consistency with D&D 5e standards (e.g., "Saving Throw" -> "T
                 toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
             }
         }
-    } catch (e) {
+    } catch (e: unknown) {
         console.error(e);
         toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
     } finally {
@@ -905,14 +905,14 @@ async function loadCompendiums(): Promise<void> {
             const openItem = extensionsState.raw.compendiumOpenItem;
             if (openItem && compendiums.value.length > 0) {
                 const comp = openItem.compendiumSlug
-                    ? compendiums.value.find((c) => c.slug === openItem.compendiumSlug)
-                    : compendiums.value.find((c) => c.isDefault) ?? compendiums.value[0];
+                    ? compendiums.value.find((c: CompendiumMeta) => c.slug === openItem.compendiumSlug)
+                    : compendiums.value.find((c: CompendiumMeta) => c.isDefault) ?? compendiums.value[0];
                 if (comp) {
                     selectedCompendiumId.value = comp.id;
                     expandedComps.value = new Set([comp.id]);
                     await toggleCompendium(comp.id);
                     const colls = collectionsByComp.value.get(comp.id) ?? [];
-                    const targetColl = colls.find((c) => c.slug === openItem.collectionSlug);
+                    const targetColl = colls.find((c: CollectionMeta) => c.slug === openItem.collectionSlug);
                     if (targetColl) {
                         expandedColls.value = new Map(expandedColls.value).set(
                             comp.id,
@@ -920,7 +920,7 @@ async function loadCompendiums(): Promise<void> {
                         );
                         await toggleCollection(comp.id, targetColl.slug);
                         const items = itemsByKey.value.get(`${comp.id}/${targetColl.slug}`) ?? [];
-                        const itemMeta = items.find((i) => i.slug === openItem.itemSlug);
+                        const itemMeta = items.find((i: ItemMeta) => i.slug === openItem.itemSlug);
                         if (itemMeta) await selectItem(comp, targetColl, itemMeta);
                     }
                 }
@@ -983,7 +983,7 @@ function shareToChat(): void {
 
 watch(
     () => props.visible,
-    (visible) => {
+    (visible: boolean) => {
         if (visible) loadCompendiums();
     },
 );
@@ -993,16 +993,16 @@ watch(
     async ([openItem]) => {
         if (!openItem || !props.visible || !compendiums.value.length) return;
         const comp = openItem.compendiumSlug
-            ? compendiums.value.find((c) => c.slug === openItem.compendiumSlug)
-            : compendiums.value.find((c) => c.isDefault) ?? compendiums.value[0];
+            ? compendiums.value.find((c: CompendiumMeta) => c.slug === openItem.compendiumSlug)
+            : compendiums.value.find((c: CompendiumMeta) => c.isDefault) ?? compendiums.value[0];
         if (!comp) return;
         await ensureCompendiumExpanded(comp.id);
         const colls = collectionsByComp.value.get(comp.id) ?? [];
-        const targetColl = colls.find((c) => c.slug === openItem.collectionSlug);
+        const targetColl = colls.find((c: CollectionMeta) => c.slug === openItem.collectionSlug);
         if (targetColl) {
             await ensureCollectionExpanded(comp.id, targetColl.slug);
             const items = itemsByKey.value.get(`${comp.id}/${targetColl.slug}`) ?? [];
-            const itemMeta = items.find((i) => i.slug === openItem.itemSlug);
+            const itemMeta = items.find((i: ItemMeta) => i.slug === openItem.itemSlug);
             if (itemMeta) await selectItem(comp, targetColl, itemMeta);
         }
         extensionsState.mutableReactive.compendiumOpenItem = undefined;
@@ -1326,7 +1326,7 @@ onMounted(() => {
                     <div v-if="selectedItem" class="qe-breadcrumb">
                         <div class="qe-breadcrumb-path">
                             <template v-for="(crumb, i) in breadcrumb" :key="'crumb-' + i">
-                                <span v-if="i > 0" class="qe-breadcrumb-sep"> › </span>
+                                <span v-if="Number(i) > 0" class="qe-breadcrumb-sep"> › </span>
                                 <button
                                     v-if="crumb.type !== 'item'"
                                     class="qe-breadcrumb-link"
@@ -1782,7 +1782,6 @@ onMounted(() => {
             font-weight: 500;
         }
     }
-}
 
 .qe-content-area {
     flex: 1;
