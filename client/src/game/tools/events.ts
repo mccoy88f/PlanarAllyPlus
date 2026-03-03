@@ -12,8 +12,7 @@ import { uiState } from "../systems/ui/state";
 
 import { activeTool, getActiveTool, getFeatures, toolMap } from "./tools";
 
-let isTwoFingerTapCandidate = false;
-let touchStartTime = 0;
+let longPressTimeout: number | undefined;
 let touchStartPoint = { x: 0, y: 0 };
 
 function isPanModeButton(button: number): boolean {
@@ -231,18 +230,29 @@ export function touchStart(event: TouchEvent): void {
     const tool = getActiveTool();
 
     if (event.touches.length === 2) {
-        if (tool.active.value) {
-            tool.scaling = false;
-            isTwoFingerTapCandidate = false;
-        } else {
-            tool.scaling = true;
-            isTwoFingerTapCandidate = true;
-            touchStartTime = Date.now();
-            touchStartPoint = { x: event.touches[0]!.pageX, y: event.touches[0]!.pageY };
-        }
+        tool.scaling = true;
     } else {
-        isTwoFingerTapCandidate = false;
         tool.scaling = false;
+        if (event.touches.length === 1) {
+            touchStartPoint = { x: event.touches[0]!.pageX, y: event.touches[0]!.pageY };
+            window.clearTimeout(longPressTimeout);
+            longPressTimeout = window.setTimeout(() => {
+                const mockEvent = new MouseEvent("contextmenu", {
+                    button: 2,
+                    clientX: event.touches[0]!.clientX,
+                    clientY: event.touches[0]!.clientY,
+                    bubbles: true,
+                    cancelable: true,
+                });
+                Object.defineProperty(mockEvent, "target", { value: event.target });
+                void contextMenu(mockEvent);
+                if (tool.active.value) {
+                    tool.active.value = false;
+                    void tool.onTouchEnd(event, getFeatures(activeTool.value));
+                }
+                longPressTimeout = undefined;
+            }, 500);
+        }
     }
 
     for (const permitted of tool.permittedTools) {
@@ -267,12 +277,16 @@ export function touchStart(event: TouchEvent): void {
 export async function touchMove(event: TouchEvent): Promise<void> {
     if ((event.target as HTMLElement).tagName !== "CANVAS") return;
 
-    if (event.touches.length !== 2) {
-        isTwoFingerTapCandidate = false;
-    } else if (isTwoFingerTapCandidate) {
+    if (event.touches.length === 1 && longPressTimeout !== undefined) {
         const dx = event.touches[0]!.pageX - touchStartPoint.x;
         const dy = event.touches[0]!.pageY - touchStartPoint.y;
-        if (Math.hypot(dx, dy) > 10) isTwoFingerTapCandidate = false;
+        if (Math.hypot(dx, dy) < 10) return;
+
+        window.clearTimeout(longPressTimeout);
+        longPressTimeout = undefined;
+    } else {
+        window.clearTimeout(longPressTimeout);
+        longPressTimeout = undefined;
     }
 
     const tool = getActiveTool();
@@ -336,17 +350,8 @@ export function touchEnd(event: TouchEvent): void {
 
     const tool = getActiveTool();
 
-    if (isTwoFingerTapCandidate && event.touches.length === 0 && Date.now() - touchStartTime < 500) {
-        isTwoFingerTapCandidate = false;
-        const mockEvent = new MouseEvent("contextmenu", {
-            button: 2,
-            clientX: event.changedTouches[0]?.clientX,
-            clientY: event.changedTouches[0]?.clientY,
-            bubbles: true,
-            cancelable: true,
-        });
-        void contextMenu(mockEvent);
-    }
+    window.clearTimeout(longPressTimeout);
+    longPressTimeout = undefined;
 
     for (const permitted of tool.permittedTools) {
         if (!(permitted.early ?? false)) continue;
