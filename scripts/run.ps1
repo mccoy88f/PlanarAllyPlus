@@ -60,20 +60,44 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 Write-Host "uv: $(uv --version 2>$null | Select-Object -First 1)" -ForegroundColor Green
 
 Write-Host ""
-Write-Host "=== Installazione dipendenze ===" -ForegroundColor Cyan
+Write-Host "=== Verifica dipendenze ===" -ForegroundColor Cyan
+$NeedInstall = $false
+$ClientNodeModules = "$Root\client\node_modules"
+$ServerVenv = "$Root\server\.venv"
+$ClientVite = "$Root\server\static\vite"
+$PackageLock = "$Root\client\package-lock.json"
+$UvLock = "$Root\server\uv.lock"
 
-# Client
-Write-Host "Installo dipendenze client..."
-Set-Location "$Root\client"
-npm ci
+if (-not (Test-Path $ClientNodeModules) -or -not (Test-Path $ServerVenv) -or -not (Test-Path $ClientVite)) {
+    $NeedInstall = $true
+} else {
+    # Compare timestamps
+    if ((Get-Item $PackageLock).LastWriteTime -gt (Get-Item $ClientNodeModules).LastWriteTime -or
+        (Get-Item $UvLock).LastWriteTime -gt (Get-Item $ServerVenv).LastWriteTime -or
+        (Get-Item $PackageLock).LastWriteTime -gt (Get-Item $ClientVite).LastWriteTime) {
+        Write-Host "=== Rilevati cambiamenti nei lockfile, forzo reinstallazione ===" -ForegroundColor Yellow
+        $NeedInstall = $true
+    }
+}
 
-Write-Host "Build client..."
-npm run build
+if (-not $NeedInstall) {
+    Write-Host "=== Dipendenze gia' presenti, salto installazione ===" -ForegroundColor Green
+} else {
+    Write-Host "=== Installazione dipendenze ===" -ForegroundColor Cyan
 
-# Server
-Write-Host "Installo dipendenze server..."
-Set-Location "$Root\server"
-uv sync --no-group dev
+    # Client
+    Write-Host "Installo dipendenze client..."
+    Set-Location "$Root\client"
+    npm ci
+
+    Write-Host "Build client..."
+    npm run build
+
+    # Server
+    Write-Host "Installo dipendenze server..."
+    Set-Location "$Root\server"
+    uv sync --no-group dev
+}
 
 Write-Host ""
 Write-Host "=== Avvio server PlanarAlly Plus ===" -ForegroundColor Green

@@ -76,12 +76,18 @@ echo -e "${GREEN}uv: $(uv --version 2>/dev/null | head -1)${NC}"
 
 echo ""
 # Skip full install if already set up (faster restarts, preserves user data)
+# Check if folders exist AND if they are newer than the lockfiles
 NEED_INSTALL=false
-if [ ! -d "$ROOT/client/node_modules" ] || [ ! -d "$ROOT/server/.venv" ]; then
+if [ ! -d "$ROOT/client/node_modules" ] || [ ! -d "$ROOT/server/.venv" ] || [ ! -d "$ROOT/server/static/vite" ]; then
     NEED_INSTALL=true
-fi
-if [ ! -d "$ROOT/server/static/vite" ] || [ -z "$(ls -A "$ROOT/server/static/vite" 2>/dev/null)" ]; then
-    NEED_INSTALL=true
+else
+    # Check if package-lock or uv.lock are newer than their respective target directories
+    if [ "$ROOT/client/package-lock.json" -nt "$ROOT/client/node_modules" ] || \
+       [ "$ROOT/server/uv.lock" -nt "$ROOT/server/.venv" ] || \
+       [ "$ROOT/client/package-lock.json" -nt "$ROOT/server/static/vite" ]; then
+        echo "=== Rilevati cambiamenti nei lockfile, forzo reinstallazione ==="
+        NEED_INSTALL=true
+    fi
 fi
 
 if [ "$NEED_INSTALL" = true ]; then

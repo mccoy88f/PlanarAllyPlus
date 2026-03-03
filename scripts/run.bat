@@ -53,6 +53,20 @@ for /f "tokens=*" %%v in ('uv --version 2^>nul') do set UV_VER=%%v
 echo uv: %UV_VER%
 
 echo.
+echo === Verifica dipendenze ===
+REM Nota: su Windows Batch il confronto temporale e' limitato.
+REM Se hai fatto un git pull manuale e vuoi forzare il rebuild, elimina node_modules o .venv.
+
+set NEED_INSTALL=0
+if not exist "client\node_modules" set NEED_INSTALL=1
+if not exist "server\.venv" set NEED_INSTALL=1
+if not exist "server\static\vite" set NEED_INSTALL=1
+
+if %NEED_INSTALL% equ 0 (
+    echo === Dipendenze gia' presenti, salto installazione ===
+    goto :START_SERVER
+)
+
 echo === Installazione dipendenze ===
 
 echo Installo dipendenze client...
@@ -69,9 +83,15 @@ cd ..\server
 call uv sync --python 3.13 --no-group dev
 if %errorlevel% neq 0 exit /b 1
 
+:START_SERVER
 echo.
 echo === Avvio server PlanarAlly Plus ===
 echo Apri http://localhost:8000 nel browser
 echo.
 
+if exist "server\" (
+    cd server
+) else (
+    cd ..\server
+)
 uv run --python 3.13 planarally.py
