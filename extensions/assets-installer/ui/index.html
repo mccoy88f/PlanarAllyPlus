@@ -13,6 +13,11 @@
             width: 100%;
             overflow-y: auto;
             min-height: 0;
+            padding: 0;
+            /* Remove padding here to allow full-width progress bar */
+        }
+
+        .ai-body {
             padding: 1rem 1.5rem;
         }
 
@@ -158,42 +163,6 @@
             /* no max-height or overflow-y to allow scrolling with modal */
             min-height: 4rem;
         }
-
-        .pa-loading-bar-wrapper {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            width: 100%;
-            margin-bottom: 8px;
-        }
-
-        .pa-loading-bar-label {
-            font-size: 0.9em;
-            font-weight: 500;
-        }
-
-        .pa-loading-bar-track {
-            width: 100%;
-            background-color: var(--primary-bg, #2c3e50);
-            border-radius: 4px;
-            overflow: hidden;
-            position: relative;
-            border: 1px solid var(--primary-border, #455a64);
-            height: 6px;
-        }
-
-        .pa-loading-bar-fill {
-            height: 100%;
-            background-color: var(--primary-accent, #42b983);
-            border-radius: 4px;
-            transition: width 0.3s ease-out;
-        }
-
-        .pa-loading-bar-text {
-            font-size: 0.8em;
-            align-self: flex-end;
-            color: var(--primary-text, #ffffff);
-        }
     </style>
 </head>
 
@@ -206,37 +175,39 @@
             </div>
         </div>
     </div>
-    <div id="msg"></div>
-    <section class="ext-ui-section ai-section">
-        <h3 class="ext-ui-section-title" id="uploadSectionTitle"></h3>
-        <p id="uploadInstructions" style="font-size: 0.9em; margin-bottom: 1rem; color: #555;"></p>
-        <label id="folderLabel" class="ext-ui-label"></label>
-        <div class="ai-tree-container">
-            <ul id="folderTree" class="ai-tree"></ul>
-        </div>
-        <div id="selectedPath" class="ai-selected-path"></div>
-        <div style="margin-top: 1rem;">
-            <div style="margin-bottom: 0.75rem;">
-                <span id="staticExtractDescText"
-                    style="display: block; color: #6c757d; font-size: 0.85rem; margin-bottom: 0.5rem;"></span>
+    <div class="ai-body">
+        <div id="msg"></div>
+        <section class="ext-ui-section ai-section">
+            <h3 class="ext-ui-section-title" id="uploadSectionTitle"></h3>
+            <p id="uploadInstructions" style="font-size: 0.9em; margin-bottom: 1rem; color: #555;"></p>
+            <label id="folderLabel" class="ext-ui-label"></label>
+            <div class="ai-tree-container">
+                <ul id="folderTree" class="ai-tree"></ul>
             </div>
-            <input type="file" id="fileInput" class="ext-ui-file-input" accept=".zip" style="display: none;" />
-            <div style="display: flex; gap: 0.5rem;">
-                <button type="button" id="uploadBtn" class="ext-ui-btn ext-ui-btn-primary"></button>
-                <button type="button" id="uploadStaticBtn" class="ext-ui-btn ext-ui-btn-primary"
-                    style="background-color: #6c757d; border-color: #6c757d;"></button>
+            <div id="selectedPath" class="ai-selected-path"></div>
+            <div style="margin-top: 1rem;">
+                <div style="margin-bottom: 0.75rem;">
+                    <span id="staticExtractDescText"
+                        style="display: block; color: #6c757d; font-size: 0.85rem; margin-bottom: 0.5rem;"></span>
+                </div>
+                <input type="file" id="fileInput" class="ext-ui-file-input" accept=".zip" style="display: none;" />
+                <div style="display: flex; gap: 0.5rem;">
+                    <button type="button" id="uploadBtn" class="ext-ui-btn ext-ui-btn-primary"></button>
+                    <button type="button" id="uploadStaticBtn" class="ext-ui-btn ext-ui-btn-primary"
+                        style="background-color: #6c757d; border-color: #6c757d;"></button>
+                </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <section class="ext-ui-section ai-section">
-        <h3 class="ext-ui-section-title" id="installedTitle"></h3>
-        <div class="ai-list-container">
-            <div id="loading" class="ext-ui-loading"></div>
-            <div id="empty" class="ai-empty ext-ui-empty" style="display:none"></div>
-            <ul id="list" class="ai-list ext-ui-list" style="display:none"></ul>
-        </div>
-    </section>
+        <section class="ext-ui-section ai-section">
+            <h3 class="ext-ui-section-title" id="installedTitle"></h3>
+            <div class="ai-list-container">
+                <div id="loading" class="ext-ui-loading"></div>
+                <div id="empty" class="ai-empty ext-ui-empty" style="display:none"></div>
+                <ul id="list" class="ai-list ext-ui-list" style="display:none"></ul>
+            </div>
+        </section>
+    </div>
 
     <script>
         (function () {

@@ -98,6 +98,7 @@ const aiModel = ref("");
 const translateLoading = ref(false);
 const activeTranslationLang = ref<string | null>(null);
 const originalMarkdown = ref<string | null>(null);
+const sidebarCollapsed = ref(false);
 const originalIndex = ref<any[] | null>(null);
 const showTranslationTools = ref(false);
 const translationTagContainer = ref<HTMLElement | null>(null);
@@ -1320,7 +1321,7 @@ onMounted(() => {
                         </div>
                     </div>
                 </nav>
-                <div class="qe-sidebar-resizer" @mousedown.prevent="startResize" />
+                <div v-if="!sidebarCollapsed" class="qe-sidebar-resizer" @mousedown.prevent="startResize" />
                 <div class="qe-content-area">
                     <div v-if="selectedItem" class="qe-breadcrumb">
                         <div class="qe-breadcrumb-path">
@@ -1640,6 +1641,57 @@ onMounted(() => {
     border-top: 1px solid #eee;
 }
 
+.qe-tree {
+    flex-shrink: 0;
+    border-right: none;
+    overflow: visible;
+    min-height: 0;
+    background: #fafafa;
+    position: relative;
+    transition: width 0.3s ease;
+
+    &.collapsed {
+        width: 0 !important;
+        border: none;
+        overflow: visible;
+        
+        .qe-tree-content {
+            display: none;
+        }
+    }
+}
+
+.qe-tree-content {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.5rem 0;
+}
+
+.qe-sidebar-toggle {
+    position: absolute;
+    right: -12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 32px;
+    background: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    z-index: 10;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+
+    &:hover {
+        background: #e0e0e0;
+        color: #333;
+    }
+}
+
 .qe-sidebar-resizer {
     flex-shrink: 0;
     width: 3px;
@@ -1651,15 +1703,6 @@ onMounted(() => {
         background: #c0d0e0;
     }
 }
-
-.qe-tree {
-    flex-shrink: 0;
-    border-right: none;
-    overflow-y: auto;
-    overflow-x: hidden;
-    min-height: 0;
-    padding: 0.5rem 0;
-    background: #fafafa;
 
     .qe-tree-compendium {
         margin-bottom: 0.5rem;

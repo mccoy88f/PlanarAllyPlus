@@ -251,7 +251,7 @@ export function touchStart(event: TouchEvent): void {
                     void tool.onTouchEnd(event, getFeatures(activeTool.value));
                 }
                 longPressTimeout = undefined;
-            }, 500);
+            }, 1000);
         }
     }
 
