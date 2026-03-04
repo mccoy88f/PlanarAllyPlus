@@ -541,7 +541,9 @@
           "website": "Website",
           "license": "License",
           "clear_translation": "Clear Translation",
-          "rerun_translation": "Rerun Translation"
+          "rerun_translation": "Rerun Translation",
+          "expand_sidebar": "Expand sidebar",
+          "collapse_sidebar": "Collapse sidebar"
         },
         "DocumentsModal": {
           "title": "Documents",
