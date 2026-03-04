@@ -541,7 +541,9 @@
           "translate_error": "Errore durante la traduzione",
           "translated_to": "Contenuto tradotto in {lang}",
           "clear_translation": "Cancella Traduzione",
-          "rerun_translation": "Riesegui Traduzione"
+          "rerun_translation": "Riesegui Traduzione",
+          "expand_sidebar": "Espandi barra laterale",
+          "collapse_sidebar": "Comprimi barra laterale"
         },
         "DocumentsModal": {
           "title": "Documenti",

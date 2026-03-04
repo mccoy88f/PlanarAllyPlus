@@ -1188,138 +1188,147 @@ onMounted(() => {
             </div>
 
             <div v-else-if="!loading" class="qe-main">
-                <nav class="qe-tree" :style="{ width: sidebarWidth + 'px' }">
-                    <div
-                        v-for="comp in compendiums"
-                        :key="comp.id"
-                        class="qe-tree-compendium"
-                    >
-                        <div class="qe-tree-comp-header">
-                            <button
-                                class="qe-tree-toggle"
-                                :class="{ expanded: isExpanded(comp.id) }"
-                                @click="toggleCompendium(comp.id)"
-                            >
-                                <font-awesome-icon
-                                    :icon="isExpanded(comp.id) ? 'chevron-down' : 'chevron-right'"
-                                />
-                                <span class="qe-tree-comp-name" @click.stop="showCompendiumIndex(comp)">{{ comp.name }}</span>
-                            </button>
-                            <button
-                                v-if="!comp.isDefault"
-                                type="button"
-                                class="ext-action-btn star"
-                                :title="t('game.ui.extensions.CompendiumModal.default_compendium')"
-                                @click.stop="setDefault(comp.id)"
-                            >
-                                <font-awesome-icon :icon="['far', 'star']" />
-                            </button>
-                            <button
-                                v-else
-                                type="button"
-                                class="ext-action-btn star active"
-                                :title="t('game.ui.extensions.CompendiumModal.default_compendium')"
-                                @click.stop="() => {}"
-                            >
-                                <font-awesome-icon icon="star" />
-                            </button>
-                            <button
-                                type="button"
-                                class="ext-action-btn"
-                                :title="t('game.ui.extensions.CompendiumModal.rename')"
-                                @click.stop="renameCompendium(comp)"
-                            >
-                                <font-awesome-icon icon="edit" />
-                            </button>
-                            <button
-                                type="button"
-                                class="ext-action-btn delete"
-                                :title="t('game.ui.extensions.CompendiumModal.uninstall')"
-                                @click.stop="uninstallCompendium(comp)"
-                            >
-                                <font-awesome-icon icon="trash-alt" />
-                            </button>
-                        </div>
-                        <div v-show="isExpanded(comp.id)" class="qe-tree-collections">
-                            <div
-                                v-for="coll in rootCollectionsFor(comp.id)"
-                                :key="coll.slug"
-                                class="qe-tree-collection"
-                            >
+                <nav class="qe-tree" :class="{ collapsed: sidebarCollapsed }" :style="{ width: sidebarWidth + 'px' }">
+                    <div class="qe-tree-content">
+                        <div
+                            v-for="comp in compendiums"
+                            :key="comp.id"
+                            class="qe-tree-compendium"
+                        >
+                            <div class="qe-tree-comp-header">
                                 <button
-                                    class="qe-tree-toggle coll"
-                                    :class="{ expanded: isExpanded(comp.id, coll.slug) }"
-                                    @click="toggleCollection(comp.id, coll.slug)"
+                                    class="qe-tree-toggle"
+                                    :class="{ expanded: isExpanded(comp.id) }"
+                                    @click="toggleCompendium(comp.id)"
                                 >
                                     <font-awesome-icon
-                                        :icon="
-                                            isExpanded(comp.id, coll.slug) ? 'chevron-down' : 'chevron-right'
-                                        "
+                                        :icon="isExpanded(comp.id) ? 'chevron-down' : 'chevron-right'"
                                     />
-                                    {{ formatName(coll.name) }}
-                                    <span class="qe-tree-count">({{ coll.count }})</span>
+                                    <span class="qe-tree-comp-name" @click.stop="showCompendiumIndex(comp)">{{ comp.name }}</span>
                                 </button>
-                                <div
-                                    v-show="isExpanded(comp.id, coll.slug)"
-                                    class="qe-tree-items"
+                                <button
+                                    v-if="!comp.isDefault"
+                                    type="button"
+                                    class="ext-action-btn star"
+                                    :title="t('game.ui.extensions.CompendiumModal.default_compendium')"
+                                    @click.stop="setDefault(comp.id)"
                                 >
-                                    <template v-for="child in interleavedChildrenFor(comp.id, coll.slug)" :key="child.slug">
-                                        <!-- COLLECTION CHILD -->
-                                        <div
-                                            v-if="child.type === 'collection'"
-                                            class="qe-tree-collection qe-tree-subcollection"
-                                        >
-                                            <button
-                                                class="qe-tree-toggle coll"
-                                                :class="{ expanded: isExpanded(comp.id, child.slug) }"
-                                                @click="toggleCollection(comp.id, child.slug)"
-                                            >
-                                                <font-awesome-icon
-                                                    :icon="isExpanded(comp.id, child.slug) ? 'chevron-down' : 'chevron-right'"
-                                                />
-                                                {{ formatName(child.name) }}
-                                                <span class="qe-tree-count">({{ child.count }})</span>
-                                            </button>
+                                    <font-awesome-icon :icon="['far', 'star']" />
+                                </button>
+                                <button
+                                    v-else
+                                    type="button"
+                                    class="ext-action-btn star active"
+                                    :title="t('game.ui.extensions.CompendiumModal.default_compendium')"
+                                    @click.stop="() => {}"
+                                >
+                                    <font-awesome-icon icon="star" />
+                                </button>
+                                <button
+                                    type="button"
+                                    class="ext-action-btn"
+                                    :title="t('game.ui.extensions.CompendiumModal.rename')"
+                                    @click.stop="renameCompendium(comp)"
+                                >
+                                    <font-awesome-icon icon="edit" />
+                                </button>
+                                <button
+                                    type="button"
+                                    class="ext-action-btn delete"
+                                    :title="t('game.ui.extensions.CompendiumModal.uninstall')"
+                                    @click.stop="uninstallCompendium(comp)"
+                                >
+                                    <font-awesome-icon icon="trash-alt" />
+                                </button>
+                            </div>
+                            <div v-show="isExpanded(comp.id)" class="qe-tree-collections">
+                                <div
+                                    v-for="coll in rootCollectionsFor(comp.id)"
+                                    :key="coll.slug"
+                                    class="qe-tree-collection"
+                                >
+                                    <button
+                                        class="qe-tree-toggle coll"
+                                        :class="{ expanded: isExpanded(comp.id, coll.slug) }"
+                                        @click="toggleCollection(comp.id, coll.slug)"
+                                    >
+                                        <font-awesome-icon
+                                            :icon="
+                                                isExpanded(comp.id, coll.slug) ? 'chevron-down' : 'chevron-right'
+                                            "
+                                        />
+                                        {{ formatName(coll.name) }}
+                                        <span class="qe-tree-count">({{ coll.count }})</span>
+                                    </button>
+                                    <div
+                                        v-show="isExpanded(comp.id, coll.slug)"
+                                        class="qe-tree-items"
+                                    >
+                                        <template v-for="child in interleavedChildrenFor(comp.id, coll.slug)" :key="child.slug">
+                                            <!-- COLLECTION CHILD -->
                                             <div
-                                                v-show="isExpanded(comp.id, child.slug)"
-                                                class="qe-tree-items"
+                                                v-if="child.type === 'collection'"
+                                                class="qe-tree-collection qe-tree-subcollection"
                                             >
                                                 <button
-                                                    v-for="subItem in itemsFor(comp.id, child.slug)"
-                                                    :key="subItem.slug"
-                                                    class="qe-tree-item"
-                                                    :class="{
-                                                        active:
-                                                            selectedItem?.compendium.id === comp.id &&
-                                                            selectedItem?.collection.slug === child.slug &&
-                                                            selectedItem?.item.slug === subItem.slug,
-                                                    }"
-                                                    @click="selectItem(comp, child, subItem)"
+                                                    class="qe-tree-toggle coll"
+                                                    :class="{ expanded: isExpanded(comp.id, child.slug) }"
+                                                    @click="toggleCollection(comp.id, child.slug)"
                                                 >
-                                                    {{ subItem.name }}
+                                                    <font-awesome-icon
+                                                        :icon="isExpanded(comp.id, child.slug) ? 'chevron-down' : 'chevron-right'"
+                                                    />
+                                                    {{ formatName(child.name) }}
+                                                    <span class="qe-tree-count">({{ child.count }})</span>
                                                 </button>
+                                                <div
+                                                    v-show="isExpanded(comp.id, child.slug)"
+                                                    class="qe-tree-items"
+                                                >
+                                                    <button
+                                                        v-for="subItem in itemsFor(comp.id, child.slug)"
+                                                        :key="subItem.slug"
+                                                        class="qe-tree-item"
+                                                        :class="{
+                                                            active:
+                                                                selectedItem?.compendium.id === comp.id &&
+                                                                selectedItem?.collection.slug === child.slug &&
+                                                                selectedItem?.item.slug === subItem.slug,
+                                                        }"
+                                                        @click="selectItem(comp, child, subItem)"
+                                                    >
+                                                        {{ subItem.name }}
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-
-                                        <!-- ITEM CHILD -->
-                                        <button
-                                            v-else
-                                            class="qe-tree-item"
-                                            :class="{
-                                                active:
-                                                    selectedItem?.compendium.id === comp.id &&
-                                                    selectedItem?.collection.slug === coll.slug &&
-                                                    selectedItem?.item.slug === child.slug,
-                                            }"
-                                            @click="selectItem(comp, coll, child)"
-                                        >
-                                            {{ child.name }}
-                                        </button>
-                                    </template>
+    
+                                            <!-- ITEM CHILD -->
+                                            <button
+                                                v-else
+                                                class="qe-tree-item"
+                                                :class="{
+                                                    active:
+                                                        selectedItem?.compendium.id === comp.id &&
+                                                        selectedItem?.collection.slug === coll.slug &&
+                                                        selectedItem?.item.slug === child.slug,
+                                                }"
+                                                @click="selectItem(comp, coll, child)"
+                                            >
+                                                {{ child.name }}
+                                            </button>
+                                        </template>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                    <button
+                        class="qe-sidebar-toggle"
+                        :title="sidebarCollapsed ? t('game.ui.extensions.CompendiumModal.expand_sidebar') : t('game.ui.extensions.CompendiumModal.collapse_sidebar')"
+                        @click="sidebarCollapsed = !sidebarCollapsed"
+                    >
+                        <font-awesome-icon :icon="sidebarCollapsed ? 'chevron-right' : 'chevron-left'" />
+                    </button>
                 </nav>
                 <div v-if="!sidebarCollapsed" class="qe-sidebar-resizer" @mousedown.prevent="startResize" />
                 <div class="qe-content-area">
