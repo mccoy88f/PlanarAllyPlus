@@ -555,6 +555,8 @@
           "upload_error": "Caricamento documento fallito",
           "uploading": "Caricamento...",
           "delete_success": "Documento eliminato",
+          "delete_confirm": "Sei sicuro di voler eliminare il documento \"{name}\"?",
+          "delete_confirm_NAME": "Sei sicuro di voler eliminare il documento \"{name}\"?",
           "delete_error": "Impossibile eliminare il documento"
         },
         "DocumentsPdfViewer": {

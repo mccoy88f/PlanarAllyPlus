@@ -142,6 +142,7 @@ function openPdf(doc: DocumentItem): void {
 
 async function deleteDocument(doc: DocumentItem): Promise<void> {
     if (deleting.value) return;
+    if (!confirm(t("game.ui.extensions.DocumentsModal.delete_confirm", { name: doc.name }))) return;
     deleting.value = true;
     try {
         const response = await http.postJson("/api/extensions/documents/delete", { id: doc.id });

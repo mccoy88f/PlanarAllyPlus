@@ -1679,7 +1679,7 @@ onMounted(() => {
 
 .qe-sidebar-toggle {
     position: absolute;
-    right: -12px;
+    right: -24px;
     top: 50%;
     transform: translateY(-50%);
     width: 24px;
