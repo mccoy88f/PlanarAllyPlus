@@ -5,12 +5,13 @@ import re
 import uuid
 import time
 import sqlite3
+import shutil
 from pathlib import Path
 
 from aiohttp import web
 
 from ....auth import get_authorized_user
-from ....utils import EXTENSIONS_DIR
+from ....utils import DATA_DIR, EXTENSIONS_DIR
 
 EXT_ID = "compendium"
 
@@ -27,9 +28,23 @@ def _ext_dir() -> Path:
 
 
 def _db_dir() -> Path:
-    d = _ext_dir() / "db"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    # New persistent location in some data folder
+    new_dir = DATA_DIR / "extensions" / "compendium"
+    
+    # Check if we need to migrate from old ephemeral location
+    old_dir = _ext_dir() / "db"
+    if old_dir.exists() and not (new_dir / "compendiums.json").exists():
+        new_dir.mkdir(parents=True, exist_ok=True)
+        # Move all files from old to new
+        for item in old_dir.iterdir():
+            if item.is_file():
+                try:
+                    shutil.move(str(item), str(new_dir / item.name))
+                except Exception:
+                    pass # Best effort migration
+                    
+    new_dir.mkdir(parents=True, exist_ok=True)
+    return new_dir
 
 
 def _slugify(name: str) -> str:
