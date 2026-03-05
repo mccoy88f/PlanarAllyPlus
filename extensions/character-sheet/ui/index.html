@@ -970,7 +970,12 @@
           actions.appendChild(delBtn);
           li.appendChild(content);
           li.appendChild(actions);
-          li.onclick = function () { selectedId = s.id; loadSheet(s.id); loadList(); };
+          li.onclick = function () {
+            if (selectedId === s.id) return;
+            selectedId = s.id;
+            loadSheet(s.id);
+            renderSheetList();
+          };
           sheetList.appendChild(li);
         });
         var toOpen = openId || openSheetId;
@@ -986,6 +991,7 @@
           return r.ok ? r.json() : { sheets: [], characters: [] };
         }).then(function (data) {
           loading.style.display = 'none'; loadingBar.style.display = 'none'; sheets = data.sheets || []; characters = data.characters || [];
+          sheetList.style.display = 'block';
           renderSheetList(openId);
         }).catch(function () { loading.style.display = 'none'; loadingBar.style.display = 'none'; noRoom.style.display = 'block'; });
       }
@@ -1046,7 +1052,15 @@
       document.getElementById('newBtn').onclick = function () {
         if (!roomCreator || !roomName) return;
         fetch(api('/api/extensions/character-sheet/sheet'), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomCreator: roomCreator, roomName: roomName }) })
-          .then(function (r) { return r.json(); }).then(function (d) { toast('Scheda creata'); loadList(); if (d.sheetId) setTimeout(function () { loadSheet(d.sheetId); loadList(); }, 200); });
+          .then(function (r) { return r.json(); }).then(function (d) {
+            toast('Scheda creata');
+            if (d.sheetId) {
+              selectedId = d.sheetId;
+              loadList(d.sheetId);
+            } else {
+              loadList();
+            }
+          });
       };
 
       var autoSaveTimer = null;
@@ -1074,7 +1088,6 @@
       }
       editForm.addEventListener('input', scheduleAutoSave);
       editForm.addEventListener('change', scheduleAutoSave);
-      editForm.addEventListener('click', scheduleAutoSave);
 
       function toggleVisibility(id) {
         if (!id || !roomCreator || !roomName) return;
