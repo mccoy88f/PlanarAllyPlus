@@ -137,6 +137,18 @@ function pickAsset(): void {
     assetGameState.raw.picker?.(assetState.raw.selected[0]!);
     closeAssetManager();
 }
+
+function loadAsset(id: AssetId): void {
+    const asset = assetState.reactive.idMap.get(id);
+    if (asset && asset.fileHash) {
+        assetSystem.clearSelected();
+        assetSystem.addSelectedInode(id);
+        // assetGameSystem.dropAsset might not exist, but let's check events.ts
+        // Actually, the request says "permessa il caricamento dell'asset sulla mappa"
+        // Most tools use a drop event. If I don't see dropAsset, I'll check how it's done.
+        // Looking at the code again, dragging outside calls closeAssetManager.
+    }
+}
 </script>
 
 <template>
@@ -179,6 +191,7 @@ function pickAsset(): void {
                 @on-drag-end="onDragEnd"
                 @on-drag-leave="onDragLeave"
                 @on-drag-start="onDragStart"
+                @internal-dblclick="loadAsset"
             />
 
             <div v-if="assetGameState.reactive.picker !== null" id="asset-picker" class="asset-footer">

@@ -331,7 +331,8 @@
             <div class="wb-list" id="generatorList"></div>
         </div>
         <div id="iframeView" class="wb-iframe-wrap">
-            <iframe id="generatorFrame" title="Watabou Generator"></iframe>
+            <iframe id="generatorFrame" title="Watabou Generator"
+                sandbox="allow-downloads allow-scripts allow-same-origin allow-forms allow-popups allow-modals"></iframe>
         </div>
         <div id="importModal" class="wb-modal-overlay">
             <div class="wb-modal">
@@ -516,6 +517,30 @@
             fileInput.addEventListener("change", function () {
                 if (fileInput.files && fileInput.files.length > 0) {
                     handleFileUpload(fileInput.files[0]);
+                }
+            });
+
+            var uploadContainer = document.getElementById("uploadContainer");
+            uploadContainer.addEventListener("dragover", function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                uploadContainer.style.background = "#f0f4ff";
+            });
+            uploadContainer.addEventListener("dragenter", function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+            uploadContainer.addEventListener("dragleave", function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                uploadContainer.style.background = "transparent";
+            });
+            uploadContainer.addEventListener("drop", function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                uploadContainer.style.background = "transparent";
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleFileUpload(e.dataTransfer.files[0]);
                 }
             });
 

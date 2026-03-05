@@ -821,18 +821,42 @@ async def get_collections(request: web.Request) -> web.Response:
         return web.json_response({"collections": []})
     try:
         conn = _get_conn(comp_id)
+        # Get collections and count direct items
         rows = conn.execute(
             """
-            SELECT c.slug, c.name, c.parent_slug, c.display_order, COUNT(i.id) as count
+            SELECT c.slug, c.name, c.parent_slug, c.display_order, COUNT(i.id) as direct_count
             FROM collections c
             LEFT JOIN items i ON i.collection_id = c.id
             GROUP BY c.id
             ORDER BY c.display_order
             """
         ).fetchall()
+        
+        colls = [{"slug": r[0], "name": r[1], "parentSlug": r[2], "order": r[3], "count": r[4]} for r in rows]
+        
+        # Recursive count: sum direct items + counts of sub-collections
+        # We need a map for quick lookup
+        colls_map = {c["slug"]: c for c in colls}
+        # Build parent -> children map
+        children_map = {}
+        for c in colls:
+            ps = c["parentSlug"]
+            if ps not in children_map: children_map[ps] = []
+            children_map[ps].append(c["slug"])
+            
+        def get_recursive_count(slug):
+            c = colls_map[slug]
+            total = c["count"] # starting with direct items
+            for child_slug in children_map.get(slug, []):
+                total += get_recursive_count(child_slug)
+            return total
+            
+        # Update counts in place
+        for c in colls:
+            c["count"] = get_recursive_count(c["slug"])
+            
         conn.close()
-        collections = [{"slug": r[0], "name": r[1], "parentSlug": r[2], "order": r[3], "count": r[4]} for r in rows]
-        return web.json_response({"collections": collections})
+        return web.json_response({"collections": colls})
     except Exception as e:
         return web.json_response({"error": str(e), "collections": []}, status=500)
 

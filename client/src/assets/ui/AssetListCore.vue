@@ -241,6 +241,7 @@ async function showRenameUI(id: AssetId): Promise<void> {
                         assetState.reactive.selected.length > 0 && !assetState.reactive.selected.includes(file.id),
                 }"
                 @click.stop="select($event, file.id)"
+                @dblclick.stop="emit('internal-dblclick', file.id)"
                 @contextmenu.prevent="openContextMenu($event, file.id)"
                 @dragstart="dragStart($event, file.id, file.fileHash)"
                 @dragend="drag.onDragEnd"

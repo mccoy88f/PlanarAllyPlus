@@ -47,6 +47,7 @@ async function handleMessage(event: MessageEvent): Promise<void> {
     if (data?.type === "planarally-add-to-map" && data.url) {
         await addDungeonToMap(data.url, data.gridCells || { width: 40, height: 40 }, undefined, { name: data.name, params: undefined, seed: "" });
         toast.success(t("game.ui.extensions.watabou.added_to_map"));
+        if (ext?.id === "watabou" || ext?.folder === "watabou") close();
         return;
     }
 
@@ -59,6 +60,7 @@ async function handleMessage(event: MessageEvent): Promise<void> {
                 await addDungeonToMap(resData.url, resData.gridCells, undefined, { name: resData.name, params: undefined, seed: "", doors: resData.doors });
                 toast.dismiss(toastId);
                 toast.success(t("game.ui.extensions.watabou.added_to_map"));
+                if (ext?.id === "watabou" || ext?.folder === "watabou") close();
             } else {
                 toast.dismiss(toastId);
                 toast.error(t("game.ui.extensions.watabou.import_failed"), { timeout: 10000 });
@@ -250,6 +252,7 @@ const extensionModalClass = computed(() => {
                 :src="iframeUrl"
                 class="ext-modal-iframe"
                 :title="currentExtension?.name ?? 'Extension'"
+                sandbox="allow-downloads allow-forms allow-modals allow-pointer-lock allow-popups allow-presentation allow-same-origin allow-scripts"
             />
         </div>
     </Modal>
