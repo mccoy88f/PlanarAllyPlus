@@ -555,6 +555,8 @@
           "upload_error": "Failed to upload document",
           "uploading": "Uploading...",
           "delete_success": "Document deleted",
+          "delete_confirm": "Are you sure you wish to delete the document \"{name}\"?",
+          "delete_confirm_NAME": "Are you sure you wish to delete the document \"{name}\"?",
           "delete_error": "Failed to delete document"
         },
         "DocumentsPdfViewer": {
