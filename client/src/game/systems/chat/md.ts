@@ -8,10 +8,23 @@ chatMarkDown.renderer.rules.link_open = (tokens, idx, options, env, self) => {
     const href = tokens[idx]?.attrGet("href") ?? "";
     if (href.startsWith("qe:")) {
         const rest = href.slice(3);
-        const slashIdx = rest.indexOf("/");
-        const collection = slashIdx > 0 ? rest.slice(0, slashIdx) : rest;
-        const slug = slashIdx > 0 ? rest.slice(slashIdx + 1) : "";
+        const parts = rest.split("/");
+
+        let compendium = "";
+        let collection = "";
+        let slug = "";
+
+        if (parts.length >= 3) {
+            compendium = parts[0] ?? "";
+            collection = parts[1] ?? "";
+            slug = parts[2] ?? "";
+        } else {
+            collection = parts[0] ?? "";
+            slug = parts[1] ?? "";
+        }
+
         tokens[idx]?.attrSet("href", "#");
+        if (compendium) tokens[idx]?.attrSet("data-qe-compendium", compendium);
         tokens[idx]?.attrSet("data-qe-collection", collection);
         tokens[idx]?.attrSet("data-qe-slug", slug);
         tokens[idx]?.attrSet("class", "qe-chat-link qe-internal-link");

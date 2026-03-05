@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import uuid
 from pathlib import Path
@@ -51,7 +52,8 @@ async def import_image(request: web.Request) -> web.Response:
         asset = Asset.create(name=filename, file_hash=hashname, owner=user, parent=folder)
 
         from ....thumbnail import generate_thumbnail_for_asset
-        generate_thumbnail_for_asset(filename, hashname)
+        loop = asyncio.get_running_loop()
+        loop.run_in_executor(None, generate_thumbnail_for_asset, filename, hashname)
 
         local_url = f"/static/assets/{get_asset_hash_subpath(hashname).as_posix()}"
         shape_name = Path(filename).stem
@@ -118,7 +120,8 @@ async def upload_image(request: web.Request) -> web.Response:
     # Generate thumbnail
     from ....thumbnail import generate_thumbnail_for_asset
 
-    generate_thumbnail_for_asset(filename, hashname)
+    loop = asyncio.get_running_loop()
+    loop.run_in_executor(None, generate_thumbnail_for_asset, filename, hashname)
 
     url = f"/static/assets/{get_asset_hash_subpath(hashname).as_posix()}"
     return web.json_response(

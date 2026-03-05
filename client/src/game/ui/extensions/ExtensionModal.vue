@@ -250,6 +250,7 @@ const extensionModalClass = computed(() => {
                 :src="iframeUrl"
                 class="ext-modal-iframe"
                 :title="currentExtension?.name ?? 'Extension'"
+                sandbox="allow-downloads allow-forms allow-modals allow-pointer-lock allow-popups allow-presentation allow-same-origin allow-scripts"
             />
         </div>
     </Modal>
