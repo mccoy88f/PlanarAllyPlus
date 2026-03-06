@@ -13,6 +13,10 @@ import AssetUploadProgress from "../../../assets/ui/AssetUploadProgress.vue";
 import { assetGameSystem } from "../../systems/assets";
 import { assetGameState } from "../../systems/assets/state";
 import { closeAssetManager } from "../../systems/assets/ui";
+import { dropAsset } from "../../dropAsset";
+import { l2gx, l2gy } from "../../../core/conversions";
+import { toGP } from "../../../core/geometry";
+import { getImageSrcFromHash } from "../../../assets/utils";
 
 const { t } = useI18n();
 
@@ -138,15 +142,20 @@ function pickAsset(): void {
     closeAssetManager();
 }
 
-function loadAsset(id: AssetId): void {
+async function loadAsset(id: AssetId): Promise<void> {
     const asset = assetState.reactive.idMap.get(id);
     if (asset && asset.fileHash) {
         assetSystem.clearSelected();
         assetSystem.addSelectedInode(id);
-        // assetGameSystem.dropAsset might not exist, but let's check events.ts
-        // Actually, the request says "permessa il caricamento dell'asset sulla mappa"
-        // Most tools use a drop event. If I don't see dropAsset, I'll check how it's done.
-        // Looking at the code again, dragging outside calls closeAssetManager.
+        const center = toGP(l2gx(window.innerWidth / 2), l2gy(window.innerHeight / 2));
+        await dropAsset(
+            {
+                assetId: id,
+                imageSource: getImageSrcFromHash(asset.fileHash, { addBaseUrl: false }),
+            },
+            center,
+        );
+        closeAssetManager();
     }
 }
 </script>

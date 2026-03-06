@@ -41,6 +41,11 @@ class CharacterSystem implements System {
         $.characterIds.add(character.id);
         mutable.characters.set(character.id, character);
 
+        const shape = getVisualShape(getLocalId(character.shapeId)!);
+        if (shape) {
+            shape.character = character.id;
+        }
+
         checkSelectedForCharacterState(selectedState.reactive.focus);
     }
 
