@@ -771,7 +771,7 @@
     display: flex;
     gap: 2px;
     align-items: center;
-    opacity: 0;
+    opacity: 1;
     transition: opacity 0.15s;
 }
 

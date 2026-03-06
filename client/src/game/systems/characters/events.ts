@@ -18,3 +18,7 @@ socket.on("Character.Created", (char: ApiCharacter) => {
 socket.on("Character.Removed", (charId: CharacterId) => {
     characterSystem.removeCharacter(charId);
 });
+
+socket.on("Character.Unlinked", (data: { charId: CharacterId; shape: string }) => {
+    characterSystem.unlinkCharacter(data.charId);
+});

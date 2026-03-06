@@ -708,7 +708,7 @@
           "delete_shapes": "Elimina forme",
           "show_props": "Mostra proprietà",
           "open_notes": "Apri note",
-          "remove_character": "Elimina personaggio",
+          "unlink_character": "Scollega personaggio",
           "remove_marker": "Rimuovi indicatore",
           "set_marker": "Imposta indicatore",
           "no_spawn_set_title": "Non puoi spostare la forma",

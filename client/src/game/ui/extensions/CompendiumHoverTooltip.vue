@@ -18,6 +18,7 @@ const compendiumSlug = ref<string | undefined>(undefined);
 const isMouseOverTooltip = ref(false);
 let hideTimer: ReturnType<typeof setTimeout> | null = null;
 let loadingTimer: ReturnType<typeof setTimeout> | null = null;
+let hoverTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function fetchItem(comp: string | undefined, coll: string, slug: string): Promise<void> {
     if (loadingTimer) clearTimeout(loadingTimer);
@@ -150,20 +151,27 @@ function handleMouseOver(e: MouseEvent): void {
     const dataColl = target.getAttribute("data-qe-collection");
     const dataSlug = target.getAttribute("data-qe-slug");
     const href = target.getAttribute("href");
-    let qeHref: string;
+    let qeHref: string | undefined;
     if (dataColl && dataSlug) {
-        qeHref = dataComp
-            ? `qe:${dataComp}/${dataColl}/${dataSlug}`
-            : `qe:${dataColl}/${dataSlug}`;
+        qeHref = dataComp ? `qe:${dataComp}/${dataColl}/${dataSlug}` : `qe:${dataColl}/${dataSlug}`;
     } else if (href?.startsWith("qe:")) {
         qeHref = href;
-    } else {
-        return;
     }
-    show(e, qeHref);
+
+    if (qeHref) {
+        if (hoverTimer) clearTimeout(hoverTimer);
+        hoverTimer = setTimeout(() => {
+            show(e, qeHref!);
+            hoverTimer = null;
+        }, 200);
+    }
 }
 
 function handleMouseOut(e: MouseEvent): void {
+    if (hoverTimer) {
+        clearTimeout(hoverTimer);
+        hoverTimer = null;
+    }
     const target = e.target as HTMLElement;
     const related = e.relatedTarget as HTMLElement | null;
     const fromLink = target.closest("a[href^='qe:'], a[data-qe-collection]");
@@ -357,8 +365,9 @@ onUnmounted(() => {
 }
 
 .qe-tooltip-body :deep(p) { margin: 0.3rem 0; }
-.qe-tooltip-body :deep(h1), .qe-tooltip-body :deep(h2), .qe-tooltip-body :deep(h3) {
-    margin: 0.5rem 0 0.2rem;
-    font-size: 1em;
+.qe-tooltip-body :deep(img) {
+    max-width: 50%;
+    display: block;
+    margin: 0.5rem auto;
 }
 </style>

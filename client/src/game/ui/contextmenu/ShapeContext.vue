@@ -24,7 +24,7 @@ import { fromSystemForm, instantiateCompactForm } from "../../shapes/transformat
 import { deleteShapes } from "../../shapes/utils";
 import { http } from "../../../core/http";
 import { accessSystem } from "../../systems/access";
-import { sendCreateCharacter, sendRemoveCharacter } from "../../systems/characters/emits";
+import { sendCreateCharacter, sendUnlinkCharacter } from "../../systems/characters/emits";
 import { characterSystem } from "../../systems/characters";
 import { extensionsState } from "../../systems/extensions/state";
 import { openExtensionModal } from "../../systems/extensions/ui";
@@ -385,12 +385,19 @@ function createCharacter(): boolean {
     sendCreateCharacter(data);
     return true;
 }
-function removeCharacter(): boolean {
+const hasCharacter = computed(() => {
+    const selection = selectedState.reactive.selected;
+    if (selection.size !== 1) return false;
+    const shapeId = [...selection][0]!;
+    return getShape(shapeId)?.character !== undefined;
+});
+
+function unlinkCharacter(): boolean {
     const selectedId = [...selectedState.raw.selected].at(0);
     if (selectedId === undefined) return false;
     const shape = getShape(selectedId);
     if (shape?.character === undefined) return false;
-    sendRemoveCharacter(shape.character);
+    sendUnlinkCharacter(shape.character);
     return true;
 }
 
@@ -700,11 +707,11 @@ const sections = computed(() => {
                       },
                   ]
                 : []),
-            ...(!canHaveCharacter.value && isOwned.value
+            ...(isOwned.value && hasCharacter.value
                 ? [
                       {
-                          title: t("game.ui.selection.ShapeContext.remove_character"),
-                          action: removeCharacter,
+                          title: t("game.ui.contextmenu.ShapeContext.unlink_character"),
+                          action: unlinkCharacter,
                       },
                   ]
                 : []),

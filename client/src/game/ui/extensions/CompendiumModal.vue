@@ -2324,4 +2324,10 @@ onMounted(() => {
     gap: 1rem;
     margin-bottom: 1rem;
 }
+
+.qe-markdown-content :deep(img) {
+    max-width: 50%;
+    display: block;
+    margin: 0.5rem auto;
+}
 </style>

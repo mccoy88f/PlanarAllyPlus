@@ -76,6 +76,13 @@ class CharacterSystem implements System {
     getShapeId(character: CharacterId): GlobalId | undefined {
         return mutable.characters.get(character)?.shapeId;
     }
+
+    unlinkCharacter(characterId: CharacterId): void {
+        const shape = this.getShape(characterId);
+        if (shape) {
+            shape.character = undefined;
+        }
+    }
 }
 
 export const characterSystem = new CharacterSystem();

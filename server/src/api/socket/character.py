@@ -83,3 +83,35 @@ async def remove_character(sid: str, char_id: int):
         character.shape.delete_instance(True)
 
     character.delete_instance(True)
+
+
+@sio.on("Character.Unlink", namespace=GAME_NS)
+@auth.login_required(app, sio, "game")
+async def unlink_character(sid: str, char_id: int):
+    pr = game_state.get(sid)
+
+    character = Character.get_by_id(char_id)
+
+    if character is None:
+        logger.error("Attempt to unlink unknown character")
+        return
+    elif character.campaign != pr.room:
+        logger.error("Attempt to unlink character from other campaign")
+        return
+    # Only the owner and the DM can unlink a character
+    elif character.owner != pr.player and pr.role != Role.DM:
+        logger.error("Attempt to unlink character by player without access")
+        return
+
+    shape = character.shape
+    if shape:
+        shape.character_id = None
+        shape.save()
+
+        for psid, ppr in game_state.get_t(room=pr.room):
+            if has_ownership(shape, ppr, edit=True):
+                await _send_game(
+                    "Character.Unlinked",
+                    {"charId": char_id, "shape": shape.uuid},
+                    room=psid,
+                )
