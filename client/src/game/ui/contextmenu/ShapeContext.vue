@@ -710,7 +710,7 @@ const sections = computed(() => {
             ...(isOwned.value && hasCharacter.value
                 ? [
                       {
-                          title: t("game.ui.contextmenu.ShapeContext.unlink_character"),
+                          title: t("game.ui.selection.ShapeContext.unlink_character"),
                           action: unlinkCharacter,
                       },
                   ]
