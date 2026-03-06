@@ -369,7 +369,7 @@ const canHaveCharacter = computed(() => {
     const compParent = compositeState.getCompositeParent(shapeId);
     if (compParent?.variants.some((v) => getShape(v.id)?.character !== undefined) ?? false) return false;
     const shape = getShape(shapeId);
-    if (shape?.assetId === undefined) return false;
+    if (shape?.assetId === undefined || shape.character !== undefined) return false;
     return true;
 });
 
