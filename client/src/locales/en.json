@@ -708,6 +708,7 @@
           "delete_shapes": "Delete shapes",
           "show_props": "Show properties",
           "open_notes": "Open notes",
+          "unlink_character": "Unlink character",
           "remove_marker": "Remove marker",
           "set_marker": "Set marker",
           "no_spawn_set_title": "Could not move shapes",
