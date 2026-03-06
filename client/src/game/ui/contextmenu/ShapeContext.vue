@@ -24,7 +24,7 @@ import { fromSystemForm, instantiateCompactForm } from "../../shapes/transformat
 import { deleteShapes } from "../../shapes/utils";
 import { http } from "../../../core/http";
 import { accessSystem } from "../../systems/access";
-import { sendCreateCharacter } from "../../systems/characters/emits";
+import { sendCreateCharacter, sendRemoveCharacter } from "../../systems/characters/emits";
 import { characterSystem } from "../../systems/characters";
 import { extensionsState } from "../../systems/extensions/state";
 import { openExtensionModal } from "../../systems/extensions/ui";
@@ -385,6 +385,14 @@ function createCharacter(): boolean {
     sendCreateCharacter(data);
     return true;
 }
+function removeCharacter(): boolean {
+    const selectedId = [...selectedState.raw.selected].at(0);
+    if (selectedId === undefined) return false;
+    const shape = getShape(selectedId);
+    if (shape?.character === undefined) return false;
+    sendRemoveCharacter(shape.character);
+    return true;
+}
 
 const canShowSheet = computed(
     () =>
@@ -666,12 +674,6 @@ const sections = computed(() => {
                 action: createCharacter,
             });
         }
-        if (canShowSheet.value) {
-            rootGroupB.push({
-                title: t("game.ui.selection.ShapeContext.show_sheet"),
-                action: showSheet,
-            });
-        }
     }
 
     const rootGroupC: Section[] = [];
@@ -690,6 +692,22 @@ const sections = computed(() => {
                 title: t("game.ui.selection.ShapeContext.show_props"),
                 action: openEditDialog,
             },
+            ...(canShowSheet.value
+                ? [
+                      {
+                          title: t("game.ui.selection.ShapeContext.show_sheet"),
+                          action: showSheet,
+                      },
+                  ]
+                : []),
+            ...(!canHaveCharacter.value && isOwned.value
+                ? [
+                      {
+                          title: t("game.ui.selection.ShapeContext.remove_character"),
+                          action: removeCharacter,
+                      },
+                  ]
+                : []),
             {
                 title: t("game.ui.selection.ShapeContext.open_notes"),
                 action: openNotes,
