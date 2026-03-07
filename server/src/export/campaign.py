@@ -20,6 +20,7 @@ from ..db.all import ALL_MODELS, ALL_NORMAL_MODELS, ALL_VIEWS
 from ..db.db import db as ACTIVE_DB
 from ..db.db import open_db
 from ..db.models.asset import Asset
+from ..db.models.asset_entry import AssetEntry
 from ..db.models.asset_rect import AssetRect
 from ..db.models.aura import Aura
 from ..db.models.character import Character
@@ -27,7 +28,7 @@ from ..db.models.character_sheet import CharacterSheet
 from ..db.models.character_sheet_default import CharacterSheetDefault
 from ..db.models.circle import Circle
 from ..db.models.circular_token import CircularToken
-from ..db.models.composite_shape_association import CompositeShapeAssociation
+from ..db.models.font_awesome import FontAwesome
 from ..db.models.constants import Constants
 from ..db.models.data_block import DataBlock
 from ..db.models.floor import Floor
@@ -54,7 +55,6 @@ from ..db.models.shape import Shape
 from ..db.models.shape_data_block import ShapeDataBlock
 from ..db.models.shape_owner import ShapeOwner
 from ..db.models.text import Text
-from ..db.models.toggle_composite import ToggleComposite
 from ..db.models.tracker import Tracker
 from ..db.models.user import User
 from ..db.models.user_options import UserOptions
@@ -445,6 +445,7 @@ class CampaignMigrator:
         self.loop = loop
 
         self._asset_mapping: dict[int, int] = {}
+        self._asset_entry_mapping: dict[int, int] = {}
         self.aura_mapping: dict[UUID, UUID] = {}
         self.character_mapping: dict[int, int] = {}
         self._group_mapping: dict[UUID, UUID] = {}
@@ -472,20 +473,43 @@ class CampaignMigrator:
 
             asset_data = model_to_dict(asset, recurse=False)
             del asset_data["id"]
-            asset_data["owner"] = self.user_mapping[asset_data["owner"]]
-
-            if asset.parent is not None:
-                asset_data["parent"] = self.migrate_asset(asset_data["parent"])
 
         with self.to_db.bind_ctx([Asset]):
-            asset = Asset.create(**asset_data)
+            asset = Asset.get_or_none(file_hash=asset_data["file_hash"])
+            if asset is None:
+                asset = Asset.create(**asset_data)
             self._asset_mapping[asset_id] = asset.id
         return asset.id
 
-    def migrate_all_assets(self):
+    def migrate_asset_entry(self, asset_entry_id: int) -> int | None:
+        if asset_entry_id in self._asset_entry_mapping:
+            return self._asset_entry_mapping[asset_entry_id]
+
         with self.from_db.bind_ctx([Asset]):
-            for asset in Asset.filter(owner=self.rooms[0].creator):
-                self.migrate_asset(asset.id)
+            try:
+                asset_entry = AssetEntry.get_by_id(asset_entry_id)
+            except AssetEntry.DoesNotExist:
+                return None
+
+            asset_entry_data = model_to_dict(asset_entry, recurse=False)
+            del asset_entry_data["id"]
+            asset_entry_data["owner"] = self.user_mapping[asset_entry_data["owner"]]
+
+            if asset_entry.asset:
+                asset_entry_data["asset"] = self.migrate_asset(asset_entry.asset.id)
+
+            if asset_entry.parent is not None:
+                asset_entry_data["parent"] = self.migrate_asset_entry(asset_entry_data["parent"])
+
+        with self.to_db.bind_ctx([AssetEntry]):
+            asset_entry = AssetEntry.create(**asset_entry_data)
+            self._asset_entry_mapping[asset_entry_id] = asset_entry.id
+        return asset_entry.id
+
+    def migrate_all_assets(self):
+        with self.from_db.bind_ctx([AssetEntry]):
+            for asset_entry in AssetEntry.filter(owner=self.rooms[0].creator):
+                self.migrate_asset_entry(asset_entry.id)
 
     def migrate_room(self, room: Room, name: str):
         with self.from_db.bind_ctx([LocationOptions, Room]):
@@ -617,9 +641,10 @@ class CampaignMigrator:
             shape_data["uuid"] = new_uuid
 
             if shape_data["layer"]:
-                shape_data["layer"] = self.layer_mapping[shape_data["layer"]]
-            if shape_data["asset"]:
-                shape_data["asset"] = self.migrate_asset(shape_data["asset"])
+                try:
+                    shape_data["layer"] = self.layer_mapping[shape_data["layer"]]
+                except KeyError:
+                    shape_data["layer"] = None
             if shape_data["group"]:
                 shape_data["group"] = self.migrate_group(shape_data["group"])
             if shape_data["character"]:
@@ -634,12 +659,11 @@ class CampaignMigrator:
             self.migrate_assetrect(shape.assetrect_set)
             self.migrate_circle(shape.circle_set)
             self.migrate_circulartoken(shape.circulartoken_set)
+            self.migrate_fontawesome(shape.fontawesome_set)
             self.migrate_line(shape.line_set)
             self.migrate_polygon(shape.polygon_set)
             self.migrate_rect(shape.rect_set)
             self.migrate_text(shape.text_set)
-            self.migrate_togglecomposite(shape.togglecomposite_set)
-            self.migrate_composite_shape_associations(shape.shape_variants)
             self.migrate_shape_datablocks(new_uuid, shape.data_blocks)
 
     def migrate_group(self, group_id: UUID):
@@ -695,24 +719,12 @@ class CampaignMigrator:
                 with self.to_db.bind_ctx([ShapeOwner]):
                     ShapeOwner.create(**owner_data)
 
-    def migrate_composite_shape_associations(self, associations: SelectSequence[CompositeShapeAssociation]):
-        with self.from_db.bind_ctx([CompositeShapeAssociation]):
-            for association in associations:
-                association_data = model_to_dict(association, recurse=False)
-                del association_data["id"]
-                association_data["variant"] = self.migrate_shape(association_data["variant"])
-                association_data["parent"] = self.migrate_shape(association_data["parent"])
-                if association_data["variant"] is None or association_data["parent"] is None:
-                    continue
-
-                with self.to_db.bind_ctx([CompositeShapeAssociation]):
-                    CompositeShapeAssociation.create(**association_data)
-
     def migrate_assetrect(self, rects: SelectSequence[AssetRect]):
         with self.from_db.bind_ctx([AssetRect]):
             for rect in rects:
                 rect_data = model_to_dict(rect, recurse=False)
                 rect_data["shape"] = self.migrate_shape(rect_data["shape"])
+                rect_data["asset"] = self.migrate_asset(rect_data["asset"])
 
                 with self.to_db.bind_ctx([AssetRect]):
                     AssetRect.create(**rect_data)
@@ -734,6 +746,15 @@ class CampaignMigrator:
 
                 with self.to_db.bind_ctx([CircularToken]):
                     CircularToken.create(**circulartoken_data)
+
+    def migrate_fontawesome(self, fontawesomes: SelectSequence[FontAwesome]):
+        with self.from_db.bind_ctx([FontAwesome]):
+            for fontawesome in fontawesomes:
+                fontawesome_data = model_to_dict(fontawesome, recurse=False)
+                fontawesome_data["shape"] = self.migrate_shape(fontawesome_data["shape"])
+
+                with self.to_db.bind_ctx([FontAwesome]):
+                    FontAwesome.create(**fontawesome_data)
 
     def migrate_line(self, lines: SelectSequence[Line]):
         with self.from_db.bind_ctx([Line]):
@@ -770,16 +791,6 @@ class CampaignMigrator:
 
                 with self.to_db.bind_ctx([Text]):
                     Text.create(**text_data)
-
-    def migrate_togglecomposite(self, togglecomposites: SelectSequence[ToggleComposite]):
-        with self.from_db.bind_ctx([ToggleComposite]):
-            for togglecomposite in togglecomposites:
-                togglecomposite_data = model_to_dict(togglecomposite, recurse=False)
-                togglecomposite_data["shape"] = self.migrate_shape(togglecomposite_data["shape"])
-                togglecomposite_data["active_variant"] = self.migrate_shape(togglecomposite_data["active_variant"])
-
-                with self.to_db.bind_ctx([ToggleComposite]):
-                    ToggleComposite.create(**togglecomposite_data)
 
     def migrate_shape_datablocks(self, new_uuid: UUID, data_blocks: SelectSequence[ShapeDataBlock]):
         with self.from_db.bind_ctx([DataBlock, ShapeDataBlock]):
