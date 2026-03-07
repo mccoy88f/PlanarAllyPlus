@@ -405,30 +405,39 @@ async function linkCharacter(): Promise<boolean> {
     const selectedId = [...selectedState.raw.selected].at(0);
     if (selectedId === undefined) return false;
 
+    const shape = getShape(selectedId);
+    if (shape === undefined || shape.character === undefined) return false;
+
     const creator = gameState.reactive.roomCreator ?? "";
     const room = gameState.reactive.roomName ?? "";
     const url = `/api/extensions/character-sheet/list?room_creator=${encodeURIComponent(creator)}&room_name=${encodeURIComponent(room)}`;
     const resp = await http.get(url);
     if (!resp.ok) return false;
 
-    const characters = (await resp.json()) as { id: number; name: string }[];
-    if (characters.length === 0) {
-        await modals.confirm(t("common.warning"), t("game.ui.menu.MenuBar.no_characters"), { showNo: false });
+    const data = (await resp.json()) as {
+        sheets: { id: string; name: string; characterId: number | null }[];
+    };
+    const availableSheets = data.sheets.filter((s) => s.characterId === null || s.characterId === shape.character);
+
+    if (availableSheets.length === 0) {
+        await modals.confirm(t("common.warning"), t("game.ui.menu.MenuBar.no_notes"), { showNo: false });
         return false;
     }
 
-    const choices = characters.map((c) => c.name);
+    const choices = availableSheets.map((s) => s.name);
     const selection = await modals.selectionBox(t("game.ui.selection.ShapeContext.link_character"), choices);
     if (selection === undefined || selection.length === 0) return false;
 
-    const char = characters.find((c) => c.name === selection[0]);
-    if (char === undefined) return false;
+    const sheet = availableSheets.find((s) => s.name === selection[0]);
+    if (sheet === undefined) return false;
 
-    sendLinkCharacter({
-        characterId: char.id as any,
-        shape: getGlobalId(selectedId)!,
+    const associateResp = await http.postJson(`/api/extensions/character-sheet/${sheet.id}/associate`, {
+        characterId: shape.character,
+        roomCreator: creator,
+        roomName: room,
     });
-    return true;
+
+    return associateResp.ok;
 }
 
 const canShowSheet = computed(
@@ -737,16 +746,12 @@ const sections = computed(() => {
                       },
                   ]
                 : []),
-            ...(isOwned.value
+            ...(isOwned.value && hasCharacter.value
                 ? [
                       {
                           title: t("game.ui.selection.ShapeContext.link_character"),
                           action: linkCharacter,
                       },
-                  ]
-                : []),
-            ...(isOwned.value && hasCharacter.value
-                ? [
                       {
                           title: t("game.ui.selection.ShapeContext.unlink_character"),
                           action: deleteCharacter,
