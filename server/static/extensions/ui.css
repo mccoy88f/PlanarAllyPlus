@@ -452,7 +452,7 @@
 }
 
 /* Avoid double border when a header-mode-selector (with its own border-bottom) precedes ext-body */
-.header-mode-selector + .ext-body {
+.header-mode-selector+.ext-body {
     border-top: none;
 }
 
@@ -772,7 +772,7 @@
     gap: 2px;
     align-items: center;
     opacity: 1;
-    transition: opacity 0.15s;
+    transition: none;
 }
 
 .ext-ui-list-item:hover .ext-item-actions,

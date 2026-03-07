@@ -10,7 +10,7 @@ from ...models.access import has_ownership
 from ...models.role import Role
 from ...state.game import game_state
 from ..helpers import _send_game
-from ..models.character import CharacterCreate
+from ..models.character import CharacterCreate, CharacterLink
 
 
 @sio.on("Character.Create", namespace=GAME_NS)
@@ -85,33 +85,40 @@ async def remove_character(sid: str, char_id: int):
     character.delete_instance(True)
 
 
-@sio.on("Character.Unlink", namespace=GAME_NS)
+@sio.on("Character.Link", namespace=GAME_NS)
 @auth.login_required(app, sio, "game")
-async def unlink_character(sid: str, char_id: int):
+async def link_character(sid: str, raw_data: Any):
+    data = CharacterLink(**raw_data)
+
     pr = game_state.get(sid)
 
-    character = Character.get_by_id(char_id)
+    character = Character.get_by_id(data.characterId)
+    shape = Shape.get_by_id(data.shape)
 
-    if character is None:
-        logger.error("Attempt to unlink unknown character")
+    if character is None or shape is None:
+        logger.error("Attempt to link unknown character or shape")
         return
-    elif character.campaign != pr.room:
-        logger.error("Attempt to unlink character from other campaign")
+    elif character.campaign != pr.room or shape.layer.floor.location.room != pr.room:
+        logger.error("Attempt to link character/shape from other campaign")
         return
-    # Only the owner and the DM can unlink a character
-    elif character.owner != pr.player and pr.role != Role.DM:
-        logger.error("Attempt to unlink character by player without access")
+    
+    # Check permissions: DM or owner of character AND owner of shape
+    is_dm = pr.role == Role.DM
+    can_link_char = is_dm or character.owner == pr.player
+    can_link_shape = is_dm or has_ownership(shape, pr, edit=True)
+
+    if not (can_link_char and can_link_shape):
+        logger.warning("Attempt to link character without access")
         return
 
-    shape = character.shape
-    if shape:
-        shape.character_id = None
-        shape.save()
+    # Link
+    shape.character = character
+    shape.save()
 
-        for psid, ppr in game_state.get_t(room=pr.room):
-            if has_ownership(shape, ppr, edit=True):
-                await _send_game(
-                    "Character.Unlinked",
-                    {"charId": char_id, "shape": shape.uuid},
-                    room=psid,
-                )
+    for psid, ppr in game_state.get_t(room=pr.room):
+        if has_ownership(shape, ppr, edit=True):
+            await _send_game(
+                "Character.Linked",
+                {"charId": character.id, "shape": shape.uuid},
+                room=psid,
+            )

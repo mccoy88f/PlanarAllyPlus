@@ -77,10 +77,13 @@ class CharacterSystem implements System {
         return mutable.characters.get(character)?.shapeId;
     }
 
-    unlinkCharacter(characterId: CharacterId): void {
-        const shape = this.getShape(characterId);
-        if (shape) {
-            shape.character = undefined;
+    linkCharacter(characterId: CharacterId): void {
+        const character = mutable.characters.get(characterId);
+        if (character) {
+            const shape = getVisualShape(getLocalId(character.shapeId)!);
+            if (shape) {
+                shape.character = characterId;
+            }
         }
     }
 }

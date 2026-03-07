@@ -19,6 +19,6 @@ socket.on("Character.Removed", (charId: CharacterId) => {
     characterSystem.removeCharacter(charId);
 });
 
-socket.on("Character.Unlinked", (data: { charId: CharacterId; shape: string }) => {
-    characterSystem.unlinkCharacter(data.charId);
+socket.on("Character.Linked", (data: { charId: CharacterId; shape: string }) => {
+    characterSystem.linkCharacter(data.charId);
 });
