@@ -24,7 +24,7 @@ import { fromSystemForm, instantiateCompactForm } from "../../shapes/transformat
 import { deleteShapes } from "../../shapes/utils";
 import { http } from "../../../core/http";
 import { accessSystem } from "../../systems/access";
-import { sendCreateCharacter, sendUnlinkCharacter } from "../../systems/characters/emits";
+import { sendCreateCharacter, sendLinkCharacter, sendRemoveCharacter } from "../../systems/characters/emits";
 import { characterSystem } from "../../systems/characters";
 import { extensionsState } from "../../systems/extensions/state";
 import { openExtensionModal } from "../../systems/extensions/ui";
@@ -392,12 +392,42 @@ const hasCharacter = computed(() => {
     return getShape(shapeId)?.character !== undefined;
 });
 
-function unlinkCharacter(): boolean {
+function deleteCharacter(): boolean {
     const selectedId = [...selectedState.raw.selected].at(0);
     if (selectedId === undefined) return false;
     const shape = getShape(selectedId);
     if (shape?.character === undefined) return false;
-    sendUnlinkCharacter(shape.character);
+    sendRemoveCharacter(shape.character);
+    return true;
+}
+
+async function linkCharacter(): Promise<boolean> {
+    const selectedId = [...selectedState.raw.selected].at(0);
+    if (selectedId === undefined) return false;
+
+    const creator = gameState.reactive.roomCreator ?? "";
+    const room = gameState.reactive.roomName ?? "";
+    const url = `/api/extensions/character-sheet/list?room_creator=${encodeURIComponent(creator)}&room_name=${encodeURIComponent(room)}`;
+    const resp = await http.get(url);
+    if (!resp.ok) return false;
+
+    const characters = (await resp.json()) as { id: number; name: string }[];
+    if (characters.length === 0) {
+        await modals.confirm(t("common.warning"), t("game.ui.menu.MenuBar.no_characters"), { showNo: false });
+        return false;
+    }
+
+    const choices = characters.map((c) => c.name);
+    const selection = await modals.selectionBox(t("game.ui.selection.ShapeContext.link_character"), choices);
+    if (selection === undefined || selection.length === 0) return false;
+
+    const char = characters.find((c) => c.name === selection[0]);
+    if (char === undefined) return false;
+
+    sendLinkCharacter({
+        characterId: char.id as any,
+        shape: getGlobalId(selectedId)!,
+    });
     return true;
 }
 
@@ -707,11 +737,19 @@ const sections = computed(() => {
                       },
                   ]
                 : []),
+            ...(isOwned.value
+                ? [
+                      {
+                          title: t("game.ui.selection.ShapeContext.link_character"),
+                          action: linkCharacter,
+                      },
+                  ]
+                : []),
             ...(isOwned.value && hasCharacter.value
                 ? [
                       {
                           title: t("game.ui.selection.ShapeContext.unlink_character"),
-                          action: unlinkCharacter,
+                          action: deleteCharacter,
                       },
                   ]
                 : []),

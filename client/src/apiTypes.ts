@@ -27,8 +27,8 @@ export type DefaultNoteFilter = "NO_FILTER" | "ACTIVE_FILTER" | "NO_LINK_FILTER"
 export type InitiativeDirection = -1 | 0 | 1;
 
 export interface ApiShapeSize {
-    x: number;
-    y: number;
+  x: number;
+  y: number;
 }
 
 export interface ApiAsset {
@@ -515,6 +515,10 @@ export interface CharacterCreate {
   shape: GlobalId;
   name: string;
 }
+export interface CharacterLink {
+  characterId: CharacterId;
+  shape: GlobalId;
+}
 export interface ClientActiveLayerSet {
   floor: string;
   layer: string;
@@ -864,7 +868,7 @@ export interface ToggleCompositeVariant {
   shape: GlobalId;
   variant: GlobalId;
 }
-export interface TypeIdModel {}
+export interface TypeIdModel { }
 export interface ApiLocation {
   id: number;
   name: string;

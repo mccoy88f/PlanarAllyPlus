@@ -126,7 +126,12 @@ def _can_edit_character(user: User, character: Character, is_dm: bool) -> bool:
 def _get_characters_for_room(room: Room, user: User, is_dm: bool) -> list[Character]:
     characters = Character.select().where(Character.campaign == room)
     if not is_dm:
-        characters = characters.where(Character.owner == user)
+        # Include owned characters OR characters that have a sheet visible to players
+        from ....db.models.character_sheet import CharacterSheet
+        public_char_ids = CharacterSheet.select(CharacterSheet.character).where(
+            (CharacterSheet.room == room) & (CharacterSheet.visible_to_players == True)
+        )
+        characters = characters.where((Character.owner == user) | (Character.id.in_(public_char_ids)))
     return list(characters)
 
 
