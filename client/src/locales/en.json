@@ -709,7 +709,7 @@
           "show_props": "Show properties",
           "open_notes": "Open notes",
           "unlink_character": "Delete character",
-          "link_character": "Link sheet",
+          "link_character": "Link to sheet",
           "remove_marker": "Remove marker",
           "set_marker": "Set marker",
           "no_spawn_set_title": "Could not move shapes",
