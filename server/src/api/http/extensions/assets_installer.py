@@ -14,6 +14,7 @@ from aiohttp import web
 
 from ....auth import get_authorized_user
 from ....db.models.asset import Asset
+from ....db.models.asset_entry import AssetEntry
 from ....thumbnail import generate_thumbnail_for_asset
 from ....utils import ASSETS_DIR, DATA_DIR, THUMBNAILS_DIR, get_asset_hash_subpath
 
@@ -63,15 +64,119 @@ def _safe_target_path(path: str) -> Path | None:
 
 
 def _get_or_create_target_folder(user, target_path: str):
-    """Resolve target_path to an Asset folder. Empty path = root of assets."""
-    root = Asset.get_root_folder(user)
+    """Resolve target_path to an AssetEntry folder. Empty path = root of assets."""
+    root = AssetEntry.get_root_folder(user)
     if not target_path or not target_path.strip():
         return root
     parent = root
     for part in target_path.strip().replace("\\", "/").strip("/").split("/"):
         if part:
-            parent, _ = Asset.get_or_create(name=part, owner=user, parent=parent)
+            parent = parent.get_child(part)
+            if parent is None:
+                parent = AssetEntry.create(name=part, owner=user, parent=parent)
     return parent
+
+
+async def upload_zip_data(user, data, filename, target_path, static_extract=False):
+    """Core logic to extract ZIP and register assets."""
+    safe_target = _safe_target_path(target_path)
+    if safe_target is None:
+        raise ValueError("Invalid target path")
+
+    with ZipFile(io.BytesIO(data)) as zf:
+        names = zf.namelist()
+        if not names:
+            raise ValueError("ZIP file is empty")
+
+        install_id = str(uuid.uuid4())[:8]
+        install_name = Path(filename).stem
+
+        target_folder = _get_or_create_target_folder(user, target_path)
+        base_path_str = str(safe_target).replace("\\", "/") if str(safe_target) else ""
+
+        files_extracted: list[str] = []
+        asset_ids: list[int] = []
+        file_hashes: list[str] = []
+
+        for name in names:
+            if not _safe_zip_path(name):
+                continue
+            info = zf.getinfo(name)
+            if info.is_dir():
+                continue
+            rel = Path(name).as_posix()
+            if not rel or rel == ".":
+                continue
+
+            file_data = zf.read(name)
+            
+            if static_extract:
+                # Extract directly to the folder structure
+                full_static_path = ASSETS_DIR / base_path_str / rel
+                full_static_path.parent.mkdir(parents=True, exist_ok=True)
+                full_static_path.write_bytes(file_data)
+                files_extracted.append(rel)
+            else:
+                hashname = hashlib.sha1(file_data).hexdigest()
+                full_hash_path = ASSETS_DIR / get_asset_hash_subpath(hashname)
+
+                if not full_hash_path.exists():
+                    full_hash_path.parent.mkdir(parents=True, exist_ok=True)
+                    full_hash_path.write_bytes(file_data)
+
+                parent_folder = target_folder
+                rel_path = Path(rel)
+                for part in rel_path.parent.parts:
+                    if part:
+                        child = parent_folder.get_child(part)
+                        if child is None:
+                            parent_folder = AssetEntry.create(
+                                name=part, owner=user, parent=parent_folder
+                            )
+                        else:
+                            parent_folder = child
+
+                asset = Asset.get_or_create(file_hash=hashname)[0]
+                entry = AssetEntry.create(
+                    name=rel_path.name,
+                    asset=asset,
+                    owner=user,
+                    parent=parent_folder,
+                )
+                asset_ids.append(entry.id)
+                file_hashes.append(hashname)
+                files_extracted.append(rel)
+
+                try:
+                    generate_thumbnail_for_asset(rel_path.name, hashname)
+                except Exception:
+                    pass
+
+        folders_created: set[str] = {str(Path(f).parent) for f in files_extracted if "/" in f or "\\" in f}
+        folders_created.discard(".")
+        folders_sorted = sorted(folders_created, key=lambda x: x.count("/"), reverse=True)
+
+        install_record = {
+            "id": install_id,
+            "name": install_name,
+            "files": files_extracted,
+            "folders": folders_sorted,
+            "basePath": base_path_str,
+            "assetIds": asset_ids,
+            "fileHashes": file_hashes,
+            "isStatic": static_extract,
+            "installedAt": datetime.now(timezone.utc).isoformat(),
+        }
+
+        installs = _load_manifest()
+        installs.append(install_record)
+        _save_manifest(installs)
+
+        return {
+            "id": install_id,
+            "name": install_name,
+            "fileCount": len(files_extracted),
+        }
 
 
 async def upload_zip(request: web.Request) -> web.Response:
@@ -98,100 +203,9 @@ async def upload_zip(request: web.Request) -> web.Response:
     if not data:
         return web.HTTPBadRequest(text="No file in 'file' field")
 
-    safe_target = _safe_target_path(target_path)
-    if safe_target is None:
-        return web.HTTPBadRequest(text="Invalid target path")
-
     try:
-        with ZipFile(io.BytesIO(data)) as zf:
-            names = zf.namelist()
-            if not names:
-                return web.HTTPBadRequest(text="ZIP file is empty")
-
-            install_id = str(uuid.uuid4())[:8]
-            install_name = Path(filename).stem
-
-            target_folder = _get_or_create_target_folder(user, target_path)
-            base_path_str = str(safe_target).replace("\\", "/") if str(safe_target) else ""
-
-            files_extracted: list[str] = []
-            asset_ids: list[int] = []
-            file_hashes: list[str] = []
-
-            for name in names:
-                if not _safe_zip_path(name):
-                    continue
-                info = zf.getinfo(name)
-                if info.is_dir():
-                    continue
-                rel = Path(name).as_posix()
-                if not rel or rel == ".":
-                    continue
-
-                file_data = zf.read(name)
-                
-                if static_extract:
-                    # Extract directly to the folder structure
-                    full_static_path = ASSETS_DIR / base_path_str / rel
-                    full_static_path.parent.mkdir(parents=True, exist_ok=True)
-                    full_static_path.write_bytes(file_data)
-                    files_extracted.append(rel)
-                else:
-                    hashname = hashlib.sha1(file_data).hexdigest()
-                    full_hash_path = ASSETS_DIR / get_asset_hash_subpath(hashname)
-
-                    if not full_hash_path.exists():
-                        full_hash_path.parent.mkdir(parents=True, exist_ok=True)
-                        full_hash_path.write_bytes(file_data)
-
-                    parent_folder = target_folder
-                    rel_path = Path(rel)
-                    for part in rel_path.parent.parts:
-                        if part:
-                            parent_folder, _ = Asset.get_or_create(
-                                name=part, owner=user, parent=parent_folder
-                            )
-
-                    asset = Asset.create(
-                        name=rel_path.name,
-                        file_hash=hashname,
-                        owner=user,
-                        parent=parent_folder,
-                    )
-                    asset_ids.append(asset.id)
-                    file_hashes.append(hashname)
-                    files_extracted.append(rel)
-
-                    try:
-                        generate_thumbnail_for_asset(rel_path.name, hashname)
-                    except Exception:
-                        pass
-
-            folders_created: set[str] = {str(Path(f).parent) for f in files_extracted if "/" in f or "\\" in f}
-            folders_created.discard(".")
-            folders_sorted = sorted(folders_created, key=lambda x: x.count("/"), reverse=True)
-
-            install_record = {
-                "id": install_id,
-                "name": install_name,
-                "files": files_extracted,
-                "folders": folders_sorted,
-                "basePath": base_path_str,
-                "assetIds": asset_ids,
-                "fileHashes": file_hashes,
-                "isStatic": static_extract,
-                "installedAt": datetime.now(timezone.utc).isoformat(),
-            }
-
-            installs = _load_manifest()
-            installs.append(install_record)
-            _save_manifest(installs)
-
-            return web.json_response({
-                "id": install_id,
-                "name": install_name,
-                "fileCount": len(files_extracted),
-            })
+        result = await upload_zip_data(user, data, filename, target_path, static_extract)
+        return web.json_response(result)
 
     except BadZipFile:
         return web.HTTPBadRequest(text="Invalid or corrupted ZIP file")
@@ -203,7 +217,7 @@ async def upload_zip(request: web.Request) -> web.Response:
 
 def _scan_db_folder_tree(user, parent_id: int | None, rel_path: str) -> list[dict]:
     """Recursively build folder tree from DB."""
-    folders = Asset.select().where((Asset.owner == user) & (Asset.parent == parent_id) & (Asset.file_hash == None)).order_by(Asset.name)
+    folders = AssetEntry.select().where((AssetEntry.owner == user) & (AssetEntry.parent == parent_id) & (AssetEntry.asset == None)).order_by(AssetEntry.name)
     children = []
     for f in folders:
         path = f"{rel_path}/{f.name}" if rel_path else f.name
@@ -218,7 +232,7 @@ def _scan_db_folder_tree(user, parent_id: int | None, rel_path: str) -> list[dic
 async def list_folders(request: web.Request) -> web.Response:
     """List folder tree for upload target selection."""
     user = await get_authorized_user(request)
-    root_folder = Asset.get_root_folder(user)
+    root_folder = AssetEntry.get_root_folder(user)
     
     tree = {
         "name": "/",
@@ -274,10 +288,11 @@ async def uninstall(request: web.Request) -> web.Response:
             in_use = []
             for aid in asset_ids:
                 try:
-                    asset = Asset.get_by_id(aid)
-                    if asset.characters.count() > 0:
-                        in_use.append(asset.name)
-                except Asset.DoesNotExist:
+                    entry = AssetEntry.get_by_id(aid)
+                    asset = entry.asset
+                    if asset and asset.shapes.count() > 0:
+                        in_use.append(entry.name)
+                except AssetEntry.DoesNotExist:
                     pass
             
             if in_use:
@@ -288,10 +303,12 @@ async def uninstall(request: web.Request) -> web.Response:
 
             for aid in asset_ids:
                 try:
-                    asset = Asset.get_by_id(aid)
-                    fh = asset.file_hash
-                    asset.delete_instance()
-                    if fh and not Asset.select().where(Asset.file_hash == fh).exists():
+                    entry = AssetEntry.get_by_id(aid)
+                    asset = entry.asset
+                    fh = asset.file_hash if asset else None
+                    entry.delete_instance()
+                    if asset:
+                        asset.cleanup_check()
                         hp = ASSETS_DIR / get_asset_hash_subpath(fh)
                         if hp.exists():
                             hp.unlink()

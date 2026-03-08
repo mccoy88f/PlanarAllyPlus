@@ -99,6 +99,7 @@ import {
     faDiceD20,
     faCircleExclamation,
     faFloppyDisk,
+    faArrowsToCircle,
 } from "@fortawesome/free-solid-svg-icons";
 
 export function loadFontAwesome(): void {
@@ -112,6 +113,7 @@ export function loadFontAwesome(): void {
         faArrowLeft,
         faArrowRight,
         faArrowsAlt,
+        faArrowsToCircle,
         faAt,
         faBell,
         faBellSlash,

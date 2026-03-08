@@ -10,6 +10,7 @@ import { sendRemoveCharacter } from "../../systems/characters/emits";
 import type { CharacterId } from "../../systems/characters/models";
 import { characterState } from "../../systems/characters/state";
 import { gameState } from "../../systems/game/state";
+import { DropAssetInfo } from "../../dropAsset";
 
 const { t } = useI18n();
 
@@ -33,21 +34,24 @@ function dragStart(event: DragEvent): void {
     const { assetHash, assetId } = charAsset.value;
 
     event.dataTransfer.setDragImage(new Image(), 0, 0);
-    event.dataTransfer.setData("text/plain", JSON.stringify({ assetHash, assetId, characterId: characterId.value }));
+    event.dataTransfer.setData(
+        "text/plain",
+        JSON.stringify({ assetHash, assetId, characterId: characterId.value } as DropAssetInfo),
+    );
 
     characterId.value = undefined;
 }
 
-function focus(characterId: CharacterId): void {
-    const shape = characterSystem.getShape(characterId);
+function focus(charId: CharacterId): void {
+    const shape = characterSystem.getShape(charId);
     if (shape) setCenterPosition(shape.center);
 }
 
-async function remove(characterId: CharacterId): Promise<void> {
-    const name = characterState.readonly.characters.get(characterId)?.name ?? "??";
+async function remove(charId: CharacterId): Promise<void> {
+    const name = characterState.readonly.characters.get(charId)?.name ?? "??";
     const confirmed = await modals.confirm("Character Removal", `Are you sure you wish to remove character ${name}?`);
     if (confirmed ?? false) {
-        sendRemoveCharacter(characterId);
+        sendRemoveCharacter(charId);
     }
 }
 </script>

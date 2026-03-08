@@ -519,6 +519,8 @@
           "license": "Licenza",
           "install_compendium": "Installa compendio",
           "install_prompt": "Carica un file JSON e assegna un nome",
+          "install_assets": "Installa asset del compendio",
+          "assets_zip_file": "File ZIP asset (opzionale)",
           "compendium_name": "Nome compendio",
           "rename": "Rinomina compendio",
           "rename_prompt": "Inserisci il nuovo nome del compendio:",

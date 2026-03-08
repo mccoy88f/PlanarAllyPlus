@@ -12,6 +12,7 @@ from aiohttp import web
 
 from ....auth import get_authorized_user
 from ....utils import DATA_DIR, EXTENSIONS_DIR
+from .assets_installer import upload_zip_data
 
 EXT_ID = "compendium"
 
@@ -678,7 +679,7 @@ def _get_conn(comp_id: str):
 async def get_compendiums(request: web.Request) -> web.Response:
     """Elenco compendi con id, name, slug, isDefault."""
     await get_authorized_user(request)
-    _migrate_legacy()
+    # _migrate_legacy()  # Disattivato caricamento automatico 5e
     config = _load_config()
     comps_list = config["compendiums"]
     default_id = config.get("defaultId")
@@ -696,12 +697,16 @@ async def get_compendiums(request: web.Request) -> web.Response:
 
 
 async def install_compendium(request: web.Request) -> web.Response:
-    """Installa un compendio: POST multipart con name + file (JSON)."""
-    await get_authorized_user(request)
+    """Installa un compendio: POST multipart con name + file (JSON) + opzionale zipFile per gli asset."""
+    user = await get_authorized_user(request)
     try:
         reader = await request.multipart()
         name = ""
         file_content = None
+        zip_content = None
+        zip_filename = "assets.zip"
+        install_assets = False
+
         while True:
             part = await reader.next()
             if part is None:
@@ -710,15 +715,24 @@ async def install_compendium(request: web.Request) -> web.Response:
                 name = (await part.read()).decode("utf-8").strip() or "Compendium"
             elif part.name == "file":
                 file_content = await part.read()
+            elif part.name == "zipFile":
+                zip_content = await part.read()
+                if part.filename:
+                    zip_filename = part.filename
+            elif part.name == "installAssets":
+                val = (await part.read()).decode("utf-8").strip().lower()
+                install_assets = val == "true"
+
         if not file_content:
             return web.json_response({"error": "File required"}, status=400)
+        
         data = json.loads(file_content.decode("utf-8"))
-        # Rilevamento automatico formato
         if not isinstance(data, dict) or _detect_format(data) == "unknown":
             return web.json_response(
                 {"error": "Formato non supportato. Usare: formato native (collections), book/adventure 5etools, oppure file generici 5etools (spell, feat, item, ...)"},
                 status=400
             )
+
         comp_id = str(uuid.uuid4())[:8]
         slug = _slugify(name)
         config = _load_config()
@@ -728,10 +742,12 @@ async def install_compendium(request: web.Request) -> web.Response:
         while slug in existing_slugs:
             i += 1
             slug = f"{base_slug}-{i}"
+
         json_filename = f"compendium-{comp_id}.json"
         json_path = _db_dir() / json_filename
         with open(json_path, "wb") as f:
             f.write(file_content)
+
         comp = {
             "id": comp_id,
             "name": name,
@@ -739,11 +755,29 @@ async def install_compendium(request: web.Request) -> web.Response:
             "jsonFile": json_filename,
             "isDefault": len(config["compendiums"]) == 0,
         }
+
+        # Install assets if requested and zip provided
+        if install_assets and zip_content:
+            try:
+                # Install assets as static files in a subfolder named after the slug
+                # Use upload_zip_data from assets_installer
+                await upload_zip_data(
+                    user, 
+                    zip_content, 
+                    zip_filename, 
+                    target_path="", # In root or specific? Assets Installer target_path is relative to root.
+                    static_extract=True
+                )
+            except Exception as assets_err:
+                # Non-critical failure for compendium install, but log it
+                print(f"Failed to install compendium assets: {assets_err}")
+
         config["compendiums"].append(comp)
         if comp["isDefault"]:
             config["defaultId"] = comp_id
         _save_config(config)
         _ensure_sqlite(comp_id)
+
         return web.json_response({
             "id": comp_id,
             "name": name,
