@@ -14,6 +14,7 @@ from aiohttp import web
 
 from ....auth import get_authorized_user
 from ....db.models.asset import Asset
+from ....db.models.asset_entry import AssetEntry
 from ....thumbnail import generate_thumbnail_for_asset
 from ....utils import ASSETS_DIR, DATA_DIR, THUMBNAILS_DIR, get_asset_hash_subpath
 
@@ -63,14 +64,16 @@ def _safe_target_path(path: str) -> Path | None:
 
 
 def _get_or_create_target_folder(user, target_path: str):
-    """Resolve target_path to an Asset folder. Empty path = root of assets."""
-    root = Asset.get_root_folder(user)
+    """Resolve target_path to an AssetEntry folder. Empty path = root of assets."""
+    root = AssetEntry.get_root_folder(user)
     if not target_path or not target_path.strip():
         return root
     parent = root
     for part in target_path.strip().replace("\\", "/").strip("/").split("/"):
         if part:
-            parent, _ = Asset.get_or_create(name=part, owner=user, parent=parent)
+            parent = parent.get_child(part)
+            if parent is None:
+                parent = AssetEntry.create(name=part, owner=user, parent=parent)
     return parent
 
 
@@ -125,17 +128,22 @@ async def upload_zip_data(user, data, filename, target_path, static_extract=Fals
                 rel_path = Path(rel)
                 for part in rel_path.parent.parts:
                     if part:
-                        parent_folder, _ = Asset.get_or_create(
-                            name=part, owner=user, parent=parent_folder
-                        )
+                        child = parent_folder.get_child(part)
+                        if child is None:
+                            parent_folder = AssetEntry.create(
+                                name=part, owner=user, parent=parent_folder
+                            )
+                        else:
+                            parent_folder = child
 
-                asset = Asset.create(
+                asset = Asset.get_or_create(file_hash=hashname)[0]
+                entry = AssetEntry.create(
                     name=rel_path.name,
-                    file_hash=hashname,
+                    asset=asset,
                     owner=user,
                     parent=parent_folder,
                 )
-                asset_ids.append(asset.id)
+                asset_ids.append(entry.id)
                 file_hashes.append(hashname)
                 files_extracted.append(rel)
 
@@ -209,7 +217,7 @@ async def upload_zip(request: web.Request) -> web.Response:
 
 def _scan_db_folder_tree(user, parent_id: int | None, rel_path: str) -> list[dict]:
     """Recursively build folder tree from DB."""
-    folders = Asset.select().where((Asset.owner == user) & (Asset.parent == parent_id) & (Asset.file_hash == None)).order_by(Asset.name)
+    folders = AssetEntry.select().where((AssetEntry.owner == user) & (AssetEntry.parent == parent_id) & (AssetEntry.asset == None)).order_by(AssetEntry.name)
     children = []
     for f in folders:
         path = f"{rel_path}/{f.name}" if rel_path else f.name
@@ -224,7 +232,7 @@ def _scan_db_folder_tree(user, parent_id: int | None, rel_path: str) -> list[dic
 async def list_folders(request: web.Request) -> web.Response:
     """List folder tree for upload target selection."""
     user = await get_authorized_user(request)
-    root_folder = Asset.get_root_folder(user)
+    root_folder = AssetEntry.get_root_folder(user)
     
     tree = {
         "name": "/",
@@ -280,10 +288,11 @@ async def uninstall(request: web.Request) -> web.Response:
             in_use = []
             for aid in asset_ids:
                 try:
-                    asset = Asset.get_by_id(aid)
-                    if asset.characters.count() > 0:
-                        in_use.append(asset.name)
-                except Asset.DoesNotExist:
+                    entry = AssetEntry.get_by_id(aid)
+                    asset = entry.asset
+                    if asset and asset.shapes.count() > 0:
+                        in_use.append(entry.name)
+                except AssetEntry.DoesNotExist:
                     pass
             
             if in_use:
@@ -294,10 +303,12 @@ async def uninstall(request: web.Request) -> web.Response:
 
             for aid in asset_ids:
                 try:
-                    asset = Asset.get_by_id(aid)
-                    fh = asset.file_hash
-                    asset.delete_instance()
-                    if fh and not Asset.select().where(Asset.file_hash == fh).exists():
+                    entry = AssetEntry.get_by_id(aid)
+                    asset = entry.asset
+                    fh = asset.file_hash if asset else None
+                    entry.delete_instance()
+                    if asset:
+                        asset.cleanup_check()
                         hp = ASSETS_DIR / get_asset_hash_subpath(fh)
                         if hp.exists():
                             hp.unlink()
