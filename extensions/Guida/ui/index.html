@@ -107,11 +107,11 @@
 
         .official-docs-iframe {
             position: absolute;
-            top: -60px;
-            /* Offset per nascondere l'header di docusaurus */
+            top: -90px;
+            /* Offset per nascondere l'header di docusaurus locale */
             left: 0;
             width: 100%;
-            height: calc(100% + 60px);
+            height: calc(100% + 90px);
             border: none;
         }
     </style>
@@ -172,13 +172,24 @@
             }
             document.documentElement.lang = locale;
 
-            var docsPath = locale === 'it' ? '/guida-docs/' : '/guida-docs-en/';
+            var docsPath = locale === 'it' ? 'guida-docs/' : 'guida-docs-en/';
             var basePath = '';
             var pathParts = window.location.pathname.split('/api/');
             if (pathParts.length > 1) {
                 basePath = pathParts[0] || '';
             }
-            plusDocsFrame.src = basePath + docsPath;
+
+            // System Guide path: guida-docs/docs/index.html
+            var officialDocsFrame = document.getElementById('officialDocsFrame');
+            officialDocsFrame.src = basePath + '/api/extensions/guida/ui/' + docsPath + 'docs/index.html';
+
+            // Extensions Guide path: check if English extensions doc exists, otherwise fallback to IT
+            // (Since we know docs-en/docs/extensions/index.html doesn't exist, we fallback for 'en')
+            if (locale !== 'it') {
+                plusDocsFrame.src = basePath + '/api/extensions/guida/ui/guida-docs/docs/extensions/index.html';
+            } else {
+                plusDocsFrame.src = basePath + '/api/extensions/guida/ui/' + docsPath + 'docs/extensions/index.html';
+            }
 
             // Tab switching
             tabs.forEach(function (tab) {

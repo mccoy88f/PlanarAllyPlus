@@ -143,7 +143,13 @@
       "your_sessions": "Your campaigns",
       "no_sessions": "No active campaigns",
       "create_session": "Create a campaign",
-      "create_new_session": "Create a new campaign"
+      "create_new_session": "Create a new campaign",
+      "nav_games": "CAMPAIGNS",
+      "nav_assets": "ASSETS",
+      "nav_extensions": "EXTENSIONS",
+      "nav_settings": "SETTINGS",
+      "nav_admin": "ADMIN",
+      "nav_logout": "LOGOUT"
     },
     "settings": {
       "email_changed": "Email changed successfully"
