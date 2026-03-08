@@ -223,8 +223,9 @@ async def assetmgmt_rm(sid: str, data: int):
 async def cleanup_assets(entries: list[ApiAsset]):
     for entry in entries:
         if entry.assetId:
-            asset = Asset.get_by_id(entry.assetId)
-            await asset.cleanup_check()
+            asset = Asset.get_or_none(id=entry.assetId)
+            if asset:
+                await asset.cleanup_check()
 
         if entry.children:
             await cleanup_assets(entry.children)

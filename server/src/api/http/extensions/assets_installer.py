@@ -3,12 +3,7 @@
 import hashlib
 import io
 import json
-import re
-import uuid
-from datetime import datetime, timezone
-from pathlib import Path
 from zipfile import BadZipFile, ZipFile
-import traceback
 
 from aiohttp import web
 
@@ -136,9 +131,15 @@ async def upload_zip_data(user, data, filename, target_path, static_extract=Fals
                         else:
                             parent_folder = child
 
-                asset = Asset.get_or_create(file_hash=hashname)[0]
+                asset, created = Asset.get_or_create(
+                    file_hash=hashname,
+                    defaults={
+                        "kind": "regular" if not rel.lower().endswith(".dd2vtt") else "ddraft",
+                        "extension": rel.split(".")[-1] if "." in rel else None,
+                    },
+                )
                 entry = AssetEntry.create(
-                    name=rel_path.name,
+                    name=rel_path.stem if "." in rel_path.name and len(rel_path.suffix) <= 5 else rel_path.name,
                     asset=asset,
                     owner=user,
                     parent=parent_folder,
@@ -148,7 +149,7 @@ async def upload_zip_data(user, data, filename, target_path, static_extract=Fals
                 files_extracted.append(rel)
 
                 try:
-                    generate_thumbnail_for_asset(rel_path.name, hashname)
+                    await generate_thumbnail_for_asset(hashname)
                 except Exception:
                     pass
 

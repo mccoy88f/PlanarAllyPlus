@@ -794,10 +794,17 @@ def upgrade(
             db.execute_sql(
                 'CREATE TABLE IF NOT EXISTS "asset_rect_variant" ("id" INTEGER NOT NULL PRIMARY KEY, "shape_id" TEXT NOT NULL, "name" TEXT, "asset_id" INTEGER NOT NULL, "width" REAL NOT NULL, "height" REAL NOT NULL, FOREIGN KEY ("shape_id") REFERENCES "asset_rect" ("shape_id") ON DELETE CASCADE, FOREIGN KEY ("asset_id") REFERENCES "asset" ("id") ON DELETE RESTRICT)'
             )
-            db.execute_sql('CREATE INDEX "asset_rect_variant_shape_id" ON "asset_rect_variant" ("shape_id")')
-            db.execute_sql('CREATE INDEX "asset_rect_variant_asset_id" ON "asset_rect_variant" ("asset_id")')
+            db.execute_sql('CREATE INDEX IF NOT EXISTS "asset_rect_variant_shape_id" ON "asset_rect_variant" ("shape_id")')
+            db.execute_sql('CREATE INDEX IF NOT EXISTS "asset_rect_variant_asset_id" ON "asset_rect_variant" ("asset_id")')
 
-            data = db.execute_sql("SELECT variant_id, parent_id, name FROM composite_shape_association").fetchall()
+            # Check if we even need to migrate variants
+            table_exists = db.execute_sql(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='composite_shape_association'"
+            ).fetchone()
+            if not table_exists:
+                data = []
+            else:
+                data = db.execute_sql("SELECT variant_id, parent_id, name FROM composite_shape_association").fetchall()
             composite_data = {}
             parents = set()
             variants = set()
@@ -939,30 +946,33 @@ def upgrade(
             for variant_id in variants:
                 db.execute_sql("DELETE FROM shape WHERE uuid = ?", (variant_id,))
 
-            db.execute_sql("DROP TABLE toggle_composite")
-            db.execute_sql("DROP TABLE composite_shape_association")
-    elif version == 116:
-        # Add file_size column to asset & clean up orphaned thumbnail files
-        with db.atomic():
-            db.execute_sql('ALTER TABLE "asset" ADD COLUMN "file_size" INTEGER')
-            if not is_import:
-                rows = db.execute_sql("SELECT id, file_hash FROM asset WHERE file_hash IS NOT NULL").fetchall()
-                for asset_id, file_hash in rows:
-                    path = ASSETS_DIR / get_asset_hash_subpath(file_hash)
-                    if path.exists():
-                        db.execute_sql("UPDATE asset SET file_size = ? WHERE id = ?", (path.stat().st_size, asset_id))
+            db.execute_sql("DROP TABLE IF EXISTS toggle_composite")
+            db.execute_sql("DROP TABLE IF EXISTS composite_shape_association")
+            # PlanarAlly Plus - Migration for file_size and thumbnail cleanup
+            # Note: This was originally version 116 in PA+ but got out of order due to merge
+            column_exists = False
+            cursor = db.execute_sql("PRAGMA table_info(asset)")
+            for row in cursor.fetchall():
+                if row[1] == "file_size":
+                    column_exists = True
+                    break
+            if not column_exists:
+                db.execute_sql('ALTER TABLE "asset" ADD COLUMN "file_size" INTEGER')
+                if not is_import:
+                    rows = db.execute_sql("SELECT id, file_hash FROM asset WHERE file_hash IS NOT NULL").fetchall()
+                    for asset_id, file_hash in rows:
+                        path = ASSETS_DIR / get_asset_hash_subpath(file_hash)
+                        if path.exists():
+                            db.execute_sql("UPDATE asset SET file_size = ? WHERE id = ?", (path.stat().st_size, asset_id))
 
-        if not is_import:
-            known_hashes = {
-                row[0] for row in db.execute_sql("SELECT file_hash FROM asset WHERE file_hash IS NOT NULL").fetchall()
-            }
-            for subdir in ASSETS_DIR.rglob("*.thumb.*"):
-                asset_hash = subdir.name.split(".thumb.")[0]
-                if asset_hash not in known_hashes:
-                    subdir.unlink()
-    elif version == 125:
-        # Final bump for integration
-        pass
+            if not is_import:
+                known_hashes = {
+                    row[0] for row in db.execute_sql("SELECT file_hash FROM asset WHERE file_hash IS NOT NULL").fetchall()
+                }
+                for subdir in ASSETS_DIR.rglob("*.thumb.*"):
+                    asset_hash = subdir.name.split(".thumb.")[0]
+                    if asset_hash not in known_hashes:
+                        subdir.unlink()
     inc_save_version(db)
     db.foreign_keys = True
 

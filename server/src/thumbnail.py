@@ -1,10 +1,10 @@
 import io
 import warnings
+from pathlib import Path
 
 import fitz
 from PIL import Image
 
-from .db.models.asset import Asset
 from .storage import get_storage
 from .utils import ASSETS_DIR, THUMBNAILS_DIR, get_asset_hash_subpath
 
@@ -68,6 +68,7 @@ def create_thumbnail_from_bytes(input_bytes, max_size=(200, 200)):
 
 
 async def generate_thumbnail_for_asset(file_hash: str) -> None:
+    from .db.models.asset import Asset
     storage = get_storage()
 
     if not await storage.exists(file_hash):
@@ -107,6 +108,7 @@ async def generate_thumbnail_for_asset(file_hash: str) -> None:
 
 def generate_thumbnail_for_asset_sync(file_hash: str) -> None:
     """Sync version for use in thread-executor contexts (save migrations)."""
+    from .db.models.asset import Asset
     storage = get_storage()
 
     if not storage.exists_sync(file_hash):
