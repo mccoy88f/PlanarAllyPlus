@@ -1,66 +1,217 @@
 <!DOCTYPE html>
 <html lang="">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Guida PlanarAlly</title>
     <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=2" />
     <style>
-        * { box-sizing: border-box; }
-        html, body { height: 100%; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-        .guida-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; background: #fff; }
-        /* Struttura standard: ext-toolbar-bar contiene ext-search-bar (Documents, Character-sheet) */
-        .guida-toolbar .ext-search-bar { flex: 1; min-width: 0; max-width: 400px; }
-        .guida-iframe-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-        .guida-iframe { flex: 1; border: none; width: 100%; height: 100%; }
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        .guida-root {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        .guida-tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            padding: 0 10px;
+            gap: 5px;
+        }
+
+        .guida-tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            margin-bottom: -1px;
+            font-size: 14px;
+            color: #666;
+            transition: all 0.2s;
+        }
+
+        .guida-tab:hover {
+            background: #e9ecef;
+        }
+
+        .guida-tab.active {
+            background: #fff;
+            border-color: #dee2e6;
+            color: #000;
+            font-weight: 600;
+        }
+
+        .guida-toolbar {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background: #fff;
+        }
+
+        .guida-toolbar .ext-search-bar {
+            flex: 1;
+            min-width: 0;
+            max-width: 400px;
+        }
+
+        .guida-content-wrap {
+            flex: 1;
+            min-height: 0;
+            position: relative;
+        }
+
+        .guida-page {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: none;
+            flex-direction: column;
+        }
+
+        .guida-page.active {
+            display: flex;
+        }
+
+        .guida-iframe {
+            flex: 1;
+            border: none;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Trick per nascondere l'header dei docs ufficiali (clipping) */
+        .official-docs-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .official-docs-iframe {
+            position: absolute;
+            top: -60px;
+            /* Offset per nascondere l'header di docusaurus */
+            left: 0;
+            width: 100%;
+            height: calc(100% + 60px);
+            border: none;
+        }
     </style>
 </head>
+
 <body class="ext-ui-root guida-root">
-    <div class="ext-toolbar-bar guida-toolbar">
+    <div class="guida-tabs" id="guidaTabs">
+        <div class="guida-tab active" data-tab="system" id="tabSystem">Guida al Sistema</div>
+        <div class="guida-tab" data-tab="extensions" id="tabExtensions">Guida alle Estensioni</div>
+    </div>
+
+    <!-- Toolbar visibile solo per tab estensioni (per la ricerca locale) -->
+    <div id="extensionsToolbar" class="ext-toolbar-bar guida-toolbar" style="display:none">
         <div class="ext-search-bar">
             <span class="ext-search-icon" aria-hidden="true"></span>
             <input type="text" id="searchInput" class="ext-search-input" placeholder="" />
         </div>
     </div>
-    <div class="guida-iframe-wrap">
-        <iframe id="docsFrame" class="guida-iframe" title="Documentazione PlanarAlly"></iframe>
+
+    <div class="guida-content-wrap">
+        <!-- Tab 1: System Guide (Official) -->
+        <div id="pageSystem" class="guida-page active">
+            <div class="official-docs-container">
+                <iframe id="officialDocsFrame" class="official-docs-iframe" src="https://www.planarally.io/docs"
+                    title="Official PlanarAlly Docs"></iframe>
+            </div>
+        </div>
+
+        <!-- Tab 2: Extensions Guide (Plus) -->
+        <div id="pageExtensions" class="guida-page">
+            <iframe id="plusDocsFrame" class="guida-iframe" title="Documentazione Estensioni Plus"></iframe>
+        </div>
     </div>
+
     <script>
-        (function() {
+        (function () {
             var searchInput = document.getElementById('searchInput');
-            var docsFrame = document.getElementById('docsFrame');
+            var plusDocsFrame = document.getElementById('plusDocsFrame');
+            var extensionsToolbar = document.getElementById('extensionsToolbar');
+            var tabs = document.querySelectorAll('.guida-tab');
+            var pages = document.querySelectorAll('.guida-page');
 
             // URL docs: in base al locale (?locale=it|en da ExtensionModal)
             var params = new URLSearchParams(window.location.search);
-            var locale = (params.get('locale') || 'en').toLowerCase().split('-')[0];
-            var docsPath = locale === 'it' ? '/guida-docs/' : '/guida-docs-en/';
+            var locale = (params.get('locale') || 'it').toLowerCase().split('-')[0];
 
+            // Labels in base al locale
+            var tabSystem = document.getElementById('tabSystem');
+            var tabExtensions = document.getElementById('tabExtensions');
+            if (locale !== 'it') {
+                tabSystem.textContent = 'System Guide';
+                tabExtensions.textContent = 'Extensions Guide';
+                searchInput.placeholder = 'Search in guide...';
+            } else {
+                tabSystem.textContent = 'Guida al Sistema';
+                tabExtensions.textContent = 'Guida alle Estensioni';
+                searchInput.placeholder = 'Cerca nella guida...';
+            }
+            document.documentElement.lang = locale;
+
+            var docsPath = locale === 'it' ? '/guida-docs/' : '/guida-docs-en/';
             var basePath = '';
             var pathParts = window.location.pathname.split('/api/');
             if (pathParts.length > 1) {
                 basePath = pathParts[0] || '';
             }
-            docsFrame.src = basePath + docsPath;
+            plusDocsFrame.src = basePath + docsPath;
 
-            searchInput.placeholder = locale === 'it' ? 'Cerca nella guida...' : 'Search in guide...';
-            document.documentElement.lang = locale === 'it' ? 'it' : 'en';
+            // Tab switching
+            tabs.forEach(function (tab) {
+                tab.addEventListener('click', function () {
+                    var tabId = tab.getAttribute('data-tab');
+
+                    tabs.forEach(function (t) { t.classList.remove('active'); });
+                    pages.forEach(function (p) { p.classList.remove('active'); });
+
+                    tab.classList.add('active');
+                    document.getElementById('page' + tabId.charAt(0).toUpperCase() + tabId.slice(1)).classList.add('active');
+
+                    // Mostra toolbar solo per estensioni
+                    extensionsToolbar.style.display = (tabId === 'extensions') ? 'flex' : 'none';
+                });
+            });
 
             function doSearch() {
                 var q = searchInput.value.trim();
                 if (!q) return;
                 try {
-                    var doc = docsFrame.contentDocument || docsFrame.contentWindow.document;
+                    var doc = plusDocsFrame.contentDocument || plusDocsFrame.contentWindow.document;
                     if (doc && doc.body) {
-                        var found = docsFrame.contentWindow.find(q, false, false, true, false, false, true);
-                        if (!found) docsFrame.contentWindow.find(q, true, false, true, false, false, true);
+                        var found = plusDocsFrame.contentWindow.find(q, false, false, true, false, false, true);
+                        if (!found) plusDocsFrame.contentWindow.find(q, true, false, true, false, false, true);
                     }
                 } catch (e) { /* cross-origin o iframe non pronto */ }
             }
 
-            searchInput.addEventListener('input', function() {
+            searchInput.addEventListener('input', function () {
                 if (searchInput.value.trim()) doSearch();
             });
-            searchInput.addEventListener('keydown', function(e) {
+            searchInput.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter') doSearch();
                 if (e.key === 'Escape') {
                     searchInput.value = '';
@@ -70,4 +221,5 @@
         })();
     </script>
 </body>
+
 </html>

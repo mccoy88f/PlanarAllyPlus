@@ -109,8 +109,11 @@ const installDialogOpen = ref(false);
 const installName = ref("");
 const installFile = ref<File | null>(null);
 const installFiles = ref<{ file: File; name: string }[]>([]);
+const installAssets = ref(false);
+const assetZipFile = ref<File | null>(null);
 const installLoading = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
+const assetZipInputRef = ref<HTMLInputElement | null>(null);
 
 const sidebarWidth = ref(260);
 let isResizing = false;
@@ -604,6 +607,15 @@ function onInstallFileChange(e: Event): void {
     input.value = "";
 }
 
+function onAssetZipFileChange(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    const files = input.files;
+    if (files && files.length > 0) {
+        assetZipFile.value = files[0]!;
+    }
+    input.value = "";
+}
+
 async function checkAiConfig(): Promise<void> {
     try {
         const r = await http.get("/api/extensions/openrouter/settings");
@@ -870,6 +882,10 @@ async function doInstall(): Promise<void> {
         const form = new FormData();
         form.append("name", installName.value.trim());
         form.append("file", installFile.value);
+        if (installAssets.value && assetZipFile.value) {
+            form.append("installAssets", "true");
+            form.append("zipFile", assetZipFile.value);
+        }
         const r = await http.post(
             "/api/extensions/compendium/compendiums",
             form,
@@ -1536,6 +1552,30 @@ onMounted(() => {
                             @click="fileInputRef?.click()"
                         >
                             {{ installFile?.name ?? t("game.ui.extensions.CompendiumModal.install_prompt") }}
+                        </button>
+                    </div>
+                    <div class="qe-install-field checkbox-field">
+                        <label class="ext-ui-checkbox">
+                            <input v-model="installAssets" type="checkbox" />
+                            <span>{{ t("game.ui.extensions.CompendiumModal.install_assets") }}</span>
+                        </label>
+                    </div>
+                    <div v-if="installAssets" class="qe-install-field">
+                        <label>{{ t("game.ui.extensions.CompendiumModal.assets_zip_file") }}</label>
+                        <input
+                            ref="assetZipInputRef"
+                            type="file"
+                            accept=".zip"
+                            style="display: none"
+                            @change="onAssetZipFileChange"
+                        />
+                        <button
+                            type="button"
+                            class="qe-install-file-btn"
+                            :class="{ 'file-selected': !!assetZipFile }"
+                            @click="assetZipInputRef?.click()"
+                        >
+                            {{ assetZipFile?.name ?? t("game.ui.extensions.CompendiumModal.assets_zip_file") }}
                         </button>
                     </div>
                     <div class="qe-install-actions">

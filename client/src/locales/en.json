@@ -1025,6 +1025,8 @@
           "default_compendium": "Default compendium (for character sheet search)",
           "install_compendium": "Install compendium",
           "install_prompt": "Upload a JSON file and assign a name",
+          "install_assets": "Install compendium assets",
+          "assets_zip_file": "Assets ZIP file (optional)",
           "compendium_name": "Compendium name",
           "rename": "Rename compendium",
           "rename_prompt": "Enter new compendium name:",
