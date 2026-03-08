@@ -39,10 +39,15 @@ router.beforeEach(async (to, _from, next) => {
                 email: string;
                 extensions_enabled?: boolean;
             };
-            const versionData = (await versionResponse!.json()) as { release: string; env: string };
+            const versionData = (await versionResponse!.json()) as {
+                release: string;
+                env: string;
+                assetUrl: string | null;
+            };
 
             coreStore.setAuthenticated(authData.auth);
             coreStore.setVersion(versionData);
+            coreStore.setAssetUrlBase(versionData.assetUrl);
             coreStore.setInitialized(true);
 
             if (authData.auth) {

@@ -15,7 +15,7 @@ When writing migrations make sure that these things are respected:
 - It's often a good idea to start the server with a clean save and use `.schema <table_name>` in sqlite to get the exact schema output that a clean save creates
 """
 
-SAVE_VERSION = 125
+SAVE_VERSION = 126
 
 import asyncio
 import json
@@ -31,7 +31,7 @@ from .db.all import ALL_NORMAL_MODELS, ALL_VIEWS
 from .db.db import db as ACTIVE_DB
 from .db.models.constants import Constants
 from .db.models.user import User
-from .thumbnail import generate_thumbnail_for_asset
+from .thumbnail import generate_thumbnail_for_asset, generate_thumbnail_for_asset_sync
 from .utils import (
     ASSETS_DIR,
     FILE_DIR,
@@ -941,8 +941,28 @@ def upgrade(
 
             db.execute_sql("DROP TABLE toggle_composite")
             db.execute_sql("DROP TABLE composite_shape_association")
-    else:
-        raise UnknownVersionException(f"No upgrade code for save format {version} was found.")
+    elif version == 116:
+        # Add file_size column to asset & clean up orphaned thumbnail files
+        with db.atomic():
+            db.execute_sql('ALTER TABLE "asset" ADD COLUMN "file_size" INTEGER')
+            if not is_import:
+                rows = db.execute_sql("SELECT id, file_hash FROM asset WHERE file_hash IS NOT NULL").fetchall()
+                for asset_id, file_hash in rows:
+                    path = ASSETS_DIR / get_asset_hash_subpath(file_hash)
+                    if path.exists():
+                        db.execute_sql("UPDATE asset SET file_size = ? WHERE id = ?", (path.stat().st_size, asset_id))
+
+        if not is_import:
+            known_hashes = {
+                row[0] for row in db.execute_sql("SELECT file_hash FROM asset WHERE file_hash IS NOT NULL").fetchall()
+            }
+            for subdir in ASSETS_DIR.rglob("*.thumb.*"):
+                asset_hash = subdir.name.split(".thumb.")[0]
+                if asset_hash not in known_hashes:
+                    subdir.unlink()
+    elif version == 125:
+        # Final bump for integration
+        pass
     inc_save_version(db)
     db.foreign_keys = True
 
@@ -1059,7 +1079,7 @@ async def generate_thumbnails(data, loop):
 
     def generate():
         for i, (asset_name, file_hash) in enumerate(data):
-            generate_thumbnail_for_asset(file_hash)
+            generate_thumbnail_for_asset_sync(file_hash)
 
             if i % 100 == 0:
                 print(f"Generated {i} / {total_size} thumbnails")

@@ -1,16 +1,15 @@
 import { baseAdjust } from "../core/http";
+import { coreStore } from "../store/core";
 
 import type { AssetEntryId } from "./models";
 import { assetState } from "./state";
 
-export function getImageSrcFromAssetId(
-    file: AssetEntryId,
-    options?: { addBaseUrl?: boolean; thumbnailFormat?: string },
-): string {
+export function getImageSrcFromAssetId(file: AssetEntryId, options?: { thumbnailFormat?: string }): string {
     const fileHash = assetState.raw.idMap.get(file)!.fileHash ?? "";
     return getImageSrcFromHash(fileHash, options);
 }
 
+<<<<<<< HEAD
 export function getImageSrcFromHash(
     fileHash: string,
     options?: { addBaseUrl?: boolean; thumbnailFormat?: string },
@@ -21,4 +20,19 @@ export function getImageSrcFromHash(
             ? `/static/thumbnails/${hashPath}.thumb.${options.thumbnailFormat}`
             : `/static/assets/${hashPath}`;
     return (options?.addBaseUrl ?? true) ? baseAdjust(path) : path;
+=======
+export function getImageSrcFromHash(fileHash: string, options?: { thumbnailFormat?: string }): string {
+    const hashPath = `${fileHash.slice(0, 2)}/${fileHash.slice(2, 4)}/${fileHash}`;
+    const assetUrlBase = coreStore.state.assetUrlBase;
+
+    let suffix = hashPath;
+    if (options?.thumbnailFormat !== undefined) {
+        suffix = `${suffix}.thumb.${options.thumbnailFormat}`;
+    }
+
+    if (assetUrlBase !== null) {
+        return `${assetUrlBase}/${suffix}`;
+    }
+    return baseAdjust(`/static/assets/${suffix}`);
+>>>>>>> upstream/dev
 }
