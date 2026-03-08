@@ -74,26 +74,6 @@ def _save_config(config: dict) -> None:
         json.dump(config, f, indent=2, ensure_ascii=False)
 
 
-def _migrate_legacy() -> bool:
-    """Migra quintaedizione-export.json a un compendium se config vuota."""
-    config = _load_config()
-    if config["compendiums"]:
-        return True
-    legacy_json = _db_dir() / "quintaedizione-export.json"
-    if not legacy_json.exists():
-        return False
-    comp_id = str(uuid.uuid4())[:8]
-    comp = {
-        "id": comp_id,
-        "name": "Quinta Edizione",
-        "slug": "quinta-edizione",
-        "jsonFile": "quintaedizione-export.json",
-        "isDefault": True,
-    }
-    config["compendiums"] = [comp]
-    config["defaultId"] = comp_id
-    _save_config(config)
-    return True
 
 
 def _get_compendium(comp_id_or_slug: str) -> dict | None:
@@ -679,7 +659,6 @@ def _get_conn(comp_id: str):
 async def get_compendiums(request: web.Request) -> web.Response:
     """Elenco compendi con id, name, slug, isDefault."""
     await get_authorized_user(request)
-    # _migrate_legacy()  # Disattivato caricamento automatico 5e
     config = _load_config()
     comps_list = config["compendiums"]
     default_id = config.get("defaultId")
@@ -988,7 +967,6 @@ async def get_items(request: web.Request) -> web.Response:
 async def get_item(request: web.Request) -> web.Response:
     """Singolo item. Query: compendium=id o slug (opzionale, default=predefinito), collection=, slug=."""
     await get_authorized_user(request)
-    _migrate_legacy()
     config = _load_config()
     comp_param = request.query.get("compendium", "").strip()
     comp_id = _resolve_compendium_id(comp_param) if comp_param else config.get("defaultId")
@@ -1083,7 +1061,6 @@ async def search(request: web.Request) -> web.Response:
     comp_filter = request.query.get("compendium", "").strip() or None
     if not q:
         return web.json_response({"results": []})
-    _migrate_legacy()
     config = _load_config()
     comps = config["compendiums"]
     if comp_filter:
@@ -1107,7 +1084,6 @@ async def search(request: web.Request) -> web.Response:
 async def get_names(request: web.Request) -> web.Response:
     """Lista nomi per autolink. Query: compendium=id o slug (opzionale, default=predefinito)."""
     await get_authorized_user(request)
-    _migrate_legacy()
     config = _load_config()
     comp_param = request.query.get("compendium", "").strip()
     comp_id = _resolve_compendium_id(comp_param) if comp_param else config.get("defaultId")
@@ -1140,7 +1116,6 @@ async def get_names(request: web.Request) -> web.Response:
 async def get_db(request: web.Request) -> web.Response:
     """Legacy: ritorna struttura del compendium predefinito."""
     await get_authorized_user(request)
-    _migrate_legacy()
     config = _load_config()
     comp_id = config.get("defaultId")
     if not comp_id or not _ensure_sqlite(comp_id):
