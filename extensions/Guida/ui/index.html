@@ -58,18 +58,6 @@
             font-weight: 600;
         }
 
-        .guida-toolbar {
-            display: flex;
-            align-items: center;
-            padding: 10px;
-            background: #fff;
-        }
-
-        .guida-toolbar .ext-search-bar {
-            flex: 1;
-            min-width: 0;
-            max-width: 400px;
-        }
 
         .guida-content-wrap {
             flex: 1;
@@ -98,20 +86,18 @@
             height: 100%;
         }
 
-        /* Trick per nascondere l'header dei docs ufficiali (clipping) */
+        /* Rimosso il clipping per mostrare l'header dei docs ufficiali */
         .official-docs-container {
             flex: 1;
             position: relative;
-            overflow: hidden;
         }
 
         .official-docs-iframe {
             position: absolute;
-            top: -90px;
-            /* Offset per nascondere l'header di docusaurus locale */
+            top: 0;
             left: 0;
             width: 100%;
-            height: calc(100% + 90px);
+            height: 100%;
             border: none;
         }
     </style>
@@ -119,23 +105,16 @@
 
 <body class="ext-ui-root guida-root">
     <div class="guida-tabs" id="guidaTabs">
-        <div class="guida-tab active" data-tab="system" id="tabSystem">Guida al Sistema</div>
-        <div class="guida-tab" data-tab="extensions" id="tabExtensions">Guida alle Estensioni</div>
+        <div class="guida-tab active" data-tab="system" id="tabSystem">Guida a PlanarAlly</div>
+        <div class="guida-tab" data-tab="extensions" id="tabExtensions">Estensioni</div>
     </div>
 
-    <!-- Toolbar visibile solo per tab estensioni (per la ricerca locale) -->
-    <div id="extensionsToolbar" class="ext-toolbar-bar guida-toolbar" style="display:none">
-        <div class="ext-search-bar">
-            <span class="ext-search-icon" aria-hidden="true"></span>
-            <input type="text" id="searchInput" class="ext-search-input" placeholder="" />
-        </div>
-    </div>
 
     <div class="guida-content-wrap">
         <!-- Tab 1: System Guide (Official) -->
         <div id="pageSystem" class="guida-page active">
             <div class="official-docs-container">
-                <iframe id="officialDocsFrame" class="official-docs-iframe" src="https://www.planarally.io/docs"
+                <iframe id="officialDocsFrame" class="official-docs-iframe" src=""
                     title="Official PlanarAlly Docs"></iframe>
             </div>
         </div>
@@ -148,9 +127,8 @@
 
     <script>
         (function () {
-            var searchInput = document.getElementById('searchInput');
             var plusDocsFrame = document.getElementById('plusDocsFrame');
-            var extensionsToolbar = document.getElementById('extensionsToolbar');
+            var officialDocsFrame = document.getElementById('officialDocsFrame');
             var tabs = document.querySelectorAll('.guida-tab');
             var pages = document.querySelectorAll('.guida-page');
 
@@ -162,13 +140,11 @@
             var tabSystem = document.getElementById('tabSystem');
             var tabExtensions = document.getElementById('tabExtensions');
             if (locale !== 'it') {
-                tabSystem.textContent = 'System Guide';
-                tabExtensions.textContent = 'Extensions Guide';
-                searchInput.placeholder = 'Search in guide...';
+                tabSystem.textContent = 'Guide to PlanarAlly';
+                tabExtensions.textContent = 'Extensions';
             } else {
-                tabSystem.textContent = 'Guida al Sistema';
-                tabExtensions.textContent = 'Guida alle Estensioni';
-                searchInput.placeholder = 'Cerca nella guida...';
+                tabSystem.textContent = 'Guida a PlanarAlly';
+                tabExtensions.textContent = 'Estensioni';
             }
             document.documentElement.lang = locale;
 
@@ -183,13 +159,8 @@
             var officialDocsFrame = document.getElementById('officialDocsFrame');
             officialDocsFrame.src = basePath + '/api/extensions/guida/ui/' + docsPath + 'docs/index.html';
 
-            // Extensions Guide path: check if English extensions doc exists, otherwise fallback to IT
-            // (Since we know docs-en/docs/extensions/index.html doesn't exist, we fallback for 'en')
-            if (locale !== 'it') {
-                plusDocsFrame.src = basePath + '/api/extensions/guida/ui/guida-docs/docs/extensions/index.html';
-            } else {
-                plusDocsFrame.src = basePath + '/api/extensions/guida/ui/' + docsPath + 'docs/extensions/index.html';
-            }
+            // Extensions Guide path: points to our new plus-features.html
+            plusDocsFrame.src = basePath + '/api/extensions/guida/ui/plus-features.html?locale=' + locale;
 
             // Tab switching
             tabs.forEach(function (tab) {
@@ -201,33 +172,7 @@
 
                     tab.classList.add('active');
                     document.getElementById('page' + tabId.charAt(0).toUpperCase() + tabId.slice(1)).classList.add('active');
-
-                    // Mostra toolbar solo per estensioni
-                    extensionsToolbar.style.display = (tabId === 'extensions') ? 'flex' : 'none';
                 });
-            });
-
-            function doSearch() {
-                var q = searchInput.value.trim();
-                if (!q) return;
-                try {
-                    var doc = plusDocsFrame.contentDocument || plusDocsFrame.contentWindow.document;
-                    if (doc && doc.body) {
-                        var found = plusDocsFrame.contentWindow.find(q, false, false, true, false, false, true);
-                        if (!found) plusDocsFrame.contentWindow.find(q, true, false, true, false, false, true);
-                    }
-                } catch (e) { /* cross-origin o iframe non pronto */ }
-            }
-
-            searchInput.addEventListener('input', function () {
-                if (searchInput.value.trim()) doSearch();
-            });
-            searchInput.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter') doSearch();
-                if (e.key === 'Escape') {
-                    searchInput.value = '';
-                    searchInput.blur();
-                }
             });
         })();
     </script>

@@ -8,6 +8,7 @@ from aiohttp import web
 
 from ....auth import get_authorized_user
 from ....db.models.asset import Asset
+from ....db.models.asset_entry import AssetEntry
 from ....utils import ASSETS_DIR, STATIC_DIR, get_asset_hash_subpath
 
 
@@ -49,11 +50,14 @@ async def import_image(request: web.Request) -> web.Response:
         folder = _get_or_create_watabou_folder(user, generator_name)
         filename = f"{generator_name}_{uuid.uuid4().hex[:8]}.png"
         
-        asset = Asset.create(name=filename, file_hash=hashname, owner=user, parent=folder)
+        asset, _ = Asset.get_or_create(
+            file_hash=hashname,
+            defaults={"kind": "regular", "extension": "png", "file_size": len(img_bytes)},
+        )
+        entry = AssetEntry.create(name=filename, asset=asset, owner=user, parent=folder)
 
         from ....thumbnail import generate_thumbnail_for_asset
-        loop = asyncio.get_running_loop()
-        loop.run_in_executor(None, generate_thumbnail_for_asset, filename, hashname)
+        asyncio.create_task(generate_thumbnail_for_asset(hashname))
 
         local_url = f"/static/assets/{get_asset_hash_subpath(hashname).as_posix()}"
         shape_name = Path(filename).stem
@@ -73,12 +77,12 @@ async def import_image(request: web.Request) -> web.Response:
 
 
 def _get_or_create_watabou_folder(user, generator_name: str):
-    root = Asset.get_or_create_extension_folder(user, "watabou-generator")
+    root = AssetEntry.get_or_create_extension_folder(user, "watabou-generator")
     if not generator_name:
         return root
     folder = root.get_child(generator_name)
     if folder is None:
-        folder = Asset.create(name=generator_name, owner=user, parent=root)
+        folder = AssetEntry.create(name=generator_name, owner=user, parent=root)
     return folder
 
 
@@ -115,13 +119,15 @@ async def upload_image(request: web.Request) -> web.Response:
         full_hash_path.write_bytes(data)
 
     folder = _get_or_create_watabou_folder(user, generator_name)
-    asset = Asset.create(name=filename, file_hash=hashname, owner=user, parent=folder)
+    asset, _ = Asset.get_or_create(
+        file_hash=hashname,
+        defaults={"kind": "regular", "extension": "png", "file_size": len(data)},
+    )
+    entry = AssetEntry.create(name=filename, asset=asset, owner=user, parent=folder)
 
     # Generate thumbnail
     from ....thumbnail import generate_thumbnail_for_asset
-
-    loop = asyncio.get_running_loop()
-    loop.run_in_executor(None, generate_thumbnail_for_asset, filename, hashname)
+    asyncio.create_task(generate_thumbnail_for_asset(hashname))
 
     url = f"/static/assets/{get_asset_hash_subpath(hashname).as_posix()}"
     return web.json_response(
