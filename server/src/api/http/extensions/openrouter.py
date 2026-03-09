@@ -14,6 +14,7 @@ from aiohttp import web
 from ....auth import get_authorized_user
 from ....db.models.user_options import UserOptions
 from ....db.models.asset import Asset
+from ....db.models.asset_entry import AssetEntry
 from ....utils import ASSETS_DIR, STATIC_DIR
 from ....utils import get_asset_hash_subpath
 
@@ -582,11 +583,19 @@ async def transform_image(request: web.Request) -> web.Response:
         if not asset_path.exists():
             asset_path.parent.mkdir(parents=True, exist_ok=True)
             asset_path.write_bytes(img_bytes)
-        folder = Asset.get_or_create_extension_folder(user, "dungeongen")
+        folder = AssetEntry.get_or_create_extension_folder(user, "dungeongen")
         filename = f"realistic_{uuid.uuid4().hex[:8]}.png"
-        asset = Asset.create(name=filename, file_hash=h, owner=user, parent=folder)
+        asset, _ = Asset.get_or_create(
+            file_hash=h,
+            defaults={"kind": "regular", "extension": "png", "file_size": len(img_bytes)},
+        )
+        entry = AssetEntry.create(name=filename, asset=asset, owner=user, parent=folder)
+
+        from ....thumbnail import generate_thumbnail_for_asset
+        asyncio.create_task(generate_thumbnail_for_asset(h))
+
         asset_url = f"/static/assets/{get_asset_hash_subpath(h).as_posix()}"
-        return web.json_response({"imageUrl": asset_url, "assetId": asset.id})
+        return web.json_response({"imageUrl": asset_url, "assetId": asset.id, "entryId": entry.id})
     except Exception:
         # Asset creation failed — fall back to temp file so the user still
         # sees the result, but replace will not work without assetId.
@@ -1001,15 +1010,24 @@ async def import_map(request: web.Request) -> web.Response:
         asset_path.parent.mkdir(parents=True, exist_ok=True)
         asset_path.write_bytes(file_bytes)
 
-    folder = Asset.get_or_create_extension_folder(user, "AI generator")
+    folder = AssetEntry.get_or_create_extension_folder(user, "AI generator")
     stem = Path(filename).stem
     asset_name = f"{stem}_{uuid.uuid4().hex[:6]}{ext}"
-    asset = Asset.create(name=asset_name, file_hash=h, owner=user, parent=folder)
+    asset, _ = Asset.get_or_create(
+        file_hash=h,
+        defaults={"kind": "regular", "extension": ext.lstrip("."), "file_size": len(file_bytes)},
+    )
+    entry = AssetEntry.create(name=asset_name, asset=asset, owner=user, parent=folder)
+
+    from ....thumbnail import generate_thumbnail_for_asset
+    asyncio.create_task(generate_thumbnail_for_asset(h))
+
     asset_url = f"/static/assets/{get_asset_hash_subpath(h).as_posix()}"
 
     return web.json_response({
         "url": asset_url,
         "assetId": asset.id,
+        "entryId": entry.id,
         "name": stem,
         "gridCells": map_data.get("gridCells", {"width": 20, "height": 15}),
         "walls": map_data.get("walls"),

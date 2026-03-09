@@ -8,6 +8,7 @@ from aiohttp import web
 
 from ....auth import get_authorized_user
 from ....db.models.asset import Asset
+from ....db.models.asset_entry import AssetEntry
 from ....db.models.user import User
 from ....utils import ASSETS_DIR, get_asset_hash_subpath
 
@@ -22,25 +23,25 @@ def _is_playlist(name: str) -> bool:
     return Path(name).suffix.lower() == ".json"
 
 
-def _build_audio_tree(user: User, parent: Asset | None) -> list[dict]:
+def _build_audio_tree(user: User, parent: AssetEntry | None) -> list[dict]:
     """Build tree of folders and audio files. parent=None = root."""
-    root = Asset.get_root_folder(user)
+    root = AssetEntry.get_root_folder(user)
     folder = parent if parent is not None else root
     items: list[dict] = []
-    for asset in Asset.select().where((Asset.parent == folder) & (Asset.owner == user)):
-        if asset.file_hash:
-            if _is_audio(asset.name):
+    for entry in AssetEntry.select().where((AssetEntry.parent == folder) & (AssetEntry.owner == user)):
+        if entry.asset:
+            if _is_audio(entry.name):
                 items.append({
-                    "id": asset.id,
-                    "name": asset.name,
-                    "fileHash": asset.file_hash,
+                    "id": entry.id,
+                    "name": entry.name,
+                    "fileHash": entry.asset.file_hash,
                     "type": "audio",
                 })
         else:
-            children = _build_audio_tree(user, asset)
+            children = _build_audio_tree(user, entry)
             items.append({
-                "id": asset.id,
-                "name": asset.name,
+                "id": entry.id,
+                "name": entry.name,
                 "type": "folder",
                 "children": children,
             })
@@ -64,25 +65,25 @@ def _flatten_for_browser(items: list[dict], parent_id: int) -> list[dict]:
     return out
 
 
-def _build_playlist_tree(user: User, parent: Asset | None) -> list[dict]:
+def _build_playlist_tree(user: User, parent: AssetEntry | None) -> list[dict]:
     """Build tree of folders and playlist (.json) files. parent=None = root."""
-    root = Asset.get_root_folder(user)
+    root = AssetEntry.get_root_folder(user)
     folder = parent if parent is not None else root
     items: list[dict] = []
-    for asset in Asset.select().where((Asset.parent == folder) & (Asset.owner == user)):
-        if asset.file_hash:
-            if _is_playlist(asset.name):
+    for entry in AssetEntry.select().where((AssetEntry.parent == folder) & (AssetEntry.owner == user)):
+        if entry.asset:
+            if _is_playlist(entry.name):
                 items.append({
-                    "id": asset.id,
-                    "name": asset.name,
-                    "fileHash": asset.file_hash,
+                    "id": entry.id,
+                    "name": entry.name,
+                    "fileHash": entry.asset.file_hash,
                     "type": "playlist",
                 })
         else:
-            children = _build_playlist_tree(user, asset)
+            children = _build_playlist_tree(user, entry)
             items.append({
-                "id": asset.id,
-                "name": asset.name,
+                "id": entry.id,
+                "name": entry.name,
                 "type": "folder",
                 "children": children,
             })
@@ -108,7 +109,7 @@ def _flatten_playlists(items: list[dict], parent_id: int) -> list[dict]:
 async def list_audio(request: web.Request) -> web.Response:
     """List audio files and folders (Documents-style: flat items + rootId)."""
     user = await get_authorized_user(request)
-    root = Asset.get_root_folder(user)
+    root = AssetEntry.get_root_folder(user)
     tree = _build_audio_tree(user, None)
     items = _flatten_for_browser(tree, root.id)
     return web.json_response({"items": items, "rootId": root.id})
@@ -121,23 +122,23 @@ async def serve_audio(request: web.Request) -> web.Response:
     if not file_hash or len(file_hash) < 40:
         return web.HTTPBadRequest(text="Invalid file hash")
 
-    asset = Asset.get_or_none((Asset.file_hash == file_hash) & (Asset.owner == user))
-    if not asset:
-        for candidate in Asset.select().where(Asset.file_hash == file_hash):
+    # We need to find an entry that matches the hash and is owned by the user
+    entry = AssetEntry.select().join(Asset).where((Asset.file_hash == file_hash) & (AssetEntry.owner == user)).first()
+    if not entry:
+        # Check shared access
+        for candidate in AssetEntry.select().join(Asset).where(Asset.file_hash == file_hash):
             if _is_audio(candidate.name) and candidate.can_be_accessed_by(user, right="view"):
-                asset = candidate
+                entry = candidate
                 break
-        else:
-            asset = None
 
-    if not asset:
+    if not entry:
         return web.HTTPNotFound(text="Audio not found")
 
     path = ASSETS_DIR / get_asset_hash_subpath(file_hash)
     if not path.exists():
         return web.HTTPNotFound(text="File not found")
 
-    ext = Path(asset.name).suffix.lower()
+    ext = Path(entry.name).suffix.lower()
     mime = {
         ".mp3": "audio/mpeg",
         ".ogg": "audio/ogg",
@@ -153,7 +154,7 @@ async def serve_audio(request: web.Request) -> web.Response:
         path,
         headers={
             "Content-Type": mime,
-            "Content-Disposition": f'inline; filename="{asset.name}"',
+            "Content-Disposition": f'inline; filename="{entry.name}"',
         },
     )
 
@@ -161,7 +162,7 @@ async def serve_audio(request: web.Request) -> web.Response:
 async def list_playlists(request: web.Request) -> web.Response:
     """List folders and playlist (.json) files in assets (Documents-style)."""
     user = await get_authorized_user(request)
-    root = Asset.get_root_folder(user)
+    root = AssetEntry.get_root_folder(user)
     tree = _build_playlist_tree(user, None)
     items = _flatten_playlists(tree, root.id)
     return web.json_response({"items": items, "rootId": root.id})
@@ -174,16 +175,14 @@ async def serve_playlist(request: web.Request) -> web.Response:
     if not file_hash or len(file_hash) < 40:
         return web.HTTPBadRequest(text="Invalid file hash")
 
-    asset = Asset.get_or_none((Asset.file_hash == file_hash) & (Asset.owner == user))
-    if not asset:
-        for candidate in Asset.select().where(Asset.file_hash == file_hash):
+    entry = AssetEntry.select().join(Asset).where((Asset.file_hash == file_hash) & (AssetEntry.owner == user)).first()
+    if not entry:
+        for candidate in AssetEntry.select().join(Asset).where(Asset.file_hash == file_hash):
             if _is_playlist(candidate.name) and candidate.can_be_accessed_by(user, right="view"):
-                asset = candidate
+                entry = candidate
                 break
-        else:
-            asset = None
 
-    if not asset:
+    if not entry:
         return web.HTTPNotFound(text="Playlist not found")
 
     path = ASSETS_DIR / get_asset_hash_subpath(file_hash)
@@ -194,23 +193,23 @@ async def serve_playlist(request: web.Request) -> web.Response:
         path,
         headers={
             "Content-Type": "application/json",
-            "Content-Disposition": f'inline; filename="{asset.name}"',
+            "Content-Disposition": f'inline; filename="{entry.name}"',
         },
     )
 
 
-def _get_playlist_parent(user: User, parent_id: int | None) -> Asset:
+def _get_playlist_parent(user: User, parent_id: int | None) -> AssetEntry:
     """Get parent folder for upload; must be in user's assets."""
-    root = Asset.get_root_folder(user)
+    root = AssetEntry.get_root_folder(user)
     if parent_id is None:
         return root
     try:
-        parent = Asset.get_by_id(parent_id)
-    except Asset.DoesNotExist:
+        parent = AssetEntry.get_by_id(parent_id)
+    except AssetEntry.DoesNotExist:
         return root
     if parent.owner != user:
         return root
-    if parent.file_hash is not None:
+    if parent.asset is not None:
         return root  # parent must be a folder
     return parent
 
@@ -237,17 +236,25 @@ async def upload_playlist(request: web.Request) -> web.Response:
         full_path.write_bytes(content)
 
     folder = _get_playlist_parent(user, parent_id)
-    existing = Asset.get_or_none(
-        (Asset.parent == folder) & (Asset.name == name) & (Asset.owner == user),
+    existing = AssetEntry.get_or_none(
+        (AssetEntry.parent == folder) & (AssetEntry.name == name) & (AssetEntry.owner == user),
     )
     if existing:
-        existing.file_hash = hashname
+        asset, _ = Asset.get_or_create(
+            file_hash=hashname,
+            defaults={"kind": "regular", "extension": "json", "file_size": len(content)},
+        )
+        existing.asset = asset
         existing.save()
         return web.json_response(
             {"id": existing.id, "name": existing.name, "fileHash": hashname, "folderId": folder.id},
         )
 
-    asset = Asset.create(name=name, file_hash=hashname, owner=user, parent=folder)
+    asset, _ = Asset.get_or_create(
+        file_hash=hashname,
+        defaults={"kind": "regular", "extension": "json", "file_size": len(content)},
+    )
+    entry = AssetEntry.create(name=name, asset=asset, owner=user, parent=folder)
     return web.json_response(
-        {"id": asset.id, "name": asset.name, "fileHash": asset.file_hash, "folderId": folder.id},
+        {"id": entry.id, "name": entry.name, "fileHash": hashname, "folderId": folder.id},
     )

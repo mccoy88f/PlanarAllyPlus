@@ -1,5 +1,6 @@
 """Documents extension - PDF upload and management in assets."""
 
+import asyncio
 import hashlib
 import json
 from pathlib import Path
@@ -8,6 +9,7 @@ from aiohttp import web
 
 from ....auth import get_authorized_user
 from ....db.models.asset import Asset
+from ....db.models.asset_entry import AssetEntry
 from ....db.models.player_room import PlayerRoom
 from ....db.models.room import Room
 from ....db.models.user import User
@@ -20,15 +22,15 @@ DOCUMENT_VISIBILITY_FILE = DATA_DIR / "document_visibility.json"
 EXTENSION_ID = "documents"
 
 
-def _get_or_create_documents_folder(user: User) -> Asset:
+def _get_or_create_documents_folder(user: User) -> AssetEntry:
     """Get or create the documents folder at assets/extensions/documents."""
-    return Asset.get_or_create_extension_folder(user, EXTENSION_ID)
+    return AssetEntry.get_or_create_extension_folder(user, EXTENSION_ID)
 
 
-def _is_in_documents_tree(asset: Asset, user: User) -> bool:
-    """Check if asset is under the user's documents folder."""
+def _is_in_documents_tree(entry: AssetEntry, user: User) -> bool:
+    """Check if entry is under the user's documents folder."""
     docs_folder = _get_or_create_documents_folder(user)
-    current = asset.parent
+    current = entry.parent
     while current is not None:
         if current.id == docs_folder.id:
             return True
@@ -43,16 +45,15 @@ async def serve_document(request: web.Request) -> web.Response:
     if not file_hash or len(file_hash) < 40:
         return web.HTTPBadRequest(text="Invalid file hash")
 
-    # Find asset: owned by user in documents tree, or DM's doc visible to players in user's room
+    # Find entry: owned by user in documents tree, or DM's doc visible to players in user's room
     docs_folder = _get_or_create_documents_folder(user)
-    asset = Asset.get_or_none(
-        (Asset.file_hash == file_hash) & (Asset.owner == user),
-    )
-    if asset and _is_in_documents_tree(asset, user):
+    entry = AssetEntry.select().join(Asset).where((Asset.file_hash == file_hash) & (AssetEntry.owner == user)).first()
+    
+    if entry and _is_in_documents_tree(entry, user):
         pass  # User's own document
     else:
-        asset = None
-        for candidate in Asset.select().where(Asset.file_hash == file_hash):
+        entry = None
+        for candidate in AssetEntry.select().join(Asset).where(Asset.file_hash == file_hash):
             if not candidate.name or not candidate.name.lower().endswith(".pdf"):
                 continue
             if candidate.owner == user:
@@ -69,13 +70,10 @@ async def serve_document(request: web.Request) -> web.Response:
                 room = _get_room(cr, rn)
                 if not room or room.creator != candidate.owner:
                     continue
-                if PlayerRoom.get_or_none(PlayerRoom.room == room, PlayerRoom.player == user):
-                    asset = candidate
-                    break
-            if asset is not None:
+            if entry is not None:
                 break
 
-    if not asset:
+    if not entry:
         return web.HTTPNotFound(text="Document not found")
 
     path = ASSETS_DIR / get_asset_hash_subpath(file_hash)
@@ -86,7 +84,7 @@ async def serve_document(request: web.Request) -> web.Response:
         path,
         headers={
             "Content-Type": "application/pdf",
-            "Content-Disposition": f'inline; filename="{asset.name}"',
+            "Content-Disposition": f'inline; filename="{entry.name}"',
         },
     )
 
@@ -138,13 +136,13 @@ def _set_document_visibility(room_key: str, asset_id: int, visible: bool) -> Non
 
 
 def _get_visible_document_ids(owner: User, vis_map: dict[str, bool]) -> set[int]:
-    """Return set of document IDs visible to players. When a folder is visible, all docs inside it are visible."""
+    """Return set of document IDs (AssetEntry IDs) visible to players. When a folder is visible, all docs inside it are visible."""
     docs_folder = _get_or_create_documents_folder(owner)
     visible_ids: set[int] = set()
 
-    def collect_from_folder(folder: Asset) -> None:
-        for child in Asset.select().where((Asset.parent == folder) & (Asset.owner == owner)):
-            if child.file_hash and child.name and child.name.lower().endswith(".pdf"):
+    def collect_from_folder(folder: AssetEntry) -> None:
+        for child in AssetEntry.select().where((AssetEntry.parent == folder) & (AssetEntry.owner == owner)):
+            if child.asset and child.name and child.name.lower().endswith(".pdf"):
                 visible_ids.add(child.id)
             else:
                 collect_from_folder(child)
@@ -157,22 +155,22 @@ def _get_visible_document_ids(owner: User, vis_map: dict[str, bool]) -> set[int]
         except ValueError:
             continue
         try:
-            asset = Asset.get_by_id(aid)
-        except Asset.DoesNotExist:
+            entry = AssetEntry.get_by_id(aid)
+        except AssetEntry.DoesNotExist:
             continue
-        if asset.owner != owner or not _is_in_documents_tree(asset, owner):
+        if entry.owner != owner or not _is_in_documents_tree(entry, owner):
             continue
-        if asset.file_hash and asset.name.lower().endswith(".pdf"):
-            visible_ids.add(asset.id)
+        if entry.asset and entry.name.lower().endswith(".pdf"):
+            visible_ids.add(entry.id)
         else:
-            collect_from_folder(asset)
+            collect_from_folder(entry)
 
     return visible_ids
 
 
 def _build_documents_tree(
     user: User,
-    parent: Asset | None,
+    parent: AssetEntry | None,
     *,
     owner_filter: User | None = None,
     visible_asset_ids: set[int] | None = None,
@@ -189,22 +187,22 @@ def _build_documents_tree(
     items: list[dict] = []
     owner = owner_filter or user
 
-    for asset in Asset.select().where((Asset.parent == folder) & (Asset.owner == owner)):
-        direct_vis = visibility_map.get(str(asset.id), False) if visibility_map else False
+    for entry in AssetEntry.select().where((AssetEntry.parent == folder) & (AssetEntry.owner == owner)):
+        direct_vis = visibility_map.get(str(entry.id), False) if visibility_map else False
         effective_vis = parent_visible or direct_vis
 
-        if asset.file_hash:
-            if asset.name.lower().endswith(".pdf"):
-                if visible_asset_ids is not None and asset.id not in visible_asset_ids:
+        if entry.asset:
+            if entry.name.lower().endswith(".pdf"):
+                if visible_asset_ids is not None and entry.id not in visible_asset_ids:
                     continue
                 doc_item: dict = {
-                    "id": asset.id,
-                    "name": asset.name,
-                    "fileHash": asset.file_hash,
-                    "folderId": asset.parent_id,
+                    "id": entry.id,
+                    "name": entry.name,
+                    "fileHash": entry.asset.file_hash,
+                    "folderId": entry.parent_id,
                     "type": "document",
                 }
-                if thumb := _thumbnail_path(asset.file_hash):
+                if thumb := _thumbnail_path(entry.asset.file_hash):
                     doc_item["thumbnailUrl"] = thumb
                 if visibility_map is not None:
                     doc_item["visibleToPlayers"] = effective_vis
@@ -214,7 +212,7 @@ def _build_documents_tree(
         else:
             children = _build_documents_tree(
                 user,
-                asset,
+                entry,
                 owner_filter=owner_filter,
                 visible_asset_ids=visible_asset_ids,
                 visibility_map=visibility_map,
@@ -224,9 +222,9 @@ def _build_documents_tree(
             if visible_asset_ids is not None and not children:
                 continue
             folder_item: dict = {
-                "id": asset.id,
-                "name": asset.name,
-                "folderId": asset.parent_id,
+                "id": entry.id,
+                "name": entry.name,
+                "folderId": entry.parent_id,
                 "type": "folder",
                 "children": children,
             }
@@ -320,18 +318,18 @@ async def list_documents(request: web.Request) -> web.Response:
     return web.json_response({"documents": flat, "tree": tree, "rootId": docs_folder.id})
 
 
-def _get_documents_parent(user: User, parent_id: int | None) -> Asset:
+def _get_documents_parent(user: User, parent_id: int | None) -> AssetEntry:
     """Get parent folder for upload/create; must be in documents tree."""
     docs_folder = _get_or_create_documents_folder(user)
     if parent_id is None:
         return docs_folder
     try:
-        parent = Asset.get_by_id(parent_id)
-    except Asset.DoesNotExist:
+        parent = AssetEntry.get_by_id(parent_id)
+    except AssetEntry.DoesNotExist:
         return docs_folder
     if parent.owner != user or not _is_in_documents_tree(parent, user):
         return docs_folder
-    if parent.file_hash is not None:
+    if parent.asset is not None:
         return docs_folder  # parent must be a folder
     return parent
 
@@ -371,12 +369,17 @@ async def upload_document(request: web.Request) -> web.Response:
         full_hash_path.write_bytes(data)
 
     folder = _get_documents_parent(user, parent_id)
-    asset = Asset.create(name=filename, file_hash=hashname, owner=user, parent=folder)
+    asset, _ = Asset.get_or_create(
+        file_hash=hashname,
+        defaults={"kind": "regular", "extension": "pdf", "file_size": len(data)},
+    )
+    entry = AssetEntry.create(name=filename, asset=asset, owner=user, parent=folder)
 
-    generate_thumbnail_for_asset(filename, hashname)
+    from ....thumbnail import generate_thumbnail_for_asset
+    asyncio.create_task(generate_thumbnail_for_asset(hashname))
 
     return web.json_response(
-        {"id": asset.id, "name": asset.name, "fileHash": asset.file_hash, "folderId": folder.id}
+        {"id": entry.id, "name": entry.name, "fileHash": hashname, "folderId": folder.id}
     )
 
 
@@ -391,14 +394,14 @@ async def create_folder(request: web.Request) -> web.Response:
 
     pid = int(parent_id) if parent_id is not None else None
     folder = _get_documents_parent(user, pid)
-    existing = Asset.get_or_none(
-        (Asset.parent == folder) & (Asset.name == name) & (Asset.owner == user),
+    existing = AssetEntry.get_or_none(
+        (AssetEntry.parent == folder) & (AssetEntry.name == name) & (AssetEntry.owner == user),
     )
     if existing:
         return web.HTTPBadRequest(text="A folder or file with this name already exists")
 
-    asset = Asset.create(name=name, file_hash=None, owner=user, parent=folder)
-    return web.json_response({"id": asset.id, "name": asset.name, "folderId": folder.id, "type": "folder"})
+    entry = AssetEntry.create(name=name, asset=None, owner=user, parent=folder)
+    return web.json_response({"id": entry.id, "name": entry.name, "folderId": folder.id, "type": "folder"})
 
 
 async def rename_document(request: web.Request) -> web.Response:
@@ -413,24 +416,24 @@ async def rename_document(request: web.Request) -> web.Response:
         return web.HTTPBadRequest(text="Name is required")
 
     try:
-        asset = Asset.get_by_id(item_id)
-    except Asset.DoesNotExist:
+        entry = AssetEntry.get_by_id(item_id)
+    except AssetEntry.DoesNotExist:
         return web.HTTPNotFound(text="Item not found")
 
-    if asset.owner != user:
+    if entry.owner != user:
         return web.HTTPForbidden(text="Not owner")
-    if not _is_in_documents_tree(asset, user):
+    if not _is_in_documents_tree(entry, user):
         return web.HTTPBadRequest(text="Item not in documents")
 
-    sibling = Asset.get_or_none(
-        (Asset.parent == asset.parent) & (Asset.name == name) & (Asset.owner == user),
+    sibling = AssetEntry.get_or_none(
+        (AssetEntry.parent == entry.parent) & (AssetEntry.name == name) & (AssetEntry.owner == user),
     )
-    if sibling and sibling.id != asset.id:
+    if sibling and sibling.id != entry.id:
         return web.HTTPBadRequest(text="A folder or file with this name already exists")
 
-    asset.name = name
-    asset.save()
-    return web.json_response({"id": asset.id, "name": asset.name})
+    entry.name = name
+    entry.save()
+    return web.json_response({"id": entry.id, "name": entry.name})
 
 
 async def move_document(request: web.Request) -> web.Response:
@@ -443,24 +446,24 @@ async def move_document(request: web.Request) -> web.Response:
         return web.HTTPBadRequest(text="Id is required")
 
     try:
-        asset = Asset.get_by_id(item_id)
-    except Asset.DoesNotExist:
+        entry = AssetEntry.get_by_id(item_id)
+    except AssetEntry.DoesNotExist:
         return web.HTTPNotFound(text="Item not found")
 
-    if asset.owner != user:
+    if entry.owner != user:
         return web.HTTPForbidden(text="Not owner")
-    if not _is_in_documents_tree(asset, user):
+    if not _is_in_documents_tree(entry, user):
         return web.HTTPBadRequest(text="Item not in documents")
 
     docs_folder = _get_or_create_documents_folder(user)
     new_parent = docs_folder if parent_id is None else None
     if parent_id is not None:
         try:
-            p = Asset.get_by_id(parent_id)
-            if p.owner == user and _is_in_documents_tree(p, user) and p.file_hash is None:
-                if p.id != asset.id and not _is_descendant(p, asset):
+            p = AssetEntry.get_by_id(parent_id)
+            if p.owner == user and _is_in_documents_tree(p, user) and p.asset is None:
+                if p.id != entry.id and not _is_descendant(p, entry):
                     new_parent = p
-        except Asset.DoesNotExist:
+        except AssetEntry.DoesNotExist:
             pass
 
     if new_parent is None:
@@ -506,14 +509,14 @@ async def generate_thumbnails(request: web.Request) -> web.Response:
     for h in hashes:
         if not isinstance(h, str) or len(h) < 40:
             continue
-        asset = Asset.get_or_none((Asset.file_hash == h) & (Asset.owner == user))
-        if not asset or not _is_in_documents_tree(asset, user):
+        entry = AssetEntry.select().join(Asset).where((Asset.file_hash == h) & (AssetEntry.owner == user)).first()
+        if not entry or not _is_in_documents_tree(entry, user):
             continue
-        if not asset.name or not asset.name.lower().endswith(".pdf"):
+        if not entry.name or not entry.name.lower().endswith(".pdf"):
             continue
         if _thumbnail_path(h):
             continue
-        generate_thumbnail_for_asset(asset.name, h)
+        asyncio.create_task(generate_thumbnail_for_asset(h))
         generated += 1
 
     return web.json_response({"generated": generated})
@@ -566,18 +569,18 @@ async def delete_document(request: web.Request) -> web.Response:
         return web.HTTPBadRequest(text="Document id is required")
 
     try:
-        asset = Asset.get_by_id(doc_id)
-    except Asset.DoesNotExist:
+        entry = AssetEntry.get_by_id(doc_id)
+    except AssetEntry.DoesNotExist:
         return web.HTTPNotFound(text="Document not found")
 
-    if asset.owner != user:
+    if entry.owner != user:
         return web.HTTPForbidden(text="Not owner of this document")
 
-    if not _is_in_documents_tree(asset, user):
+    if not _is_in_documents_tree(entry, user):
         return web.HTTPBadRequest(text="Item not in documents folder")
 
-    if asset.file_hash and not asset.name.lower().endswith(".pdf"):
+    if entry.asset and not entry.name.lower().endswith(".pdf"):
         return web.HTTPBadRequest(text="Not a valid document")
 
-    asset.delete_instance()
+    entry.delete_instance()
     return web.json_response({"ok": True})

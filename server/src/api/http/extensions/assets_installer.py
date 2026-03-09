@@ -1,8 +1,14 @@
+from __future__ import annotations
+
 """Assets Installer extension - upload ZIP files to extract into assets folder."""
 
 import hashlib
 import io
 import json
+import traceback
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
 from aiohttp import web
@@ -44,7 +50,7 @@ def _safe_zip_path(name: str) -> bool:
     return True
 
 
-def _safe_target_path(path: str) -> Path | None:
+def _safe_target_path(path: str) -> "Path" | None:
     """Validate target path and return path relative to ASSETS_DIR, or None if invalid."""
     if not path or not path.strip():
         return Path("")
@@ -66,9 +72,11 @@ def _get_or_create_target_folder(user, target_path: str):
     parent = root
     for part in target_path.strip().replace("\\", "/").strip("/").split("/"):
         if part:
-            parent = parent.get_child(part)
-            if parent is None:
+            child = parent.get_child(part)
+            if child is None:
                 parent = AssetEntry.create(name=part, owner=user, parent=parent)
+            else:
+                parent = child
     return parent
 
 

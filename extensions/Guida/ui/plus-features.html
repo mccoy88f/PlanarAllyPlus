@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estensioni e Funzioni Plus</title>
+    <style>
+        :root {
+            --fg-color: #222;
+            --bg-color: #fff;
+            --accent-color: #00835c;
+            --accent-hover: #006b4b;
+            --card-bg: #f8f9fa;
+            --card-border: #dee2e6;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        }
+
+        body.dark-theme {
+            --fg-color: #eee;
+            --bg-color: rgb(9, 26, 40);
+            --accent-color: #00835c;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --card-border: rgba(255, 255, 255, 0.1);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body:not(.light-theme) {
+                --fg-color: #eee;
+                --bg-color: rgb(9, 26, 40);
+                --accent-color: #00835c;
+                --card-bg: rgba(255, 255, 255, 0.05);
+                --card-border: rgba(255, 255, 255, 0.1);
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 2rem;
+            font-family: var(--font-family);
+            color: var(--fg-color);
+            background-color: var(--bg-color);
+            line-height: 1.6;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        h1 {
+            color: var(--accent-color);
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 0.5rem;
+        }
+
+        h2 {
+            margin-top: 2.5rem;
+            color: var(--accent-color);
+            border-left: 5px solid var(--accent-color);
+            padding-left: 1rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h3 {
+            margin-top: 0;
+            color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            font-size: 1.25rem;
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            background: var(--accent-color);
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .card p {
+            margin-bottom: 0;
+            font-size: 0.95rem;
+        }
+
+        .card ul {
+            margin: 0.5rem 0 1rem 1.2rem;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+
+        section {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .lang-en {
+            display: none;
+        }
+
+        .disclaimer {
+            background: rgba(231, 76, 60, 0.1);
+            border-left: 5px solid #e74c3c;
+            padding: 1rem;
+            margin: 1.5rem 0;
+            border-radius: 4px;
+        }
+
+        .intro {
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+        }
+
+        .admonition.info {
+            background: rgba(52, 152, 219, 0.1);
+            border-left: 5px solid #3498db;
+            padding: 1rem;
+            margin: 1.5rem 0;
+            border-radius: 4px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            border: 1px solid var(--card-border);
+        }
+
+        th,
+        td {
+            padding: 10px;
+            border: 1px solid var(--card-border);
+            text-align: left;
+        }
+
+        th {
+            background: var(--card-bg);
+            color: var(--accent-color);
+        }
+    </style>
+</head>
+
+<body>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentTheme = localStorage.getItem("theme");
+            if (currentTheme === "dark") document.body.classList.add("dark-theme");
+            if (currentTheme === "light") document.body.classList.add("light-theme");
+
+            const params = new URLSearchParams(window.location.search);
+            const locale = (params.get('locale') || 'it').toLowerCase().split('-')[0];
+            if (locale !== 'it') {
+                document.querySelectorAll('.lang-it').forEach(el => el.style.display = 'none');
+                document.querySelectorAll('.lang-en').forEach(el => el.style.display = 'block');
+            }
+        });
+    </script>
+
+    <section>
+        <div class="lang-it">
+            <h1>Guida alle Estensioni PlanarAlly Plus</h1>
+            <p class="intro">Scopri l'ecosistema di estensioni e le funzioni esclusive incluse nel fork
+                <strong>PlanarAlly Plus</strong>. Queste risorse aggiungono strumenti potenti per Master e Giocatori.
+            </p>
+
+            <div class="disclaimer">
+                <strong>Disclaimer:</strong> Le estensioni sono sviluppate dalla community o integrate da repository
+                esterne. Usale con consapevolezza. Assicurati di abilitare le estensioni nelle <em>Impostazioni
+                    Account</em> per poterle installare.
+            </div>
+
+            <h2>Estensioni Integrate</h2>
+            <div class="grid">
+                <!-- MapsGen -->
+                <div class="card">
+                    <h3>MapsGen <span class="badge">Maps</span></h3>
+                    <p>Generatore procedurale di dungeon ed edifici. Crea mappe complete in pochi secondi.</p>
+                    <ul>
+                        <li>Modalità <strong>Dungeon</strong>: archetipi (cripta, tempio, tana), simmetria e complessità
+                            variabile.</li>
+                        <li>Modalità <strong>Edifici</strong>: layout per case, taverne, locande con stanze e arredi.
+                        </li>
+                        <li><strong>AI Realistic</strong>: trasforma le mappe schematiche in grafiche realistiche.</li>
+                    </ul>
+                </div>
+
+                <!-- Character Sheet -->
+                <div class="card">
+                    <h3>Scheda del personaggio <span class="badge">System</span></h3>
+                    <p>Gestione avanzata delle schede personaggio D&D 5e e generiche.</p>
+                    <ul>
+                        <li>Collega le schede ai segnalini (token) sulla mappa.</li>
+                        <li>Integrazione con il <strong>Compendium</strong> per aggiungere incantesimi e abilità.</li>
+                        <li>Supporto Import/Export in formato JSON.</li>
+                    </ul>
+                </div>
+
+                <!-- Compendium -->
+                <div class="card">
+                    <h3>Compendium <span class="badge">Rules</span></h3>
+                    <p>Database di regole, mostri e incantesimi sempre a portata di mano.</p>
+                    <ul>
+                        <li>Installa compendi SRD 5e o database personalizzati (es. quintaedizione.online).</li>
+                        <li>Condividi voci direttamente nella chat per i giocatori.</li>
+                        <li>Supporto <strong>Deep Linking</strong>: <code>[testo](qe:...)</code> nelle note.</li>
+                    </ul>
+                </div>
+
+                <!-- Ambient Music -->
+                <div class="card">
+                    <h3>Musica d'ambiente <span class="badge">Audio</span></h3>
+                    <p>Controlla l'atmosfera sonora della tua sessione.</p>
+                    <ul>
+                        <li>Crea e salva playlist direttamente dagli asset della campagna.</li>
+                        <li>Sincronizzazione in tempo reale del brano e del volume per tutti i giocatori.</li>
+                        <li>Modalità Loop e riordino brani tramite drag & drop.</li>
+                    </ul>
+                </div>
+
+                <!-- Documents -->
+                <div class="card">
+                    <h3>Documenti <span class="badge">Utility</span></h3>
+                    <p>Visualizzatore avanzato di documenti PDF in-game.</p>
+                    <ul>
+                        <li>Pagine sfogliabili con anteprima rapida.</li>
+                        <li>Estrazione testo per ricerche veloci all'interno dei manuali.</li>
+                        <li>Condivisione di link a pagine specifiche nella chat di gioco.</li>
+                    </ul>
+                </div>
+
+                <!-- Watabou -->
+                <div class="card">
+                    <h3>Watabou Generators <span class="badge">Maps</span></h3>
+                    <p>Integrazione con i celebri generatori di <em>Watabou</em>.</p>
+                    <ul>
+                        <li>Genera istantaneamente Città, Villaggi, Regioni e Dungeon.</li>
+                        <li>Wrapper ottimizzato per l'uso all'interno del VTT.</li>
+                        <li>Ideale per improvvisare location durante la sessione.</li>
+                    </ul>
+                </div>
+
+                <!-- AI Generator -->
+                <div class="card">
+                    <h3>AI Generator <span class="badge">AI</span></h3>
+                    <p>L'intelligenza artificiale integrata per assistere il DM.</p>
+                    <ul>
+                        <li>Generazione di BG, descrizioni e dialoghi tramite OpenRouter.</li>
+                        <li>Creazione di immagini per nuovi asset e segnalini.</li>
+                        <li>Potenzia MapsGen con la trasformazione in mappe realistiche.</li>
+                    </ul>
+                </div>
+
+                <!-- Time Manager -->
+                <div class="card">
+                    <h3>Gestione del tempo <span class="badge">Tool</span></h3>
+                    <p>Gestisci il tempo e i turni con precisione.</p>
+                    <ul>
+                        <li>Timer e conti alla rovescia configurabili.</li>
+                        <li>Esecuzione in background: continua a scorrere anche se il modale è chiuso.</li>
+                        <li>Avviso audio al termine del tempo.</li>
+                    </ul>
+                </div>
+
+                <!-- Assets Installer -->
+                <div class="card">
+                    <h3>Assets Installer <span class="badge">Setup</span></h3>
+                    <p>Installa pacchetti massivi di risorse in un lampo.</p>
+                    <ul>
+                        <li>Carica file ZIP per popolare automaticamente la libreria asset.</li>
+                        <li>Gestione pacchetti: installa bundle di mostri, mappe o icone.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h2>Funzioni Esclusive Plus</h2>
+            <div class="grid">
+                <div class="card">
+                    <h3>PWA (Progressive Web App)</h3>
+                    <p>Usa PlanarAlly come un'app nativa. Supporto per installazione su Desktop, Android e iOS con icona
+                        dedicata e prestazioni ottimizzate.</p>
+                </div>
+                <div class="card">
+                    <h3>Plus Launcher</h3>
+                    <p>Dimentica il terminale. Un eseguibile dedicato per avviare, configurare e aggiornare il server
+                        con un'interfaccia semplice.</p>
+                </div>
+                <div class="card">
+                    <h3>Unified Assets System</h3>
+                    <p>Gestione file basata su database SQL per anteprime asincrone istantanee, supporto a nomi
+                        duplicati e organizzazione in cartelle virtuali.</p>
+                </div>
+                <div class="card">
+                    <h3>Traduzione Completa</h3>
+                    <p>Supporto nativo e curato per Italiano e Inglese in ogni parte del software, incluse tutte le
+                        estensioni qui elencate.</p>
+                </div>
+            </div>
+
+            <h2>Installazione di estensioni</h2>
+            <ol>
+                <li>Vai al <strong>Cruscotto</strong> e apri la sezione <strong>Estensioni</strong>.</li>
+                <li>Clicca su <strong>Aggiungi estensione</strong>.</li>
+                <li>Scegli come installare:
+                    <ul>
+                        <li><strong>Carica file ZIP</strong>: se hai un file ZIP dell'estensione.</li>
+                        <li><strong>Installa da URL</strong>: se l'estensione è disponibile via URL.</li>
+                    </ul>
+                </li>
+            </ol>
+
+            <div class="admonition info">
+                <strong>Informazione:</strong> Le estensioni vengono caricate nel contesto della campagna. Assicurati di
+                avere una campagna aperta o di averla selezionata per gestire le estensioni correttamente.
+            </div>
+
+            <h2>Terminologia PlanarAlly</h2>
+            <p>Per coerenza con l'interfaccia tradotta, usiamo i seguenti termini:</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Inglese</th>
+                        <th>Italiano</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Campaign</td>
+                        <td>Campagna</td>
+                    </tr>
+                    <tr>
+                        <td>Token</td>
+                        <td>Segnalino</td>
+                    </tr>
+                    <tr>
+                        <td>DM / GM</td>
+                        <td>Master</td>
+                    </tr>
+                    <tr>
+                        <td>Floor</td>
+                        <td>Piano</td>
+                    </tr>
+                    <tr>
+                        <td>Layer</td>
+                        <td>Livello</td>
+                    </tr>
+                    <tr>
+                        <td>Location</td>
+                        <td>Location</td>
+                    </tr>
+                    <tr>
+                        <td>Assets</td>
+                        <td>Asset</td>
+                    </tr>
+                    <tr>
+                        <td>Markers</td>
+                        <td>Indicatori</td>
+                    </tr>
+                    <tr>
+                        <td>Initiative</td>
+                        <td>Iniziativa</td>
+                    </tr>
+                    <tr>
+                        <td>Vision</td>
+                        <td>Visione</td>
+                    </tr>
+                    <tr>
+                        <td>Snapping</td>
+                        <td>Aggancio</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="lang-en">
+            <h1>PlanarAlly Plus Extensions Guide</h1>
+            <p class="intro">Discover the extension ecosystem and exclusive features included in the <strong>PlanarAlly
+                    Plus</strong> fork. These resources provide powerful tools for GMs and Players.</p>
+
+            <div class="disclaimer">
+                <strong>Disclaimer:</strong> Extensions are developed by the community or integrated from external
+                repositories. Use them at your own risk. Make sure to enable extensions in <em>Account Settings</em>
+                before installing them.
+            </div>
+
+            <h2>Integrated Extensions</h2>
+            <div class="grid">
+                <!-- MapsGen -->
+                <div class="card">
+                    <h3>MapsGen <span class="badge">Maps</span></h3>
+                    <p>Procedural dungeon and building generator. Create complete maps in seconds.</p>
+                    <ul>
+                        <li><strong>Dungeon</strong> mode: archetypes (crypt, temple, lair), symmetry, and variable
+                            complexity.</li>
+                        <li><strong>Buildings</strong> mode: layouts for houses, taverns, inns with rooms and furniture.
+                        </li>
+                        <li><strong>AI Realistic</strong>: transforms schematic maps into high-quality realistic
+                            graphics.</li>
+                    </ul>
+                </div>
+
+                <!-- Character Sheet -->
+                <div class="card">
+                    <h3>Character Sheet <span class="badge">System</span></h3>
+                    <p>Advanced management for D&D 5e and generic character sheets.</p>
+                    <ul>
+                        <li>Link sheets to tokens on the map.</li>
+                        <li>Integration with the <strong>Compendium</strong> to add spells and abilities.</li>
+                        <li>JSON Import/Export support.</li>
+                    </ul>
+                </div>
+
+                <!-- Compendium -->
+                <div class="card">
+                    <h3>Compendium <span class="badge">Rules</span></h3>
+                    <p>A rule, monster, and spell database always at your fingertips.</p>
+                    <ul>
+                        <li>Install SRD 5e compendiums or custom databases.</li>
+                        <li>Share entries directly into the chat for players.</li>
+                        <li><strong>Deep Linking</strong> support: <code>[text](qe:...)</code> in notes.</li>
+                    </ul>
+                </div>
+
+                <!-- Ambient Music -->
+                <div class="card">
+                    <h3>Ambient Music <span class="badge">Audio</span></h3>
+                    <p>Control the sound atmosphere of your session.</p>
+                    <ul>
+                        <li>Create and save playlists directly from campaign assets.</li>
+                        <li>Real-time track and volume synchronization for all players.</li>
+                        <li>Loop mode and track reordering via drag & drop.</li>
+                    </ul>
+                </div>
+
+                <!-- Documents -->
+                <div class="card">
+                    <h3>Documents <span class="badge">Utility</span></h3>
+                    <p>Advanced in-game PDF document viewer.</p>
+                    <ul>
+                        <li>Browsable pages with quick preview.</li>
+                        <li>Text extraction for fast searching within manuals.</li>
+                        <li>Share links to specific pages in the game chat.</li>
+                    </ul>
+                </div>
+
+                <!-- Watabou -->
+                <div class="card">
+                    <h3>Watabou Generators <span class="badge">Maps</span></h3>
+                    <p>Integration with the famous <em>Watabou</em> generators.</p>
+                    <ul>
+                        <li>Instantly generate Cities, Villages, Regions, and Dungeons.</li>
+                        <li>Optimized wrapper for VTT usage.</li>
+                        <li>Perfect for improvising locations during sessions.</li>
+                    </ul>
+                </div>
+
+                <!-- AI Generator -->
+                <div class="card">
+                    <h3>AI Generator <span class="badge">AI</span></h3>
+                    <p>Integrated AI tool to assist the GM.</p>
+                    <ul>
+                        <li>Generate background stories, descriptions, and dialogues via OpenRouter.</li>
+                        <li>Create images for new assets and tokens.</li>
+                        <li>Powers MapsGen with realistic map transformations.</li>
+                    </ul>
+                </div>
+
+                <!-- Time Manager -->
+                <div class="card">
+                    <h3>Time Manager <span class="badge">Tool</span></h3>
+                    <p>Manage time and turns with precision.</p>
+                    <ul>
+                        <li>Configurable timers and countdowns.</li>
+                        <li>Background execution: keeps running even when the modal is closed.</li>
+                        <li>Audio alert when time is up.</li>
+                    </ul>
+                </div>
+
+                <!-- Assets Installer -->
+                <div class="card">
+                    <h3>Assets Installer <span class="badge">Setup</span></h3>
+                    <p>Install massive asset packs in a flash.</p>
+                    <ul>
+                        <li>Upload ZIP files to automatically populate the asset library.</li>
+                        <li>Pack management: install bundles of monsters, maps, or icons.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h2>Exclusive Plus Features</h2>
+            <div class="grid">
+                <div class="card">
+                    <h3>PWA (Progressive Web App)</h3>
+                    <p>Use PlanarAlly like a native app. Support for installation on Desktop, Android, and iOS with a
+                        dedicated icon and optimized performance.</p>
+                </div>
+                <div class="card">
+                    <h3>Plus Launcher</h3>
+                    <p>Forget the terminal. A dedicated executable to start, configure, and update the server with a
+                        simple interface.</p>
+                </div>
+                <div class="card">
+                    <h3>Unified Assets System</h3>
+                    <p>SQL database-based file management for instant asynchronous previews, duplicate name support, and
+                        virtual folder organization.</p>
+                </div>
+                <div class="card">
+                    <h3>Full Localization</h3>
+                    <p>Native and curated support for Italian and English throughout the software, including all
+                        extensions listed here.</p>
+                </div>
+            </div>
+
+            <h2>Installing Extensions</h2>
+            <ol>
+                <li>Go to the <strong>Dashboard</strong> and open the <strong>Extensions</strong> section.</li>
+                <li>Click on <strong>Add extension</strong>.</li>
+                <li>Choose how to install:
+                    <ul>
+                        <li><strong>Upload ZIP file</strong>: if you have a ZIP file of the extension.</li>
+                        <li><strong>Install from URL</strong>: if the extension is available via URL.</li>
+                    </ul>
+                </li>
+            </ol>
+
+            <div class="admonition info">
+                <strong>Information:</strong> Extensions are loaded within the campaign context. Make sure you have a
+                campaign open or have it selected to manage extensions correctly.
+            </div>
+
+            <h2>PlanarAlly Terminology</h2>
+            <p>For consistency with the translated interface, we use the following terms:</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>English</th>
+                        <th>Italian</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Campaign</td>
+                        <td>Campagna</td>
+                    </tr>
+                    <tr>
+                        <td>Token</td>
+                        <td>Segnalino</td>
+                    </tr>
+                    <tr>
+                        <td>DM / GM</td>
+                        <td>Master</td>
+                    </tr>
+                    <tr>
+                        <td>Floor</td>
+                        <td>Piano</td>
+                    </tr>
+                    <tr>
+                        <td>Layer</td>
+                        <td>Livello</td>
+                    </tr>
+                    <tr>
+                        <td>Location</td>
+                        <td>Location</td>
+                    </tr>
+                    <tr>
+                        <td>Assets</td>
+                        <td>Asset</td>
+                    </tr>
+                    <tr>
+                        <td>Markers</td>
+                        <td>Indicatori</td>
+                    </tr>
+                    <tr>
+                        <td>Initiative</td>
+                        <td>Iniziativa</td>
+                    </tr>
+                    <tr>
+                        <td>Vision</td>
+                        <td>Visione</td>
+                    </tr>
+                    <tr>
+                        <td>Snapping</td>
+                        <td>Aggancio</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</body>
+
+</html>

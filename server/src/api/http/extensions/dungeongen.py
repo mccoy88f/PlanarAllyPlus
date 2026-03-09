@@ -2,13 +2,14 @@
 
 import hashlib
 import random
-import uuid
+import asyncio
 from pathlib import Path
 
 from aiohttp import web
 
 from ....auth import get_authorized_user
 from ....db.models.asset import Asset
+from ....db.models.asset_entry import AssetEntry
 from ....utils import ASSETS_DIR, STATIC_DIR, get_asset_hash_subpath
 
 # PlanarAlly grid: 1 cell = 50 pixels
@@ -198,13 +199,17 @@ async def generate(request: web.Request) -> web.Response:
         full_hash_path.parent.mkdir(parents=True, exist_ok=True)
         full_hash_path.write_bytes(png_bytes)
 
-    folder = Asset.get_or_create_extension_folder(user, "dungeongen")
+    folder = AssetEntry.get_or_create_extension_folder(user, "dungeongen")
     filename = f"dungeon_{seed}.png"
     
-    asset = Asset.create(name=filename, file_hash=hashname, owner=user, parent=folder)
+    asset, _ = Asset.get_or_create(
+        file_hash=hashname,
+        defaults={"kind": "regular", "extension": "png", "file_size": len(png_bytes)},
+    )
+    entry = AssetEntry.create(name=filename, asset=asset, owner=user, parent=folder)
 
     from ....thumbnail import generate_thumbnail_for_asset
-    generate_thumbnail_for_asset(filename, hashname)
+    asyncio.create_task(generate_thumbnail_for_asset(hashname))
 
     url = f"/static/assets/{get_asset_hash_subpath(hashname).as_posix()}"
     shape_name = Path(filename).stem
@@ -237,7 +242,7 @@ async def generate(request: web.Request) -> web.Response:
     return web.json_response(
         {
             "url": url,
-            "assetId": asset.id,
+            "assetId": entry.id,
             "name": shape_name,
             "gridCells": {"width": cells_x, "height": cells_y},
             "imageWidth": canvas_width,
@@ -320,12 +325,16 @@ async def _generate_building(
         full_hash_path.parent.mkdir(parents=True, exist_ok=True)
         full_hash_path.write_bytes(png_bytes)
 
-    folder = Asset.get_or_create_extension_folder(user, "dungeongen")
+    folder = AssetEntry.get_or_create_extension_folder(user, "dungeongen")
     filename = f"building_{seed}.png"
-    asset = Asset.create(name=filename, file_hash=hashname, owner=user, parent=folder)
+    asset, _ = Asset.get_or_create(
+        file_hash=hashname,
+        defaults={"kind": "regular", "extension": "png", "file_size": len(png_bytes)},
+    )
+    entry = AssetEntry.create(name=filename, asset=asset, owner=user, parent=folder)
 
     from ....thumbnail import generate_thumbnail_for_asset
-    generate_thumbnail_for_asset(filename, hashname)
+    asyncio.create_task(generate_thumbnail_for_asset(hashname))
 
     url = f"/static/assets/{get_asset_hash_subpath(hashname).as_posix()}"
     shape_name = f"building_{seed}"
@@ -335,7 +344,7 @@ async def _generate_building(
     return web.json_response(
         {
             "url": url,
-            "assetId": asset.id,
+            "assetId": entry.id,
             "name": shape_name,
             "gridCells": {"width": result.width, "height": result.height},
             "imageWidth": canvas_width,

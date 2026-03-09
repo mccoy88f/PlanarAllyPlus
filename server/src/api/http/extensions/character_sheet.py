@@ -15,6 +15,7 @@ from pathlib import Path
 
 from ....auth import get_authorized_user
 from ....db.models.asset import Asset
+from ....db.models.asset_entry import AssetEntry
 from ....db.models.character import Character
 from ....db.models.character_sheet import CharacterSheet
 from ....db.models.character_sheet_default import CharacterSheetDefault
@@ -30,9 +31,9 @@ DEFAULTS_FILE = DATA_DIR / "character_sheet_defaults.json"
 EXTENSION_ID = "character-sheet"
 
 
-def _get_or_create_portrait_folder(user: User) -> Asset:
+def _get_or_create_portrait_folder(user: User) -> AssetEntry:
     """Get or create the portraits folder at assets/extensions/character-sheet."""
-    return Asset.get_or_create_extension_folder(user, EXTENSION_ID)
+    return AssetEntry.get_or_create_extension_folder(user, EXTENSION_ID)
 
 
 def _migrate_json_to_db() -> None:
@@ -639,6 +640,8 @@ async def associate_sheet(request: web.Request) -> web.Response:
     
     ds = sheet_data.get("dndsheets") or {}
     if char.asset and char.asset.file_hash:
+        # We should find an AssetEntry for this character's asset if possible
+        # but for simplicity we rely on the file_hash which is still on Asset.
         app_url = f"/static/assets/{get_asset_hash_subpath(char.asset.file_hash).as_posix()}"
         ds["appearance"] = app_url
     else:
@@ -884,12 +887,15 @@ async def upload_portrait(request: web.Request) -> web.Response:
         full_hash_path.write_bytes(data)
 
     folder = _get_or_create_portrait_folder(user)
-    asset = Asset.create(name=filename, file_hash=hashname, owner=user, parent=folder)
+    asset, _ = Asset.get_or_create(
+        file_hash=hashname,
+        defaults={"kind": "regular", "extension": ext.lstrip("."), "file_size": len(data)},
+    )
+    entry = AssetEntry.create(name=filename, asset=asset, owner=user, parent=folder)
 
     # Generate thumbnail
     from ....thumbnail import generate_thumbnail_for_asset
-
-    generate_thumbnail_for_asset(filename, hashname)
+    asyncio.create_task(generate_thumbnail_for_asset(hashname))
 
     url = f"/static/assets/{get_asset_hash_subpath(hashname).as_posix()}"
-    return web.json_response({"ok": True, "url": url, "assetId": asset.id})
+    return web.json_response({"ok": True, "url": url, "assetId": asset.id, "entryId": entry.id})
