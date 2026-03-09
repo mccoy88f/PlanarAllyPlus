@@ -15,7 +15,7 @@ When writing migrations make sure that these things are respected:
 - It's often a good idea to start the server with a clean save and use `.schema <table_name>` in sqlite to get the exact schema output that a clean save creates
 """
 
-SAVE_VERSION = 125
+SAVE_VERSION = 126
 
 import asyncio
 import json
@@ -31,7 +31,7 @@ from .db.all import ALL_NORMAL_MODELS, ALL_VIEWS
 from .db.db import db as ACTIVE_DB
 from .db.models.constants import Constants
 from .db.models.user import User
-from .thumbnail import generate_thumbnail_for_asset
+from .thumbnail import generate_thumbnail_for_asset, generate_thumbnail_for_asset_sync
 from .utils import (
     ASSETS_DIR,
     FILE_DIR,
@@ -794,10 +794,17 @@ def upgrade(
             db.execute_sql(
                 'CREATE TABLE IF NOT EXISTS "asset_rect_variant" ("id" INTEGER NOT NULL PRIMARY KEY, "shape_id" TEXT NOT NULL, "name" TEXT, "asset_id" INTEGER NOT NULL, "width" REAL NOT NULL, "height" REAL NOT NULL, FOREIGN KEY ("shape_id") REFERENCES "asset_rect" ("shape_id") ON DELETE CASCADE, FOREIGN KEY ("asset_id") REFERENCES "asset" ("id") ON DELETE RESTRICT)'
             )
-            db.execute_sql('CREATE INDEX "asset_rect_variant_shape_id" ON "asset_rect_variant" ("shape_id")')
-            db.execute_sql('CREATE INDEX "asset_rect_variant_asset_id" ON "asset_rect_variant" ("asset_id")')
+            db.execute_sql('CREATE INDEX IF NOT EXISTS "asset_rect_variant_shape_id" ON "asset_rect_variant" ("shape_id")')
+            db.execute_sql('CREATE INDEX IF NOT EXISTS "asset_rect_variant_asset_id" ON "asset_rect_variant" ("asset_id")')
 
-            data = db.execute_sql("SELECT variant_id, parent_id, name FROM composite_shape_association").fetchall()
+            # Check if we even need to migrate variants
+            table_exists = db.execute_sql(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='composite_shape_association'"
+            ).fetchone()
+            if not table_exists:
+                data = []
+            else:
+                data = db.execute_sql("SELECT variant_id, parent_id, name FROM composite_shape_association").fetchall()
             composite_data = {}
             parents = set()
             variants = set()
@@ -939,10 +946,33 @@ def upgrade(
             for variant_id in variants:
                 db.execute_sql("DELETE FROM shape WHERE uuid = ?", (variant_id,))
 
-            db.execute_sql("DROP TABLE toggle_composite")
-            db.execute_sql("DROP TABLE composite_shape_association")
-    else:
-        raise UnknownVersionException(f"No upgrade code for save format {version} was found.")
+            db.execute_sql("DROP TABLE IF EXISTS toggle_composite")
+            db.execute_sql("DROP TABLE IF EXISTS composite_shape_association")
+            # PlanarAlly Plus - Migration for file_size and thumbnail cleanup
+            # Note: This was originally version 116 in PA+ but got out of order due to merge
+            column_exists = False
+            cursor = db.execute_sql("PRAGMA table_info(asset)")
+            for row in cursor.fetchall():
+                if row[1] == "file_size":
+                    column_exists = True
+                    break
+            if not column_exists:
+                db.execute_sql('ALTER TABLE "asset" ADD COLUMN "file_size" INTEGER')
+                if not is_import:
+                    rows = db.execute_sql("SELECT id, file_hash FROM asset WHERE file_hash IS NOT NULL").fetchall()
+                    for asset_id, file_hash in rows:
+                        path = ASSETS_DIR / get_asset_hash_subpath(file_hash)
+                        if path.exists():
+                            db.execute_sql("UPDATE asset SET file_size = ? WHERE id = ?", (path.stat().st_size, asset_id))
+
+            if not is_import:
+                known_hashes = {
+                    row[0] for row in db.execute_sql("SELECT file_hash FROM asset WHERE file_hash IS NOT NULL").fetchall()
+                }
+                for subdir in ASSETS_DIR.rglob("*.thumb.*"):
+                    asset_hash = subdir.name.split(".thumb.")[0]
+                    if asset_hash not in known_hashes:
+                        subdir.unlink()
     inc_save_version(db)
     db.foreign_keys = True
 
@@ -1059,7 +1089,7 @@ async def generate_thumbnails(data, loop):
 
     def generate():
         for i, (asset_name, file_hash) in enumerate(data):
-            generate_thumbnail_for_asset(file_hash)
+            generate_thumbnail_for_asset_sync(file_hash)
 
             if i % 100 == 0:
                 print(f"Generated {i} / {total_size} thumbnails")

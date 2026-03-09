@@ -12,6 +12,7 @@ from ....db.models.user import User
 from ....logs import logger
 from ....state.asset import asset_state
 from ....transform.to_api.asset import transform_asset
+from ....storage import get_storage
 from ....utils import ASSETS_DIR, THUMBNAILS_DIR, get_asset_hash_subpath
 from ...models.asset import (
     ApiAsset,
@@ -214,19 +215,20 @@ async def assetmgmt_rm(sid: str, data: int):
     if remove_asset:
         asset_model = transform_asset(entry, user, children=True, recursive=True)
         entry.delete_instance()
-        cleanup_assets([asset_model])
+        await cleanup_assets([asset_model])
 
     await update_live_game(user)
 
 
-def cleanup_assets(entries: list[ApiAsset]):
+async def cleanup_assets(entries: list[ApiAsset]):
     for entry in entries:
         if entry.assetId:
-            asset = Asset.get_by_id(entry.assetId)
-            asset.cleanup_check()
+            asset = Asset.get_or_none(id=entry.assetId)
+            if asset:
+                await asset.cleanup_check()
 
         if entry.children:
-            cleanup_assets(entry.children)
+            await cleanup_assets(entry.children)
 
 
 async def handle_regular_file(
@@ -240,18 +242,19 @@ async def handle_regular_file(
     sh = hashlib.sha1(data)
     hashname = sh.hexdigest()
 
-    full_hash_path = ASSETS_DIR / get_asset_hash_subpath(hashname)
-
-    if not full_hash_path.exists():
-        full_hash_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(full_hash_path, "wb") as f:
-            f.write(data)
+    storage = get_storage()
+    if not await storage.exists(hashname):
+        await storage.store(hashname, data)
 
     user = asset_state.get_user(sid)
 
-    asset, created = Asset.get_or_create(file_hash=hashname, kind=kind, defaults={"extension": extension})
+    asset, created = Asset.get_or_create(
+        file_hash=hashname,
+        kind=kind,
+        defaults={"extension": extension, "file_size": len(data)},
+    )
     if created:
-        asset.generate_thumbnails()
+        await asset.generate_thumbnails()
 
     target = upload_data.directory
 

@@ -177,13 +177,7 @@ async function exportCampaign(): Promise<void> {
                 >
                     <img
                         class="logo"
-                        :src="
-                            baseAdjust(
-                                session.logo
-                                    ? getImageSrcFromHash(session.logo, { addBaseUrl: false })
-                                    : '/static/img/dice.svg',
-                            )
-                        "
+                        :src="session.logo ? getImageSrcFromHash(session.logo) : baseAdjust('/static/img/dice.svg')"
                         alt="Campaign logo"
                     />
                     <div
@@ -244,13 +238,7 @@ async function exportCampaign(): Promise<void> {
                 >
                     <img
                         class="logo"
-                        :src="
-                            baseAdjust(
-                                session.logo
-                                    ? getImageSrcFromHash(session.logo, { addBaseUrl: false })
-                                    : '/static/img/dice.svg',
-                            )
-                        "
+                        :src="session.logo ? getImageSrcFromHash(session.logo) : baseAdjust('/static/img/dice.svg')"
                         alt="Campaign logo"
                     />
                     <div class="data">
