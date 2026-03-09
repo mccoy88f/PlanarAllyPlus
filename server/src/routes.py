@@ -8,6 +8,8 @@ from .api import http
 from .api.http import auth, extensions, mods, notifications, rooms, server, users, version
 from .app import app as main_app
 from .config import cfg
+from .storage import get_storage
+from .storage.local import LocalStorageBackend
 from .utils import ASSETS_DIR, EXTENSIONS_DIR, FILE_DIR, STATIC_DIR, THUMBNAILS_DIR
 
 subpath = os.environ.get("PA_BASEPATH", "/")
@@ -46,7 +48,9 @@ async def root_dev(request):
 
 # MAIN ROUTES
 
-main_app.router.add_static(f"{subpath}/static/assets", ASSETS_DIR)
+storage = get_storage()
+if isinstance(storage, LocalStorageBackend):
+    main_app.router.add_static(f"{subpath}/static/assets", storage.assets_dir)
 main_app.router.add_static(f"{subpath}/static/thumbnails", THUMBNAILS_DIR)
 main_app.router.add_static(f"{subpath}/static", STATIC_DIR)
 main_app.router.add_get(f"{subpath}/manifest.json", lambda r: web.FileResponse(STATIC_DIR / "manifest.json"))

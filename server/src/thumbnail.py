@@ -5,6 +5,7 @@ from pathlib import Path
 import fitz
 from PIL import Image
 
+from .storage import get_storage
 from .utils import ASSETS_DIR, THUMBNAILS_DIR, get_asset_hash_subpath
 
 warnings.simplefilter("ignore", Image.DecompressionBombWarning)
@@ -66,29 +67,78 @@ def create_thumbnail_from_bytes(input_bytes, max_size=(200, 200)):
     return {"webp": webp_output.getvalue(), "jpeg": jpeg_output.getvalue()}
 
 
-def generate_thumbnail_for_asset(file_hash: str) -> None:
-    full_hash_name = get_asset_hash_subpath(file_hash)
-    asset_path = ASSETS_DIR / full_hash_name
+async def generate_thumbnail_for_asset(file_hash: str) -> None:
+    from .db.models.asset import Asset
+    storage = get_storage()
 
-    if not asset_path.exists():
+    if not await storage.exists(file_hash):
         return
 
     try:
-        if name.lower().endswith(".pdf"):
-            first_page_bytes = _pdf_first_page_to_image(asset_path)
-            if first_page_bytes is None:
-                return
-            thumbnail = create_thumbnail_from_bytes(first_page_bytes, max_size=(300, 420))
+        data = await storage.retrieve(file_hash)
+        asset = Asset.get_or_none(file_hash=file_hash)
+        if asset and asset.extension and asset.extension.lower() == "pdf":
+            # For PDF we need a temporary file for fitz
+            import tempfile
+            from pathlib import Path
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                tmp.write(data)
+                tmp_path = Path(tmp.name)
+            try:
+                first_page_bytes = _pdf_first_page_to_image(tmp_path)
+                if first_page_bytes:
+                    thumbnails = create_thumbnail_from_bytes(first_page_bytes, max_size=(300, 420))
+                else:
+                    thumbnails = create_thumbnail_from_bytes(data)
+            finally:
+                if tmp_path.exists():
+                    tmp_path.unlink()
         else:
-            with open(asset_path, "rb") as f:
-                thumbnail = create_thumbnail_from_bytes(f.read())
-        if thumbnail is None:
+            thumbnails = create_thumbnail_from_bytes(data)
+
+        if thumbnails is None:
             return
-        for format, data in thumbnail.items():
-            path = THUMBNAILS_DIR / Path(f"{full_hash_name}.thumb.{format}")
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "wb") as f:
-                f.write(data)
+        for fmt, thumb_data in thumbnails.items():
+            await storage.store(file_hash, thumb_data, suffix=f".thumb.{fmt}")
+    except Image.DecompressionBombError:
+        print(f"Thumbnail generation failed for {file_hash}: The asset is too large")
+    except Exception as e:
+        print(f"Thumbnail generation failed for {file_hash}: {e}")
+
+
+def generate_thumbnail_for_asset_sync(file_hash: str) -> None:
+    """Sync version for use in thread-executor contexts (save migrations)."""
+    from .db.models.asset import Asset
+    storage = get_storage()
+
+    if not storage.exists_sync(file_hash):
+        return
+
+    try:
+        data = storage.retrieve_sync(file_hash)
+        asset = Asset.get_or_none(file_hash=file_hash)
+        if asset and asset.extension and asset.extension.lower() == "pdf":
+            import tempfile
+            from pathlib import Path
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                tmp.write(data)
+                tmp_path = Path(tmp.name)
+            try:
+                first_page_bytes = _pdf_first_page_to_image(tmp_path)
+                if first_page_bytes:
+                    thumbnails = create_thumbnail_from_bytes(first_page_bytes, max_size=(300, 420))
+                else:
+                    thumbnails = create_thumbnail_from_bytes(data)
+            finally:
+                if tmp_path.exists():
+                    tmp_path.unlink()
+        else:
+            thumbnails = create_thumbnail_from_bytes(data)
+
+        if thumbnails is None:
+            return
+        for fmt, thumb_data in thumbnails.items():
+            storage.store_sync(file_hash, thumb_data, suffix=f".thumb.{fmt}")
     except Image.DecompressionBombError:
         print()
         print(f"Thumbnail generation failed for {file_hash}: The asset is too large")
