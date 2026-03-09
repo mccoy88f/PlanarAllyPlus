@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { useToast } from "vue-toastification";
 
 import { http } from "../../core/http";
@@ -10,6 +11,7 @@ import type { RoomInfo } from "./types";
 import { open } from "./utils";
 
 const toast = useToast();
+const { t } = useI18n();
 
 type Done = (RoomInfo & { success: true }) | { success: false; reason: string };
 
@@ -69,7 +71,7 @@ async function uploadSave(): Promise<void> {
     }
     const responses = await Promise.all(chunks);
     if (responses.some((r) => !r.ok)) {
-        toast.error("Something went wrong while uploading the campaign to the server :(", {
+        toast.error(t("dashboard.ImportGame.upload_error"), {
             timeout: false,
         });
     }
@@ -78,30 +80,29 @@ async function uploadSave(): Promise<void> {
 
 <template>
     <div id="content">
-        <div class="title">Import a campaign</div>
-        <div>This is an experimental feature! If you discover any problems let me know :)</div>
+        <div class="title">{{ t("dashboard.ImportGame.title") }}</div>
+        <div>{{ t("dashboard.ImportGame.experimental") }}</div>
         <div class="entry">
-            <label for="takeOverName">Use original name:</label>
+            <label for="takeOverName">{{ t("dashboard.ImportGame.use_original_name") }}</label>
             <input id="takeOverName" v-model="takeOverName" type="checkbox" />
         </div>
         <div class="entry">
-            <label for="name">Name:</label>
+            <label for="name">{{ t("dashboard.ImportGame.name") }}</label>
             <input id="name" v-model="name" type="text" :disabled="takeOverName" />
         </div>
         <template v-if="dashboardState.chunkLength === 0">
-            <button @click="prepareUpload">Upload</button>
+            <button @click="prepareUpload">{{ t("dashboard.ImportGame.upload") }}</button>
             <input id="files" type="file" hidden accept=".pac" @change="uploadSave" />
         </template>
         <template v-else>
             <div>
-                <label for="chunks" style="margin-right: 20px">Upload progress:</label>
+                <label for="chunks" style="margin-right: 20px">{{ t("dashboard.ImportGame.upload_progress") }}</label>
                 <progress id="chunks" max="100" :value="chunkProgress">{{ chunkProgress }}%</progress>
             </div>
             <template v-if="chunkProgress === 100">
-                <div>Campaign successfully uploaded. Processing data.</div>
+                <div>{{ t("dashboard.ImportGame.upload_success") }}</div>
                 <div style="margin-top: 10px">
-                    The server is now processing the file. Below you can see the progress of the import process. The
-                    import will continue regardless of whether you have this page open.
+                    {{ t("dashboard.ImportGame.processing_info") }}
                 </div>
             </template>
             <pre style="max-height: 30vh; overflow: auto">
@@ -113,11 +114,11 @@ async function uploadSave(): Promise<void> {
         <div class="action">
             <button class="go" @click="$router.push({ name: 'create-game' })">
                 <font-awesome-icon icon="chevron-left" />
-                <span>BACK</span>
+                <span>{{ t("dashboard.ImportGame.back") }}</span>
             </button>
             <button v-if="done.success" class="go" @click="open(done as RoomInfo)">
                 <font-awesome-icon icon="play" />
-                <span>OPEN</span>
+                <span>{{ t("dashboard.ImportGame.open") }}</span>
             </button>
         </div>
     </div>

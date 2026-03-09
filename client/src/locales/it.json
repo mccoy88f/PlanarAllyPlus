@@ -187,6 +187,31 @@
     "Assets": {
       "manage_assets": "GESTIONE ASSET"
     },
+    "CreateGame": {
+      "title": "Crea una nuova campagna da zero",
+      "name": "Nome:",
+      "logo": "Logo:",
+      "back": "INDIETRO",
+      "create": "CREA",
+      "errors": {
+        "name_required": "Inserisci un nome!",
+        "name_exists": "Una campagna con questo nome esiste già!",
+        "unknown": "Si è verificato un errore sconosciuto :( {status})"
+      }
+    },
+    "ImportGame": {
+      "title": "Importa una campagna",
+      "experimental": "Questa è una funzione sperimentale! Se riscontri problemi fammelo sapere :)",
+      "use_original_name": "Usa nome originale:",
+      "name": "Nome:",
+      "upload": "Carica",
+      "upload_progress": "Progresso caricamento:",
+      "upload_success": "Campagna caricata con successo. Elaborazione dati in corso.",
+      "processing_info": "Il server sta ora elaborando il file. Sotto puoi vedere il progresso dell'importazione. L'importazione continuerà indipendentemente dal fatto che tu abbia questa pagina aperta.",
+      "upload_error": "Qualcosa è andato storto durante il caricamento della campagna sul server :(",
+      "back": "INDIETRO",
+      "open": "APRI"
+    },
     "settings": {
       "email_changed": "Email modificata con successo"
     }
@@ -229,6 +254,8 @@
         "empty_initiative": "Nessuna voce visibile",
         "infinite_toggle": "Infinito?",
         "infinite_toggle_hint": "L'effetto deve avere durata infinita?",
+        "end_turn_toggle_hint": "Aggiorna alla fine del turno",
+        "start_turn_toggle_hint": "Aggiorna all'inizio del turno",
         "effect_duration_hint": "Numero di round in cui l'effetto durerà",
         "effect_name_hint": "Nome dell'effetto"
       },
@@ -684,6 +711,12 @@
             "removeBranchPrompt": "Sei sicuro di voler rimuovere questo ramo e tutti i figli?",
             "removeElementTitle": "Rimuovi elemento",
             "removeElementPrompt": "Sei sicuro di voler rimuovere questo elemento?"
+          },
+          "variants": {
+            "variants": "Varianti",
+            "addVariant": "Aggiungi nuova variante",
+            "storeAsVariant": "Salva dati attuali come variante",
+            "empty": "Qui puoi aggiungere rappresentazioni visive alternative per questa forma.\n\nPuò essere usato per forme che hanno abiti o forme alternative (es. fasi di un boss).\n\nPer ogni variante è possibile configurare un nome e un asset personalizzato.\nQuando attivi una variante, i suoi dati verranno copiati sulla forma principale e diventeranno visibili a tutti i giocatori.\nEventuali ridimensionamenti dell'asset sulla mappa verranno applicati solo alla variante attiva.\nPermettendo di passare tra varianti di dimensioni diverse."
           }
         },
         "SelectionInfo": {
