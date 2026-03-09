@@ -36,6 +36,8 @@
     "error_prefix": "Error:",
     "error_msg": "Error!",
     "close": "Close",
+    "fullscreen": "Fullscreen",
+    "fullscreen_exit": "Exit Fullscreen",
     "submit": "Submit",
     "create": "Create",
     "warning": "Warning",
@@ -71,6 +73,7 @@
     "version": "version",
     "confirm": "Confirm",
     "cancel": "Cancel",
+    "save": "Save",
     "insert_one_character": "Please insert at least one character",
     "name_already_in_use": "This name is already in use!",
     "varia": "Varia",
@@ -151,6 +154,64 @@
       "nav_admin": "ADMIN",
       "nav_logout": "LOGOUT"
     },
+    "GameList": {
+      "dm_title": "MASTER",
+      "new_game": "NEW CAMPAIGN +",
+      "sort": "Sort:",
+      "last_played": "LAST PLAYED:",
+      "unknown": "unknown",
+      "launch": "LAUNCH",
+      "export": "EXPORT",
+      "delete": "DELETE",
+      "player_title": "PLAYER",
+      "dm_label": "Master:",
+      "leave": "LEAVE",
+      "join_failed_title": "Impossible to join session",
+      "join_failed_msg": "It was not possible to join the game session. The master might have locked the session.",
+      "rename_prompt": "What should be the new name for this campaign?",
+      "remove_confirm_title": "Campaign removal",
+      "remove_confirm_type_msg": "Type the name of the campaign to confirm: {name}",
+      "room_name_mismatch": "The campaign name does not match!",
+      "leave_confirm_title": "Leaving {name}!",
+      "leave_confirm_msg": "Are you sure?"
+    },
+    "CreateSwitcher": {
+      "title": "Create a new campaign",
+      "start_scratch": "Start from scratch",
+      "start_scratch_desc": "Offers you a blank canvas. You can imagine your campaigns as you wish.",
+      "import_game": "Import a campaign",
+      "import_game_desc": "Allows you to transfer files from another server, import a public template from another creator, or import campaigns you've previously exported!",
+      "back": "BACK",
+      "continue": "CONTINUE"
+    },
+    "Assets": {
+      "manage_assets": "ASSET MANAGEMENT"
+    },
+    "CreateGame": {
+      "title": "Create a new campaign from scratch",
+      "name": "Name:",
+      "logo": "Logo:",
+      "back": "BACK",
+      "create": "CREATE",
+      "errors": {
+        "name_required": "Fill in a name!",
+        "name_exists": "A campaign with that name already exists!",
+        "unknown": "An unknown error occured :( {status})"
+      }
+    },
+    "ImportGame": {
+      "title": "Import a campaign",
+      "experimental": "This is an experimental feature! If you discover any problems let me know :)",
+      "use_original_name": "Use original name:",
+      "name": "Name:",
+      "upload": "Upload",
+      "upload_progress": "Upload progress:",
+      "upload_success": "Campaign successfully uploaded. Processing data.",
+      "processing_info": "The server is now processing the file. Below you can see the progress of the import process. The import will continue regardless of whether you have this page open.",
+      "upload_error": "Something went wrong while uploading the campaign to the server :(",
+      "back": "BACK",
+      "open": "OPEN"
+    },
     "settings": {
       "email_changed": "Email changed successfully"
     }
@@ -191,6 +252,7 @@
         "clear_entries_msg": "Are you sure you wish to clear all initiative entries?",
         "clear_initiatives_msg": "Are you sure you wish to clear all initiative numbers?",
         "empty_initiative": "No visible entries",
+        "infinite_toggle": "Infinite?",
         "infinite_toggle_hint": "Should the effect have infinite duration?",
         "end_turn_toggle_hint": "Update at end of turn",
         "start_turn_toggle_hint": "Update at start of turn",
@@ -511,6 +573,7 @@
             "remove_location_yes": "Yes, delete this location",
             "remove_location_no": "please no",
             "move_existing_pl": "Move existing players on this location",
+            "remove_location": "Remove Location",
             "delete_this_location": "Delete this location",
             "archive_this_location": "Archive this location",
             "clone_this_location": "Clone this location",
@@ -1135,7 +1198,12 @@
       "new_pwd": "New Password:",
       "repeat_pwd": "Repeat password:",
       "delete_account": "Delete account",
-      "delete_confirm_msg": "This action is irrevocable!"
+      "delete_confirm_msg": "This action is irrevocable!",
+      "enable_extensions": "Enable extensions",
+      "extensions_disclaimer_title": "Extensions Disclaimer",
+      "extensions_disclaimer_text": "Extensions are created by users. Use them at your own risk.",
+      "extensions_disclaimer_accept": "I understand",
+      "extensions_disclaimer_cancel": "Cancel"
     },
     "settings": {
       "account_settings": "Account Settings",

@@ -15,7 +15,7 @@ When writing migrations make sure that these things are respected:
 - It's often a good idea to start the server with a clean save and use `.schema <table_name>` in sqlite to get the exact schema output that a clean save creates
 """
 
-SAVE_VERSION = 126
+SAVE_VERSION = 127
 
 import asyncio
 import json
@@ -973,6 +973,17 @@ def upgrade(
                     asset_hash = subdir.name.split(".thumb.")[0]
                     if asset_hash not in known_hashes:
                         subdir.unlink()
+    elif version == 126:
+        # PlanarAlly Plus: Add asset_entry.options column if missing
+        with db.atomic():
+            column_exists = False
+            cursor = db.execute_sql("PRAGMA table_info(asset_entry)")
+            for row in cursor.fetchall():
+                if row[1] == "options":
+                    column_exists = True
+                    break
+            if not column_exists:
+                db.execute_sql('ALTER TABLE "asset_entry" ADD COLUMN "options" TEXT')
     inc_save_version(db)
     db.foreign_keys = True
 

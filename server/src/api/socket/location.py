@@ -152,7 +152,7 @@ async def load_location(sid: str, location: Location, *, complete=False):
         characters = Character.select().where(Character.campaign == pr.room)
         await _send_game(
             "Characters.Set",
-            [c.as_pydantic() for c in characters if has_ownership(c.shape, pr, edit=True)],
+            [c.as_pydantic() for c in characters if c.shape and has_ownership(c.shape, pr, edit=True)],
             room=sid,
         )
 

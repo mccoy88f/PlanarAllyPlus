@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useToast } from "vue-toastification";
 
@@ -13,6 +14,7 @@ import { open } from "./utils";
 
 const router = useRouter();
 const toast = useToast();
+const { t } = useI18n();
 
 const name = ref("");
 const logo = reactive<{ path: string; id: AssetId | -1 }>({ path: "", id: -1 });
@@ -21,7 +23,7 @@ const showAssetPicker = ref(false);
 
 async function create(): Promise<void> {
     if (name.value === "") {
-        toast.error("Fill in a name!");
+        toast.error(t("dashboard.CreateGame.errors.name_required"));
         return;
     }
     const response = await http.postJson("/api/rooms", {
@@ -37,9 +39,9 @@ async function create(): Promise<void> {
         });
         await router.push(`/game/${encodeURIComponent(coreStore.state.username)}/${encodeURIComponent(name.value)}`);
     } else if (response.statusText === "Conflict") {
-        toast.error("A campaign with that name already exists!");
+        toast.error(t("dashboard.CreateGame.errors.name_exists"));
     } else {
-        toast.error(`An unknown error occured :( ${response.statusText})`);
+        toast.error(t("dashboard.CreateGame.errors.unknown", { status: response.statusText }));
     }
 }
 
@@ -52,13 +54,13 @@ function setLogo(data: { id: AssetId; fileHash: string }): void {
 
 <template>
     <div id="content">
-        <div class="title">Create a new campaign from scratch</div>
+        <div class="title">{{ t("dashboard.CreateGame.title") }}</div>
         <div class="entry">
-            <label for="name">Name:</label>
+            <label for="name">{{ t("dashboard.CreateGame.name") }}</label>
             <input id="name" v-model="name" type="text" autofocus />
         </div>
         <div class="entry">
-            <label for="logo">Logo:</label>
+            <label for="logo">{{ t("dashboard.CreateGame.logo") }}</label>
             <div class="logo">
                 <img
                     alt="Campaign Logo Preview"
@@ -72,10 +74,10 @@ function setLogo(data: { id: AssetId; fileHash: string }): void {
         <div class="entry">
             <button class="go" @click="$router.push({ name: 'create-game' })">
                 <font-awesome-icon icon="chevron-left" />
-                <span>BACK</span>
+                <span>{{ t("dashboard.CreateGame.back") }}</span>
             </button>
             <button class="go" @click="create">
-                <span>CREATE</span>
+                <span>{{ t("dashboard.CreateGame.create") }}</span>
                 <font-awesome-icon icon="play" />
             </button>
         </div>

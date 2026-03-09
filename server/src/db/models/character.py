@@ -27,7 +27,7 @@ class Character(BaseDbModel):
 
     @property
     def shape(self):
-        return self.shapes[0]
+        return self.shapes[0] if self.shapes else None
 
     def as_pydantic(self):
         file_hash = self.asset.file_hash
