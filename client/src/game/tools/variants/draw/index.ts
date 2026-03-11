@@ -243,19 +243,6 @@ class DrawTool extends Tool implements ITool {
         }
     }
 
-    // private async showLayerPoints(): Promise<void> {
-    //     const layer = this.getLayer()!;
-    //     await layer.postDrawCallback.wait();
-    //     if (!this.isActiveTool.value) return;
-    //     const dL = floorSystem.getLayer(floorState.currentFloor.value!, LayerName.Draw)!;
-    //     for (const point of layer.points.keys()) {
-    //         const parsedPoint = JSON.parse(point);
-    //         dL.ctx.beginPath();
-    //         dL.ctx.arc(g2lx(parsedPoint[0]), g2ly(parsedPoint[1]), 5, 0, 2 * Math.PI);
-    //         dL.ctx.fill();
-    //     }
-    // }
-
     private onModeChange(newValue: DrawMode, oldValue: DrawMode): void {
         if (this.brushHelper === undefined) return;
 
@@ -330,7 +317,6 @@ class DrawTool extends Tool implements ITool {
         this.brushHelper = this.createBrush(toGP(mouse?.x ?? -1000, mouse?.y ?? -1000));
         layer.addShape(this.brushHelper, SyncMode.NO_SYNC, InvalidationMode.NORMAL); // during mode change the shape is already added
         this.setupBrush();
-        // if (getGameState().isDm) this.showLayerPoints();
         this.pointer = this.createPointer(toGP(mouse?.x ?? -1000, mouse?.y ?? -1000));
         const drawLayer = floorSystem.getLayer(floorState.currentFloor.value!, LayerName.Draw);
         drawLayer!.addShape(this.pointer, SyncMode.NO_SYNC, InvalidationMode.NORMAL);
