@@ -21,7 +21,8 @@ import { VisionBlock } from "../systems/properties/types";
 
 import { CDT } from "./cdt";
 import { IterativeDelete } from "./iterative";
-import type { Point } from "./tds";
+import type { Point, Triangle } from "./tds";
+import { ccw, cw } from "./triag";
 
 export enum TriangulationTarget {
     VISION = "vision",
@@ -52,15 +53,19 @@ interface VisionSource {
     path?: Path2D;
 }
 
+export const AMBIENT_SYMBOL = Symbol("ambient");
+
 class VisionState extends Store<State> {
     private visionBlockers = new Map<FloorId, LocalId[]>();
     private movementBlockers = new Map<FloorId, LocalId[]>();
-    private visionSources = new Map<FloorId, { shape: LocalId; aura: AuraId }[]>();
+    private visionSources = new Map<FloorId, VisionSource[]>();
 
-    private visionSourcesInView = new Map<FloorId, { shape: LocalId; aura: AuraId }[]>();
+    private visionSourcesInView = new Map<FloorId, VisionSource[]>();
     private visionIteration = new Map<FloorId, number>();
 
     private cdt = new Map<FloorId, { vision: CDT; movement: CDT }>();
+    private interiorDependentShapes = new Map<FloorId, Set<LocalId | typeof AMBIENT_SYMBOL>>();
+    private interiorPaths = new Map<FloorId, Map<LocalId | typeof AMBIENT_SYMBOL, Path2D>>();
 
     drawTeContour = false;
 
@@ -79,6 +84,8 @@ class VisionState extends Store<State> {
         this.visionSourcesInView.clear();
         this.visionIteration.clear();
         this.cdt.clear();
+        this.interiorDependentShapes.clear();
+        this.interiorPaths.clear();
     }
 
     setVisionMode(mode: VisibilityMode, sync: boolean): void {
@@ -126,6 +133,8 @@ class VisionState extends Store<State> {
         this.visionIteration.set(floor, 0);
         this.addWalls(vision);
         this.addWalls(movement);
+
+        this.interiorDependentShapes.set(floor, new Set([AMBIENT_SYMBOL]));
     }
 
     getCDT(target: TriangulationTarget, floor: FloorId): CDT {
@@ -157,7 +166,11 @@ class VisionState extends Store<State> {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         (window as any).CDT = this.cdt;
 
-        if (target === TriangulationTarget.VISION) this.increaseVisionIteration(floor);
+        if (target === TriangulationTarget.VISION) {
+            for (const shape of this.interiorDependentShapes.get(floor)?.keys() ?? [])
+                this.computeInteriorRegions(floor, shape);
+            this.increaseVisionIteration(floor);
+        }
     }
 
     private triangulateShape(target: TriangulationTarget, shape: IShape): void {
@@ -231,6 +244,75 @@ class VisionState extends Store<State> {
         cdt.insertConstraint([-1e8, 1e11], [-1e8, 1e8]);
     }
 
+    getInteriorPath(floor: FloorId, shape: LocalId | typeof AMBIENT_SYMBOL): Path2D | undefined {
+        return this.interiorPaths.get(floor)?.get(shape);
+    }
+
+    private isBoundaryConstraint(t: Triangle, edgeIdx: number): boolean {
+        const BOUNDARY = 1e7;
+        const v1 = t.vertices[ccw(edgeIdx)]?.point;
+        const v2 = t.vertices[cw(edgeIdx)]?.point;
+        if (v1 === undefined || v2 === undefined) return true;
+        return (
+            (Math.abs(v1[0]) >= BOUNDARY || Math.abs(v1[1]) >= BOUNDARY) &&
+            (Math.abs(v2[0]) >= BOUNDARY || Math.abs(v2[1]) >= BOUNDARY)
+        );
+    }
+
+    private computeInteriorRegions(floor: FloorId, shapeId: LocalId | typeof AMBIENT_SYMBOL): void {
+        const cdt = this.getCDT(TriangulationTarget.VISION, floor);
+
+        const exterior = new Set<Triangle>();
+        const queue: Triangle[] = [];
+        if (shapeId === AMBIENT_SYMBOL) {
+            for (const t of cdt.tds.triangles) {
+                if (t.isInfinite()) {
+                    exterior.add(t);
+                    queue.push(t);
+                }
+            }
+        }
+
+        while (queue.length > 0) {
+            const current = queue.pop()!;
+            for (let i = 0; i < 3; i++) {
+                if (current.isConstrained(i) && !this.isBoundaryConstraint(current, i)) {
+                    continue;
+                }
+                const neighbour = current.neighbours[i] ?? null;
+                if (neighbour === null || exterior.has(neighbour)) continue;
+                exterior.add(neighbour);
+                queue.push(neighbour);
+            }
+        }
+
+        const interior = new Set<Triangle>();
+        for (const t of cdt.tds.triangles) {
+            if (!t.isInfinite() && !exterior.has(t)) {
+                interior.add(t);
+            }
+        }
+        if (!this.interiorDependentShapes.has(floor)) this.interiorDependentShapes.set(floor, new Set());
+        this.interiorDependentShapes.get(floor)!.add(shapeId);
+
+        if (!this.interiorPaths.has(floor)) this.interiorPaths.set(floor, new Map());
+        if (interior.size > 0) {
+            const path = new Path2D();
+            for (const t of interior) {
+                const v0 = t.vertices[0]!.point!;
+                const v1 = t.vertices[1]!.point!;
+                const v2 = t.vertices[2]!.point!;
+                path.moveTo(v0[0], v0[1]);
+                path.lineTo(v1[0], v1[1]);
+                path.lineTo(v2[0], v2[1]);
+                path.closePath();
+            }
+            this.interiorPaths.get(floor)!.set(shapeId, path);
+        } else {
+            this.interiorPaths.get(floor)!.delete(shapeId);
+        }
+    }
+
     private triangulatePath(
         target: TriangulationTarget,
         shape: IShape,
@@ -270,7 +352,11 @@ class VisionState extends Store<State> {
             if (shape) {
                 this.triangulateShape(data.target, shape);
                 if (data.target === TriangulationTarget.VISION) {
-                    if (shape.floorId !== undefined) this.increaseVisionIteration(shape.floorId);
+                    if (shape.floorId !== undefined) {
+                        for (const key of this.interiorDependentShapes.get(shape.floorId)?.keys() ?? [])
+                            this.computeInteriorRegions(shape.floorId, key);
+                        this.increaseVisionIteration(shape.floorId);
+                    }
                 }
             }
         }
@@ -282,7 +368,11 @@ class VisionState extends Store<State> {
             if (shape) {
                 this.deleteShapesFromTriangulation(data.target, shape);
                 if (data.target === TriangulationTarget.VISION) {
-                    if (shape.floorId !== undefined) this.increaseVisionIteration(shape.floorId);
+                    if (shape.floorId !== undefined) {
+                        for (const key of this.interiorDependentShapes.get(shape.floorId)?.keys() ?? [])
+                            this.computeInteriorRegions(shape.floorId, key);
+                        this.increaseVisionIteration(shape.floorId);
+                    }
                 }
             }
         }
@@ -396,15 +486,15 @@ class VisionState extends Store<State> {
         this.visionSourcesInView.set(floor, viv);
     }
 
-    getAllVisionSources(): readonly { shape: LocalId; aura: AuraId }[] {
+    getAllVisionSources(): readonly VisionSource[] {
         return [...this.visionSources.values()].flat();
     }
 
-    private getVisionSources(floor: FloorId): readonly { shape: LocalId; aura: AuraId }[] {
+    private getVisionSources(floor: FloorId): readonly VisionSource[] {
         return this.visionSources.get(floor) ?? [];
     }
 
-    private setVisionSources(sources: { shape: LocalId; aura: AuraId }[], floor: FloorId): void {
+    private setVisionSources(sources: VisionSource[], floor: FloorId): void {
         this.visionSources.set(floor, sources);
         this.invalidateView(floor);
     }
@@ -414,7 +504,7 @@ class VisionState extends Store<State> {
         targetBlockers.set(floor, blockers);
     }
 
-    sliceVisionSources(index: number, floor: FloorId): void {
+    private sliceVisionSources(index: number, floor: FloorId): void {
         const sources = this.getVisionSources(floor);
         this.setVisionSources([...sources.slice(0, index), ...sources.slice(index + 1)], floor);
     }
@@ -437,7 +527,7 @@ class VisionState extends Store<State> {
         }
     }
 
-    addVisionSource(source: { shape: LocalId; aura: AuraId }, floor: FloorId): void {
+    addVisionSource(source: VisionSource, floor: FloorId): void {
         const sources = this.getVisionSources(floor);
         this.setVisionSources([...sources, source], floor);
     }

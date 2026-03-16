@@ -11,9 +11,10 @@ import { auraSystem } from "../../systems/auras";
 import { floorSystem } from "../../systems/floors";
 import { floorState } from "../../systems/floors/state";
 import { gameState } from "../../systems/game/state";
+import { positionState } from "../../systems/position/state";
 import { locationSettingsSystem } from "../../systems/settings/location";
 import { locationSettingsState } from "../../systems/settings/location/state";
-import { visionState } from "../../vision/state";
+import { AMBIENT_SYMBOL, visionState } from "../../vision/state";
 
 import { FowLayer } from "./fow";
 
@@ -37,6 +38,28 @@ export class FowLightingLayer extends FowLayer {
 
     exitLayer(shape: IShape): void {
         this.preFogShapes = this.preFogShapes.filter((s) => s.id !== shape.id);
+    }
+
+    private drawAmbientLight(shapeId: LocalId | typeof AMBIENT_SYMBOL): void {
+        this.vCtx.globalCompositeOperation = "source-over";
+        this.vCtx.fillStyle = "rgba(0, 0, 0, 1)";
+        this.vCtx.fillRect(0, 0, this.width, this.height);
+
+        this.vCtx.globalCompositeOperation = "destination-out";
+        const interiorMask = visionState.getInteriorPath(this.floor, shapeId);
+        if (interiorMask !== undefined) {
+            const { panX, panY, zoom } = positionState.readonly;
+            this.vCtx.save();
+            this.vCtx.transform(zoom, 0, 0, zoom, panX * zoom, panY * zoom);
+            this.vCtx.fill(interiorMask);
+            this.vCtx.lineWidth = 1 / zoom;
+            this.vCtx.strokeStyle = "rgba(0, 0, 0, 1)";
+            this.vCtx.stroke(interiorMask);
+            this.vCtx.restore();
+        }
+
+        this.ctx.globalCompositeOperation = "source-over";
+        this.ctx.drawImage(this.virtualCanvas, 0, 0, window.innerWidth, window.innerHeight);
     }
 
     draw(): void {
@@ -175,6 +198,14 @@ export class FowLightingLayer extends FowLayer {
                     this.vCtx.fill();
                     this.ctx.drawImage(this.virtualCanvas, 0, 0, window.innerWidth, window.innerHeight);
                 }
+            }
+
+            if (
+                locationSettingsState.raw.ambientLight.value &&
+                locationSettingsState.raw.fullFow.value &&
+                this.floor === activeFloor.id
+            ) {
+                this.drawAmbientLight(AMBIENT_SYMBOL);
             }
 
             if (isLosActive && this.floor === activeFloor.id) {
