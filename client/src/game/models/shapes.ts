@@ -8,7 +8,9 @@ export interface ShapeOptions {
     isPlayerRect: boolean;
 
     preFogShape: boolean;
+    ambientBarrier: boolean;
     skipDraw: boolean;
+    lightShape: boolean;
     borderOperation: GlobalCompositeOperation;
 
     // legacy svg stuff

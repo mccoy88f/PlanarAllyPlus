@@ -1,6 +1,6 @@
 import { getUnitDistance } from "../../core/conversions";
 import type { LocalPoint } from "../../core/geometry";
-import { equalsP } from "../../core/geometry";
+import { equalsP, toGP } from "../../core/geometry";
 import type { LocalId } from "../../core/id";
 import { Store } from "../../core/store";
 import { sendLocationOption } from "../api/emits/location";
@@ -16,12 +16,14 @@ import { auraSystem } from "../systems/auras";
 import type { Aura, AuraId } from "../systems/auras/models";
 import { floorSystem } from "../systems/floors";
 import { floorState } from "../systems/floors/state";
+import { doorSystem } from "../systems/logic/door";
 import { getProperties } from "../systems/properties/state";
 import { VisionBlock } from "../systems/properties/types";
 
 import { CDT } from "./cdt";
 import { IterativeDelete } from "./iterative";
-import type { Point, Triangle } from "./tds";
+import type { Point, Triangle, Vertex } from "./tds";
+import { computeVisibility } from "./te";
 import { ccw, cw } from "./triag";
 
 export enum TriangulationTarget {
@@ -42,6 +44,8 @@ export function visibilityModeFromString(mode: string): VisibilityMode | undefin
         return VisibilityMode.TRIANGLE_ITERATIVE;
     return undefined;
 }
+
+export const PORTAL_RANGE = 400;
 
 interface State {
     mode: VisibilityMode;
@@ -66,6 +70,11 @@ class VisionState extends Store<State> {
     private cdt = new Map<FloorId, { vision: CDT; movement: CDT }>();
     private interiorDependentShapes = new Map<FloorId, Set<LocalId | typeof AMBIENT_SYMBOL>>();
     private interiorPaths = new Map<FloorId, Map<LocalId | typeof AMBIENT_SYMBOL, Path2D>>();
+    private portalPaths = new Map<
+        FloorId,
+        Map<LocalId | typeof AMBIENT_SYMBOL, { path: Path2D; cx: number; cy: number }[]>
+    >();
+    private ambientBarrierShapes = new Map<FloorId, LocalId[]>();
 
     drawTeContour = false;
 
@@ -86,6 +95,8 @@ class VisionState extends Store<State> {
         this.cdt.clear();
         this.interiorDependentShapes.clear();
         this.interiorPaths.clear();
+        this.portalPaths.clear();
+        this.ambientBarrierShapes.clear();
     }
 
     setVisionMode(mode: VisibilityMode, sync: boolean): void {
@@ -167,9 +178,7 @@ class VisionState extends Store<State> {
         (window as any).CDT = this.cdt;
 
         if (target === TriangulationTarget.VISION) {
-            for (const shape of this.interiorDependentShapes.get(floor)?.keys() ?? [])
-                this.computeInteriorRegions(floor, shape);
-            this.increaseVisionIteration(floor);
+            this.recalcInterior(floor);
         }
     }
 
@@ -248,6 +257,36 @@ class VisionState extends Store<State> {
         return this.interiorPaths.get(floor)?.get(shape);
     }
 
+    private recalcInterior(floor: FloorId): void {
+        for (const shape of this.interiorDependentShapes.get(floor) ?? []) this.computeInteriorRegions(floor, shape);
+        this.increaseVisionIteration(floor);
+    }
+
+    getPortalMasks(
+        floor: FloorId,
+        shape: LocalId | typeof AMBIENT_SYMBOL,
+    ): { path: Path2D; cx: number; cy: number }[] {
+        return this.portalPaths.get(floor)?.get(shape) ?? [];
+    }
+
+    addAmbientBarrier(id: LocalId, floor: FloorId): void {
+        const barriers = this.ambientBarrierShapes.get(floor) ?? [];
+        barriers.push(id);
+        this.ambientBarrierShapes.set(floor, barriers);
+        this.recalcInterior(floor);
+        floorSystem.invalidateAllFloors();
+    }
+
+    removeAmbientBarrier(id: LocalId, floor: FloorId): void {
+        const barriers = this.ambientBarrierShapes.get(floor);
+        if (barriers !== undefined) {
+            const idx = barriers.indexOf(id);
+            if (idx >= 0) barriers.splice(idx, 1);
+        }
+        this.recalcInterior(floor);
+        floorSystem.invalidateAllFloors();
+    }
+
     private isBoundaryConstraint(t: Triangle, edgeIdx: number): boolean {
         const BOUNDARY = 1e7;
         const v1 = t.vertices[ccw(edgeIdx)]?.point;
@@ -259,8 +298,60 @@ class VisionState extends Store<State> {
         );
     }
 
+    private collectAmbientBarriers(floor: FloorId): { segments: [Point, Point][]; center: Point }[] {
+        const sources: { segments: [Point, Point][]; center: Point }[] = [];
+
+        const addShapeBarrier = (shape: IShape): void => {
+            const points = shape.shadowPoints;
+            if (points.length < 2) return;
+            const segments: [Point, Point][] = [];
+            const n = points.length;
+            const closed = shape.isClosed;
+            for (let i = 0; i < n - (closed ? 0 : 1); i++) {
+                const pa: Point = [parseFloat(points[i]![0].toFixed(10)), parseFloat(points[i]![1].toFixed(10))];
+                const pb: Point = [
+                    parseFloat(points[(i + 1) % n]![0].toFixed(10)),
+                    parseFloat(points[(i + 1) % n]![1].toFixed(10)),
+                ];
+                segments.push([pa, pb]);
+            }
+            const c = shape.center;
+            sources.push({ segments, center: [c.x, c.y] });
+        };
+
+        // Open doors act as ambient barriers even though their CDT constraints are removed
+        for (const doorId of doorSystem.getDoors()) {
+            const shape = getShape(doorId);
+            if (shape === undefined || shape.floorId !== floor) continue;
+            const props = getProperties(doorId);
+            if (props === undefined || props.blocksVision !== VisionBlock.No) continue;
+            addShapeBarrier(shape);
+        }
+
+        // Manual ambient barrier shapes
+        for (const barrierId of this.ambientBarrierShapes.get(floor) ?? []) {
+            const shape = getShape(barrierId);
+            if (shape === undefined) continue;
+            addShapeBarrier(shape);
+        }
+
+        return sources;
+    }
+
     private computeInteriorRegions(floor: FloorId, shapeId: LocalId | typeof AMBIENT_SYMBOL): void {
         const cdt = this.getCDT(TriangulationTarget.VISION, floor);
+        const barrierSources = this.collectAmbientBarriers(floor);
+
+        const allBarrierSegments = barrierSources.flatMap((s) => s.segments);
+        const insertedBarriers = cdt.insertBarrierEdges(allBarrierSegments);
+
+        const barrierAdj = new Map<Vertex, Set<Vertex>>();
+        for (const [va, vb] of insertedBarriers) {
+            if (!barrierAdj.has(va)) barrierAdj.set(va, new Set());
+            barrierAdj.get(va)!.add(vb);
+            if (!barrierAdj.has(vb)) barrierAdj.set(vb, new Set());
+            barrierAdj.get(vb)!.add(va);
+        }
 
         const exterior = new Set<Triangle>();
         const queue: Triangle[] = [];
@@ -271,6 +362,14 @@ class VisionState extends Store<State> {
                     queue.push(t);
                 }
             }
+        } else {
+            const shape = getShape(shapeId);
+            if (shape === undefined) return;
+            const triangle = cdt.locate([shape.center.x, shape.center.y], null);
+            if (triangle.loc !== null) {
+                exterior.add(triangle.loc);
+                queue.push(triangle.loc);
+            }
         }
 
         while (queue.length > 0) {
@@ -279,12 +378,52 @@ class VisionState extends Store<State> {
                 if (current.isConstrained(i) && !this.isBoundaryConstraint(current, i)) {
                     continue;
                 }
+                if (barrierAdj.size > 0) {
+                    const va = current.vertices[ccw(i)];
+                    const vb = current.vertices[cw(i)];
+                    if (va && vb && barrierAdj.get(va)?.has(vb) === true) {
+                        continue;
+                    }
+                }
                 const neighbour = current.neighbours[i] ?? null;
                 if (neighbour === null || exterior.has(neighbour)) continue;
                 exterior.add(neighbour);
                 queue.push(neighbour);
             }
         }
+
+        if (!this.portalPaths.has(floor)) this.portalPaths.set(floor, new Map());
+        const cachedPaths: { path: Path2D; cx: number; cy: number }[] = [];
+        for (const source of barrierSources) {
+            const locResult = cdt.locate(source.center, null);
+            const tri = locResult.loc;
+            if (tri === null) continue;
+
+            if (!exterior.has(tri)) {
+                let bordersExterior = false;
+                for (let i = 0; i < 3; i++) {
+                    const n = tri.neighbours[i];
+                    if (n != null && exterior.has(n)) {
+                        bordersExterior = true;
+                        break;
+                    }
+                }
+                if (!bordersExterior) continue;
+            }
+
+            const mid = toGP(source.center[0], source.center[1]);
+            const { visibility } = computeVisibility(mid, TriangulationTarget.VISION, floor, false, PORTAL_RANGE);
+            if (visibility.length < 3) continue;
+
+            const path = new Path2D();
+            path.moveTo(visibility[0]![0], visibility[0]![1]);
+            for (let i = 1; i < visibility.length; i++) {
+                path.lineTo(visibility[i]![0], visibility[i]![1]);
+            }
+            path.closePath();
+            cachedPaths.push({ path, cx: source.center[0], cy: source.center[1] });
+        }
+        this.portalPaths.get(floor)!.set(shapeId, cachedPaths);
 
         const interior = new Set<Triangle>();
         for (const t of cdt.tds.triangles) {
@@ -353,9 +492,7 @@ class VisionState extends Store<State> {
                 this.triangulateShape(data.target, shape);
                 if (data.target === TriangulationTarget.VISION) {
                     if (shape.floorId !== undefined) {
-                        for (const key of this.interiorDependentShapes.get(shape.floorId)?.keys() ?? [])
-                            this.computeInteriorRegions(shape.floorId, key);
-                        this.increaseVisionIteration(shape.floorId);
+                        this.recalcInterior(shape.floorId);
                     }
                 }
             }
@@ -369,9 +506,7 @@ class VisionState extends Store<State> {
                 this.deleteShapesFromTriangulation(data.target, shape);
                 if (data.target === TriangulationTarget.VISION) {
                     if (shape.floorId !== undefined) {
-                        for (const key of this.interiorDependentShapes.get(shape.floorId)?.keys() ?? [])
-                            this.computeInteriorRegions(shape.floorId, key);
-                        this.increaseVisionIteration(shape.floorId);
+                        this.recalcInterior(shape.floorId);
                     }
                 }
             }
@@ -461,13 +596,17 @@ class VisionState extends Store<State> {
     // todo: to be removed, but it's no longer on the hot path currently so not priority
     invalidateView(floor: FloorId): void {
         const layer = floorState.currentLayer.value;
-        if (layer === undefined) return;
         const viv = [];
         for (const source of this.getVisionSources(floor)) {
             const aura = auraSystem.get(source.shape, source.aura);
             if (aura === undefined) continue;
 
             if (!accessSystem.hasAccessTo(source.shape, "vision", true) && !aura.visible) continue;
+
+            if (layer === undefined) {
+                viv.push(source);
+                continue;
+            }
 
             const auraValue = aura.value > 0 && !isNaN(aura.value) ? aura.value : 0;
             const auraDim = aura.dim > 0 && !isNaN(aura.dim) ? aura.dim : 0;
