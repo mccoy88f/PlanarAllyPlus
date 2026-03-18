@@ -114,6 +114,7 @@ export interface ApiAura {
   border_colour: string;
   angle: number;
   direction: number;
+  flood_light: boolean;
 }
 export interface ApiNote {
   uuid: NoteId;
@@ -390,6 +391,7 @@ export interface ApiOptionalAura {
   border_colour?: string;
   angle?: number;
   direction?: number;
+  flood_light?: boolean;
 }
 export interface ApiOptionalUserOptions {
   fow_colour?: string | null;

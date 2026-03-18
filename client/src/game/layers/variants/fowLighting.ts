@@ -162,6 +162,11 @@ export class FowLightingLayer extends FowLayer {
                         }
                     }
 
+                    if (aura.floodLight) {
+                        this.drawAmbientLight(shape.id);
+                        continue;
+                    }
+
                     const auraValue = aura.value > 0 && !isNaN(aura.value) ? aura.value : 0;
                     const auraDim = aura.dim > 0 && !isNaN(aura.dim) ? aura.dim : 0;
 

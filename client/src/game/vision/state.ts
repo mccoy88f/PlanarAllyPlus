@@ -54,6 +54,7 @@ interface State {
 interface VisionSource {
     shape: LocalId;
     aura: AuraId;
+    isFloodLight: boolean;
     path?: Path2D;
 }
 
@@ -645,6 +646,11 @@ class VisionState extends Store<State> {
 
     private sliceVisionSources(index: number, floor: FloorId): void {
         const sources = this.getVisionSources(floor);
+        const source = sources[index]!;
+        if (source.isFloodLight) {
+            this.interiorDependentShapes.get(floor)?.delete(source.shape);
+            this.interiorPaths.get(floor)?.delete(source.shape);
+        }
         this.setVisionSources([...sources.slice(0, index), ...sources.slice(index + 1)], floor);
     }
 
@@ -669,6 +675,13 @@ class VisionState extends Store<State> {
     addVisionSource(source: VisionSource, floor: FloorId): void {
         const sources = this.getVisionSources(floor);
         this.setVisionSources([...sources, source], floor);
+        if (source.isFloodLight) {
+            if (!this.interiorDependentShapes.has(floor)) {
+                this.interiorDependentShapes.set(floor, new Set());
+            }
+            this.interiorDependentShapes.get(floor)!.add(source.shape);
+            this.computeInteriorRegions(floor, source.shape);
+        }
     }
 
     addBlocker(target: TriangulationTarget, blocker: LocalId, floor: FloorId, recalculate: boolean): void {
@@ -703,7 +716,7 @@ class VisionState extends Store<State> {
                 this.getVisionSources(oldFloor).findIndex((s) => s.shape === source && s.aura === aura.uuid),
                 oldFloor,
             );
-            this.addVisionSource({ shape: source, aura: aura.uuid }, newFloor);
+            this.addVisionSource({ shape: source, aura: aura.uuid, isFloodLight: aura.floodLight }, newFloor);
         }
     }
 
@@ -722,9 +735,15 @@ class VisionState extends Store<State> {
 
     removeVisionSource(floor: FloorId, aura: AuraId): void {
         const sources = this.getVisionSources(floor);
+        const source = sources.find((s) => s.aura === aura);
+        if (source === undefined) return;
         const newSources = sources.filter((s) => s.aura !== aura);
         if (newSources.length !== sources.length) {
             this.setVisionSources(newSources, floor);
+        }
+        if (source.isFloodLight) {
+            this.interiorDependentShapes.get(floor)?.delete(source.shape);
+            this.interiorPaths.get(floor)?.delete(source.shape);
         }
     }
 

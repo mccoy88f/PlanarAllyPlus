@@ -894,6 +894,7 @@ def upgrade(
             db.execute_sql(
                 "UPDATE location_options SET ambient_light = NULL WHERE id NOT IN (SELECT default_options_id FROM room)"
             )
+            db.execute_sql('ALTER TABLE "aura" ADD COLUMN "flood_light" INTEGER NOT NULL DEFAULT 0')
     else:
         raise UnknownVersionException(f"No upgrade code for save format {version} was found.")
     inc_save_version(db)
