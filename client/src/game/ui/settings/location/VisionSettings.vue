@@ -83,7 +83,12 @@ function changeVisionMode(event: Event): void {
         <ResetWrapper :global="global" :location="location" setting="ambientLight">
             <label :for="'ambientLight-' + location">{{ t("game.ui.settings.VisionSettings.ambient_light") }}</label>
             <div>
-                <input :id="'ambientLight-' + location" v-model="ambientLight" type="checkbox" :disabled="!$.fullFow.value" />
+                <input
+                    :id="'ambientLight-' + location"
+                    v-model="ambientLight"
+                    type="checkbox"
+                    :disabled="!$.fullFow.value"
+                />
             </div>
         </ResetWrapper>
         <ResetWrapper :global="global" :location="location" setting="fowLos">

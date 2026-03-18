@@ -45,7 +45,7 @@ export interface ITool {
     onPanStart: () => void;
     onPanEnd: () => void;
 
-    onSelect: () => void;
+    onSelect: () => Promise<void>;
     onDeselect: () => void;
 
     onKeyDown: (event: KeyboardEvent, features: ToolFeatures) => Promise<void>;
