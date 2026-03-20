@@ -490,8 +490,11 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
     showIndex.value = true;
     indexLoading.value = true;
     indexCompendium.value = comp;
+    selectedCompendiumId.value = comp.id;
+    loadAvailableTags();
     currentIndex.value = [];
     expandedIndexCollections.value.clear();
+
     try {
         const r = await http.get(
             `/api/extensions/compendium/index?compendium=${encodeURIComponent(comp.id)}`,
@@ -1203,15 +1206,7 @@ onMounted(() => {
                     class="ext-search-input"
                     :placeholder="t('game.ui.extensions.CompendiumModal.search_placeholder')"
                 />
-                <button
-                    type="button"
-                    class="ext-search-add-btn filter-btn"
-                    :class="{ 'is-active': showTagFilters }"
-                    :title="t('game.ui.extensions.CompendiumModal.filter_tags') || 'Filtra Tag'"
-                    @click="showTagFilters = !showTagFilters"
-                >
-                    <font-awesome-icon icon="filter" />
-                </button>
+
                 <button
                     type="button"
                     class="ext-search-add-btn"
@@ -1233,40 +1228,7 @@ onMounted(() => {
                 </button>
             </div>
 
-            <!-- Tag Filters Panel -->
-            <div v-if="showTagFilters" class="qe-tag-filters">
-                <!-- Compendium Selector for Tags -->
-                <div class="qe-tag-compendium-selector">
-                    <span class="qe-tag-selector-label">Tag da Compendio:</span>
-                    <select v-model="selectedCompendiumId" class="qe-tag-select">
-                        <option v-for="c in compendiums" :key="c.id" :value="c.id">
-                            {{ c.name }}
-                        </option>
-                    </select>
-                </div>
-                
-                <div v-if="availableTagCategories.length > 0" class="qe-tag-categories-list">
-                    <div v-for="cat in availableTagCategories" :key="cat.name" class="qe-tag-dropdown">
-                         <button class="qe-tag-dropdown-header" @click="toggleTagCategory(cat.name)">
-                              <span class="qe-tag-dropdown-title">{{ cat.name }}</span>
-                              <font-awesome-icon :icon="expandedTagCategories.has(cat.name) ? 'chevron-up' : 'chevron-down'" />
-                         </button>
-                         <div v-show="expandedTagCategories.has(cat.name)" class="qe-tag-dropdown-content">
-                              <label v-for="tag in cat.tags" :key="tag.id" class="qe-tag-checkbox-label">
-                                   <input 
-                                       type="checkbox" 
-                                       :checked="selectedTags.has(tag.id)" 
-                                       @change="toggleTagFilter(tag.id)" 
-                                   />
-                                   <span class="qe-tag-checkbox-text">{{ tag.name }}</span>
-                              </label>
-                         </div>
-                    </div>
-                </div>
-                <div v-else class="ext-ui-empty qe-tag-empty">
-                    Nessun tag disponibile in questo compendio.
-                </div>
-            </div>
+
 
 
 
@@ -1543,7 +1505,32 @@ onMounted(() => {
                                     </div>
                                 </div>
                             </div>
+                            
+                            <!-- Tag Filters Accordion inside Index -->
+                            <div v-if="availableTagCategories.length > 0" class="qe-tag-filters qe-index-tag-filters">
+                                <h4 class="qe-tag-index-title">Filtra per Tag:</h4>
+                                <div class="qe-tag-categories-list">
+                                     <div v-for="cat in availableTagCategories" :key="cat.name" class="qe-tag-dropdown">
+                                          <button class="qe-tag-dropdown-header" @click="toggleTagCategory(cat.name)">
+                                               <span class="qe-tag-dropdown-title">{{ cat.name }}</span>
+                                               <font-awesome-icon :icon="expandedTagCategories.has(cat.name) ? 'chevron-up' : 'chevron-down'" />
+                                          </button>
+                                          <div v-show="expandedTagCategories.has(cat.name)" class="qe-tag-dropdown-content">
+                                               <label v-for="tag in cat.tags" :key="tag.id" class="qe-tag-checkbox-label">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        :checked="selectedTags.has(tag.id)" 
+                                                        @change="toggleTagFilter(tag.id)" 
+                                                    />
+                                                    <span class="qe-tag-checkbox-text">{{ tag.name }}</span>
+                                               </label>
+                                          </div>
+                                     </div>
+                                </div>
+                            </div>
+
                             <div class="qe-index-grid">
+
                                 <div v-for="coll in currentIndex" :key="coll.slug" class="qe-index-coll">
                                     <h2 class="qe-index-coll-title">{{ formatName(coll.name) }}</h2>
                                     <div class="qe-index-item-list">
