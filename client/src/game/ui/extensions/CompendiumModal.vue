@@ -49,6 +49,7 @@ interface ItemMeta {
 
 interface ItemFull extends ItemMeta {
     markdown: string;
+    tags?: Record<string, { id: number; name: string }[]>;
 }
 
 interface SearchResult {
@@ -102,6 +103,10 @@ const sidebarCollapsed = ref(false);
 const originalIndex = ref<any[] | null>(null);
 const showTranslationTools = ref(false);
 const translationTagContainer = ref<HTMLElement | null>(null);
+
+const showTagFilters = ref(false);
+const availableTagCategories = ref<{ name: string; tags: { id: number; name: string }[] }[]>([]);
+const selectedTags = ref<Set<number>>(new Set());
 const isTranslated = computed(() => !!activeTranslationLang.value);
 const currentMarkdown = ref<string>("");
 
@@ -329,8 +334,9 @@ async function ensureCollectionExpanded(compId: string, collSlug: string): Promi
     const key = `${compId}/${collSlug}`;
     if (itemsByKey.value.has(key)) return;
     try {
+        const tagsParam = Array.from(selectedTags.value).join(",");
         const r = await http.get(
-            `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}`,
+            `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}`,
         );
         if (r.ok) {
             const data = (await r.json()) as { items: ItemMeta[] };
@@ -351,8 +357,9 @@ async function toggleCollection(compId: string, collSlug: string): Promise<void>
         const key = `${compId}/${collSlug}`;
         if (!itemsByKey.value.has(key)) {
             try {
+                const tagsParam = Array.from(selectedTags.value).join(",");
                 const r = await http.get(
-                    `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}`,
+                    `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}`,
                 );
                 if (r.ok) {
                     const data = (await r.json()) as { items: ItemMeta[] };
@@ -961,6 +968,8 @@ async function runSearch(q: string, compendiumId?: string | null): Promise<void>
     try {
         const params = new URLSearchParams({ q });
         if (compendiumId) params.set("compendium", compendiumId);
+        const tagsParam = Array.from(selectedTags.value).join(",");
+        if (tagsParam) params.set("tags", tagsParam);
         const r = await http.get(
             `/api/extensions/compendium/search?${params.toString()}`,
         );
@@ -997,10 +1006,70 @@ function shareToChat(): void {
     toast.success(t("game.ui.extensions.CompendiumModal.share_success"));
 }
 
+async function loadAvailableTags(): Promise<void> {
+    const compId = selectedCompendiumId.value || defaultId.value;
+    if (!compId) return;
+    try {
+        const r = await http.get(`/api/extensions/compendium/tags?compendium=${encodeURIComponent(compId)}`);
+        if (r.ok) {
+            const data = (await r.json()) as { categories: { name: string; tags: { id: number; name: string }[] }[] };
+            availableTagCategories.value = data.categories || [];
+        }
+    } catch { /* ignore */ }
+}
+
+async function refetchAllVisibleItems(): Promise<void> {
+    const tagsParam = Array.from(selectedTags.value).join(",");
+    const promises: Promise<void>[] = [];
+    
+    for (const key of itemsByKey.value.keys()) {
+         const parts = key.split("/");
+         const compId = parts[0]!;
+         const collSlug = parts[1]!;
+         promises.push((async () => {
+             try {
+                 const r = await http.get(`/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}`);
+                 if (r.ok) {
+                     const data = (await r.json()) as { items: ItemMeta[] };
+                     itemsByKey.value.set(key, data.items);
+                 }
+             } catch {}
+         })());
+    }
+    await Promise.all(promises);
+}
+
+async function toggleTagFilter(tagId: number): Promise<void> {
+    const next = new Set(selectedTags.value);
+    if (next.has(tagId)) {
+        next.delete(tagId);
+    } else {
+        next.add(tagId);
+    }
+    selectedTags.value = next;
+    
+    // Trigger refetch for sidebar static items
+    await refetchAllVisibleItems();
+    
+    // Trigger search again if querying
+    const trimmed = searchQuery.value.trim();
+    if (trimmed) {
+        await runSearch(trimmed, searchInCompendium.value || undefined);
+    }
+}
+
+watch(selectedCompendiumId, () => {
+    selectedTags.value.clear();
+    loadAvailableTags();
+});
+
 watch(
     () => props.visible,
     (visible: boolean) => {
-        if (visible) loadCompendiums();
+        if (visible) {
+            loadCompendiums();
+            loadAvailableTags();
+        }
     },
 );
 
@@ -1117,6 +1186,15 @@ onMounted(() => {
                 />
                 <button
                     type="button"
+                    class="ext-search-add-btn filter-btn"
+                    :class="{ 'is-active': showTagFilters }"
+                    :title="t('game.ui.extensions.CompendiumModal.filter_tags') || 'Filtra Tag'"
+                    @click="showTagFilters = !showTagFilters"
+                >
+                    <font-awesome-icon icon="filter" />
+                </button>
+                <button
+                    type="button"
                     class="ext-search-add-btn"
                     :title="t('game.ui.extensions.CompendiumModal.install_compendium')"
                     @click="openInstallDialog"
@@ -1134,6 +1212,24 @@ onMounted(() => {
                 >
                     <font-awesome-icon icon="language" />
                 </button>
+            </div>
+
+            <!-- Tag Filters Panel -->
+            <div v-if="showTagFilters && availableTagCategories.length > 0" class="qe-tag-filters">
+                <div v-for="cat in availableTagCategories" :key="cat.name" class="qe-tag-category">
+                     <span class="qe-tag-category-name">{{ cat.name }}</span>
+                     <div class="qe-tag-options">
+                          <button 
+                              v-for="tag in cat.tags" 
+                              :key="tag.id"
+                              class="qe-tag-option"
+                              :class="{ active: selectedTags.has(tag.id) }"
+                              @click="toggleTagFilter(tag.id)"
+                          >
+                              {{ tag.name }}
+                          </button>
+                     </div>
+                </div>
             </div>
 
             <div v-if="loading" class="ext-ui-loading qe-loading">
@@ -1478,6 +1574,13 @@ onMounted(() => {
                                 class="qe-markdown-content"
                                 v-html="selectedMarkdownHtml"
                             />
+                            
+                            <div v-if="selectedItem?.item.tags && Object.keys(selectedItem.item.tags).length > 0" class="qe-item-tags">
+                                <div v-for="(tags, catName) in selectedItem.item.tags" :key="catName" class="qe-item-tag-group">
+                                    <span class="qe-item-tag-category">{{ catName }}:</span>
+                                    <span v-for="tag in tags" :key="tag.id" class="qe-item-tag">{{ tag.name }}</span>
+                                </div>
+                            </div>
                             <div v-if="nextItem" class="qe-continue-reading">
                                 <button class="qe-continue-link" @click="navigateToNextItem">
                                     {{ t("game.ui.extensions.CompendiumModal.continue_reading", { name: nextItem.itemName }) }}
@@ -2369,5 +2472,99 @@ onMounted(() => {
     max-width: 50%;
     display: block;
     margin: 0.5rem auto;
+}
+.filter-btn {
+    border-color: #4caf50 !important;
+    color: #4caf50 !important;
+    background: #fff !important;
+
+    &.is-active {
+        background: #4caf50 !important;
+        color: #fff !important;
+    }
+}
+
+.filter-btn:hover:not(:disabled) {
+    background: #e8f5e9 !important;
+    &.is-active {
+        background: #388e3c !important;
+    }
+}
+
+.qe-tag-filters {
+    background: #fdfdfd;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+
+    .qe-tag-category {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+
+        .qe-tag-category-name {
+            font-weight: 600;
+            color: #555;
+            min-width: 80px;
+        }
+
+        .qe-tag-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+
+            .qe-tag-option {
+                padding: 0.2rem 0.5rem;
+                font-size: 0.8rem;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                background: #f7f7f7;
+                cursor: pointer;
+                transition: all 0.2s;
+
+                &:hover {
+                    background: #eee;
+                }
+
+                &.active {
+                    background: #e8f5e9;
+                    border-color: #4caf50;
+                    color: #2e7d32;
+                }
+            }
+        }
+    }
+}
+
+.qe-item-tags {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+
+    .qe-item-tag-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+
+        .qe-item-tag-category {
+            font-weight: 600;
+            color: #666;
+        }
+
+        .qe-item-tag {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+    }
 }
 </style>

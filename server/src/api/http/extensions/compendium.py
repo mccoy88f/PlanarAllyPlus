@@ -261,6 +261,45 @@ def _components_str(comp: dict) -> str:
     return ", ".join(parts)
 
 
+def _extract_5etools_tags(item: dict, type_key: str) -> dict[str, list[str]]:
+    """Estratti tag impliciti dai dati 5etools."""
+    tags = {}
+    
+    if type_key == "spell":
+        level = item.get("level", 0)
+        tags["Livello"] = ["Trucchetto"] if level == 0 else [str(level)]
+        school = _school_name(item.get("school", ""))
+        if school:
+            tags["Scuola"] = [school]
+        
+        classes = item.get("classes", {})
+        from_class_list = classes.get("fromClassList", [])
+        class_names = [c.get("name") for c in from_class_list if c.get("name")]
+        if class_names:
+            tags["Classi"] = class_names
+            
+    elif type_key == "item":
+        rarity = item.get("rarity", "")
+        if rarity:
+            tags["Rarità"] = [rarity.capitalize()]
+        itype = item.get("type", "")
+        if itype:
+            tags["Tipo"] = [itype]
+        if item.get("reqAttune"):
+            tags["Sintonia"] = ["Sì"]
+    
+    elif type_key == "race":
+        size = item.get("size", [])
+        if size:
+            tags["Taglia"] = [s.upper() for s in size if isinstance(s, str)]
+            
+    source = item.get("source", "")
+    if source:
+        tags["Fonte"] = [source]
+        
+    return tags
+
+
 def _build_generic_item_markdown(item: dict, type_key: str) -> str:
     """Renders a generic 5etools item to Markdown, with type-specific metadata header."""
     md = ""
@@ -409,16 +448,41 @@ def _create_sqlite_schema(conn) -> None:
             INSERT INTO items_fts(rowid, name, markdown) VALUES (new.id, new.name, new.markdown);
         END
     """)
+    conn.execute("CREATE TABLE IF NOT EXISTS tag_categories (id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL, slug TEXT UNIQUE NOT NULL)")
+    conn.execute("CREATE TABLE IF NOT EXISTS tags (id INTEGER PRIMARY KEY, category_id INTEGER NOT NULL, name TEXT NOT NULL, slug TEXT NOT NULL, FOREIGN KEY (category_id) REFERENCES tag_categories(id), UNIQUE(category_id, slug))")
+    conn.execute("CREATE TABLE IF NOT EXISTS item_tags (item_id INTEGER NOT NULL, tag_id INTEGER NOT NULL, FOREIGN KEY (item_id) REFERENCES items(id), FOREIGN KEY (tag_id) REFERENCES tags(id), UNIQUE(item_id, tag_id))")
 
 
-def _insert_item_safe(conn, coll_id: int, slug: str, name: str, md: str) -> None:
-    """Inserts an item, mangling slug on collision."""
+def _get_or_create_tag(conn, category_name: str, tag_name: str) -> int:
+    cat_slug = _slugify(category_name)
+    tag_slug = _slugify(tag_name)
+    
+    row = conn.execute("SELECT id FROM tag_categories WHERE slug = ?", (cat_slug,)).fetchone()
+    if row:
+        cat_id = row[0]
+    else:
+        conn.execute("INSERT INTO tag_categories (name, slug) VALUES (?, ?)", (category_name, cat_slug))
+        cat_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        
+    row = conn.execute("SELECT id FROM tags WHERE category_id = ? AND slug = ?", (cat_id, tag_slug)).fetchone()
+    if row:
+        tag_id = row[0]
+    else:
+        conn.execute("INSERT INTO tags (category_id, name, slug) VALUES (?, ?, ?)", (cat_id, tag_name, tag_slug))
+        tag_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        
+    return tag_id
+
+
+def _insert_item_safe(conn, coll_id: int, slug: str, name: str, md: str) -> int:
+    """Inserts an item, mangling slug on collision. Returns the item ID."""
     slug = slug[:50]
     try:
         conn.execute(
             "INSERT INTO items (collection_id, slug, name, markdown) VALUES (?, ?, ?, ?)",
             (coll_id, slug, name, md),
         )
+        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
     except sqlite3.IntegrityError:
         slug = slug[:44] + f"-{int(time.time()) % 999999}"
         try:
@@ -426,8 +490,9 @@ def _insert_item_safe(conn, coll_id: int, slug: str, name: str, md: str) -> None
                 "INSERT INTO items (collection_id, slug, name, markdown) VALUES (?, ?, ?, ?)",
                 (coll_id, slug, name, md),
             )
+            return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         except sqlite3.IntegrityError:
-            pass
+            return -1
 
 
 def _get_or_create_collection(conn, slug: str, name: str, parent_slug: str | None = None) -> int:
@@ -499,7 +564,15 @@ def _convert_generic_5etools_to_sqlite(data: dict, db_path: Path) -> bool:
             name = obj.get("name", "?")
             slug = _slugify(name)
             md = _build_generic_item_markdown(obj, type_key)
-            _insert_item_safe(conn, coll_id, slug, name, md)
+            item_id = _insert_item_safe(conn, coll_id, slug, name, md)
+            if item_id != -1:
+                # Add tags
+                tags = _extract_5etools_tags(obj, type_key)
+                for cat, values in tags.items():
+                    for v in values:
+                        if v:
+                            tid = _get_or_create_tag(conn, cat, v)
+                            conn.execute("INSERT OR IGNORE INTO item_tags (item_id, tag_id) VALUES (?, ?)", (item_id, tid))
 
     conn.commit()
     conn.close()
@@ -593,6 +666,16 @@ def _convert_json_to_sqlite(json_path: Path, db_path: Path) -> bool:
                         "INSERT INTO items (collection_id, slug, name, markdown, display_order) VALUES (?, ?, ?, ?, ?)",
                         (coll_id, item.get("slug", ""), item.get("name", ""), item.get("markdown", ""), i_order),
                     )
+                    item_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+                    # Parse tags
+                    tags = item.get("tags", {})
+                    if isinstance(tags, dict):
+                        for cat_name, tag_list in tags.items():
+                            if isinstance(tag_list, list):
+                                for t_name in tag_list:
+                                    if isinstance(t_name, str):
+                                        tid = _get_or_create_tag(conn, str(cat_name), str(t_name))
+                                        conn.execute("INSERT OR IGNORE INTO item_tags (item_id, tag_id) VALUES (?, ?)", (item_id, tid))
                 for sub_coll in c_obj.get("collections", []):
                     insert_recursive(sub_coll, slug)
                     
@@ -628,6 +711,10 @@ def _ensure_sqlite(comp_id: str) -> bool:
             conn.execute("ALTER TABLE items ADD COLUMN display_order INTEGER DEFAULT 0")
         except sqlite3.OperationalError:
             pass
+        # Missing tags tables
+        conn.execute("CREATE TABLE IF NOT EXISTS tag_categories (id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL, slug TEXT UNIQUE NOT NULL)")
+        conn.execute("CREATE TABLE IF NOT EXISTS tags (id INTEGER PRIMARY KEY, category_id INTEGER NOT NULL, name TEXT NOT NULL, slug TEXT NOT NULL, FOREIGN KEY (category_id) REFERENCES tag_categories(id), UNIQUE(category_id, slug))")
+        conn.execute("CREATE TABLE IF NOT EXISTS item_tags (item_id INTEGER NOT NULL, tag_id INTEGER NOT NULL, FOREIGN KEY (item_id) REFERENCES items(id), FOREIGN KEY (tag_id) REFERENCES tags(id), UNIQUE(item_id, tag_id))")
         # Backfill metadata from JSON if metadata table is empty
         count = conn.execute("SELECT COUNT(*) FROM metadata").fetchone()[0]
         if count == 0 and json_path.exists():
@@ -937,26 +1024,47 @@ async def get_index(request: web.Request) -> web.Response:
 
 
 async def get_items(request: web.Request) -> web.Response:
-    """Items di una collezione. Query: compendium=id o slug, collection_slug nel path."""
+    """Items di una collezione. Query: compendium=id o slug, collection_slug nel path, tags=1,2,3 (opzionale)."""
     await get_authorized_user(request)
     comp_id = _resolve_compendium_id(request.query.get("compendium", "").strip())
     slug = request.match_info.get("collection_slug", "").strip()
+    tag_ids_str = request.query.get("tags", "").strip()
+    
     if not comp_id or not slug:
         return web.json_response({"items": []})
     if not _ensure_sqlite(comp_id):
         return web.json_response({"items": []})
+        
     try:
+        tag_ids = [int(x) for x in tag_ids_str.split(",") if x.strip().isdigit()] if tag_ids_str else []
         conn = _get_conn(comp_id)
-        rows = conn.execute(
-            """
+        
+        query = """
             SELECT i.slug, i.name, i.display_order
             FROM items i
             JOIN collections c ON i.collection_id = c.id
             WHERE c.slug = ?
-            ORDER BY i.display_order
-            """,
-            (slug,),
-        ).fetchall()
+        """
+        params = [slug]
+        
+        if tag_ids:
+            # Filtro per tutti i tag richiesti (AND logic)
+            # Per ogni tag richiesto, deve esserci una riga in item_tags
+            placeholders = ",".join(["?"] * len(tag_ids))
+            query += f"""
+                AND i.id IN (
+                    SELECT item_id FROM item_tags 
+                    WHERE tag_id IN ({placeholders})
+                    GROUP BY item_id
+                    HAVING COUNT(DISTINCT tag_id) = ?
+                )
+            """
+            params.extend(tag_ids)
+            params.append(len(tag_ids))
+            
+        query += " ORDER BY i.display_order"
+        
+        rows = conn.execute(query, params).fetchall()
         conn.close()
         items = [{"slug": r[0], "name": r[1], "order": r[2]} for r in rows]
         return web.json_response({"items": items})
@@ -991,7 +1099,30 @@ async def get_item(request: web.Request) -> web.Response:
         ).fetchone()
         conn.close()
         if not row:
+            conn.close()
             return web.json_response({"error": "Item not found"}, status=404)
+            
+        # Fetch tags
+        tag_rows = conn.execute(
+            """
+            SELECT tc.name, t.name, t.id
+            FROM item_tags it
+            JOIN tags t ON t.id = it.tag_id
+            JOIN tag_categories tc ON tc.id = t.category_id
+            JOIN items i ON i.id = it.item_id
+            JOIN collections c ON c.id = i.collection_id
+            WHERE c.slug = ? AND i.slug = ?
+            """,
+            (coll_slug, item_slug),
+        ).fetchall()
+        conn.close()
+        
+        tags = {}
+        for cat_name, tag_name, tag_id in tag_rows:
+            if cat_name not in tags:
+                tags[cat_name] = []
+            tags[cat_name].append({"name": tag_name, "id": tag_id})
+            
         return web.json_response({
             "compendiumId": comp_id,
             "compendiumName": comp_name,
@@ -1000,39 +1131,95 @@ async def get_item(request: web.Request) -> web.Response:
             "slug": row[2],
             "name": row[3],
             "markdown": row[4],
+            "tags": tags,
         })
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
 
-def _search_in_compendium(conn, q: str, comp_id: str, comp_name: str) -> list:
+async def get_tags(request: web.Request) -> web.Response:
+    """Ritorna tutti i tag disponibili per un compendio, raggruppati per categoria."""
+    await get_authorized_user(request)
+    comp_id = _resolve_compendium_id(request.query.get("compendium", "").strip())
+    if not comp_id:
+         return web.json_response({"categories": []})
+    if not _ensure_sqlite(comp_id):
+         return web.json_response({"categories": []})
+         
+    try:
+        conn = _get_conn(comp_id)
+        rows = conn.execute(
+            """
+            SELECT tc.name as cat_name, t.name as tag_name, t.id
+            FROM tag_categories tc
+            JOIN tags t ON tc.id = t.category_id
+            ORDER BY tc.name, t.name
+            """
+        ).fetchall()
+        conn.close()
+        
+        categories = {}
+        for cat_name, tag_name, tag_id in rows:
+            if cat_name not in categories:
+                categories[cat_name] = []
+            categories[cat_name].append({"id": tag_id, "name": tag_name})
+            
+        result = [{"name": k, "tags": v} for k, v in categories.items()]
+        return web.json_response({"categories": result})
+    except Exception as e:
+         return web.json_response({"error": str(e), "categories": []}, status=500)
+
+
+def _search_in_compendium(conn, q: str, comp_id: str, comp_name: str, tag_ids: list[int] = None) -> list:
     like_pattern = f"%{q}%"
     q_lower = q.lower()
+    
+    # Base FTS Query
+    fts_base = """
+        SELECT c.slug, c.name, i.slug, i.name
+        FROM items_fts f
+        JOIN items i ON i.id = f.rowid
+        JOIN collections c ON i.collection_id = c.id
+        WHERE items_fts MATCH ?
+    """
+    fallback_base = """
+        SELECT c.slug, c.name, i.slug, i.name
+        FROM items i
+        JOIN collections c ON i.collection_id = c.id
+        WHERE (LOWER(i.name) LIKE LOWER(?) OR LOWER(i.markdown) LIKE LOWER(?))
+    """
+    
+    tag_filter = ""
+    if tag_ids:
+        placeholders = ",".join(["?"] * len(tag_ids))
+        tag_filter = f"""
+            AND i.id IN (
+                SELECT item_id FROM item_tags 
+                WHERE tag_id IN ({placeholders})
+                GROUP BY item_id
+                HAVING COUNT(DISTINCT tag_id) = ?
+            )
+        """
+        
     try:
         safe = q.replace('"', '""')
         fts_query = f'"{safe}"*'
-        rows = conn.execute(
-            """
-            SELECT c.slug, c.name, i.slug, i.name
-            FROM items_fts f
-            JOIN items i ON i.id = f.rowid
-            JOIN collections c ON i.collection_id = c.id
-            WHERE items_fts MATCH ?
-            LIMIT 150
-            """,
-            (fts_query,),
-        ).fetchall()
+        
+        sql = fts_base + tag_filter + " LIMIT 150"
+        params = [fts_query]
+        if tag_ids:
+            params.extend(tag_ids)
+            params.append(len(tag_ids))
+            
+        rows = conn.execute(sql, params).fetchall()
     except Exception:
-        rows = conn.execute(
-            """
-            SELECT c.slug, c.name, i.slug, i.name
-            FROM items i
-            JOIN collections c ON i.collection_id = c.id
-            WHERE LOWER(i.name) LIKE LOWER(?) OR LOWER(i.markdown) LIKE LOWER(?)
-            LIMIT 150
-            """,
-            (like_pattern, like_pattern),
-        ).fetchall()
+        sql = fallback_base + tag_filter + " LIMIT 150"
+        params = [like_pattern, like_pattern]
+        if tag_ids:
+            params.extend(tag_ids)
+            params.append(len(tag_ids))
+            
+        rows = conn.execute(sql, params).fetchall()
     def sort_key(r):
         name_lower = (r[3] or "").lower()
         if name_lower == q_lower:
@@ -1055,17 +1242,23 @@ def _search_in_compendium(conn, q: str, comp_id: str, comp_name: str) -> list:
 
 
 async def search(request: web.Request) -> web.Response:
-    """Ricerca. Query: q=..., compendium=id o slug (opzionale, se omesso cerca in tutti)."""
+    """Ricerca. Query: q=..., compendium=id o slug, tags=1,2,3 (opzionali)."""
     await get_authorized_user(request)
     q = request.query.get("q", "").strip()
     comp_filter = request.query.get("compendium", "").strip() or None
+    tag_ids_str = request.query.get("tags", "").strip()
+    
     if not q:
         return web.json_response({"results": []})
+        
+    tag_ids = [int(x) for x in tag_ids_str.split(",") if x.strip().isdigit()] if tag_ids_str else []
+    
     config = _load_config()
     comps = config["compendiums"]
     if comp_filter:
         resolved = _resolve_compendium_id(comp_filter)
         comps = [c for c in comps if c.get("id") == resolved] if resolved else []
+        
     results = []
     for comp in comps:
         comp_id = comp.get("id")
@@ -1073,7 +1266,7 @@ async def search(request: web.Request) -> web.Response:
             continue
         try:
             conn = _get_conn(comp_id)
-            part = _search_in_compendium(conn, q, comp_id, comp.get("name", ""))
+            part = _search_in_compendium(conn, q, comp_id, comp.get("name", ""), tag_ids)
             conn.close()
             results.extend(part)
         except Exception:

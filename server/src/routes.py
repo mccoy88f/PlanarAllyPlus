@@ -207,6 +207,10 @@ main_app.router.add_get(
     extensions.compendium.get_item,
 )
 main_app.router.add_get(
+    f"{subpath}/api/extensions/compendium/tags",
+    extensions.compendium.get_tags,
+)
+main_app.router.add_get(
     f"{subpath}/api/extensions/compendium/next",
     extensions.compendium.get_next_item,
 )
