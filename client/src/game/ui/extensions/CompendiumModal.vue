@@ -104,19 +104,30 @@ const originalIndex = ref<any[] | null>(null);
 const showTranslationTools = ref(false);
 const translationTagContainer = ref<HTMLElement | null>(null);
 
-const showTagFilters = ref(false);
-const availableTagCategories = ref<{ name: string; tags: { id: number; name: string }[] }[]>([]);
-const selectedTags = ref<Set<number>>(new Set());
-const expandedTagCategories = ref<Set<string>>(new Set());
+// Global tag filter state
+interface GlobalTag { id: number; name: string; compendiumId: string; }
+interface GlobalTagCategory { name: string; tags: GlobalTag[]; }
+const allTagCategories = ref<GlobalTagCategory[]>([]);
+const selectedTagIds = ref<Set<number>>(new Set());
+const showTagDropdown = ref(false);
 
-function toggleTagCategory(catName: string): void {
-    const next = new Set(expandedTagCategories.value);
-    if (next.has(catName)) {
-        next.delete(catName);
-    } else {
-        next.add(catName);
+const hasActiveTagFilters = computed(() => selectedTagIds.value.size > 0);
+
+function clearTagFilters(): void {
+    selectedTagIds.value = new Set();
+    // Refetch all visible items without filter
+    void refetchAllVisibleItems();
+}
+
+function toggleTagInFilter(tagId: number): void {
+    const next = new Set(selectedTagIds.value);
+    if (next.has(tagId)) next.delete(tagId);
+    else next.add(tagId);
+    selectedTagIds.value = next;
+    void refetchAllVisibleItems();
+    if (debouncedSearchQuery.value.trim()) {
+        void runSearch(debouncedSearchQuery.value.trim(), searchInCompendium.value || undefined);
     }
-    expandedTagCategories.value = next;
 }
 
 const isTranslated = computed(() => !!activeTranslationLang.value);
@@ -346,7 +357,8 @@ async function ensureCollectionExpanded(compId: string, collSlug: string): Promi
     const key = `${compId}/${collSlug}`;
     if (itemsByKey.value.has(key)) return;
     try {
-        const tagsParam = Array.from(selectedTags.value).join(",");
+        const tagsParam = Array.from(selectedTagIds.value).join(",");
+
         const r = await http.get(
             `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}`,
         );
@@ -369,7 +381,8 @@ async function toggleCollection(compId: string, collSlug: string): Promise<void>
         const key = `${compId}/${collSlug}`;
         if (!itemsByKey.value.has(key)) {
             try {
-                const tagsParam = Array.from(selectedTags.value).join(",");
+                const tagsParam = Array.from(selectedTagIds.value).join(",");
+
                 const r = await http.get(
                     `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}`,
                 );
@@ -491,7 +504,7 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
     indexLoading.value = true;
     indexCompendium.value = comp;
     selectedCompendiumId.value = comp.id;
-    loadAvailableTags();
+
     currentIndex.value = [];
     expandedIndexCollections.value.clear();
 
@@ -1021,22 +1034,19 @@ function shareToChat(): void {
     toast.success(t("game.ui.extensions.CompendiumModal.share_success"));
 }
 
-async function loadAvailableTags(): Promise<void> {
-    const compId = selectedCompendiumId.value || defaultId.value;
-    if (!compId) return;
+async function loadAllGlobalTags(): Promise<void> {
     try {
-        const r = await http.get(`/api/extensions/compendium/tags?compendium=${encodeURIComponent(compId)}`);
+        const r = await http.get("/api/extensions/compendium/all-tags");
         if (r.ok) {
-            const data = (await r.json()) as { categories: { name: string; tags: { id: number; name: string }[] }[] };
-            availableTagCategories.value = data.categories || [];
+            const data = (await r.json()) as { categories: GlobalTagCategory[] };
+            allTagCategories.value = data.categories || [];
         }
     } catch { /* ignore */ }
 }
 
 async function refetchAllVisibleItems(): Promise<void> {
-    const tagsParam = Array.from(selectedTags.value).join(",");
+    const tagsParam = Array.from(selectedTagIds.value).join(",");
     const promises: Promise<void>[] = [];
-    
     for (const key of itemsByKey.value.keys()) {
          const parts = key.split("/");
          const compId = parts[0]!;
@@ -1054,46 +1064,21 @@ async function refetchAllVisibleItems(): Promise<void> {
     await Promise.all(promises);
 }
 
-async function selectItemTag(compId: string, tagId: number): Promise<void> {
-    selectedCompendiumId.value = compId;
-    showTagFilters.value = true;
-    await toggleTagFilter(tagId);
+async function selectItemTag(tagId: number): Promise<void> {
+    toggleTagInFilter(tagId);
 }
-
-async function toggleTagFilter(tagId: number): Promise<void> {
-
-    const next = new Set(selectedTags.value);
-    if (next.has(tagId)) {
-        next.delete(tagId);
-    } else {
-        next.add(tagId);
-    }
-    selectedTags.value = next;
-    
-    // Trigger refetch for sidebar static items
-    await refetchAllVisibleItems();
-    
-    // Trigger search again if querying
-    const trimmed = searchQuery.value.trim();
-    if (trimmed) {
-        await runSearch(trimmed, searchInCompendium.value || undefined);
-    }
-}
-
-watch(selectedCompendiumId, () => {
-    selectedTags.value.clear();
-    loadAvailableTags();
-});
 
 watch(
     () => props.visible,
+
     (visible: boolean) => {
         if (visible) {
             loadCompendiums();
-            loadAvailableTags();
+            loadAllGlobalTags();
         }
     },
 );
+
 
 watch(
     () => [extensionsState.raw.compendiumOpenItem, compendiums.value.length] as const,
@@ -1206,6 +1191,46 @@ onMounted(() => {
                     class="ext-search-input"
                     :placeholder="t('game.ui.extensions.CompendiumModal.search_placeholder')"
                 />
+
+                <!-- Tags dropdown -->
+                <div v-if="allTagCategories.length > 0" class="qe-tag-filter-dropdown-wrapper" v-click-outside="() => { showTagDropdown = false }">
+                    <button
+                        type="button"
+                        class="ext-search-add-btn filter-btn"
+                        :class="{ 'is-active': hasActiveTagFilters }"
+                        :title="'Filtra per Tag'"
+                        @click="showTagDropdown = !showTagDropdown"
+                    >
+                        <font-awesome-icon icon="filter" />
+                        <span v-if="selectedTagIds.size > 0" class="qe-tag-filter-badge">{{ selectedTagIds.size }}</span>
+                    </button>
+                    <div v-show="showTagDropdown" class="qe-tag-filter-popup">
+                        <div v-for="cat in allTagCategories" :key="cat.name" class="qe-tag-popup-category">
+                            <span class="qe-tag-popup-cat-name">{{ cat.name }}</span>
+                            <div class="qe-tag-popup-options">
+                                <label v-for="tag in cat.tags" :key="tag.id" class="qe-tag-popup-option">
+                                    <input
+                                        type="checkbox"
+                                        :checked="selectedTagIds.has(tag.id)"
+                                        @change="toggleTagInFilter(tag.id)"
+                                    />
+                                    {{ tag.name }}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clear filters button -->
+                <button
+                    v-if="hasActiveTagFilters"
+                    type="button"
+                    class="ext-search-add-btn qe-clear-tags-btn"
+                    title="Rimuovi tutti i filtri Tag"
+                    @click="clearTagFilters"
+                >
+                    <font-awesome-icon icon="times" />
+                </button>
 
                 <button
                     type="button"
@@ -1505,29 +1530,8 @@ onMounted(() => {
                                     </div>
                                 </div>
                             </div>
-                            
-                            <!-- Tag Filters Accordion inside Index -->
-                            <div v-if="availableTagCategories.length > 0" class="qe-tag-filters qe-index-tag-filters">
-                                <h4 class="qe-tag-index-title">Filtra per Tag:</h4>
-                                <div class="qe-tag-categories-list">
-                                     <div v-for="cat in availableTagCategories" :key="cat.name" class="qe-tag-dropdown">
-                                          <button class="qe-tag-dropdown-header" @click="toggleTagCategory(cat.name)">
-                                               <span class="qe-tag-dropdown-title">{{ cat.name }}</span>
-                                               <font-awesome-icon :icon="expandedTagCategories.has(cat.name) ? 'chevron-up' : 'chevron-down'" />
-                                          </button>
-                                          <div v-show="expandedTagCategories.has(cat.name)" class="qe-tag-dropdown-content">
-                                               <label v-for="tag in cat.tags" :key="tag.id" class="qe-tag-checkbox-label">
-                                                    <input 
-                                                        type="checkbox" 
-                                                        :checked="selectedTags.has(tag.id)" 
-                                                        @change="toggleTagFilter(tag.id)" 
-                                                    />
-                                                    <span class="qe-tag-checkbox-text">{{ tag.name }}</span>
-                                               </label>
-                                          </div>
-                                     </div>
-                                </div>
-                            </div>
+                                         <!-- Tag Filters in Index View removed – now in search bar -->
+          </div>
 
                             <div class="qe-index-grid">
 
@@ -1602,7 +1606,8 @@ onMounted(() => {
                                           <div v-if="selectedItem?.item.tags && Object.keys(selectedItem.item.tags).length > 0" class="qe-item-tags">
                                  <div v-for="(tags, catName) in selectedItem.item.tags" :key="catName" class="qe-item-tag-group">
                                      <span class="qe-item-tag-category">{{ catName }}:</span>
-                                     <span v-for="tag in tags" :key="tag.id" class="qe-item-tag" @click="selectItemTag(selectedItem!.compendium.id, tag.id)">{{ tag.name }}</span>
+                                     <span v-for="tag in tags" :key="tag.id" class="qe-item-tag" @click="selectItemTag(tag.id)">{{ tag.name }}</span>
+
                                  </div>
                              </div>
                 <div v-if="nextItem" class="qe-continue-reading">
@@ -2515,97 +2520,89 @@ onMounted(() => {
     }
 }
 
-.qe-tag-filters {
-    background: #fdfdfd;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid #eee;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    font-size: 0.9rem;
 
-    .qe-tag-compendium-selector {
-        margin-bottom: 0.5rem;
-        padding-bottom: 0.75rem;
-        border-bottom: 1px solid #eee;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+.qe-tag-filter-dropdown-wrapper {
+    position: relative;
 
-        .qe-tag-selector-label {
-            font-weight: 600;
-            font-size: 0.85rem;
-            color: #555;
-        }
+    .qe-tag-filter-popup {
+        position: absolute;
+        top: calc(100% + 6px);
+        right: 0;
+        z-index: 200;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        min-width: 240px;
+        max-width: 320px;
+        max-height: 400px;
+        overflow-y: auto;
+        padding: 0.5rem 0;
 
-        .qe-tag-select {
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-            background: white;
-            font-size: 0.85rem;
-            cursor: pointer;
-        }
-    }
+        .qe-tag-popup-category {
+            padding: 0.4rem 0.75rem;
+            border-bottom: 1px solid #f0f0f0;
 
+            &:last-child { border-bottom: none; }
 
-    .qe-tag-categories-list {
-        display: flex;
-        flex-direction: column;
-        gap: 0.35rem;
-
-        .qe-tag-dropdown {
-            border: 1px solid #eee;
-            border-radius: 4px;
-            background: #fdfdfd;
-
-            .qe-tag-dropdown-header {
-                width: 100%;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 0.4rem 0.75rem;
-                background: #f1f1f1;
-                border: none;
-                cursor: pointer;
-                font-weight: 600;
+            .qe-tag-popup-cat-name {
+                display: block;
+                font-weight: 700;
+                font-size: 0.8rem;
                 color: #444;
-                font-size: 0.85rem;
-                border-bottom: 1px solid transparent;
-
-                &:hover {
-                    background: #e8e8e8;
-                }
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                margin-bottom: 0.35rem;
             }
 
-            .qe-tag-dropdown-content {
-                padding: 0.5rem 0.75rem;
+            .qe-tag-popup-options {
                 display: flex;
                 flex-direction: column;
-                gap: 0.25rem;
-                background: #fff;
-                max-height: 200px;
-                overflow-y: auto;
+                gap: 0.2rem;
 
-                .qe-tag-checkbox-label {
+                .qe-tag-popup-option {
                     display: flex;
                     align-items: center;
                     gap: 0.5rem;
                     cursor: pointer;
                     font-size: 0.85rem;
                     color: #333;
-                    padding: 0.2rem 0;
+                    padding: 0.2rem 0.25rem;
+                    border-radius: 3px;
 
-                    &:hover {
-                        color: #111;
-                    }
+                    &:hover { background: #f5f5f5; }
 
-                    input[type="checkbox"] {
-                        cursor: pointer;
-                    }
+                    input[type="checkbox"] { cursor: pointer; }
                 }
             }
         }
+    }
+
+    .qe-tag-filter-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        background: #e53935;
+        color: #fff;
+        border-radius: 50%;
+        font-size: 0.65rem;
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        pointer-events: none;
+    }
+}
+
+.qe-clear-tags-btn {
+    border-color: #e53935 !important;
+    color: #e53935 !important;
+    background: #fff !important;
+
+    &:hover {
+        background: #ffebee !important;
     }
 }
 

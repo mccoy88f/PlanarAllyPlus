@@ -1138,7 +1138,42 @@ async def get_item(request: web.Request) -> web.Response:
         return web.json_response({"error": str(e)}, status=500)
 
 
+async def get_all_tags(request: web.Request) -> web.Response:
+    """Ritorna tutti i tag di tutti i compendi, raggruppati per categoria."""
+    await get_authorized_user(request)
+    config = _load_config()
+    categories: dict[str, list[dict]] = {}
+    for comp in config.get("compendiums", []):
+        comp_id = comp.get("id")
+        if not comp_id:
+            continue
+        if not _ensure_sqlite(comp_id):
+            continue
+        try:
+            conn = _get_conn(comp_id)
+            rows = conn.execute(
+                """
+                SELECT tc.name as cat_name, t.name as tag_name, t.id
+                FROM tag_categories tc
+                JOIN tags t ON tc.id = t.category_id
+                ORDER BY tc.name, t.name
+                """
+            ).fetchall()
+            conn.close()
+            for cat_name, tag_name, tag_id in rows:
+                if cat_name not in categories:
+                    categories[cat_name] = []
+                # Avoid duplicates (same tag name/category across compendiums)
+                if not any(t["name"] == tag_name for t in categories[cat_name]):
+                    categories[cat_name].append({"id": tag_id, "name": tag_name, "compendiumId": comp_id})
+        except Exception:
+            pass
+    result = [{"name": k, "tags": sorted(v, key=lambda x: x["name"])} for k, v in sorted(categories.items())]
+    return web.json_response({"categories": result})
+
+
 async def get_tags(request: web.Request) -> web.Response:
+
     """Ritorna tutti i tag disponibili per un compendio, raggruppati per categoria."""
     await get_authorized_user(request)
     comp_id = _resolve_compendium_id(request.query.get("compendium", "").strip())
