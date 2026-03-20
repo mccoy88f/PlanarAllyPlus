@@ -1039,7 +1039,14 @@ async function refetchAllVisibleItems(): Promise<void> {
     await Promise.all(promises);
 }
 
+async function selectItemTag(compId: string, tagId: number): Promise<void> {
+    selectedCompendiumId.value = compId;
+    showTagFilters.value = true;
+    await toggleTagFilter(tagId);
+}
+
 async function toggleTagFilter(tagId: number): Promise<void> {
+
     const next = new Set(selectedTags.value);
     if (next.has(tagId)) {
         next.delete(tagId);
@@ -1215,22 +1222,38 @@ onMounted(() => {
             </div>
 
             <!-- Tag Filters Panel -->
-            <div v-if="showTagFilters && availableTagCategories.length > 0" class="qe-tag-filters">
-                <div v-for="cat in availableTagCategories" :key="cat.name" class="qe-tag-category">
-                     <span class="qe-tag-category-name">{{ cat.name }}</span>
-                     <div class="qe-tag-options">
-                          <button 
-                              v-for="tag in cat.tags" 
-                              :key="tag.id"
-                              class="qe-tag-option"
-                              :class="{ active: selectedTags.has(tag.id) }"
-                              @click="toggleTagFilter(tag.id)"
-                          >
-                              {{ tag.name }}
-                          </button>
-                     </div>
+            <div v-if="showTagFilters" class="qe-tag-filters">
+                <!-- Compendium Selector for Tags -->
+                <div class="qe-tag-compendium-selector">
+                    <span class="qe-tag-selector-label">Tag da Compendio:</span>
+                    <select v-model="selectedCompendiumId" class="qe-tag-select">
+                        <option v-for="c in compendiums" :key="c.id" :value="c.id">
+                            {{ c.name }}
+                        </option>
+                    </select>
+                </div>
+                
+                <div v-if="availableTagCategories.length > 0">
+                    <div v-for="cat in availableTagCategories" :key="cat.name" class="qe-tag-category">
+                         <span class="qe-tag-category-name">{{ cat.name }}</span>
+                         <div class="qe-tag-options">
+                              <button 
+                                  v-for="tag in cat.tags" 
+                                  :key="tag.id"
+                                  class="qe-tag-option"
+                                  :class="{ active: selectedTags.has(tag.id) }"
+                                  @click="toggleTagFilter(tag.id)"
+                              >
+                                  {{ tag.name }}
+                              </button>
+                         </div>
+                    </div>
+                </div>
+                <div v-else class="ext-ui-empty qe-tag-empty">
+                    Nessun tag disponibile in questo compendio.
                 </div>
             </div>
+
 
             <div v-if="loading" class="ext-ui-loading qe-loading">
                 {{ t("game.ui.extensions.CompendiumModal.loading") }}
@@ -1574,14 +1597,13 @@ onMounted(() => {
                                 class="qe-markdown-content"
                                 v-html="selectedMarkdownHtml"
                             />
-                            
-                            <div v-if="selectedItem?.item.tags && Object.keys(selectedItem.item.tags).length > 0" class="qe-item-tags">
-                                <div v-for="(tags, catName) in selectedItem.item.tags" :key="catName" class="qe-item-tag-group">
-                                    <span class="qe-item-tag-category">{{ catName }}:</span>
-                                    <span v-for="tag in tags" :key="tag.id" class="qe-item-tag">{{ tag.name }}</span>
-                                </div>
-                            </div>
-                            <div v-if="nextItem" class="qe-continue-reading">
+                                          <div v-if="selectedItem?.item.tags && Object.keys(selectedItem.item.tags).length > 0" class="qe-item-tags">
+                                 <div v-for="(tags, catName) in selectedItem.item.tags" :key="catName" class="qe-item-tag-group">
+                                     <span class="qe-item-tag-category">{{ catName }}:</span>
+                                     <span v-for="tag in tags" :key="tag.id" class="qe-item-tag" @click="selectItemTag(selectedItem!.compendium.id, tag.id)">{{ tag.name }}</span>
+                                 </div>
+                             </div>
+                <div v-if="nextItem" class="qe-continue-reading">
                                 <button class="qe-continue-link" @click="navigateToNextItem">
                                     {{ t("game.ui.extensions.CompendiumModal.continue_reading", { name: nextItem.itemName }) }}
                                 </button>
@@ -2500,6 +2522,31 @@ onMounted(() => {
     gap: 0.5rem;
     font-size: 0.9rem;
 
+    .qe-tag-compendium-selector {
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+
+        .qe-tag-selector-label {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #555;
+        }
+
+        .qe-tag-select {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            background: white;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+    }
+
+
     .qe-tag-category {
         display: flex;
         align-items: center;
@@ -2564,7 +2611,14 @@ onMounted(() => {
             padding: 0.2rem 0.5rem;
             border-radius: 4px;
             font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+
+            &:hover {
+                background: #bbdefb;
+            }
         }
+
     }
 }
 </style>
