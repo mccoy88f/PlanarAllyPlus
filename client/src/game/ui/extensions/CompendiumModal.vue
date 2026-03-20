@@ -996,7 +996,8 @@ async function runSearch(q: string, compendiumId?: string | null): Promise<void>
     try {
         const params = new URLSearchParams({ q });
         if (compendiumId) params.set("compendium", compendiumId);
-        const tagsParam = Array.from(selectedTags.value).join(",");
+        const tagsParam = Array.from(selectedTagIds.value).join(",");
+
         if (tagsParam) params.set("tags", tagsParam);
         const r = await http.get(
             `/api/extensions/compendium/search?${params.toString()}`,
@@ -1530,8 +1531,7 @@ onMounted(() => {
                                     </div>
                                 </div>
                             </div>
-                                         <!-- Tag Filters in Index View removed – now in search bar -->
-          </div>
+                            <!-- Tag Filters moved to search bar -->
 
                             <div class="qe-index-grid">
 
