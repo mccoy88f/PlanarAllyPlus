@@ -107,6 +107,18 @@ const translationTagContainer = ref<HTMLElement | null>(null);
 const showTagFilters = ref(false);
 const availableTagCategories = ref<{ name: string; tags: { id: number; name: string }[] }[]>([]);
 const selectedTags = ref<Set<number>>(new Set());
+const expandedTagCategories = ref<Set<string>>(new Set());
+
+function toggleTagCategory(catName: string): void {
+    const next = new Set(expandedTagCategories.value);
+    if (next.has(catName)) {
+        next.delete(catName);
+    } else {
+        next.add(catName);
+    }
+    expandedTagCategories.value = next;
+}
+
 const isTranslated = computed(() => !!activeTranslationLang.value);
 const currentMarkdown = ref<string>("");
 
@@ -1233,19 +1245,21 @@ onMounted(() => {
                     </select>
                 </div>
                 
-                <div v-if="availableTagCategories.length > 0">
-                    <div v-for="cat in availableTagCategories" :key="cat.name" class="qe-tag-category">
-                         <span class="qe-tag-category-name">{{ cat.name }}</span>
-                         <div class="qe-tag-options">
-                              <button 
-                                  v-for="tag in cat.tags" 
-                                  :key="tag.id"
-                                  class="qe-tag-option"
-                                  :class="{ active: selectedTags.has(tag.id) }"
-                                  @click="toggleTagFilter(tag.id)"
-                              >
-                                  {{ tag.name }}
-                              </button>
+                <div v-if="availableTagCategories.length > 0" class="qe-tag-categories-list">
+                    <div v-for="cat in availableTagCategories" :key="cat.name" class="qe-tag-dropdown">
+                         <button class="qe-tag-dropdown-header" @click="toggleTagCategory(cat.name)">
+                              <span class="qe-tag-dropdown-title">{{ cat.name }}</span>
+                              <font-awesome-icon :icon="expandedTagCategories.has(cat.name) ? 'chevron-up' : 'chevron-down'" />
+                         </button>
+                         <div v-show="expandedTagCategories.has(cat.name)" class="qe-tag-dropdown-content">
+                              <label v-for="tag in cat.tags" :key="tag.id" class="qe-tag-checkbox-label">
+                                   <input 
+                                       type="checkbox" 
+                                       :checked="selectedTags.has(tag.id)" 
+                                       @change="toggleTagFilter(tag.id)" 
+                                   />
+                                   <span class="qe-tag-checkbox-text">{{ tag.name }}</span>
+                              </label>
                          </div>
                     </div>
                 </div>
@@ -1253,6 +1267,7 @@ onMounted(() => {
                     Nessun tag disponibile in questo compendio.
                 </div>
             </div>
+
 
 
             <div v-if="loading" class="ext-ui-loading qe-loading">
@@ -2547,44 +2562,66 @@ onMounted(() => {
     }
 
 
-    .qe-tag-category {
+    .qe-tag-categories-list {
         display: flex;
-        align-items: center;
-        gap: 0.75rem;
+        flex-direction: column;
+        gap: 0.35rem;
 
-        .qe-tag-category-name {
-            font-weight: 600;
-            color: #555;
-            min-width: 80px;
-        }
+        .qe-tag-dropdown {
+            border: 1px solid #eee;
+            border-radius: 4px;
+            background: #fdfdfd;
 
-        .qe-tag-options {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.35rem;
-
-            .qe-tag-option {
-                padding: 0.2rem 0.5rem;
-                font-size: 0.8rem;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                background: #f7f7f7;
+            .qe-tag-dropdown-header {
+                width: 100%;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 0.4rem 0.75rem;
+                background: #f1f1f1;
+                border: none;
                 cursor: pointer;
-                transition: all 0.2s;
+                font-weight: 600;
+                color: #444;
+                font-size: 0.85rem;
+                border-bottom: 1px solid transparent;
 
                 &:hover {
-                    background: #eee;
+                    background: #e8e8e8;
                 }
+            }
 
-                &.active {
-                    background: #e8f5e9;
-                    border-color: #4caf50;
-                    color: #2e7d32;
+            .qe-tag-dropdown-content {
+                padding: 0.5rem 0.75rem;
+                display: flex;
+                flex-direction: column;
+                gap: 0.25rem;
+                background: #fff;
+                max-height: 200px;
+                overflow-y: auto;
+
+                .qe-tag-checkbox-label {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    cursor: pointer;
+                    font-size: 0.85rem;
+                    color: #333;
+                    padding: 0.2rem 0;
+
+                    &:hover {
+                        color: #111;
+                    }
+
+                    input[type="checkbox"] {
+                        cursor: pointer;
+                    }
                 }
             }
         }
     }
 }
+
 
 .qe-item-tags {
     margin-top: 1.5rem;
