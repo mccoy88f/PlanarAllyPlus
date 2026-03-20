@@ -1098,10 +1098,10 @@ async def get_item(request: web.Request) -> web.Response:
             """,
             (coll_slug, item_slug),
         ).fetchone()
-        conn.close()
         if not row:
             conn.close()
             return web.json_response({"error": "Item not found"}, status=404)
+
             
         # Fetch tags
         tag_rows = conn.execute(
