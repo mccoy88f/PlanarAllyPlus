@@ -474,34 +474,36 @@ def _get_or_create_tag(conn, category_name: str, tag_name: str) -> int:
     return tag_id
 
 
-def _insert_item_safe(conn, coll_id: int, slug: str, name: str, md: str) -> int:
+def _insert_item_safe(conn, coll_id: int, slug: str, name: str, md: str, display_order: int = 0) -> int:
     """Inserts an item, mangling slug on collision. Returns the item ID."""
     slug = slug[:50]
     try:
         conn.execute(
-            "INSERT INTO items (collection_id, slug, name, markdown) VALUES (?, ?, ?, ?)",
-            (coll_id, slug, name, md),
+            "INSERT INTO items (collection_id, slug, name, markdown, display_order) VALUES (?, ?, ?, ?, ?)",
+            (coll_id, slug, name, md, display_order),
         )
         return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
     except sqlite3.IntegrityError:
         slug = slug[:44] + f"-{int(time.time()) % 999999}"
         try:
             conn.execute(
-                "INSERT INTO items (collection_id, slug, name, markdown) VALUES (?, ?, ?, ?)",
-                (coll_id, slug, name, md),
+                "INSERT INTO items (collection_id, slug, name, markdown, display_order) VALUES (?, ?, ?, ?, ?)",
+                (coll_id, slug, name, md, display_order),
             )
             return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         except sqlite3.IntegrityError:
             return -1
 
 
-def _get_or_create_collection(conn, slug: str, name: str, parent_slug: str | None = None) -> int:
+
+def _get_or_create_collection(conn, slug: str, name: str, parent_slug: str | None = None, display_order: int = 0) -> int:
     """Returns the collection id, creating it if needed."""
     row = conn.execute("SELECT id FROM collections WHERE slug = ?", (slug,)).fetchone()
     if row:
         return row[0]
-    conn.execute("INSERT INTO collections (slug, name, parent_slug) VALUES (?, ?, ?)", (slug, name, parent_slug))
+    conn.execute("INSERT INTO collections (slug, name, parent_slug, display_order) VALUES (?, ?, ?, ?)", (slug, name, parent_slug, display_order))
     return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
 
 
 def _extract_and_save_metadata(conn, data: dict) -> None:
@@ -658,15 +660,13 @@ def _convert_json_to_sqlite(json_path: Path, db_path: Path) -> bool:
                 slug = c_obj.get("slug", "")
                 name = c_obj.get("name", slug)
                 order = c_obj.get("order", 0)
-                conn.execute("INSERT INTO collections (slug, name, parent_slug, display_order) VALUES (?, ?, ?, ?)", (slug, name, parent_slug, order))
-                coll_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+                coll_id = _get_or_create_collection(conn, slug, name, parent_slug, order)
+                
                 for item in c_obj.get("items", []):
                     i_order = item.get("order", 0)
-                    conn.execute(
-                        "INSERT INTO items (collection_id, slug, name, markdown, display_order) VALUES (?, ?, ?, ?, ?)",
-                        (coll_id, item.get("slug", ""), item.get("name", ""), item.get("markdown", ""), i_order),
-                    )
-                    item_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+                    item_id = _insert_item_safe(conn, coll_id, item.get("slug", ""), item.get("name", ""), item.get("markdown", ""), i_order)
+                    if item_id == -1:
+                        continue
                     # Parse tags
                     tags = item.get("tags", {})
                     if isinstance(tags, dict):
@@ -680,6 +680,7 @@ def _convert_json_to_sqlite(json_path: Path, db_path: Path) -> bool:
                     insert_recursive(sub_coll, slug)
                     
             insert_recursive(coll)
+
         conn.commit()
         conn.close()
         return True
