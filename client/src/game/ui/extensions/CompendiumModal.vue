@@ -133,6 +133,24 @@ function toggleTagInFilter(tagId: number): void {
 const isTranslated = computed(() => !!activeTranslationLang.value);
 const currentMarkdown = ref<string>("");
 
+// Click-outside handler for tag dropdown
+const tagDropdownRef = ref<HTMLElement | null>(null);
+
+function handleTagDropdownClickOutside(e: MouseEvent): void {
+    if (tagDropdownRef.value && !tagDropdownRef.value.contains(e.target as Node)) {
+        showTagDropdown.value = false;
+    }
+}
+
+onMounted(() => {
+    document.addEventListener("mousedown", handleTagDropdownClickOutside);
+});
+onUnmounted(() => {
+    document.removeEventListener("mousedown", handleTagDropdownClickOutside);
+});
+
+
+
 const installDialogOpen = ref(false);
 const installName = ref("");
 const installFile = ref<File | null>(null);
@@ -988,7 +1006,10 @@ async function loadCompendiums(): Promise<void> {
     } finally {
         loading.value = false;
     }
+    // Load tags after compendiums are loaded so the endpoint returns results
+    void loadAllGlobalTags();
 }
+
 
 async function runSearch(q: string, compendiumId?: string | null): Promise<void> {
     searchLoading.value = true;
@@ -1193,8 +1214,8 @@ onMounted(() => {
                     :placeholder="t('game.ui.extensions.CompendiumModal.search_placeholder')"
                 />
 
-                <!-- Tags dropdown -->
-                <div v-if="allTagCategories.length > 0" class="qe-tag-filter-dropdown-wrapper" v-click-outside="() => { showTagDropdown = false }">
+                <!-- Tags filter button + popup -->
+                <div class="qe-tag-filter-dropdown-wrapper" ref="tagDropdownRef">
                     <button
                         type="button"
                         class="ext-search-add-btn filter-btn"
@@ -1206,6 +1227,7 @@ onMounted(() => {
                         <span v-if="selectedTagIds.size > 0" class="qe-tag-filter-badge">{{ selectedTagIds.size }}</span>
                     </button>
                     <div v-show="showTagDropdown" class="qe-tag-filter-popup">
+                        <div v-if="allTagCategories.length === 0" class="qe-tag-popup-empty">Nessun tag disponibile</div>
                         <div v-for="cat in allTagCategories" :key="cat.name" class="qe-tag-popup-category">
                             <span class="qe-tag-popup-cat-name">{{ cat.name }}</span>
                             <div class="qe-tag-popup-options">
@@ -2537,7 +2559,16 @@ onMounted(() => {
         max-width: 320px;
         max-height: 400px;
         overflow-y: auto;
+
+        .qe-tag-popup-empty {
+            padding: 0.75rem 1rem;
+            font-size: 0.85rem;
+            color: #999;
+            text-align: center;
+        }
+
         padding: 0.5rem 0;
+
 
         .qe-tag-popup-category {
             padding: 0.4rem 0.75rem;
