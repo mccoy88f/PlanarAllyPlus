@@ -79,7 +79,8 @@
 
                             <!-- Checkbox design -->
                             <div class="ga-item-checkbox" :class="{ 'is-checked': isSelected(item) }">
-                                <font-awesome-icon v-if="isSelected(item)" icon="check" size="xs" />
+                                <font-awesome-icon v-if="isSelected(item)" icon="circle-xmark" size="xs" />
+
                             </div>
                             <span class="ga-item-title">{{ item.title }}</span>
                         </div>
