@@ -17,7 +17,10 @@ import { chatSystem } from "../../systems/chat";
 import { focusExtension } from "../../systems/extensions/ui";
 import { extensionsState } from "../../systems/extensions/state";
 import LoadingBar from "../../../core/components/LoadingBar.vue";
+import GroupedAutocomplete from "./components/GroupedAutocomplete.vue";
 import { playerSystem } from "../../systems/players";
+
+
 
 const props = defineProps<{
     visible: boolean;
@@ -49,6 +52,7 @@ interface ItemMeta {
 
 interface ItemFull extends ItemMeta {
     markdown: string;
+    tags?: Record<string, { id: number; name: string }[]>;
 }
 
 interface SearchResult {
@@ -102,8 +106,63 @@ const sidebarCollapsed = ref(false);
 const originalIndex = ref<any[] | null>(null);
 const showTranslationTools = ref(false);
 const translationTagContainer = ref<HTMLElement | null>(null);
+
+// Global tag filter state
+interface GlobalTag { id: number; name: string; compendiumId: string; }
+interface GlobalTagCategory { name: string; tags: GlobalTag[]; }
+const allTagCategories = ref<GlobalTagCategory[]>([]);
+const selectedTagIds = ref<Set<number>>(new Set());
+const showTagDropdown = ref(false);
+
+const selectedTagIdsArray = computed({
+    get: () => Array.from(selectedTagIds.value),
+    set: (newList: (string | number)[]) => {
+        selectedTagIds.value = new Set(newList.map(Number));
+        void refetchAllCollections();
+        void refetchAllVisibleItems();
+    }
+});
+
+const flatTags = computed(() => {
+    return allTagCategories.value.flatMap(cat => 
+        cat.tags.map(tag => ({
+            id: tag.id,
+            title: tag.name,
+            category: cat.name
+        }))
+    );
+});
+
+const hasActiveTagFilters = computed(() => selectedTagIds.value.size > 0);
+
+
+function clearTagFilters(): void {
+    selectedTagIds.value = new Set();
+    showTagDropdown.value = false; // Chiudi il vassoio
+    void refetchAllCollections();
+    void refetchAllVisibleItems();
+}
+
+
+function toggleTagInFilter(tagId: number): void {
+    const next = new Set(selectedTagIds.value);
+    if (next.has(tagId)) next.delete(tagId);
+    else next.add(tagId);
+    selectedTagIds.value = next;
+    void refetchAllCollections();
+    void refetchAllVisibleItems();
+    if (debouncedSearchQuery.value.trim()) {
+        void runSearch(debouncedSearchQuery.value.trim(), searchInCompendium.value || undefined);
+    }
+}
+
 const isTranslated = computed(() => !!activeTranslationLang.value);
 const currentMarkdown = ref<string>("");
+
+
+
+
+
 
 const installDialogOpen = ref(false);
 const installName = ref("");
@@ -287,9 +346,9 @@ async function toggleCompendium(compId: string): Promise<void> {
     expandedComps.value = next;
     if (collectionsByComp.value.has(compId)) return;
     try {
-        const r = await http.get(
-            `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}`,
-        );
+        const tagsParam = Array.from(selectedTagIds.value).join(",");
+        const url = `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}` + (tagsParam ? `&tags=${tagsParam}` : "");
+        const r = await http.get(url);
         if (r.ok) {
             const data = (await r.json()) as { collections: CollectionMeta[] };
             collectionsByComp.value = new Map(collectionsByComp.value).set(compId, data.collections);
@@ -298,6 +357,7 @@ async function toggleCompendium(compId: string): Promise<void> {
         /* ignore */
     }
 }
+
 
 /** Espande compendium e carica collezioni se necessario (senza chiudere se già aperto). */
 async function ensureCompendiumExpanded(compId: string): Promise<void> {
@@ -329,8 +389,10 @@ async function ensureCollectionExpanded(compId: string, collSlug: string): Promi
     const key = `${compId}/${collSlug}`;
     if (itemsByKey.value.has(key)) return;
     try {
+        const tagsParam = Array.from(selectedTagIds.value).join(",");
+
         const r = await http.get(
-            `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}`,
+            `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}`,
         );
         if (r.ok) {
             const data = (await r.json()) as { items: ItemMeta[] };
@@ -351,8 +413,10 @@ async function toggleCollection(compId: string, collSlug: string): Promise<void>
         const key = `${compId}/${collSlug}`;
         if (!itemsByKey.value.has(key)) {
             try {
+                const tagsParam = Array.from(selectedTagIds.value).join(",");
+
                 const r = await http.get(
-                    `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}`,
+                    `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}`,
                 );
                 if (r.ok) {
                     const data = (await r.json()) as { items: ItemMeta[] };
@@ -471,8 +535,11 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
     showIndex.value = true;
     indexLoading.value = true;
     indexCompendium.value = comp;
+    selectedCompendiumId.value = comp.id;
+
     currentIndex.value = [];
     expandedIndexCollections.value.clear();
+
     try {
         const r = await http.get(
             `/api/extensions/compendium/index?compendium=${encodeURIComponent(comp.id)}`,
@@ -953,7 +1020,10 @@ async function loadCompendiums(): Promise<void> {
     } finally {
         loading.value = false;
     }
+    // Load tags after compendiums are loaded so the endpoint returns results
+    void loadAllGlobalTags();
 }
+
 
 async function runSearch(q: string, compendiumId?: string | null): Promise<void> {
     searchLoading.value = true;
@@ -961,6 +1031,9 @@ async function runSearch(q: string, compendiumId?: string | null): Promise<void>
     try {
         const params = new URLSearchParams({ q });
         if (compendiumId) params.set("compendium", compendiumId);
+        const tagsParam = Array.from(selectedTagIds.value).join(",");
+
+        if (tagsParam) params.set("tags", tagsParam);
         const r = await http.get(
             `/api/extensions/compendium/search?${params.toString()}`,
         );
@@ -997,12 +1070,71 @@ function shareToChat(): void {
     toast.success(t("game.ui.extensions.CompendiumModal.share_success"));
 }
 
+async function loadAllGlobalTags(): Promise<void> {
+    try {
+        const r = await http.get("/api/extensions/compendium/all-tags");
+        if (r.ok) {
+            const data = (await r.json()) as { categories: GlobalTagCategory[] };
+            allTagCategories.value = data.categories || [];
+        }
+    } catch { /* ignore */ }
+}
+
+async function refetchAllCollections(): Promise<void> {
+    const tagsParam = Array.from(selectedTagIds.value).join(",");
+    const promises: Promise<void>[] = [];
+    for (const compId of expandedComps.value) {
+        promises.push((async () => {
+            try {
+                const url = `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}` + (tagsParam ? `&tags=${tagsParam}` : "");
+                const r = await http.get(url);
+                if (r.ok) {
+                    const data = (await r.json()) as { collections: CollectionMeta[] };
+                    collectionsByComp.value = new Map(collectionsByComp.value).set(compId, data.collections);
+                }
+            } catch {}
+        })());
+    }
+    await Promise.all(promises);
+}
+
+
+
+async function refetchAllVisibleItems(): Promise<void> {
+    const tagsParam = Array.from(selectedTagIds.value).join(",");
+    const promises: Promise<void>[] = [];
+    for (const key of itemsByKey.value.keys()) {
+         const parts = key.split("/");
+         const compId = parts[0]!;
+         const collSlug = parts[1]!;
+         promises.push((async () => {
+             try {
+                 const r = await http.get(`/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}`);
+                 if (r.ok) {
+                     const data = (await r.json()) as { items: ItemMeta[] };
+                     itemsByKey.value.set(key, data.items);
+                 }
+             } catch {}
+         })());
+    }
+    await Promise.all(promises);
+}
+
+async function selectItemTag(tagId: number): Promise<void> {
+    toggleTagInFilter(tagId);
+}
+
 watch(
     () => props.visible,
+
     (visible: boolean) => {
-        if (visible) loadCompendiums();
+        if (visible) {
+            loadCompendiums();
+            loadAllGlobalTags();
+        }
     },
 );
+
 
 watch(
     () => [extensionsState.raw.compendiumOpenItem, compendiums.value.length] as const,
@@ -1115,6 +1247,32 @@ onMounted(() => {
                     class="ext-search-input"
                     :placeholder="t('game.ui.extensions.CompendiumModal.search_placeholder')"
                 />
+
+                <!-- Tags filter toggle button -->
+                <button
+                    type="button"
+                    class="ext-search-add-btn filter-btn"
+                    :class="{ 'has-filters': hasActiveTagFilters, 'is-active': showTagDropdown }"
+                    title="Filtra per Tag"
+                    @click="showTagDropdown = !showTagDropdown"
+                >
+                    <font-awesome-icon icon="filter" />
+                    <span v-if="selectedTagIds.size > 0" class="qe-tag-filter-badge">{{ selectedTagIds.size }}</span>
+                </button>
+
+
+                <!-- Clear filters button -->
+                <button
+                    v-if="hasActiveTagFilters"
+                    type="button"
+                    class="ext-search-add-btn qe-clear-tags-btn"
+                    title="Rimuovi tutti i filtri Tag"
+                    @click="clearTagFilters"
+                >
+                    <font-awesome-icon icon="circle-xmark" />
+
+                </button>
+
                 <button
                     type="button"
                     class="ext-search-add-btn"
@@ -1135,6 +1293,26 @@ onMounted(() => {
                     <font-awesome-icon icon="language" />
                 </button>
             </div>
+
+            <!-- Expandable Grouped Filters Shelf -->
+            <div v-if="showTagDropdown" class="ext-toolbar-bar ext-search-bar qe-tag-filter-shelf">
+                <div class="ga-spacer"></div>
+
+                <div v-if="compendiums.length > 1" class="ga-spacer"></div>
+                <GroupedAutocomplete
+                    :options="flatTags"
+                    v-model="selectedTagIdsArray"
+                    :placeholder="t('game.ui.extensions.CompendiumModal.filter_tags_placeholder')"
+                    :group-by="(o) => o.category"
+                />
+
+            </div>
+
+
+
+
+
+
 
             <div v-if="loading" class="ext-ui-loading qe-loading">
                 {{ t("game.ui.extensions.CompendiumModal.loading") }}
@@ -1409,7 +1587,10 @@ onMounted(() => {
                                     </div>
                                 </div>
                             </div>
+                            <!-- Tag Filters moved to search bar -->
+
                             <div class="qe-index-grid">
+
                                 <div v-for="coll in currentIndex" :key="coll.slug" class="qe-index-coll">
                                     <h2 class="qe-index-coll-title">{{ formatName(coll.name) }}</h2>
                                     <div class="qe-index-item-list">
@@ -1478,7 +1659,14 @@ onMounted(() => {
                                 class="qe-markdown-content"
                                 v-html="selectedMarkdownHtml"
                             />
-                            <div v-if="nextItem" class="qe-continue-reading">
+                                          <div v-if="selectedItem?.item.tags && Object.keys(selectedItem.item.tags).length > 0" class="qe-item-tags">
+                                 <div v-for="(tags, catName) in selectedItem.item.tags" :key="catName" class="qe-item-tag-group">
+                                     <span class="qe-item-tag-category">{{ catName }}:</span>
+                                     <span v-for="tag in tags" :key="tag.id" class="qe-item-tag" @click="selectItemTag(tag.id)">{{ tag.name }}</span>
+
+                                 </div>
+                             </div>
+                <div v-if="nextItem" class="qe-continue-reading">
                                 <button class="qe-continue-link" @click="navigateToNextItem">
                                     {{ t("game.ui.extensions.CompendiumModal.continue_reading", { name: nextItem.itemName }) }}
                                 </button>
@@ -2369,5 +2557,122 @@ onMounted(() => {
     max-width: 50%;
     display: block;
     margin: 0.5rem auto;
+}
+
+.filter-btn {
+    position: relative;
+    &.has-filters {
+        border-color: #4caf50 !important;
+        color: #4caf50 !important;
+    }
+    &.is-active {
+        background: #e8f5e9 !important;
+        color: #2e7d32 !important;
+        border-color: #4caf50 !important;
+    }
+}
+
+.ext-search-bar {
+    display: grid !important;
+    grid-template-columns: auto auto 1fr auto auto auto auto;
+    align-items: center;
+    gap: 0.5rem;
+    background: #ffffff !important;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    border-bottom: 1px solid #eeeeee;
+
+    &.qe-tag-filter-shelf {
+        border-top: none;
+        border-bottom: none;
+        margin-top: -1px;
+        padding-top: 0;
+        background: #ffffff !important; /* Ensure same bg */
+        
+        .ga-spacer {
+            pointer-events: none;
+            visibility: hidden;
+        }
+    }
+}
+
+.qe-tag-filter-shelf {
+    background: transparent;
+    border: none !important;
+    border-radius: 0;
+    padding: 0;
+    margin: 0 0 0.4rem 0;
+    box-shadow: none !important;
+    display: flex;
+    flex-direction: column;
+}
+
+
+
+// Keep badge style for funnel button
+.qe-tag-filter-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #e53935;
+    color: #fff;
+    border-radius: 50%;
+    font-size: 0.65rem;
+    width: 17px;
+    height: 17px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    pointer-events: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+
+.qe-clear-tags-btn {
+    border-color: #e53935 !important;
+    color: #e53935 !important;
+    background: #fff !important;
+
+    &:hover {
+        background: #ffebee !important;
+    }
+}
+
+
+.qe-item-tags {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+
+    .qe-item-tag-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+
+        .qe-item-tag-category {
+            font-weight: 600;
+            color: #666;
+        }
+
+        .qe-item-tag {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+
+            &:hover {
+                background: #bbdefb;
+            }
+        }
+
+    }
 }
 </style>

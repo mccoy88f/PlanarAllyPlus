@@ -531,7 +531,9 @@
           "continue_reading": "Continua a leggere il prossimo elemento: {name}",
           "loading": "Caricamento...",
           "search_placeholder": "Cerca nei compendi...",
+          "filter_tags_placeholder": "Cerca o seleziona tag...",
           "searching": "Ricerca...",
+
           "no_results": "Nessun risultato",
           "filter_all": "Tutti",
           "filter_compendium": "Compendio",
