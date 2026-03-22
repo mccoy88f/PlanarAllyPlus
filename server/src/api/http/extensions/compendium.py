@@ -928,32 +928,58 @@ async def rename_compendium(request: web.Request) -> web.Response:
 
 
 async def get_collections(request: web.Request) -> web.Response:
-    """Elenco collezioni per compendium. Query: compendium=id o slug (obbligatorio)."""
+    """Elenco collezioni per compendium. Query: compendium=id o slug (obbligatorio), tags=1,2,3 (opzionale)."""
     await get_authorized_user(request)
     comp_id = _resolve_compendium_id(request.query.get("compendium", "").strip())
     if not comp_id:
         return web.json_response({"collections": []})
     if not _ensure_sqlite(comp_id):
         return web.json_response({"collections": []})
+    
+    tag_ids_str = request.query.get("tags", "").strip()
+    tag_ids = []
+    if tag_ids_str:
+        try:
+            tag_ids = [int(x) for x in tag_ids_str.split(",") if x.strip()]
+        except ValueError:
+            tag_ids = []
+
     try:
         conn = _get_conn(comp_id)
-        # Get collections and count direct items
-        rows = conn.execute(
-            """
-            SELECT c.slug, c.name, c.parent_slug, c.display_order, COUNT(i.id) as direct_count
-            FROM collections c
-            LEFT JOIN items i ON i.collection_id = c.id
-            GROUP BY c.id
-            ORDER BY c.display_order
-            """
-        ).fetchall()
+        
+        if tag_ids:
+            # Count only items that have ALL the selected tags
+            placeholders = ",".join("?" * len(tag_ids))
+            rows = conn.execute(
+                f"""
+                SELECT c.slug, c.name, c.parent_slug, c.display_order, COUNT(DISTINCT i.id) as direct_count
+                FROM collections c
+                LEFT JOIN items i ON i.collection_id = c.id
+                    AND i.id IN (
+                        SELECT item_id FROM item_tags WHERE tag_id IN ({placeholders})
+                        GROUP BY item_id
+                        HAVING COUNT(DISTINCT tag_id) = ?
+                    )
+                GROUP BY c.id
+                ORDER BY c.display_order
+                """,
+                tag_ids + [len(tag_ids)]
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT c.slug, c.name, c.parent_slug, c.display_order, COUNT(i.id) as direct_count
+                FROM collections c
+                LEFT JOIN items i ON i.collection_id = c.id
+                GROUP BY c.id
+                ORDER BY c.display_order
+                """
+            ).fetchall()
         
         colls = [{"slug": r[0], "name": r[1], "parentSlug": r[2], "order": r[3], "count": r[4]} for r in rows]
         
         # Recursive count: sum direct items + counts of sub-collections
-        # We need a map for quick lookup
         colls_map = {c["slug"]: c for c in colls}
-        # Build parent -> children map
         children_map = {}
         for c in colls:
             ps = c["parentSlug"]
@@ -970,11 +996,17 @@ async def get_collections(request: web.Request) -> web.Response:
         # Update counts in place
         for c in colls:
             c["count"] = get_recursive_count(c["slug"])
+        
+        # When filtering, remove collections with zero items (unless they have children with items)
+        if tag_ids:
+            colls = [c for c in colls if c["count"] > 0]
             
         conn.close()
         return web.json_response({"collections": colls})
     except Exception as e:
         return web.json_response({"error": str(e), "collections": []}, status=500)
+
+
 
 
 async def get_index(request: web.Request) -> web.Response:

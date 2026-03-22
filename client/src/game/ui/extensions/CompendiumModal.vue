@@ -115,7 +115,7 @@ const hasActiveTagFilters = computed(() => selectedTagIds.value.size > 0);
 
 function clearTagFilters(): void {
     selectedTagIds.value = new Set();
-    // Refetch all visible items without filter
+    void refetchAllCollections();
     void refetchAllVisibleItems();
 }
 
@@ -124,6 +124,7 @@ function toggleTagInFilter(tagId: number): void {
     if (next.has(tagId)) next.delete(tagId);
     else next.add(tagId);
     selectedTagIds.value = next;
+    void refetchAllCollections();
     void refetchAllVisibleItems();
     if (debouncedSearchQuery.value.trim()) {
         void runSearch(debouncedSearchQuery.value.trim(), searchInCompendium.value || undefined);
@@ -333,9 +334,9 @@ async function toggleCompendium(compId: string): Promise<void> {
     expandedComps.value = next;
     if (collectionsByComp.value.has(compId)) return;
     try {
-        const r = await http.get(
-            `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}`,
-        );
+        const tagsParam = Array.from(selectedTagIds.value).join(",");
+        const url = `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}` + (tagsParam ? `&tags=${tagsParam}` : "");
+        const r = await http.get(url);
         if (r.ok) {
             const data = (await r.json()) as { collections: CollectionMeta[] };
             collectionsByComp.value = new Map(collectionsByComp.value).set(compId, data.collections);
@@ -344,6 +345,7 @@ async function toggleCompendium(compId: string): Promise<void> {
         /* ignore */
     }
 }
+
 
 /** Espande compendium e carica collezioni se necessario (senza chiudere se già aperto). */
 async function ensureCompendiumExpanded(compId: string): Promise<void> {
@@ -1066,6 +1068,26 @@ async function loadAllGlobalTags(): Promise<void> {
     } catch { /* ignore */ }
 }
 
+async function refetchAllCollections(): Promise<void> {
+    const tagsParam = Array.from(selectedTagIds.value).join(",");
+    const promises: Promise<void>[] = [];
+    for (const compId of expandedComps.value) {
+        promises.push((async () => {
+            try {
+                const url = `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}` + (tagsParam ? `&tags=${tagsParam}` : "");
+                const r = await http.get(url);
+                if (r.ok) {
+                    const data = (await r.json()) as { collections: CollectionMeta[] };
+                    collectionsByComp.value = new Map(collectionsByComp.value).set(compId, data.collections);
+                }
+            } catch {}
+        })());
+    }
+    await Promise.all(promises);
+}
+
+
+
 async function refetchAllVisibleItems(): Promise<void> {
     const tagsParam = Array.from(selectedTagIds.value).join(",");
     const promises: Promise<void>[] = [];
@@ -1214,18 +1236,17 @@ onMounted(() => {
                     :placeholder="t('game.ui.extensions.CompendiumModal.search_placeholder')"
                 />
 
-                <!-- Tags filter button + popup -->
+                <!-- Tags filter: select-style dropdown with checkboxes -->
                 <div class="qe-tag-filter-dropdown-wrapper" ref="tagDropdownRef">
-                    <button
-                        type="button"
-                        class="ext-search-add-btn filter-btn"
-                        :class="{ 'is-active': hasActiveTagFilters }"
-                        :title="'Filtra per Tag'"
+                    <div
+                        class="ext-ui-select qe-tag-select-btn"
+                        :class="{ 'has-filters': hasActiveTagFilters }"
                         @click="showTagDropdown = !showTagDropdown"
                     >
-                        <font-awesome-icon icon="filter" />
-                        <span v-if="selectedTagIds.size > 0" class="qe-tag-filter-badge">{{ selectedTagIds.size }}</span>
-                    </button>
+                        <span v-if="selectedTagIds.size === 0" class="qe-tag-placeholder">Tag...</span>
+                        <span v-else class="qe-tag-selected-label">{{ selectedTagIds.size }} tag attivi</span>
+                        <font-awesome-icon icon="chevron-down" class="qe-tag-chevron" />
+                    </div>
                     <div v-show="showTagDropdown" class="qe-tag-filter-popup">
                         <div v-if="allTagCategories.length === 0" class="qe-tag-popup-empty">Nessun tag disponibile</div>
                         <div v-for="cat in allTagCategories" :key="cat.name" class="qe-tag-popup-category">
@@ -2524,29 +2545,30 @@ onMounted(() => {
     display: block;
     margin: 0.5rem auto;
 }
-.filter-btn {
-    border-color: #4caf50 !important;
-    color: #4caf50 !important;
-    background: #fff !important;
-
-    &.is-active {
-        background: #4caf50 !important;
-        color: #fff !important;
-    }
-}
-
-.filter-btn:hover:not(:disabled) {
-    background: #e8f5e9 !important;
-    &.is-active {
-        background: #388e3c !important;
-    }
-}
-
-
 .qe-tag-filter-dropdown-wrapper {
     position: relative;
 
+    .qe-tag-select-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        cursor: pointer;
+        min-width: 90px;
+        padding-right: 0.5rem;
+        user-select: none;
+
+        &.has-filters {
+            color: #4caf50 !important;
+            border-color: #4caf50 !important;
+            font-weight: 600;
+        }
+
+        .qe-tag-placeholder { color: #999; }
+        .qe-tag-chevron { font-size: 0.7rem; margin-left: auto; color: #888; }
+    }
+
     .qe-tag-filter-popup {
+
         position: absolute;
         top: calc(100% + 6px);
         right: 0;
