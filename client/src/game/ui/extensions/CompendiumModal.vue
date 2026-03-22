@@ -1244,7 +1244,8 @@ onMounted(() => {
                     title="Rimuovi tutti i filtri Tag"
                     @click="clearTagFilters"
                 >
-                    <font-awesome-icon icon="times" />
+                    <font-awesome-icon icon="circle-xmark" />
+
                 </button>
 
                 <button
