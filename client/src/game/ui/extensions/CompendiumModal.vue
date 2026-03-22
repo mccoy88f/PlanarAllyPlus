@@ -1302,9 +1302,10 @@ onMounted(() => {
                 <GroupedAutocomplete
                     :options="flatTags"
                     v-model="selectedTagIdsArray"
-                    placeholder="Cerca o seleziona tag..."
+                    :placeholder="t('game.ui.extensions.CompendiumModal.filter_tags_placeholder')"
                     :group-by="(o) => o.category"
                 />
+
             </div>
 
 

@@ -1083,7 +1083,9 @@
           "continue_reading": "Continue reading the next item: {name}",
           "loading": "Loading...",
           "search_placeholder": "Search in compendiums...",
+          "filter_tags_placeholder": "Search or select tags...",
           "searching": "Searching...",
+
           "no_results": "No results",
           "filter_all": "All",
           "filter_compendium": "Compendium",
