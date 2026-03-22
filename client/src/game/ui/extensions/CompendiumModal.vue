@@ -1295,9 +1295,10 @@ onMounted(() => {
             </div>
 
             <!-- Expandable Grouped Filters Shelf -->
-            <div v-show="showTagDropdown" class="qe-tag-filter-shelf">
+            <div v-show="showTagDropdown" class="ext-toolbar-bar ext-search-bar qe-tag-filter-shelf">
                 <GroupedAutocomplete
                     :options="flatTags"
+
                     v-model="selectedTagIdsArray"
                     placeholder="Cerca o seleziona tag dal menù..."
                     :group-by="(o) => o.category"
@@ -2570,15 +2571,33 @@ onMounted(() => {
 }
 
 .qe-tag-filter-shelf {
-    background: transparent;
+    background: transparent !important;
     border: none !important;
     border-radius: 0;
-    padding: 0;
-    margin: 0 0 0.4rem 0;
+    padding: 0 !important;
+    margin: 0.25rem 0 0.5rem 0 !important;
     box-shadow: none !important;
     display: flex;
     flex-direction: column;
+
+    :deep(.ga-control) {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        min-height: auto !important;
+        height: 35px !important;
+        padding: 0 !important;
+    }
+
+    :deep(.ga-input) {
+        height: 100% !important;
+    }
+
+    :deep(.ga-dropdown) {
+        top: calc(100% + 2px) !important;
+    }
 }
+
 
 
 // Keep badge style for funnel button
