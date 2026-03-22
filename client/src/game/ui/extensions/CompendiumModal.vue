@@ -1295,8 +1295,9 @@ onMounted(() => {
             </div>
 
             <!-- Expandable Grouped Filters Shelf -->
-            <div v-show="showTagDropdown" class="ext-toolbar-bar ext-search-bar qe-tag-filter-shelf">
+            <div v-if="showTagDropdown" class="ext-toolbar-bar ext-search-bar qe-tag-filter-shelf">
                 <div class="ga-spacer"></div>
+
                 <div v-if="compendiums.length > 1" class="ga-spacer"></div>
                 <GroupedAutocomplete
                     :options="flatTags"
