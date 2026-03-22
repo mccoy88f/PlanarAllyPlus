@@ -61,21 +61,21 @@ interface VisionSource {
 export const AMBIENT_SYMBOL = Symbol("ambient");
 
 class VisionState extends Store<State> {
-    private visionBlockers = new Map<FloorId, LocalId[]>();
-    private movementBlockers = new Map<FloorId, LocalId[]>();
-    private visionSources = new Map<FloorId, VisionSource[]>();
+    private readonly visionBlockers = new Map<FloorId, LocalId[]>();
+    private readonly movementBlockers = new Map<FloorId, LocalId[]>();
+    private readonly visionSources = new Map<FloorId, VisionSource[]>();
 
-    private visionSourcesInView = new Map<FloorId, VisionSource[]>();
-    private visionIteration = new Map<FloorId, number>();
+    private readonly visionSourcesInView = new Map<FloorId, VisionSource[]>();
+    private readonly visionIteration = new Map<FloorId, number>();
 
-    private cdt = new Map<FloorId, { vision: CDT; movement: CDT }>();
-    private interiorDependentShapes = new Map<FloorId, Set<LocalId | typeof AMBIENT_SYMBOL>>();
-    private interiorPaths = new Map<FloorId, Map<LocalId | typeof AMBIENT_SYMBOL, Path2D>>();
-    private portalPaths = new Map<
+    private readonly cdt = new Map<FloorId, { vision: CDT; movement: CDT }>();
+    private readonly interiorDependentShapes = new Map<FloorId, Set<LocalId | typeof AMBIENT_SYMBOL>>();
+    private readonly interiorPaths = new Map<FloorId, Map<LocalId | typeof AMBIENT_SYMBOL, Path2D>>();
+    private readonly portalPaths = new Map<
         FloorId,
         Map<LocalId | typeof AMBIENT_SYMBOL, { path: Path2D; cx: number; cy: number }[]>
     >();
-    private ambientBarrierShapes = new Map<FloorId, LocalId[]>();
+    private readonly ambientBarrierShapes = new Map<FloorId, LocalId[]>();
 
     drawTeContour = false;
 
@@ -263,10 +263,7 @@ class VisionState extends Store<State> {
         this.increaseVisionIteration(floor);
     }
 
-    getPortalMasks(
-        floor: FloorId,
-        shape: LocalId | typeof AMBIENT_SYMBOL,
-    ): { path: Path2D; cx: number; cy: number }[] {
+    getPortalMasks(floor: FloorId, shape: LocalId | typeof AMBIENT_SYMBOL): { path: Path2D; cx: number; cy: number }[] {
         return this.portalPaths.get(floor)?.get(shape) ?? [];
     }
 
@@ -309,10 +306,13 @@ class VisionState extends Store<State> {
             const n = points.length;
             const closed = shape.isClosed;
             for (let i = 0; i < n - (closed ? 0 : 1); i++) {
-                const pa: Point = [parseFloat(points[i]![0].toFixed(10)), parseFloat(points[i]![1].toFixed(10))];
+                const pa: Point = [
+                    Number.parseFloat(points[i]![0].toFixed(10)),
+                    Number.parseFloat(points[i]![1].toFixed(10)),
+                ];
                 const pb: Point = [
-                    parseFloat(points[(i + 1) % n]![0].toFixed(10)),
-                    parseFloat(points[(i + 1) % n]![1].toFixed(10)),
+                    Number.parseFloat(points[(i + 1) % n]![0].toFixed(10)),
+                    Number.parseFloat(points[(i + 1) % n]![1].toFixed(10)),
                 ];
                 segments.push([pa, pb]);
             }
@@ -323,9 +323,9 @@ class VisionState extends Store<State> {
         // Open doors act as ambient barriers even though their CDT constraints are removed
         for (const doorId of doorSystem.getDoors()) {
             const shape = getShape(doorId);
-            if (shape === undefined || shape.floorId !== floor) continue;
+            if (shape?.floorId !== floor) continue;
             const props = getProperties(doorId);
-            if (props === undefined || props.blocksVision !== VisionBlock.No) continue;
+            if (props?.blocksVision !== VisionBlock.No) continue;
             addShapeBarrier(shape);
         }
 
@@ -558,11 +558,12 @@ class VisionState extends Store<State> {
             const source = sources[i]!;
             const shape = getShape(source.shape);
             if (shape !== undefined && shape.layerName === layer) {
-                if (shapeIds.has(shape.id)) {
+                if (source.isFloodLight || shapeIds.has(shape.id)) {
                     found.add(shape.id);
                     sources[writeIndex++] = source;
                 }
             } else {
+                if (source.isFloodLight) found.add(source.shape);
                 sources[writeIndex++] = source;
             }
         }
@@ -570,7 +571,7 @@ class VisionState extends Store<State> {
         // 2. Add layer sources new to view
         for (const source of this.visionSources.get(floor)!) {
             if (found.has(source.shape)) continue;
-            if (shapeIds.has(source.shape)) sources.push(source);
+            if (source.isFloodLight || shapeIds.has(source.shape)) sources.push(source);
         }
     }
 
@@ -617,6 +618,11 @@ class VisionState extends Store<State> {
 
             const auraLength = getUnitDistance(auraValue + auraDim);
             const center = shape.center;
+
+            if (source.isFloodLight) {
+                viv.push(source);
+                continue;
+            }
 
             const auraCircle = new SimpleCircle(center, auraLength);
             if (auraCircle.visibleInCanvas({ w: layer.width, h: layer.height })) {

@@ -59,9 +59,9 @@ export const dmTools = [ToolName.Map, ToolName.Light];
 
 export const activeModeTools = computed(() => (activeToolMode.value === ToolMode.Build ? buildTools : playTools));
 
-watch(activeTool, (newTool, oldTool) => {
+watch(activeTool, async (newTool, oldTool) => {
     toolMap[oldTool].onDeselect();
-    toolMap[newTool].onSelect();
+    await toolMap[newTool].onSelect();
 });
 
 export function getActiveTool(): ITool {

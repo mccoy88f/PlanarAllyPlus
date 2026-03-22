@@ -12,6 +12,12 @@ tech changes will usually be stripped from release notes for the public
 
 ### Added
 
+-   Ambient light support
+    -   This allows you to run daylight scenes while still having fog and line of sight for indoor areas
+-   [DM] light tool
+    -   Allows you to quickly place invisible lights
+    -   Manual flood lights can also be placed
+    -   Additionally barriers to signal a natural transition from outside to inside are also placeable
 -   [server] Option to store user uploaded assets in remote storage solutions (e.g. S3)
 
 ### Changed
