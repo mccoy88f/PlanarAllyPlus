@@ -1296,14 +1296,14 @@ onMounted(() => {
 
             <!-- Expandable Grouped Filters Shelf -->
             <div v-show="showTagDropdown" class="ext-toolbar-bar ext-search-bar qe-tag-filter-shelf">
+                <div class="ga-spacer"></div>
+                <div v-if="compendiums.length > 1" class="ga-spacer"></div>
                 <GroupedAutocomplete
                     :options="flatTags"
-
                     v-model="selectedTagIdsArray"
-                    placeholder="Cerca o seleziona tag dal menù..."
+                    placeholder="Cerca o seleziona tag..."
                     :group-by="(o) => o.category"
                 />
-
             </div>
 
 
@@ -2570,32 +2570,39 @@ onMounted(() => {
     }
 }
 
+.ext-search-bar {
+    display: grid !important;
+    grid-template-columns: auto auto 1fr auto auto auto auto;
+    align-items: center;
+    gap: 0.5rem;
+    background: #ffffff !important;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    border-bottom: 1px solid #eeeeee;
+
+    &.qe-tag-filter-shelf {
+        border-top: none;
+        border-bottom: none;
+        margin-top: -1px;
+        padding-top: 0;
+        background: #ffffff !important; /* Ensure same bg */
+        
+        .ga-spacer {
+            pointer-events: none;
+            visibility: hidden;
+        }
+    }
+}
+
 .qe-tag-filter-shelf {
-    background: transparent !important;
+    background: transparent;
     border: none !important;
     border-radius: 0;
-    padding: 0 !important;
-    margin: 0.25rem 0 0.5rem 0 !important;
+    padding: 0;
+    margin: 0 0 0.4rem 0;
     box-shadow: none !important;
     display: flex;
     flex-direction: column;
-
-    :deep(.ga-control) {
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        min-height: auto !important;
-        height: 35px !important;
-        padding: 0 !important;
-    }
-
-    :deep(.ga-input) {
-        height: 100% !important;
-    }
-
-    :deep(.ga-dropdown) {
-        top: calc(100% + 2px) !important;
-    }
 }
 
 

@@ -260,11 +260,10 @@ const selectedItems = computed(() => {
 }
 
 .ga-control {
-    min-height: 42px;
-    padding: 6px 44px 6px 10px;
+    padding: 4px 44px 4px 10px;
     background: #fff;
     border: 1px solid #ddd;
-    border-radius: 6px;
+    border-radius: 4px;
     cursor: text;
     display: flex;
     flex-wrap: wrap;
@@ -276,6 +275,7 @@ const selectedItems = computed(() => {
         box-shadow: 0 0 0 3px rgba(0,0,0,0.04);
     }
 }
+
 
 .ga-chips {
     display: flex;
