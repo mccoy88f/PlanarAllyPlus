@@ -17,8 +17,9 @@ import { chatSystem } from "../../systems/chat";
 import { focusExtension } from "../../systems/extensions/ui";
 import { extensionsState } from "../../systems/extensions/state";
 import LoadingBar from "../../../core/components/LoadingBar.vue";
-import GroupedAutocomplete from "../../../core/components/GroupedAutocomplete.vue";
+import GroupedAutocomplete from "./components/GroupedAutocomplete.vue";
 import { playerSystem } from "../../systems/players";
+
 
 
 const props = defineProps<{
@@ -1297,7 +1298,9 @@ onMounted(() => {
                     :options="flatTags"
                     v-model="selectedTagIdsArray"
                     placeholder="Cerca o seleziona tag dal menù..."
+                    :group-by="(o) => o.category"
                 />
+
             </div>
 
 
