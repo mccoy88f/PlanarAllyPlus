@@ -17,7 +17,9 @@ import { chatSystem } from "../../systems/chat";
 import { focusExtension } from "../../systems/extensions/ui";
 import { extensionsState } from "../../systems/extensions/state";
 import LoadingBar from "../../../core/components/LoadingBar.vue";
+import GroupedAutocomplete from "../../../core/components/GroupedAutocomplete.vue";
 import { playerSystem } from "../../systems/players";
+
 
 const props = defineProps<{
     visible: boolean;
@@ -111,7 +113,27 @@ const allTagCategories = ref<GlobalTagCategory[]>([]);
 const selectedTagIds = ref<Set<number>>(new Set());
 const showTagDropdown = ref(false);
 
+const selectedTagIdsArray = computed({
+    get: () => Array.from(selectedTagIds.value),
+    set: (newList: (string | number)[]) => {
+        selectedTagIds.value = new Set(newList.map(Number));
+        void refetchAllCollections();
+        void refetchAllVisibleItems();
+    }
+});
+
+const flatTags = computed(() => {
+    return allTagCategories.value.flatMap(cat => 
+        cat.tags.map(tag => ({
+            id: tag.id,
+            title: tag.name,
+            category: cat.name
+        }))
+    );
+});
+
 const hasActiveTagFilters = computed(() => selectedTagIds.value.size > 0);
+
 
 function clearTagFilters(): void {
     selectedTagIds.value = new Set();
@@ -1271,21 +1293,13 @@ onMounted(() => {
 
             <!-- Expandable Grouped Filters Shelf -->
             <div v-show="showTagDropdown" class="qe-tag-filter-shelf">
-                <div v-if="allTagCategories.length === 0" class="qe-tag-shelf-empty">Nessun tag disponibile</div>
-                <div v-for="cat in allTagCategories" :key="cat.name" class="qe-tag-shelf-group">
-                    <span class="qe-tag-shelf-group-name">{{ cat.name }}</span>
-                    <div class="qe-tag-shelf-options">
-                        <label v-for="tag in cat.tags" :key="tag.id" class="qe-tag-shelf-option" :class="{ 'is-selected': selectedTagIds.has(tag.id) }">
-                            <input
-                                type="checkbox"
-                                :checked="selectedTagIds.has(tag.id)"
-                                @change="toggleTagInFilter(tag.id)"
-                            />
-                            <span class="qe-tag-option-label">{{ tag.name }}</span>
-                        </label>
-                    </div>
-                </div>
+                <GroupedAutocomplete
+                    :options="flatTags"
+                    v-model="selectedTagIdsArray"
+                    placeholder="Cerca o seleziona tag dal menù..."
+                />
             </div>
+
 
 
 
