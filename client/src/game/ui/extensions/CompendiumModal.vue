@@ -134,21 +134,8 @@ function toggleTagInFilter(tagId: number): void {
 const isTranslated = computed(() => !!activeTranslationLang.value);
 const currentMarkdown = ref<string>("");
 
-// Click-outside handler for tag dropdown
-const tagDropdownRef = ref<HTMLElement | null>(null);
 
-function handleTagDropdownClickOutside(e: MouseEvent): void {
-    if (tagDropdownRef.value && !tagDropdownRef.value.contains(e.target as Node)) {
-        showTagDropdown.value = false;
-    }
-}
 
-onMounted(() => {
-    document.addEventListener("mousedown", handleTagDropdownClickOutside);
-});
-onUnmounted(() => {
-    document.removeEventListener("mousedown", handleTagDropdownClickOutside);
-});
 
 
 
@@ -1236,34 +1223,18 @@ onMounted(() => {
                     :placeholder="t('game.ui.extensions.CompendiumModal.search_placeholder')"
                 />
 
-                <!-- Tags filter: select-style dropdown with checkboxes -->
-                <div class="qe-tag-filter-dropdown-wrapper" ref="tagDropdownRef">
-                    <div
-                        class="ext-ui-select qe-tag-select-btn"
-                        :class="{ 'has-filters': hasActiveTagFilters }"
-                        @click="showTagDropdown = !showTagDropdown"
-                    >
-                        <span v-if="selectedTagIds.size === 0" class="qe-tag-placeholder">Tag...</span>
-                        <span v-else class="qe-tag-selected-label">{{ selectedTagIds.size }} tag attivi</span>
-                        <font-awesome-icon icon="chevron-down" class="qe-tag-chevron" />
-                    </div>
-                    <div v-show="showTagDropdown" class="qe-tag-filter-popup">
-                        <div v-if="allTagCategories.length === 0" class="qe-tag-popup-empty">Nessun tag disponibile</div>
-                        <div v-for="cat in allTagCategories" :key="cat.name" class="qe-tag-popup-category">
-                            <span class="qe-tag-popup-cat-name">{{ cat.name }}</span>
-                            <div class="qe-tag-popup-options">
-                                <label v-for="tag in cat.tags" :key="tag.id" class="qe-tag-popup-option">
-                                    <input
-                                        type="checkbox"
-                                        :checked="selectedTagIds.has(tag.id)"
-                                        @change="toggleTagInFilter(tag.id)"
-                                    />
-                                    {{ tag.name }}
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <!-- Tags filter toggle button -->
+                <button
+                    type="button"
+                    class="ext-search-add-btn filter-btn"
+                    :class="{ 'has-filters': hasActiveTagFilters, 'is-active': showTagDropdown }"
+                    title="Filtra per Tag"
+                    @click="showTagDropdown = !showTagDropdown"
+                >
+                    <font-awesome-icon icon="filter" />
+                    <span v-if="selectedTagIds.size > 0" class="qe-tag-filter-badge">{{ selectedTagIds.size }}</span>
+                </button>
+
 
                 <!-- Clear filters button -->
                 <button
@@ -1296,6 +1267,25 @@ onMounted(() => {
                     <font-awesome-icon icon="language" />
                 </button>
             </div>
+
+            <!-- Expandable Grouped Filters Shelf -->
+            <div v-show="showTagDropdown" class="qe-tag-filter-shelf">
+                <div v-if="allTagCategories.length === 0" class="qe-tag-shelf-empty">Nessun tag disponibile</div>
+                <div v-for="cat in allTagCategories" :key="cat.name" class="qe-tag-shelf-group">
+                    <span class="qe-tag-shelf-group-name">{{ cat.name }}</span>
+                    <div class="qe-tag-shelf-options">
+                        <label v-for="tag in cat.tags" :key="tag.id" class="qe-tag-shelf-option" :class="{ 'is-selected': selectedTagIds.has(tag.id) }">
+                            <input
+                                type="checkbox"
+                                :checked="selectedTagIds.has(tag.id)"
+                                @change="toggleTagInFilter(tag.id)"
+                            />
+                            <span class="qe-tag-option-label">{{ tag.name }}</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
 
 
 
@@ -2545,109 +2535,117 @@ onMounted(() => {
     display: block;
     margin: 0.5rem auto;
 }
-.qe-tag-filter-dropdown-wrapper {
+
+.filter-btn {
     position: relative;
+    &.has-filters {
+        border-color: #4caf50 !important;
+        color: #4caf50 !important;
+    }
+    &.is-active {
+        background: #e8f5e9 !important;
+        color: #2e7d32 !important;
+        border-color: #4caf50 !important;
+    }
+}
 
-    .qe-tag-select-btn {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        cursor: pointer;
-        min-width: 90px;
-        padding-right: 0.5rem;
-        user-select: none;
+.qe-tag-filter-shelf {
+    background: #fdfdfd;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 0.5rem 0 1rem 0;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.03), 0 4px 12px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
 
-        &.has-filters {
-            color: #4caf50 !important;
-            border-color: #4caf50 !important;
-            font-weight: 600;
-        }
-
-        .qe-tag-placeholder { color: #999; }
-        .qe-tag-chevron { font-size: 0.7rem; margin-left: auto; color: #888; }
+    .qe-tag-shelf-empty {
+        text-align: center;
+        color: #999;
+        font-style: italic;
     }
 
-    .qe-tag-filter-popup {
-
-        position: absolute;
-        top: calc(100% + 6px);
-        right: 0;
-        z-index: 200;
-        background: #fff;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-        min-width: 240px;
-        max-width: 320px;
-        max-height: 400px;
-        overflow-y: auto;
-
-        .qe-tag-popup-empty {
-            padding: 0.75rem 1rem;
-            font-size: 0.85rem;
-            color: #999;
-            text-align: center;
+    .qe-tag-shelf-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        
+        .qe-tag-shelf-group-name {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid #f0f0f0;
+            padding-bottom: 0.25rem;
         }
 
-        padding: 0.5rem 0;
+        .qe-tag-shelf-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
 
-
-        .qe-tag-popup-category {
-            padding: 0.4rem 0.75rem;
-            border-bottom: 1px solid #f0f0f0;
-
-            &:last-child { border-bottom: none; }
-
-            .qe-tag-popup-cat-name {
-                display: block;
-                font-weight: 700;
-                font-size: 0.8rem;
-                color: #444;
-                text-transform: uppercase;
-                letter-spacing: 0.04em;
-                margin-bottom: 0.35rem;
-            }
-
-            .qe-tag-popup-options {
+            .qe-tag-shelf-option {
                 display: flex;
-                flex-direction: column;
-                gap: 0.2rem;
+                align-items: center;
+                gap: 0.35rem;
+                cursor: pointer;
+                background: #fff;
+                border: 1px solid #e0e0e0;
+                border-radius: 16px;
+                padding: 0.3rem 0.7rem;
+                font-size: 0.82rem;
+                color: #444;
+                transition: all 0.15s ease;
+                user-select: none;
 
-                .qe-tag-popup-option {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
+                &:hover {
+                    background: #f9f9f9;
+                    border-color: #ccc;
+                }
+
+                &.is-selected {
+                    background: #e8f5e9;
+                    border-color: #4caf50;
+                    color: #2e7d32;
+                    font-weight: 600;
+                    box-shadow: 0 1px 4px rgba(76, 175, 80, 0.15);
+                }
+
+                input[type="checkbox"] {
+                    margin: 0;
                     cursor: pointer;
-                    font-size: 0.85rem;
-                    color: #333;
-                    padding: 0.2rem 0.25rem;
-                    border-radius: 3px;
+                    accent-color: #4caf50;
+                }
 
-                    &:hover { background: #f5f5f5; }
-
-                    input[type="checkbox"] { cursor: pointer; }
+                .qe-tag-option-label {
+                    line-height: 1.2;
                 }
             }
         }
     }
-
-    .qe-tag-filter-badge {
-        position: absolute;
-        top: -4px;
-        right: -4px;
-        background: #e53935;
-        color: #fff;
-        border-radius: 50%;
-        font-size: 0.65rem;
-        width: 16px;
-        height: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        pointer-events: none;
-    }
 }
+
+// Keep badge style for funnel button
+.qe-tag-filter-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #e53935;
+    color: #fff;
+    border-radius: 50%;
+    font-size: 0.65rem;
+    width: 17px;
+    height: 17px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    pointer-events: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
 
 .qe-clear-tags-btn {
     border-color: #e53935 !important;
