@@ -138,9 +138,11 @@ const hasActiveTagFilters = computed(() => selectedTagIds.value.size > 0);
 
 function clearTagFilters(): void {
     selectedTagIds.value = new Set();
+    showTagDropdown.value = false; // Chiudi il vassoio
     void refetchAllCollections();
     void refetchAllVisibleItems();
 }
+
 
 function toggleTagInFilter(tagId: number): void {
     const next = new Set(selectedTagIds.value);
@@ -2568,82 +2570,16 @@ onMounted(() => {
 }
 
 .qe-tag-filter-shelf {
-    background: #fdfdfd;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    padding: 1rem;
-    margin: 0.5rem 0 1rem 0;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.03), 0 4px 12px rgba(0,0,0,0.06);
+    background: transparent;
+    border: none !important;
+    border-radius: 0;
+    padding: 0;
+    margin: 0 0 0.4rem 0;
+    box-shadow: none !important;
     display: flex;
     flex-direction: column;
-    gap: 1.2rem;
-
-    .qe-tag-shelf-empty {
-        text-align: center;
-        color: #999;
-        font-style: italic;
-    }
-
-    .qe-tag-shelf-group {
-        display: flex;
-        flex-direction: column;
-        gap: 0.6rem;
-        
-        .qe-tag-shelf-group-name {
-            font-size: 0.75rem;
-            font-weight: 700;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border-bottom: 1px solid #f0f0f0;
-            padding-bottom: 0.25rem;
-        }
-
-        .qe-tag-shelf-options {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-
-            .qe-tag-shelf-option {
-                display: flex;
-                align-items: center;
-                gap: 0.35rem;
-                cursor: pointer;
-                background: #fff;
-                border: 1px solid #e0e0e0;
-                border-radius: 16px;
-                padding: 0.3rem 0.7rem;
-                font-size: 0.82rem;
-                color: #444;
-                transition: all 0.15s ease;
-                user-select: none;
-
-                &:hover {
-                    background: #f9f9f9;
-                    border-color: #ccc;
-                }
-
-                &.is-selected {
-                    background: #e8f5e9;
-                    border-color: #4caf50;
-                    color: #2e7d32;
-                    font-weight: 600;
-                    box-shadow: 0 1px 4px rgba(76, 175, 80, 0.15);
-                }
-
-                input[type="checkbox"] {
-                    margin: 0;
-                    cursor: pointer;
-                    accent-color: #4caf50;
-                }
-
-                .qe-tag-option-label {
-                    line-height: 1.2;
-                }
-            }
-        }
-    }
 }
+
 
 // Keep badge style for funnel button
 .qe-tag-filter-badge {
