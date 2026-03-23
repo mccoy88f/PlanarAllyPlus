@@ -11,9 +11,10 @@ import { auraSystem } from "../../systems/auras";
 import { floorSystem } from "../../systems/floors";
 import { floorState } from "../../systems/floors/state";
 import { gameState } from "../../systems/game/state";
+import { positionState } from "../../systems/position/state";
 import { locationSettingsSystem } from "../../systems/settings/location";
 import { locationSettingsState } from "../../systems/settings/location/state";
-import { visionState } from "../../vision/state";
+import { AMBIENT_SYMBOL, PORTAL_RANGE, visionState } from "../../vision/state";
 
 import { FowLayer } from "./fow";
 
@@ -25,7 +26,12 @@ export class FowLightingLayer extends FowLayer {
             idx = this.preFogShapes.findIndex((s) => s.id === shape.id);
         }
         const remove = super.removeShape(shape, options);
-        if (remove && idx >= 0) this.preFogShapes.splice(idx, 1);
+        if (remove) {
+            if (idx >= 0) this.preFogShapes.splice(idx, 1);
+            if (shape.options.ambientBarrier ?? false) {
+                visionState.removeAmbientBarrier(shape.id, this.floor);
+            }
+        }
         return remove;
     }
 
@@ -33,10 +39,56 @@ export class FowLightingLayer extends FowLayer {
         if (shape.options.preFogShape ?? false) {
             this.preFogShapes.push(shape);
         }
+        if (shape.options.ambientBarrier ?? false) {
+            visionState.addAmbientBarrier(shape.id, this.floor);
+        }
     }
 
     exitLayer(shape: IShape): void {
         this.preFogShapes = this.preFogShapes.filter((s) => s.id !== shape.id);
+        if (shape.options.ambientBarrier ?? false) {
+            visionState.removeAmbientBarrier(shape.id, this.floor);
+        }
+    }
+
+    private drawAmbientLight(shapeId: LocalId | typeof AMBIENT_SYMBOL): void {
+        this.vCtx.globalCompositeOperation = "source-over";
+        this.vCtx.fillStyle = "rgba(0, 0, 0, 1)";
+        this.vCtx.fillRect(0, 0, this.width, this.height);
+
+        this.vCtx.globalCompositeOperation = "destination-out";
+        const interiorMask = visionState.getInteriorPath(this.floor, shapeId);
+        if (interiorMask !== undefined) {
+            const { panX, panY, zoom } = positionState.readonly;
+            this.vCtx.save();
+            this.vCtx.transform(zoom, 0, 0, zoom, panX * zoom, panY * zoom);
+            this.vCtx.fill(interiorMask);
+            this.vCtx.lineWidth = 1 / zoom;
+            this.vCtx.strokeStyle = "rgba(0, 0, 0, 1)";
+            this.vCtx.stroke(interiorMask);
+            this.vCtx.restore();
+        }
+
+        this.vCtx.globalCompositeOperation = "source-over";
+        const portalMasks = visionState.getPortalMasks(this.floor, shapeId);
+        if (portalMasks.length > 0) {
+            const { panX, panY, zoom } = positionState.readonly;
+            const range = PORTAL_RANGE;
+            this.vCtx.save();
+            this.vCtx.transform(zoom, 0, 0, zoom, panX * zoom, panY * zoom);
+            for (const portal of portalMasks) {
+                const gradient = this.vCtx.createRadialGradient(portal.cx, portal.cy, 0, portal.cx, portal.cy, range);
+                gradient.addColorStop(0, "rgba(0, 0, 0, 1)");
+                gradient.addColorStop(0.35, "rgba(0, 0, 0, 1)");
+                gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+                this.vCtx.fillStyle = gradient;
+                this.vCtx.fill(portal.path);
+            }
+            this.vCtx.restore();
+        }
+
+        this.ctx.globalCompositeOperation = "source-over";
+        this.ctx.drawImage(this.virtualCanvas, 0, 0, window.innerWidth, window.innerHeight);
     }
 
     draw(): void {
@@ -110,6 +162,11 @@ export class FowLightingLayer extends FowLayer {
                         }
                     }
 
+                    if (aura.floodLight) {
+                        this.drawAmbientLight(shape.id);
+                        continue;
+                    }
+
                     const auraValue = aura.value > 0 && !isNaN(aura.value) ? aura.value : 0;
                     const auraDim = aura.dim > 0 && !isNaN(aura.dim) ? aura.dim : 0;
 
@@ -175,6 +232,14 @@ export class FowLightingLayer extends FowLayer {
                     this.vCtx.fill();
                     this.ctx.drawImage(this.virtualCanvas, 0, 0, window.innerWidth, window.innerHeight);
                 }
+            }
+
+            if (
+                locationSettingsState.raw.ambientLight.value &&
+                locationSettingsState.raw.fullFow.value &&
+                this.floor === activeFloor.id
+            ) {
+                this.drawAmbientLight(AMBIENT_SYMBOL);
             }
 
             if (isLosActive && this.floor === activeFloor.id) {

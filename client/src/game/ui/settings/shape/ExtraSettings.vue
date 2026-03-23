@@ -141,6 +141,7 @@ function applyDDraft(): void {
             borderColour: "rgba(0, 0, 0, 0)",
             angle: 360,
             direction: 0,
+            floodLight: false,
         };
 
         tokenLayer.addShape(shape, SyncMode.FULL_SYNC, InvalidationMode.NO);

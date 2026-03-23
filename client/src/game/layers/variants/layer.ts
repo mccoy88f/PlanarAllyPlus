@@ -81,7 +81,13 @@ export class Layer implements ILayer {
     protected selectionColor = "#CC0000";
     protected selectionWidth = 2;
 
+    // This is used to handle extra work after the layer has been drawn
+    // Usually done for some rare extra manual shape draws
+    // These are one-shot callbacks
     postDrawCallback = callbackProvider();
+    // Somewhat similar, but these are persistent callbacks
+    // You have to specifically remove yourself again from this array
+    private drawCallbacks: Array<(ctx: CanvasRenderingContext2D) => void> = [];
 
     constructor(
         public canvas: HTMLCanvasElement,
@@ -405,6 +411,15 @@ export class Layer implements ILayer {
 
     // DRAW
 
+    registerDrawCallback(cb: (ctx: CanvasRenderingContext2D) => void): void {
+        this.drawCallbacks.push(cb);
+    }
+
+    unregisterDrawCallback(cb: (ctx: CanvasRenderingContext2D) => void): void {
+        const idx = this.drawCallbacks.indexOf(cb);
+        if (idx >= 0) this.drawCallbacks.splice(idx, 1);
+    }
+
     hide(): void {
         this.canvas.style.display = "none";
     }
@@ -444,7 +459,10 @@ export class Layer implements ILayer {
             if (this.name !== LayerName.Lighting || isActiveLayer) {
                 // Aura draw loop
                 for (const shape of this.shapesInSector) {
-                    if (shape.options.skipDraw ?? false) continue;
+                    if (shape.options.skipDraw ?? false) {
+                        if (shape.options.lightShape === true) drawAuras(shape, ctx);
+                        continue;
+                    }
 
                     const props = getProperties(shape.id);
                     if (props?.showCells === true) {
@@ -530,6 +548,8 @@ export class Layer implements ILayer {
                     }
                 }
             }
+
+            for (const cb of this.drawCallbacks) cb(ctx);
 
             ctx.globalCompositeOperation = ogOP;
             this.valid = true;

@@ -114,6 +114,7 @@ export interface ApiAura {
   border_colour: string;
   angle: number;
   direction: number;
+  flood_light: boolean;
 }
 export interface ApiNote {
   uuid: NoteId;
@@ -390,6 +391,7 @@ export interface ApiOptionalAura {
   border_colour?: string;
   angle?: number;
   direction?: number;
+  flood_light?: boolean;
 }
 export interface ApiOptionalUserOptions {
   fow_colour?: string | null;
@@ -883,6 +885,7 @@ export interface ApiOptionalLocationOptions {
   underground_map_background?: string | null;
   limit_movement_during_initiative?: boolean | null;
   drop_ratio?: number | null;
+  ambient_light?: boolean | null;
 }
 export interface ApiLocationCore {
   id: number;
@@ -907,6 +910,7 @@ export interface ApiLocationOptions {
   underground_map_background: string;
   limit_movement_during_initiative: boolean;
   drop_ratio: number;
+  ambient_light: boolean;
 }
 export interface ApiSpawnInfo {
   position: PositionTuple;

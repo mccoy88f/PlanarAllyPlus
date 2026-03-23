@@ -150,7 +150,10 @@ class AuraSystem implements ShapeSystem<Aura[]> {
 
                 if (aura.visionSource) {
                     if (shape.floorId !== undefined)
-                        visionState.addVisionSource({ aura: aura.uuid, shape: id }, shape.floorId);
+                        visionState.addVisionSource(
+                            { aura: aura.uuid, shape: id, isFloodLight: aura.floodLight },
+                            shape.floorId,
+                        );
                 }
 
                 shape.invalidate(false);
@@ -193,11 +196,11 @@ class AuraSystem implements ShapeSystem<Aura[]> {
             if (oldAuraVisionSource && !aura.visionSource && aura.active) {
                 visionState.removeVisionSource(floorId, aura.uuid);
             } else if (!oldAuraVisionSource && aura.visionSource && aura.active) {
-                visionState.addVisionSource({ aura: aura.uuid, shape: id }, floorId);
+                visionState.addVisionSource({ aura: aura.uuid, shape: id, isFloodLight: aura.floodLight }, floorId);
             } else if (oldAuraActive && !aura.active && aura.visionSource) {
                 visionState.removeVisionSource(floorId, aura.uuid);
             } else if (!oldAuraActive && aura.active && aura.visionSource) {
-                visionState.addVisionSource({ aura: aura.uuid, shape: id }, floorId);
+                visionState.addVisionSource({ aura: aura.uuid, shape: id, isFloodLight: aura.floodLight }, floorId);
             }
         }
 

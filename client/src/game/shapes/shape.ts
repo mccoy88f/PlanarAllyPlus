@@ -294,6 +294,10 @@ export abstract class Shape implements IShape {
         this.resetVisionIteration();
         this.updateShapeVision(false, false);
 
+        if (auraSystem.getAll(this.id).some((a) => a.floodLight)) {
+            visionState.recalculateVision(this.floorId!);
+        }
+
         // Update off-screen token directions
         if (accessSystem.hasAccessTo(this.id, "vision")) {
             const floor = this.floor;

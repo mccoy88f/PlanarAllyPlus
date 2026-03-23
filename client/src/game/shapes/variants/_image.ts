@@ -6,6 +6,7 @@ import { getGlobalId } from "../../id";
 import { LayerName } from "../../models/floor";
 import { accessSystem } from "../../systems/access";
 import { floorSystem } from "../../systems/floors";
+import { ShapeProperties } from "../../systems/properties/types";
 
 import { BaseRect } from "./baseRect";
 
@@ -25,10 +26,16 @@ export abstract class IImage extends BaseRect {
             isSnappable?: boolean;
             parentId?: LocalId;
         },
+        properties?: Partial<ShapeProperties>,
     ) {
-        super(topleft, w, h, { isSnappable: false, ...options }, { strokeColour: ["white"] });
+        super(topleft, w, h, { isSnappable: false, ...options }, { strokeColour: ["white"], ...properties });
         this.img = img;
         this.#loaded = options?.loaded ?? true;
+        if (!this.#loaded) {
+            this.img.onload = () => {
+                this.setLoaded();
+            };
+        }
     }
 
     readonly isClosed = true;
@@ -67,20 +74,22 @@ export abstract class IImage extends BaseRect {
         super.draw(ctx, lightRevealRender, customScale);
 
         const center = g2l(this.center);
-        const rp = g2l(this.refPoint);
-        const ogH = g2lz(this.h);
-        const ogW = g2lz(this.w);
+        const ogH = this.ignoreZoomSize ? this.h : g2lz(this.h);
+        const ogW = this.ignoreZoomSize ? this.w : g2lz(this.w);
         const h = customScale ? customScale.height : ogH;
         const w = customScale ? customScale.width : ogW;
         const deltaH = (ogH - h) / 2;
         const deltaW = (ogW - w) / 2;
 
+        const ox = this.ignoreZoomSize ? -this.w / 2 : g2l(this.refPoint).x - center.x;
+        const oy = this.ignoreZoomSize ? -this.h / 2 : g2l(this.refPoint).y - center.y;
+
         if (!this.#loaded || lightRevealRender) {
             if (!lightRevealRender) ctx.fillStyle = FOG_COLOUR;
-            ctx.fillRect(rp.x - center.x, rp.y - center.y, w, h);
+            ctx.fillRect(ox, oy, w, h);
         } else {
             try {
-                ctx.drawImage(this.img, rp.x - center.x + deltaW, rp.y - center.y + deltaH, w, h);
+                ctx.drawImage(this.img, ox + deltaW, oy + deltaH, w, h);
             } catch {
                 console.warn(`Shape ${getGlobalId(this.id) ?? "unknown"} could not load the image ${this.img.src}`);
             }

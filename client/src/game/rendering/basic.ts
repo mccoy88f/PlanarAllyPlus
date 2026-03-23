@@ -144,7 +144,7 @@ export function drawLine(
     if (options?.lineWidth !== undefined) ctx.lineWidth = options.lineWidth;
     ctx.beginPath();
     if (options?.strokeStyle !== undefined) ctx.strokeStyle = options.strokeStyle;
-    else ctx.strokeStyle = constrained ? "rgba(255, 255, 0, 0.30)" : "rgba(0, 0, 0, 0.30)";
+    else ctx.strokeStyle = constrained ? "rgba(255, 255, 0, 0.90)" : "rgba(0, 0, 0, 0.90)";
     ctx.moveTo(X(from[0], local), Y(from[1], local));
     ctx.lineTo(X(to[0], local), Y(to[1], local));
     ctx.closePath();
@@ -313,6 +313,7 @@ function showLayerPoints(): void {
 (window as any).DP = drawPolygon;
 // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 (window as any).DPL = drawPolygonL;
+// example use: DPT(CDT.get(0).vision.tds, false, true, 2);
 // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 (window as any).DPT = drawPolygonT;
 // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
