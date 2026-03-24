@@ -80,7 +80,8 @@ body {
 .sheet {
   background: var(--surface);
   margin: 0 auto;
-  max-width: 940px;
+  width: 100%;
+  max-width: 100%;
   border: 1.5px solid var(--border);
   border-top: none;
   border-radius: 0 0 var(--r) var(--r);
@@ -127,7 +128,7 @@ input[type="text"]:focus, input[type="number"]:focus, textarea:focus {
   background: var(--accent-bg);
 }
 ::placeholder { color: var(--text-3); font-style: italic; font-size: 0.78em; opacity: 1; }
-textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
+textarea { resize: vertical; min-height: 60px; line-height: 1.5; overflow-wrap: break-word; word-wrap: break-word; max-width: 100%; }
 input[type="number"] { text-align: center; }
 input[type="checkbox"] {
   accent-color: var(--accent);
@@ -318,6 +319,12 @@ input[type="checkbox"] {
   color: var(--text-2);
 }
 .ts-row input[type="number"] { width: 30px; font-size: 0.6rem; }
+.ts-row input.skill-mod-in {
+  text-align: center;
+  width: 34px;
+  min-width: 34px;
+  box-sizing: border-box;
+}
 
 /* Bonus competenza */
 .big-number {
@@ -625,7 +632,7 @@ input[type="checkbox"] {
   display: flex;
   justify-content: flex-end;
   padding: 10px 20px 0;
-  max-width: 940px;
+  max-width: 100%;
   margin: 0 auto;
 }
 .lang-btn {
@@ -689,15 +696,24 @@ input[type="checkbox"] {
   font-family: var(--font-body);
   font-size: 0.82rem;
   color: var(--text);
-  padding: 4px 6px;
-  border: 1.5px solid var(--border-strong) !important;
-  border-radius: var(--r-sm);
-  background: var(--surface);
+  padding: 2px 4px;
+  border: none !important;
+  border-bottom: 1.5px solid var(--border-strong) !important;
+  border-radius: 0 !important;
+  background: transparent;
   cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-3) 50%), linear-gradient(135deg, var(--text-3) 50%, transparent 50%);
+  background-position: calc(100% - 10px) 55%, calc(100% - 6px) 55%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+  padding-right: 18px;
 }
 .cs-char-select:focus {
   outline: none;
-  border-color: var(--accent) !important;
+  border-bottom-color: var(--accent) !important;
+  background-color: var(--accent-bg);
 }
 .cs-sheet-disabled .star-toggle,
 .cs-sheet-disabled .ts-dot,
@@ -730,20 +746,15 @@ input[type="checkbox"] {
   line-height: 1.5;
   min-height: 3em;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+  max-width: 100%;
+  box-sizing: border-box;
 }
-.cs-spell-prep {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--border-strong);
-  border-radius: 50%;
-  display: inline-block;
-  vertical-align: middle;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.cs-spell-prep.active {
-  background: var(--accent);
-  border-color: var(--accent);
+.cs-markdown {
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+  max-width: 100%;
 }
 .weapon-row-remove,
 .spell-row-remove {

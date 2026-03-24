@@ -249,8 +249,6 @@
     html += '<div class="field-group"><div class="field-label">' + t('species') + '</div>' + inp('race', f.race) + '</div>';
     html += '<div class="field-group"><div class="field-label">' + t('alignment') + '</div>' + inp('alignment', f.alignment) + '</div>';
     html += '<div class="field-group"><div class="field-label">' + t('playerName') + '</div>' + inp('playerName', f.playerName) + '</div>';
-    html += '<div class="field-group"><div class="field-label">' + t('faction') + '</div>' + inp('faction', f.faction) + '</div>';
-    html += '<div class="field-group"><div class="field-label">' + t('dciNo') + '</div>' + inp('dciNo', f.dciNo) + '</div>';
     html += '</div>';
 
     html += '<hr class="divider">';
@@ -335,9 +333,7 @@
     html += '<div class="field-group"><div class="field-label">' + t('spellMod') + '</div>' + inp('spellcastingModText', f.spellcastingModText) + '</div>';
     html += '<div class="field-group"><div class="field-label">' + t('spellSaveDC') + '</div>' + inp('spellSaveDC', f.spellSaveDC) + '</div>';
     html += '<div class="field-group"><div class="field-label">' + t('spellAttackBonus') + '</div>' + inp('spellAttackBonus', f.spellAttackBonus) + '</div>';
-    html += '</div><div class="field-label" style="margin-top:6px">' + t('spellcastingClass') + '</div>' + inp('spellcastingClass', f.spellcastingClass) + '</div>';
-
-    html += '<div class="box"><div class="section-title">' + t('preparedSpellsTotalLabel') + '</div>' + inp('preparedSpellsTotal', f.preparedSpellsTotal) + '</div>';
+    html += '</div></div>';
 
     html += '<div class="box"><div class="section-title">' + t('spellSlots') + '</div><div class="slots-grid">';
     for (var sl = 1; sl <= 9; sl++) {
@@ -352,7 +348,7 @@
 
     html += '<div class="box"><div class="section-title">' + t('spellListTitle') + '</div><table class="spell-list"><thead><tr>';
     html += '<th class="lvl-col">Lv</th><th class="name-col">' + t('spellName') + '</th><th class="time-col">' + t('castTime') + '</th><th class="range-col">' + t('spellRange') + '</th>';
-    html += '<th class="flags-col">C/R/M</th><th>P</th><th>' + t('notes') + '</th></tr></thead><tbody>';
+    html += '<th class="flags-col">C/R/M</th><th>' + t('notes') + '</th></tr></thead><tbody>';
     spellRows.forEach(function (sp, si) {
       html += '<tr data-spell-row="' + si + '"><td>' + inp('spellrow_' + si + '_lvl', sp.level) + '</td><td>' + inpSpellName('spellrow_' + si + '_name', sp.name) + '</td>';
       html += '<td>' + inp('spellrow_' + si + '_cast', sp.cast) + '</td><td>' + inp('spellrow_' + si + '_range', sp.range) + '</td><td>';
@@ -363,9 +359,7 @@
       html += '<label class="spell-check"><input type="checkbox" data-spell-flags="' + si + '" data-flag="conc"' + cc + (isView ? ' disabled' : '') + ' /><span>C</span></label>';
       html += '<label class="spell-check"><input type="checkbox" data-spell-flags="' + si + '" data-flag="ritual"' + rc + (isView ? ' disabled' : '') + ' /><span>R</span></label>';
       html += '<label class="spell-check"><input type="checkbox" data-spell-flags="' + si + '" data-flag="mat"' + mc + (isView ? ' disabled' : '') + ' /><span>M</span></label>';
-      html += '</div></td><td style="text-align:center">';
-      var prep = sp.prepared ? ' active' : '';
-      html += '<span class="cs-spell-prep' + prep + '" data-spell-prep="' + si + '"></span></td><td style="display:flex;gap:4px;align-items:center">';
+      html += '</div></td><td style="display:flex;gap:4px;align-items:center">';
       html += inp('spellrow_' + si + '_notes', sp.notes, ' style="flex:1;font-size:0.64rem"');
       if (!isView) html += '<button type="button" class="spell-row-remove" data-spell-remove="' + si + '">✕</button>';
       html += '</td></tr>';
@@ -447,14 +441,13 @@
           var el = editForm.querySelector('[data-field="spellrow_' + si + '_' + suf + '"]');
           return el ? el.value : '';
         }
-        var prepEl = editForm.querySelector('[data-spell-prep="' + si + '"]');
         var o = {
           level: gv('lvl'),
           name: gv('name'),
           cast: gv('cast'),
           range: gv('range'),
           notes: gv('notes'),
-          prepared: prepEl && prepEl.classList.contains('active'),
+          prepared: false,
           conc: false,
           ritual: false,
           mat: false
@@ -541,17 +534,6 @@
         var k = el.dataset.skillCheck;
         var key = 'skill' + k.charAt(0).toUpperCase() + k.slice(1);
         f[key + 'Checked'] = el.checked;
-      };
-    });
-
-    editForm.querySelectorAll('[data-spell-prep]').forEach(function (el) {
-      el.onclick = function () {
-        var si = parseInt(el.getAttribute('data-spell-prep'), 10);
-        f.spellBookRows = readSpellRowsFromDom();
-        var row = f.spellBookRows[si] || {};
-        row.prepared = !row.prepared;
-        f.spellBookRows[si] = row;
-        renderAll(f);
       };
     });
 
