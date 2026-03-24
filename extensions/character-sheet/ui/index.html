@@ -41,46 +41,109 @@
       flex: 0 0 auto;
     }
 
-    /* Schede secondarie: stile allineato a ext-toolbar-bar / ext-ui (compatto, in alto) */
-    #csTabBar.cs-ext-tab-strip {
+    /* Schede: stessa riga dopo Stampa, con | ; blu / arancione */
+    #csTabBar.cs-ext-tab-strip--inline {
       display: none;
       flex-direction: row;
       align-items: center;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: 6px;
-      padding: 0.35rem 0 0;
       margin: 0;
-      border-top: 1px solid #eee;
+      padding: 0;
     }
 
-    #csTabBar.cs-ext-tab-strip .tab-btn {
+    .cs-tab-divider {
+      color: #bbb;
+      font-weight: 300;
+      user-select: none;
+      padding: 0 2px;
+      flex-shrink: 0;
+    }
+
+    #csTabBar .tab-btn {
       margin: 0;
-      padding: 0.3rem 0.75rem;
-      font-size: 0.8125rem;
-      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      padding: 0.28rem 0.65rem;
+      font-size: 0.78rem;
+      font-weight: 600;
       font-family: inherit;
-      line-height: 1.25;
-      color: #555;
-      background: #fff;
-      border: 1px solid #ddd;
+      line-height: 1.2;
       border-radius: 4px;
       cursor: pointer;
       text-transform: none;
       letter-spacing: normal;
+      border: 1px solid;
       transition: background 0.15s, border-color 0.15s, color 0.15s;
     }
 
-    #csTabBar.cs-ext-tab-strip .tab-btn:hover {
-      background: #f5f5f5;
-      border-color: #ccc;
-      color: #333;
+    #csTabBar .tab-btn .cs-tab-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      display: block;
     }
 
-    #csTabBar.cs-ext-tab-strip .tab-btn.active {
-      background: #e8f4fc;
-      border-color: #90caf9;
+    #csTabBar .tab-btn.tab-main {
       color: #1565c0;
-      font-weight: 600;
+      background: #fff;
+      border-color: #90caf9;
+    }
+
+    #csTabBar .tab-btn.tab-main:hover {
+      background: #e3f2fd;
+    }
+
+    #csTabBar .tab-btn.tab-main.active {
+      background: #1565c0;
+      border-color: #1565c0;
+      color: #fff;
+    }
+
+    #csTabBar .tab-btn.tab-main.active .cs-tab-icon {
+      color: #fff;
+    }
+
+    #csTabBar .tab-btn.tab-spells {
+      color: #e65100;
+      background: #fff;
+      border-color: #ffb74d;
+    }
+
+    #csTabBar .tab-btn.tab-spells:hover {
+      background: #fff3e0;
+    }
+
+    #csTabBar .tab-btn.tab-spells.active {
+      background: #ef6c00;
+      border-color: #ef6c00;
+      color: #fff;
+    }
+
+    #csTabBar .tab-btn.tab-spells.active .cs-tab-icon {
+      color: #fff;
+    }
+
+    @media (max-width: 560px) {
+      #csTabBar .tab-btn .cs-tab-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      #csTabBar .tab-btn {
+        padding: 0.32rem 0.45rem;
+        min-width: 32px;
+        position: relative;
+      }
     }
 
     .cs-body {
@@ -309,6 +372,7 @@
     .cs-top-actions {
       display: inline-flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 4px;
       flex-shrink: 0;
     }
@@ -395,11 +459,23 @@
           <input type="file" id="importJsonInput" accept=".json" style="display:none" />
           <button type="button" id="importJsonBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
           <button type="button" id="exportPdfBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
+          <div id="csTabBar" class="cs-ext-tab-strip cs-ext-tab-strip--inline" style="display: none" role="tablist">
+            <span class="cs-tab-divider" aria-hidden="true">|</span>
+            <!-- Icone: Font Awesome Free 7.2.0 (Solid) — scroll, hat-wizard — fontawesome.com/license/free -->
+            <button type="button" class="tab-btn tab-main active" data-cs-tab="main" role="tab" aria-selected="true">
+              <svg class="cs-tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" aria-hidden="true" focusable="false">
+                <path fill="currentColor" d="M0 112C0 70.5 31.6 36.4 72 32.4l0-.4 280 0c53 0 96 43 96 96l0 176-176 0c-39.8 0-72 32.2-72 72l0 60c0 24.3-19.7 44-44 44s-44-19.7-44-44l0-228-64 0c-26.5 0-48-21.5-48-48l0-48zM236.8 480c7.1-13.1 11.2-28.1 11.2-44l0-60c0-13.3 10.7-24 24-24l248 0c13.3 0 24 10.7 24 24l0 24c0 44.2-35.8 80-80 80l-227.2 0zM80 80c-17.7 0-32 14.3-32 32l0 48 64 0 0-48c0-17.7-14.3-32-32-32z"/>
+              </svg>
+              <span class="cs-tab-label"></span>
+            </button>
+            <button type="button" class="tab-btn tab-spells" data-cs-tab="spells" role="tab" aria-selected="false">
+              <svg class="cs-tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" aria-hidden="true" focusable="false">
+                <path fill="currentColor" d="M64 400l85.7-208.2c17-41.3 47.8-75.3 87.2-96.3L383.8 17.2c12.3-6.6 26.5 4.7 23 18.2L369.6 177.8c-1.1 4.1-1.6 8.3-1.6 12.6 0 6.3 1.2 12.6 3.6 18.5l76.4 191.1-207.1 0 11.8-35.4 40.4-13.5c6.5-2.2 10.9-8.3 10.9-15.2s-4.4-13-10.9-15.2l-40.4-13.5-13.5-40.4C237 260.4 230.9 256 224 256s-13 4.4-15.2 10.9l-13.5 40.4-40.4 13.5C148.4 323 144 329.1 144 336s4.4 13 10.9 15.2l40.4 13.5 11.8 35.4-143.1 0zM279.6 141.5c-1.1-3.3-4.1-5.5-7.6-5.5s-6.5 2.2-7.6 5.5l-6.7 20.2-20.2 6.7c-3.3 1.1-5.5 4.1-5.5 7.6s2.2 6.5 5.5 7.6l20.2 6.7 6.7 20.2c1.1 3.3 4.1 5.5 7.6 5.5s6.5-2.2 7.6-5.5l6.7-20.2 20.2-6.7c3.3-1.1 5.5-4.1 5.5-7.6s-2.2-6.5-5.5-7.6l-20.2-6.7-6.7-20.2zM32 448l448 0c17.7 0 32 14.3 32 32s-14.3 32-32 32L32 512c-17.7 0-32-14.3-32-32s14.3-32 32-32z"/>
+              </svg>
+              <span class="cs-tab-label"></span>
+            </button>
+          </div>
         </div>
-      </div>
-      <div id="csTabBar" class="cs-ext-tab-strip" style="display: none" role="tablist">
-        <button type="button" class="tab-btn active" data-cs-tab="main" role="tab" aria-selected="true"></button>
-        <button type="button" class="tab-btn" data-cs-tab="spells" role="tab" aria-selected="false"></button>
       </div>
     </div>
   </div>
@@ -552,7 +628,7 @@
       function setSheetPanelVisible(visible) {
         sheetPanel.style.display = visible ? 'flex' : 'none';
         var tabStrip = document.getElementById('csTabBar');
-        if (tabStrip) tabStrip.style.display = visible ? 'flex' : 'none';
+        if (tabStrip) tabStrip.style.display = visible ? 'inline-flex' : 'none';
       }
 
       var SKILL_KEYS = ['acrobatics', 'animalHandling', 'arcana', 'athletics', 'deception', 'history', 'insight', 'intimidation', 'investigation', 'medicine', 'nature', 'perception', 'performance', 'persuasion', 'religion', 'sleightOfHand', 'stealth', 'survival'];
@@ -1047,7 +1123,12 @@
       }
 
       document.querySelectorAll('#csTabBar .tab-btn').forEach(function (btn) {
-        btn.textContent = btn.getAttribute('data-cs-tab') === 'main' ? t('tabMain') : t('tabSpells');
+        var isMain = btn.getAttribute('data-cs-tab') === 'main';
+        var label = btn.querySelector('.cs-tab-label');
+        var title = isMain ? t('tabMain') : t('tabSpells');
+        if (label) label.textContent = title;
+        btn.title = title;
+        btn.setAttribute('aria-label', title);
         btn.onclick = function () {
           currentTab = btn.getAttribute('data-cs-tab');
           syncTabUi();

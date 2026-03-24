@@ -13,6 +13,17 @@ from ..helpers import _send_game
 from ..models.character import CharacterCreate, CharacterLink
 
 
+def _asset_from_assetrect_shape(shape: Shape):
+    """L'immagine del token è su AssetRect → Asset; Shape non ha attributo .asset."""
+    if shape.type_ != "assetrect":
+        return None
+    try:
+        ar = shape.assetrect_set.get()
+    except Exception:
+        return None
+    return ar.asset if ar else None
+
+
 @sio.on("Character.Create", namespace=GAME_NS)
 @auth.login_required(app, sio, "game")
 async def create_character(sid: str, raw_data: Any):
@@ -21,8 +32,9 @@ async def create_character(sid: str, raw_data: Any):
     pr = game_state.get(sid)
 
     shape = Shape.get_by_id(data.shape)
+    asset = _asset_from_assetrect_shape(shape) if shape is not None else None
 
-    if shape is None or shape.asset is None:
+    if shape is None or asset is None:
         logger.error("Attempt to create character for incorrect shape")
         return
     elif not has_ownership(shape, pr, edit=True):
@@ -33,7 +45,7 @@ async def create_character(sid: str, raw_data: Any):
         return
 
     try:
-        char = Character.create(name=data.name, owner=pr.player, campaign=pr.room, asset=shape.asset)
+        char = Character.create(name=data.name, owner=pr.player, campaign=pr.room, asset=asset)
     except:
         logger.exception("Failed to create character")
         return

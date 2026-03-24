@@ -233,8 +233,6 @@
     /* —— Pagina 1 —— */
     html += '<div class="tab-page' + (currentTab === 'main' ? ' active' : '') + '" data-cs-tab="main">';
     html += '<div class="sheet">';
-    html += '<div class="sheet-title">Dungeons &amp; Dragons<span>' + t('sheetSubtitle') + '</span></div>';
-
     html += '<div class="hdr-grid">';
     html += '<div class="field-group"><div class="field-label">' + t('name') + '</div>' + inp('name', f.name, ' class="input-nome" placeholder=""') + '</div>';
     html += '<div class="field-group"><div class="field-label">' + t('assignToken') + '</div><select id="charSelect" class="cs-char-select"' + (isView ? ' disabled' : '') + '>' + charOpts + '</select></div>';
@@ -325,7 +323,7 @@
 
     /* —— Pagina 2 —— */
     html += '<div class="tab-page' + (currentTab === 'spells' ? ' active' : '') + '" data-cs-tab="spells">';
-    html += '<div class="sheet"><div class="sheet-title">Dungeons &amp; Dragons<span>' + t('sheetSubtitleSpells') + '</span></div>';
+    html += '<div class="sheet">';
     html += '<div class="p2-layout"><div class="p2-left">';
 
     html += '<div class="box"><div class="section-title">' + t('spellcastingStats') + '</div><div class="spell-stats">';
@@ -388,19 +386,6 @@
     html += '<div class="sintonia-item"><span class="sintonia-gem">✦</span>' + inp('attunement2', f.attunement2) + '</div>';
     html += '<div class="sintonia-item"><span class="sintonia-gem">✦</span>' + inp('attunement3', f.attunement3) + '</div>';
     html += '</div></div>';
-
-    html += '<div class="box"><div class="section-title">' + t('allies') + '</div>';
-    html += '<div class="field-label">' + t('factionRank') + '</div>' + inp('factionRank', f.factionRank);
-    html += txt('allies', f.allies, 4, 80) + txt('allies2', f.allies2, 2, 40) + '</div>';
-    html += '<div class="box"><div class="section-title">' + t('additionalFeatures') + '</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
-    html += txt('additionalFeatures', f.additionalFeatures, 5, 100) + txt('additionalFeatures2', f.additionalFeatures2, 5, 100);
-    html += '</div></div>';
-    html += '<div class="box"><div class="section-title">' + t('treasure') + '</div>';
-    html += inp('totalNonConsumableMagicItems', f.totalNonConsumableMagicItems, ' style="margin-bottom:6px"');
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' + txt('treasure', f.treasure, 4, 80) + txt('treasure2', f.treasure2, 4, 80) + '</div></div>';
-    html += '<div class="box"><div class="section-title">' + t('factionEmblem') + '</div><div data-img="factionImg" class="portrait-upload" style="min-height:120px;border-radius:50%;max-width:200px;margin-left:auto;margin-right:auto;' + (f.factionImg ? 'background-image:url(' + esc(f.factionImg) + ');background-size:cover;background-position:center' : '') + '"></div>';
-    if (!isView) html += '<input type="file" accept="image/*" data-img-upload="factionImg" style="display:none" />';
-    html += '</div>';
 
     html += '</div></div></div></div>';
 
