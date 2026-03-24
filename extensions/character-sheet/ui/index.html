@@ -28,9 +28,59 @@
       padding: 0;
     }
 
-    .cs-top-bar .ext-search-bar {
+    .cs-toolbar-stack {
       flex: 1;
       min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      width: 100%;
+    }
+
+    .cs-toolbar-stack .ext-search-bar {
+      flex: 0 0 auto;
+    }
+
+    /* Schede secondarie: stile allineato a ext-toolbar-bar / ext-ui (compatto, in alto) */
+    #csTabBar.cs-ext-tab-strip {
+      display: none;
+      flex-direction: row;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 0.35rem 0 0;
+      margin: 0;
+      border-top: 1px solid #eee;
+    }
+
+    #csTabBar.cs-ext-tab-strip .tab-btn {
+      margin: 0;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      font-family: inherit;
+      line-height: 1.25;
+      color: #555;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+      text-transform: none;
+      letter-spacing: normal;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+
+    #csTabBar.cs-ext-tab-strip .tab-btn:hover {
+      background: #f5f5f5;
+      border-color: #ccc;
+      color: #333;
+    }
+
+    #csTabBar.cs-ext-tab-strip .tab-btn.active {
+      background: #e8f4fc;
+      border-color: #90caf9;
+      color: #1565c0;
+      font-weight: 600;
     }
 
     .cs-body {
@@ -51,7 +101,7 @@
       flex: 1;
       min-width: 0;
       overflow-y: auto;
-      padding: 1rem 1.5rem;
+      padding: 0.4rem 1.5rem 1rem;
       display: flex;
       flex-direction: column;
     }
@@ -197,10 +247,6 @@
       cursor: pointer;
     }
 
-    #csTabBar {
-      margin-bottom: 0;
-    }
-
     .cs-view-val {
       display: inline-block;
       min-height: 1.2em;
@@ -267,18 +313,24 @@
       flex-shrink: 0;
     }
 
-    .cs-icon-toolbar-btn {
-      min-width: 36px;
-      min-height: 36px;
-      padding: 6px !important;
+    /* Stesse dimensioni di .ext-toolbar-bar .ext-search-add-btn (ui.css: 32×32, icona 16px) */
+    .ext-toolbar-bar .cs-icon-toolbar-btn {
+      width: 32px;
+      min-width: 32px;
+      max-width: 32px;
+      height: 32px;
+      min-height: 32px;
+      max-height: 32px;
+      padding: 0 !important;
+      box-sizing: border-box;
       display: inline-flex;
       align-items: center;
       justify-content: center;
     }
 
-    .cs-icon-toolbar-btn svg {
-      width: 20px;
-      height: 20px;
+    .ext-toolbar-bar .cs-icon-toolbar-btn svg {
+      width: 16px;
+      height: 16px;
       display: block;
     }
 
@@ -332,16 +384,22 @@
     </div>
   </div>
   <div id="topBar" class="ext-toolbar-bar cs-top-bar">
-    <div class="ext-search-bar cs-ext-search-bar">
-      <span class="ext-search-icon" aria-hidden="true">&#128269;</span>
-      <input type="text" id="sheetSearchInput" class="ext-search-input" placeholder="" />
-      <button type="button" id="newBtn" class="ext-search-add-btn" title=""></button>
-      <div class="cs-top-actions">
-        <button type="button" id="editToggle" class="ext-ui-btn cs-edit-toggle cs-edit-disabled cs-icon-toolbar-btn" title=""></button>
-        <button type="button" id="exportJsonBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
-        <input type="file" id="importJsonInput" accept=".json" style="display:none" />
-        <button type="button" id="importJsonBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
-        <button type="button" id="exportPdfBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
+    <div class="cs-toolbar-stack">
+      <div class="ext-search-bar cs-ext-search-bar">
+        <span class="ext-search-icon" aria-hidden="true">&#128269;</span>
+        <input type="text" id="sheetSearchInput" class="ext-search-input" placeholder="" />
+        <button type="button" id="newBtn" class="ext-search-add-btn" title=""></button>
+        <div class="cs-top-actions">
+          <button type="button" id="editToggle" class="ext-ui-btn cs-edit-toggle cs-edit-disabled cs-icon-toolbar-btn" title=""></button>
+          <button type="button" id="exportJsonBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
+          <input type="file" id="importJsonInput" accept=".json" style="display:none" />
+          <button type="button" id="importJsonBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
+          <button type="button" id="exportPdfBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
+        </div>
+      </div>
+      <div id="csTabBar" class="cs-ext-tab-strip" style="display: none" role="tablist">
+        <button type="button" class="tab-btn active" data-cs-tab="main" role="tab" aria-selected="true"></button>
+        <button type="button" class="tab-btn" data-cs-tab="spells" role="tab" aria-selected="false"></button>
       </div>
     </div>
   </div>
@@ -362,10 +420,6 @@
       </div>
       <div id="sheetPanel" class="cs-sheet-panel" style="display:none">
         <div class="cs-main-content">
-          <div class="tab-bar" id="csTabBar">
-            <button type="button" class="tab-btn active" data-cs-tab="main"></button>
-            <button type="button" class="tab-btn" data-cs-tab="spells"></button>
-          </div>
           <div id="editForm" class="cs-sheet-it5e-wrap cs-sheet-disabled"></div>
         </div>
       </div>
@@ -494,6 +548,12 @@
       var selectPrompt = document.getElementById('selectPrompt');
       var sheetPanel = document.getElementById('sheetPanel');
       var editForm = document.getElementById('editForm');
+
+      function setSheetPanelVisible(visible) {
+        sheetPanel.style.display = visible ? 'flex' : 'none';
+        var tabStrip = document.getElementById('csTabBar');
+        if (tabStrip) tabStrip.style.display = visible ? 'flex' : 'none';
+      }
 
       var SKILL_KEYS = ['acrobatics', 'animalHandling', 'arcana', 'athletics', 'deception', 'history', 'insight', 'intimidation', 'investigation', 'medicine', 'nature', 'perception', 'performance', 'persuasion', 'religion', 'sleightOfHand', 'stealth', 'survival'];
       var SKILL_ABILITY = { acrobatics: 'dex', animalHandling: 'wis', arcana: 'int', athletics: 'str', deception: 'cha', history: 'int', insight: 'wis', intimidation: 'cha', investigation: 'int', medicine: 'wis', nature: 'int', perception: 'wis', performance: 'cha', persuasion: 'cha', religion: 'int', sleightOfHand: 'dex', stealth: 'dex', survival: 'wis' };
@@ -728,7 +788,9 @@
 
       function syncTabUi() {
         document.querySelectorAll('#csTabBar .tab-btn').forEach(function (b) {
-          b.classList.toggle('active', b.getAttribute('data-cs-tab') === currentTab);
+          var on = b.getAttribute('data-cs-tab') === currentTab;
+          b.classList.toggle('active', on);
+          b.setAttribute('aria-selected', on ? 'true' : 'false');
         });
         editForm.querySelectorAll('.tab-page').forEach(function (p) {
           p.classList.toggle('active', p.getAttribute('data-cs-tab') === currentTab);
@@ -978,7 +1040,8 @@
           selectedId = id; currentData = data.sheet || {}; currentTab = 'main'; editingEnabled = false;
           mergeQeLinksFromData(currentData);
           updateEditToggleBtn();
-          selectPrompt.style.display = 'none'; sheetPanel.style.display = 'flex';
+          selectPrompt.style.display = 'none';
+          setSheetPanelVisible(true);
           renderAll(toFormData(currentData));
         });
       }
@@ -1054,7 +1117,7 @@
         var ok = typeof parentConfirm === 'function' ? await parentConfirm(locale === 'it' ? 'Elimina' : 'Delete', msg) : confirm(msg);
         if (!ok) return;
         qs('/api/extensions/character-sheet/sheet/' + id, { method: 'DELETE' }).then(function (r) {
-          if (r.ok) { toast(locale === 'it' ? 'Eliminata' : 'Deleted'); if (selectedId === id) { selectedId = null; sheetPanel.style.display = 'none'; selectPrompt.style.display = 'block'; } loadList(); }
+          if (r.ok) { toast(locale === 'it' ? 'Eliminata' : 'Deleted'); if (selectedId === id) { selectedId = null; setSheetPanelVisible(false); selectPrompt.style.display = 'block'; } loadList(); }
         });
       }
 
@@ -1109,7 +1172,8 @@
             currentData = data; selectedId = null; editingEnabled = false;
             mergeQeLinksFromData(data);
             updateEditToggleBtn();
-            selectPrompt.style.display = 'none'; sheetPanel.style.display = 'flex';
+            selectPrompt.style.display = 'none';
+            setSheetPanelVisible(true);
             renderAll(toFormData(currentData));
             toast('Importato. Abilita modifiche e salva per creare una nuova scheda.');
           } catch (e) { toast('File JSON non valido: ' + (e.message || 'errore'), true); }
