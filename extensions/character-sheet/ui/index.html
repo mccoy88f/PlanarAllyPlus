@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=2" />
   <script src="../../../../static/extensions/ext-bridge.js"></script>
-  <link rel="stylesheet" href="sheet-it-5e.css?v=1" />
+  <link rel="stylesheet" href="sheet-it-5e.css?v=3" />
   <script src="sheet-it5e-render.js?v=1"></script>
   <style>
     html,
@@ -37,8 +37,12 @@
       width: 100%;
     }
 
+    /* La search bar non è figlio diretto di .ext-toolbar-bar: senza questo eredita padding/margin da ui.css */
     .cs-toolbar-stack .ext-search-bar {
-      flex: 0 0 auto;
+      flex: 1 1 auto;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
     }
 
     /* Barra superiore: più compatta rispetto al default ui.css (2.75rem + 0.625rem padding) */
@@ -259,6 +263,33 @@
 
     .cs-sheet-list.ext-ui-list .ext-ui-list-item.selected {
       background: #cce5ff;
+    }
+
+    /* Icone visibilità / elimina accanto al nome: contrasto più alto (ui.css usa #999, troppo chiaro) */
+    .cs-sheet-list .ext-item-actions .ext-action-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .cs-sheet-list .ext-item-actions .ext-action-btn {
+      color: #37474f;
+    }
+
+    .cs-sheet-list .ext-item-actions .ext-action-btn.visibility.visibility-on {
+      color: #0d47a1;
+      background: rgba(21, 101, 192, 0.12);
+    }
+
+    .cs-sheet-list .ext-item-actions .ext-action-btn.visibility:not(.visibility-on) {
+      color: #bf360c;
+    }
+
+    .cs-sheet-list .ext-item-actions .ext-action-btn.delete {
+      color: #c62828;
+    }
+
+    .cs-sheet-list .ext-item-actions .ext-action-btn.delete:hover {
+      color: #fff;
     }
 
     .cs-toolbar {
@@ -537,7 +568,7 @@
       var L = {
         it: {
           name: "Nome", classLevel: "Classe e livello", background: "Background", playerName: "Nome giocatore", faction: "Fazione", race: "Razza", alignment: "Allineamento", xp: "PE", dciNo: "N° DCI",
-          str: "FOR", dex: "DES", con: "COS", int: "INT", wis: "SAG", cha: "CAR", ac: "CA", init: "Iniziativa", speed: "Velocità", inspiration: "Ispirazione", proficiencyBonus: "Bonus competenza",
+          str: "FOR", dex: "DES", con: "COS", int: "INT", wis: "SAG", cha: "CAR", ac: "CA", init: "Iniziativa", speed: "Velocità", inspiration: "Ispirazione Eroica", proficiencyBonus: "Bonus competenza",
           savingThrows: "Tiri salvezza", skills: "Abilità", passivePerception: "Percezione passiva", otherProficiencies: "Altre competenze e lingue", deathSaves: "Tiri per la morte",
           maxHp: "PF max", hp: "PF correnti", tempHp: "PF temporanei", hitDice: "Dadi vita", attacks: "Attacchi e incantesimi", equipment: "Equipaggiamento", equipment2: "Equipaggiamento 2",
           personalityTraits: "Tratti", ideals: "Ideali", bonds: "Legami", flaws: "Difetti", featuresTraits: "Tratti e talenti", cp: "RM", sp: "AR", ep: "EL", gp: "OR", pp: "PL",
@@ -567,7 +598,7 @@
         },
         en: {
           name: "Name", classLevel: "Class & Level", background: "Background", playerName: "Player Name", faction: "Faction", race: "Race", alignment: "Alignment", xp: "XP", dciNo: "DCI Number",
-          str: "STR", dex: "DEX", con: "CON", int: "INT", wis: "WIS", cha: "CHA", ac: "AC", init: "Init", speed: "Speed", inspiration: "Inspiration", proficiencyBonus: "Proficiency Bonus",
+          str: "STR", dex: "DEX", con: "CON", int: "INT", wis: "WIS", cha: "CHA", ac: "AC", init: "Init", speed: "Speed", inspiration: "Heroic Inspiration", proficiencyBonus: "Proficiency Bonus",
           savingThrows: "Saving Throws", skills: "Skills", passivePerception: "Passive Perception", otherProficiencies: "Other Proficiencies & Languages", deathSaves: "Death Saves",
           maxHp: "HP Max", hp: "Current HP", tempHp: "Temp HP", hitDice: "Hit Dice", attacks: "Attacks & Spellcasting", equipment: "Equipment", equipment2: "Equipment 2",
           personalityTraits: "Personality", ideals: "Ideals", bonds: "Bonds", flaws: "Flaws", featuresTraits: "Features & Traits", cp: "CP", sp: "SP", ep: "EP", gp: "GP", pp: "PP",
@@ -1266,22 +1297,65 @@
       document.getElementById('importJsonBtn').onclick = function () { document.getElementById('importJsonInput').click(); };
 
       document.getElementById('importJsonInput').onchange = function (ev) {
-        var file = ev.target.files[0]; if (!file) return;
+        var file = ev.target.files[0];
+        if (!file) return;
         var r = new FileReader();
         r.onload = function () {
           try {
             var data = JSON.parse(r.result);
             if (!data || typeof data !== 'object') throw new Error('JSON non valido');
-            currentData = data; selectedId = null; editingEnabled = false;
+            if (!roomCreator || !roomName) {
+              toast(locale === 'it' ? 'Nessuna stanza: impossibile importare.' : 'No room: cannot import.', true);
+              return;
+            }
             mergeQeLinksFromData(data);
-            updateEditToggleBtn();
-            selectPrompt.style.display = 'none';
-            setSheetPanelVisible(true);
-            renderAll(toFormData(currentData));
-            toast('Importato. Abilita modifiche e salva per creare una nuova scheda.');
-          } catch (e) { toast('File JSON non valido: ' + (e.message || 'errore'), true); }
+            var payload = fromFormData(toFormData(data));
+            var payloadClean = cleanSpellArrays(JSON.parse(JSON.stringify(payload)));
+            var sheetName = String(payloadClean.name || '').trim() || (locale === 'it' ? 'Scheda importata' : 'Imported sheet');
+            fetch(api('/api/extensions/character-sheet/sheet'), {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ roomCreator: roomCreator, roomName: roomName, name: sheetName })
+            })
+              .then(function (res) {
+                return res.json();
+              })
+              .then(function (d) {
+                if (!d.sheetId) {
+                  toast(locale === 'it' ? 'Errore creazione scheda' : 'Could not create sheet', true);
+                  return;
+                }
+                return fetch(api('/api/extensions/character-sheet/sheet/' + d.sheetId), {
+                  method: 'PUT',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ sheet: payloadClean, roomCreator: roomCreator, roomName: roomName })
+                }).then(function (r2) {
+                  if (!r2.ok) {
+                    return r2.text().then(function (txt) {
+                      toast(txt || (locale === 'it' ? 'Errore salvataggio importo' : 'Import save failed'), true);
+                    });
+                  }
+                  selectedId = d.sheetId;
+                  currentTab = 'main';
+                  editingEnabled = false;
+                  updateEditToggleBtn();
+                  selectPrompt.style.display = 'none';
+                  setSheetPanelVisible(true);
+                  loadList(d.sheetId);
+                  toast(locale === 'it' ? 'Scheda importata e salvata.' : 'Sheet imported and saved.');
+                });
+              })
+              .catch(function () {
+                toast(locale === 'it' ? 'Errore di rete' : 'Network error', true);
+              });
+          } catch (e) {
+            toast('File JSON non valido: ' + (e.message || 'errore'), true);
+          }
         };
-        r.readAsText(file); ev.target.value = '';
+        r.readAsText(file);
+        ev.target.value = '';
       };
 
       document.getElementById('exportPdfBtn').onclick = function () {

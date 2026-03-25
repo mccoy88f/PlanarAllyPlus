@@ -20,6 +20,11 @@ import { addDungeonToMap, type WallData, type DoorData } from "../../dungeongen"
 import { toGP } from "../../../core/geometry";
 import type { AssetId } from "../../../assets/models";
 
+import characterSheetTemplateForAi from "./characterSheetTemplateForAi.json";
+
+/** JSON compatibile con Character Sheet (scheda IT 5e v2): stesso schema di extensions/character-sheet/ui/character-template.json */
+const CHARACTER_SHEET_TEMPLATE = JSON.stringify(characterSheetTemplateForAi);
+
 export interface TaskDef {
     id: string;
     label: string;
@@ -45,9 +50,6 @@ const DEFAULT_BASE_PROMPT_IT =
 const DEFAULT_BASE_PROMPT_EN =
     "Always respond in markdown format. Do not include opening messages (e.g. \"ok, I'll prepare the content\") or closing messages (e.g. \"enjoy\", \"hope this helps\"). Return only the requested content, without preambles or conclusions.";
 
-/** Template completo per scheda personaggio D&D 5e - Character Sheet extension (da character-template.json) */
-const CHARACTER_SHEET_TEMPLATE = `{"name":"","classes":[{"definition":{"name":""},"subclassDefinition":null,"level":1}],"race":{"baseName":"","fullName":"","weightSpeeds":{"normal":{"walk":30}}},"background":{"definition":{"name":""}},"alignmentId":null,"currentXp":0,"inspiration":false,"baseHitPoints":0,"currentHitPoints":0,"temporaryHitPoints":0,"stats":[{"value":10},{"value":10},{"value":10},{"value":10},{"value":10},{"value":10}],"traits":{"personalityTraits":"","ideals":"","bonds":"","flaws":""},"currencies":{"cp":0,"sp":0,"ep":0,"gp":0,"pp":0},"inventory":[],"dndsheets":{"name":"","classLevel":"","background":"","playerName":"","faction":"","race":"","alignment":"","xp":"0","str":"10","dex":"10","con":"10","int":"10","wis":"10","cha":"10","strMod":"","dexMod":"","conMod":"","intMod":"","wisMod":"","chaMod":"","passivePerception":"","ac":"10","init":"0","speed":"30","maxHp":"0","hp":"0","tempHp":"0","hitDiceMax":"","hitDice":"","deathsaveSuccesses":0,"deathsaveFailures":0,"proficiencyBonus":"","attacks":[{"name":"","bonus":"","damage":""},{"name":"","bonus":"","damage":""},{"name":"","bonus":"","damage":""}],"equipment":"","equipment2":"","personalityTraits":"","ideals":"","bonds":"","flaws":"","featuresTraits":"","otherProficiencies":"","age":"","height":"","weight":"","eyes":"","skin":"","hair":"","appearance":"","backstory":"","allies":"","additionalFeatures":"","cantrips":[],"lvl1Spells":[],"lvl2Spells":[],"lvl3Spells":[],"lvl4Spells":[],"lvl5Spells":[],"lvl6Spells":[],"lvl7Spells":[],"lvl8Spells":[],"lvl9Spells":[]},"planarally":{"armorClass":10,"initiative":0,"hitDiceTotal":"","hitDiceRemaining":"","deathSaveSuccesses":0,"deathSaveFailures":0,"savingThrows":{"str":{"mod":0,"proficient":false},"dex":{"mod":0,"proficient":false},"con":{"mod":0,"proficient":false},"int":{"mod":0,"proficient":false},"wis":{"mod":0,"proficient":false},"cha":{"mod":0,"proficient":false}},"skills":{"acrobatics":{"mod":0,"proficient":false},"animalHandling":{"mod":0,"proficient":false},"arcana":{"mod":0,"proficient":false},"athletics":{"mod":0,"proficient":false},"deception":{"mod":0,"proficient":false},"history":{"mod":0,"proficient":false},"insight":{"mod":0,"proficient":false},"intimidation":{"mod":0,"proficient":false},"investigation":{"mod":0,"proficient":false},"medicine":{"mod":0,"proficient":false},"nature":{"mod":0,"proficient":false},"perception":{"mod":0,"proficient":false},"performance":{"mod":0,"proficient":false},"persuasion":{"mod":0,"proficient":false},"religion":{"mod":0,"proficient":false},"sleightOfHand":{"mod":0,"proficient":false},"stealth":{"mod":0,"proficient":false},"survival":{"mod":0,"proficient":false}},"attacks":[],"features":"","proficiencies":""}}`;
-
 const DEFAULT_TASKS_IT: TaskDef[] = [
     {
         id: "generate_character",
@@ -59,11 +61,13 @@ const DEFAULT_TASKS_IT: TaskDef[] = [
     {
         id: "generate_character_json",
         label: "Crea personaggio JSON",
-        systemPrompt: `Sei un esperto di giochi di ruolo. Genera una scheda personaggio D&D 5e completa in formato JSON, compatibile con PlanarAlly Character Sheet.
+        systemPrompt: `Sei un esperto di giochi di ruolo. Genera una scheda personaggio D&D 5e completa in formato JSON, compatibile con PlanarAlly Character Sheet (scheda italiana 5e v2).
 
 IMPORTANTE: Tutti i contenuti testuali (nome, tratti, ideali, legami, difetti, background, descrizioni, incantesimi, equipaggiamento, ecc.) devono essere in italiano.
 
-Usa questo template come struttura. COMPILA TUTTI i campi con i valori del personaggio generato (nome, classe, razza, statistiche, tratti, background, equipaggiamento, CA, PF, tiri salvezza, abilità, ecc.). Non lasciare campi vuoti dove ha senso inserire un valore.
+Usa questo template come struttura. COMPILA TUTTI i campi con valori coerenti (nome, classe, sottoclasse, livello, specie/razza, statistiche, modificatori, tratti, background, equipaggiamento, CA, PF, dadi vita, ispirazione, tiri salvezza, abilità, percezione passiva, armi, trucchetti e incantesimi, slot, lingue, sintonie, ecc.). Non lasciare campi vuoti dove ha senso inserire un valore.
+
+Struttura attesa (oltre al template): in dndsheets includi weaponRows (fino a 5 righe: name, bonus, damage, notes) e spellBookRows (fino a 20 righe: level, name, cast, range, notes, prepared, conc, ritual, mat); classNameOnly, sheetLevel, subclass; shieldEquipped, size, hitDiceType, hitDiceSpent; armorLight/Medium/Heavy/Shields; classFeatures, speciesTraits, feats; weaponsProfText, toolsProfText; languagesText, appearanceText; spellcastingAbility, spellcastingModText; attunement1–3; factionImg; slot incantesimo lvl1SpellSlotsTotal/lvl1SpellSlotsUsed … fino al livello 9; cantrips e lvl1Spells…lvl9Spells per gli elenchi classici. In planarally imposta passivePerception e allinea savingThrows/skills ai valori in dndsheets.
 
 Template (rispetta questa struttura esatta):
 ${CHARACTER_SHEET_TEMPLATE}
@@ -84,7 +88,7 @@ Rispondi SOLO con il JSON completo, senza markdown (\`\`\`json) né testo prima 
         id: "import_character_sheet",
         label: "Importa scheda personaggio",
         type: "import_character" as const,
-        systemPrompt: `Sei un esperto di giochi di ruolo D&D 5e. Analizza il contenuto allegato (scheda personaggio, stat block NPC, PDF o documento) ed estrai tutte le informazioni del personaggio.
+        systemPrompt: `Sei un esperto di giochi di ruolo D&D 5e. Analizza il contenuto allegato (scheda personaggio, stat block NPC, PDF o documento) ed estrai tutte le informazioni del personaggio nel formato PlanarAlly Character Sheet (scheda italiana 5e v2).
 
 Il documento potrebbe essere:
 - Una scheda personaggio tradizionale D&D 5e (anche su più pagine)
@@ -93,14 +97,13 @@ Se sono presenti più immagini/pagine, appartengono tutte allo stesso personaggi
 
 Regole per stat block NPC:
 - CR (Challenge Rating) → usa il valore XP come currentXp (es. CR 1/4 = 50 XP, CR 1/2 = 100, CR 1 = 200)
-- Tratti e abilità passivi → campo featuresTraits
-- Azioni di attacco → array attacks (nome, bonus, danno)
-- Incantesimi "at will" → cantrips
-- Incantesimi "X/day each" → incantesimi di livello appropriato (lvl1Spells, lvl2Spells, ecc.)
-- Tipo creatura (es. "Small Humanoid") → race.fullName
-- Sensi (Darkvision, ecc.) → campo otherProficiencies o featuresTraits
+- Tratti e abilità passivi → featuresTraits, classFeatures, speciesTraits, feats a seconda del contesto
+- Azioni di attacco → weaponRows e/o array attacks (nome, bonus, danno); note in weaponRows.notes se utili
+- Incantesimi "at will" → cantrips; incantesimi preparati o in elenco → spellBookRows (level, name, cast, range, notes, prepared, conc, ritual, mat) e/o lvl1Spells…lvl9Spells
+- Tipo creatura (es. "Small Humanoid") → race.fullName e size
+- Sensi (Darkvision, ecc.) → otherProficiencies o featuresTraits
 
-Compila il seguente template JSON con TUTTI i dati trovati. Rispondi SOLO con il JSON completo, senza testo aggiuntivo, senza blocchi markdown.
+Compila il seguente template JSON con TUTTI i dati trovati (inclusi weaponRows, spellBookRows, slot incantesimo, competenze armature, scudo, dadi vita, sintonie, ecc. quando presenti). Rispondi SOLO con il JSON completo, senza testo aggiuntivo, senza blocchi markdown.
 
 Template (rispetta questa struttura esatta):
 ${CHARACTER_SHEET_TEMPLATE}
@@ -128,11 +131,13 @@ const DEFAULT_TASKS_EN: TaskDef[] = [
     {
         id: "generate_character_json",
         label: "Create character JSON",
-        systemPrompt: `You are an expert in tabletop RPGs. Generate a complete D&D 5e character sheet as valid JSON, compatible with PlanarAlly Character Sheet.
+        systemPrompt: `You are an expert in tabletop RPGs. Generate a complete D&D 5e character sheet as valid JSON, compatible with PlanarAlly Character Sheet (5e sheet v2).
 
 IMPORTANT: All text content (name, traits, ideals, bonds, flaws, background, descriptions, spells, equipment, etc.) must be in English.
 
-Use this template as the structure. FILL IN ALL fields with the generated character's values (name, class, race, stats, traits, background, equipment, AC, HP, saving throws, skills, etc.). Do not leave fields empty where a value makes sense.
+Use this template as the structure. FILL IN ALL fields with coherent values (name, class, subclass, level, species/race, stats, modifiers, traits, background, equipment, AC, HP, hit dice, inspiration, saving throws, skills, passive perception, weapons, cantrips/spells, slots, languages, attunement, etc.). Do not leave fields empty where a value makes sense.
+
+Expected structure (beyond the template): in dndsheets include weaponRows (up to 5 rows: name, bonus, damage, notes) and spellBookRows (up to 20 rows: level, name, cast, range, notes, prepared, conc, ritual, mat); classNameOnly, sheetLevel, subclass; shieldEquipped, size, hitDiceType, hitDiceSpent; armorLight/Medium/Heavy/Shields; classFeatures, speciesTraits, feats; weaponsProfText, toolsProfText; languagesText, appearanceText; spellcastingAbility, spellcastingModText; attunement1–3; factionImg; spell slot fields lvl1SpellSlotsTotal/lvl1SpellSlotsUsed … through level 9; cantrips and lvl1Spells…lvl9Spells for classic spell lists. In planarally set passivePerception and align savingThrows/skills with dndsheets.
 
 Template (follow this exact structure):
 ${CHARACTER_SHEET_TEMPLATE}
@@ -153,7 +158,7 @@ Reply ONLY with the complete JSON, no markdown (\`\`\`json) or text before or af
         id: "import_character_sheet",
         label: "Import character sheet",
         type: "import_character" as const,
-        systemPrompt: `You are an expert in D&D 5e tabletop RPGs. Analyze the attached content (character sheet, NPC stat block, PDF or document) and extract all character information.
+        systemPrompt: `You are an expert in D&D 5e tabletop RPGs. Analyze the attached content (character sheet, NPC stat block, PDF or document) and extract all character information into PlanarAlly Character Sheet JSON (5e sheet v2).
 
 The document may be:
 - A traditional D&D 5e character sheet (possibly spanning multiple pages)
@@ -162,14 +167,13 @@ If multiple images/pages are provided, they all belong to the same character: co
 
 Rules for NPC stat blocks:
 - CR (Challenge Rating) → use XP value as currentXp (e.g. CR 1/4 = 50 XP, CR 1/2 = 100, CR 1 = 200)
-- Passive traits and abilities → featuresTraits field
-- Attack actions → attacks array (name, bonus, damage)
-- "At will" spells → cantrips
-- "X/day each" spells → appropriate spell level (lvl1Spells, lvl2Spells, etc.)
-- Creature type (e.g. "Small Humanoid") → race.fullName
-- Senses (Darkvision, etc.) → otherProficiencies or featuresTraits field
+- Passive traits and abilities → featuresTraits, classFeatures, speciesTraits, feats as appropriate
+- Attack actions → weaponRows and/or attacks array (name, bonus, damage); use weaponRows.notes when helpful
+- "At will" spells → cantrips; prepared or listed spells → spellBookRows (level, name, cast, range, notes, prepared, conc, ritual, mat) and/or lvl1Spells…lvl9Spells
+- Creature type (e.g. "Small Humanoid") → race.fullName and size
+- Senses (Darkvision, etc.) → otherProficiencies or featuresTraits
 
-Fill in the following JSON template with ALL data found. Reply ONLY with the complete JSON, without any additional text or markdown blocks.
+Fill in the following JSON template with ALL data found (including weaponRows, spellBookRows, spell slots, armor proficiencies, shield, hit dice, attunement, etc. when present). Reply ONLY with the complete JSON, without any additional text or markdown blocks.
 
 Template (follow this exact structure):
 ${CHARACTER_SHEET_TEMPLATE}
