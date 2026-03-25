@@ -187,15 +187,23 @@ export class Polygon extends Shape implements IShape {
             ctx.lineTo(localVertex.x, localVertex.y);
         }
 
-        if (!this.openPolygon) ctx.fill();
+        if (this.options.ambientBarrier ?? false) {
+            ctx.strokeStyle = "rgba(0, 200, 200, 0.8)";
+            ctx.lineWidth = g2lz(2);
+            ctx.setLineDash([g2lz(10), g2lz(5)]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        } else {
+            if (!this.openPolygon) ctx.fill();
 
-        if (!lightRevealRender) {
-            for (const [i, c] of props.strokeColour.entries()) {
-                const lw = this.lineWidth[i] ?? this.lineWidth[0]!;
-                ctx.lineWidth = this.ignoreZoomSize ? lw : g2lz(lw);
+            if (!lightRevealRender) {
+                for (const [i, c] of props.strokeColour.entries()) {
+                    const lw = this.lineWidth[i] ?? this.lineWidth[0]!;
+                    ctx.lineWidth = this.ignoreZoomSize ? lw : g2lz(lw);
 
-                ctx.strokeStyle = getColour(c, this.id);
-                ctx.stroke();
+                    ctx.strokeStyle = getColour(c, this.id);
+                    ctx.stroke();
+                }
             }
         }
 

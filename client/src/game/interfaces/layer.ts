@@ -27,6 +27,8 @@ export interface ILayer {
     get width(): number;
 
     addShape: (shape: IShape, sync: SyncMode, invalidate: InvalidationMode) => void;
+    registerDrawCallback: (cb: (ctx: CanvasRenderingContext2D) => void) => void;
+    unregisterDrawCallback: (cb: (ctx: CanvasRenderingContext2D) => void) => void;
     clear: () => void;
     draw: (doClear?: boolean) => void;
     getShapes: (options: { onlyInView: boolean }) => readonly IShape[];
