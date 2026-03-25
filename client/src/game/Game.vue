@@ -87,7 +87,7 @@ export default defineComponent({
 
         // Window events
         function zoom(event: WheelEvent): void {
-            if (playerSettingsState.raw.disableScrollToZoom.value) return;
+            if (playerSettingsState.raw.disableScrollToZoom?.value) return;
             throttle(scrollZoom)(event);
         }
 

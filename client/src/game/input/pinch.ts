@@ -26,7 +26,7 @@ export function handlePinchStart(event: TouchEvent): void {
 
 export function handlePinchMove(event: TouchEvent): void {
     if (event.touches.length !== 2 || pinchCenter === null) return;
-    if (playerSettingsState.raw.disableScrollToZoom.value) return;
+    if (playerSettingsState.raw.disableScrollToZoom?.value) return;
 
     const currentDistance = getPointDistance(
         { x: event.touches[0].pageX, y: event.touches[0].pageY },

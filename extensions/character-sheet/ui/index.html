@@ -41,13 +41,42 @@
       flex: 0 0 auto;
     }
 
+    /* Barra superiore: più compatta rispetto al default ui.css (2.75rem + 0.625rem padding) */
+    #topBar.ext-toolbar-bar.cs-top-bar {
+      min-height: 0;
+      padding: 0.35rem 1rem;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .cs-ext-search-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+
+    .cs-ext-search-bar .ext-search-input {
+      flex: 1;
+      min-width: 120px;
+      padding: 0.28rem 0.5rem;
+      font-size: 0.875rem;
+      line-height: 1.25;
+    }
+
+    .cs-ext-search-bar .ext-search-icon {
+      width: 20px;
+      height: 20px;
+      background-size: 16px 16px;
+    }
+
     /* Schede: stessa riga dopo Stampa, con | ; blu / arancione */
     #csTabBar.cs-ext-tab-strip--inline {
       display: none;
       flex-direction: row;
       align-items: center;
       flex-wrap: nowrap;
-      gap: 6px;
+      gap: 4px;
       margin: 0;
       padding: 0;
     }
@@ -60,17 +89,22 @@
       flex-shrink: 0;
     }
 
+    /* Altezza 32px come .cs-icon-toolbar-btn (ui.css) */
     #csTabBar .tab-btn {
       margin: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 0.35rem;
-      padding: 0.28rem 0.65rem;
+      padding: 0 0.5rem;
+      height: 32px;
+      min-height: 32px;
+      max-height: 32px;
+      box-sizing: border-box;
       font-size: 0.78rem;
       font-weight: 600;
       font-family: inherit;
-      line-height: 1.2;
+      line-height: 1;
       border-radius: 4px;
       cursor: pointer;
       text-transform: none;
@@ -140,7 +174,7 @@
       }
 
       #csTabBar .tab-btn {
-        padding: 0.32rem 0.45rem;
+        padding: 0 0.45rem;
         min-width: 32px;
         position: relative;
       }
@@ -357,18 +391,6 @@
       word-wrap: break-word;
     }
 
-    .cs-ext-search-bar {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .cs-ext-search-bar .ext-search-input {
-      flex: 1;
-      min-width: 120px;
-    }
-
     .cs-top-actions {
       display: inline-flex;
       align-items: center;
@@ -454,13 +476,13 @@
         <input type="text" id="sheetSearchInput" class="ext-search-input" placeholder="" />
         <button type="button" id="newBtn" class="ext-search-add-btn" title=""></button>
         <div class="cs-top-actions">
-          <button type="button" id="editToggle" class="ext-ui-btn cs-edit-toggle cs-edit-disabled cs-icon-toolbar-btn" title=""></button>
           <button type="button" id="exportJsonBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
           <input type="file" id="importJsonInput" accept=".json" style="display:none" />
           <button type="button" id="importJsonBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
           <button type="button" id="exportPdfBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
+          <span class="cs-tab-divider" aria-hidden="true">|</span>
+          <button type="button" id="editToggle" class="ext-ui-btn cs-edit-toggle cs-edit-disabled cs-icon-toolbar-btn" title=""></button>
           <div id="csTabBar" class="cs-ext-tab-strip cs-ext-tab-strip--inline" style="display: none" role="tablist">
-            <span class="cs-tab-divider" aria-hidden="true">|</span>
             <!-- Icone: Font Awesome Free 7.2.0 (Solid) — scroll, hat-wizard — fontawesome.com/license/free -->
             <button type="button" class="tab-btn tab-main active" data-cs-tab="main" role="tab" aria-selected="true">
               <svg class="cs-tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" aria-hidden="true" focusable="false">
