@@ -3,6 +3,7 @@
 import io
 import json
 import shutil
+from pathlib import Path
 
 from . import ambient_music
 from . import assets_installer
@@ -21,6 +22,24 @@ from ....auth import get_authorized_user
 from ....utils import DATA_DIR, EXTENSIONS_DIR
 
 VISIBILITY_FILE = DATA_DIR / "extension_visibility.json"
+
+
+def _resolve_extension_dir(folder: str) -> Path | None:
+    """Return the real extension directory path.
+
+    On Linux the filesystem is case-sensitive: URL /api/extensions/guida/... must still find
+    a folder named e.g. ``Guida`` on disk. If the exact path is missing, match case-insensitively.
+    """
+    if not EXTENSIONS_DIR.is_dir():
+        return None
+    direct: Path = EXTENSIONS_DIR / folder
+    if direct.is_dir():
+        return direct
+    fl = folder.lower()
+    for item in EXTENSIONS_DIR.iterdir():
+        if item.is_dir() and item.name.lower() == fl:
+            return item
+    return None
 
 
 def _load_visibility() -> dict:
@@ -244,8 +263,8 @@ async def uninstall(request: web.Request) -> web.Response:
     if ".." in folder or "/" in folder or "\\" in folder:
         return web.HTTPBadRequest(text="Invalid folder name")
 
-    target_dir = EXTENSIONS_DIR / folder
-    if not target_dir.exists():
+    target_dir = _resolve_extension_dir(folder)
+    if target_dir is None:
         return web.HTTPNotFound(text=f"Extension folder '{folder}' not found")
 
     if not target_dir.is_dir():
@@ -285,8 +304,8 @@ async def serve_extension_ui(request: web.Request) -> web.Response:
     if not folder or ".." in folder or "/" in folder or "\\" in folder:
         return web.HTTPBadRequest(text="Invalid folder name")
 
-    ext_dir = EXTENSIONS_DIR / folder
-    if not ext_dir.exists() or not ext_dir.is_dir():
+    ext_dir = _resolve_extension_dir(folder)
+    if ext_dir is None:
         return web.HTTPNotFound(text="Extension not found")
 
     subpath = request.match_info.get("path", "").strip()
