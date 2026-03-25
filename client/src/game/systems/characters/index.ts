@@ -41,9 +41,12 @@ class CharacterSystem implements System {
         $.characterIds.add(character.id);
         mutable.characters.set(character.id, character);
 
-        const shape = getVisualShape(getLocalId(character.shapeId)!);
-        if (shape) {
-            shape.character = character.id;
+        const localId = getLocalId(character.shapeId, false);
+        if (localId) {
+            const shape = getShape(localId);
+            if (shape) {
+                shape.character = character.id;
+            }
         }
 
         checkSelectedForCharacterState(selectedState.reactive.focus);
@@ -80,9 +83,12 @@ class CharacterSystem implements System {
     linkCharacter(characterId: CharacterId): void {
         const character = mutable.characters.get(characterId);
         if (character) {
-            const shape = getVisualShape(getLocalId(character.shapeId)!);
-            if (shape) {
-                shape.character = characterId;
+            const localId = getLocalId(character.shapeId, false);
+            if (localId) {
+                const shape = getShape(localId);
+                if (shape) {
+                    shape.character = characterId;
+                }
             }
         }
     }
