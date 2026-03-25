@@ -1,4 +1,5 @@
 import type { LocalId } from "../../../core/id";
+import { activeShapeStore } from "../../../store/activeShape";
 
 import { extensionsState } from "./state";
 
@@ -39,6 +40,8 @@ export function closeExtension(ext: { id: string; uiUrl?: string }): void {
 /** Focus extension modal (bring to front) */
 export function focusExtension(modalId: string): void {
     extensionsState.mutableReactive.lastFocusedModal = { type: "extension", id: modalId };
+    // Evita il “fantasma” del pannello Modifica forma (semi-trasparente) sopra/sotto altri modali
+    activeShapeStore.setShowEditDialog(false);
 }
 
 /** Focus stack modal (bring to front) - called by modal system */
@@ -71,6 +74,7 @@ export function openDungeongenModal(): void {
 export function openDungeongenModalForEdit(shapeId: LocalId): void {
     extensionsState.mutableReactive.dungeongenEditShapeId = shapeId;
     extensionsState.mutableReactive.dungeongenModalOpen = true;
+    focusExtension("dungeongen");
 }
 
 export function closeDungeongenModal(): void {
