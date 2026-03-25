@@ -9,7 +9,8 @@ export function useClientSettings<T extends keyof PlayerOptions>(
 ): WritableComputedRef<PlayerOptions[T] | undefined> {
     return computed<PlayerOptions[T] | undefined>({
         get() {
-            return playerSettingsState.reactive[setting].value as PlayerOptions[T] | undefined;
+            const entry = playerSettingsState.reactive[setting];
+            return entry?.value as PlayerOptions[T] | undefined;
         },
         set(value: PlayerOptions[T] | undefined) {
             playerSettingsSystem.getSetter(setting)(value, { sync: true });

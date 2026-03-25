@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { toRef } from "vue";
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 
 import { playerSettingsSystem } from "../../../systems/settings/players";
@@ -10,7 +10,8 @@ const { t } = useI18n();
 
 const props = defineProps<{ setting: keyof PlayerOptions }>();
 
-const override = toRef(playerSettingsState.reactive[props.setting], "override");
+/** Evita toRef su chiave assente (es. ispezione DevTools / enumerazione) → TypeError su .value */
+const override = computed(() => playerSettingsState.reactive[props.setting]?.override);
 
 function set(
     value: PlayerOptions[typeof props.setting] | undefined,

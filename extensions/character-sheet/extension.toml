@@ -1,7 +1,7 @@
 [extension]
 id = "character-sheet"
 name = "Character Sheet"
-version = "1.0.0"
+version = "2.0.0"
 description_en = "D&D 5e character sheets for tokens. View and edit character data. Master sees all, players see their own."
 description_it = "Schede personaggio D&D 5e per i token. Visualizza e modifica i dati del personaggio. Il Master vede tutto, i giocatori vedono le proprie."
 author = "mccoy88f — original design by DarylBuckle (https://github.com/DarylBuckle/dnd-character-sheets, MIT)"
