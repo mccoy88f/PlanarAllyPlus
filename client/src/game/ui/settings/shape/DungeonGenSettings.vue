@@ -7,7 +7,7 @@ import { openDungeongenModalForEdit } from "../../../systems/extensions/ui";
 const { t } = useI18n();
 
 function editInDungeongen(): void {
-    const shapeId = activeShapeStore.isComposite.value ? activeShapeStore.state.parentUuid : activeShapeStore.state.id;
+    const shapeId = activeShapeStore.isComposite.value ? activeShapeStore.parentUuid.value : activeShapeStore.state.id;
     if (shapeId) {
         openDungeongenModalForEdit(shapeId);
         activeShapeStore.setShowEditDialog(false);

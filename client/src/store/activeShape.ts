@@ -27,6 +27,9 @@ interface ActiveShapeState {
 
 class ActiveShapeStore extends Store<ActiveShapeState> {
     floor: ComputedRef<FloorId | undefined>;
+    /** Variante / sotto-forma con genitore (es. asset rect variant → genitore per DungeonGen) */
+    isComposite: ComputedRef<boolean>;
+    parentUuid: ComputedRef<LocalId | undefined>;
 
     protected data(): ActiveShapeState {
         return {
@@ -40,6 +43,16 @@ class ActiveShapeStore extends Store<ActiveShapeState> {
     constructor() {
         super();
         this.floor = computed(() => (this._state.id !== undefined ? getShape(this._state.id)?.floorId : undefined));
+        this.isComposite = computed(() => {
+            if (this._state.id === undefined) return false;
+            const s = getShape(this._state.id);
+            return s?.parentId !== undefined;
+        });
+        this.parentUuid = computed(() => {
+            if (this._state.id === undefined) return undefined;
+            const s = getShape(this._state.id);
+            return s?.parentId;
+        });
 
         watchEffect(() => {
             const selection = selectedState.reactive.selected;
