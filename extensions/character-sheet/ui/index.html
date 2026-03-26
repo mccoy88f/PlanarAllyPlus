@@ -1119,20 +1119,30 @@
         }
       }
 
-      function loadList(openId) {
+      function loadList(openId, options) {
+        var silent = options && options.silent;
         if (!roomCreator || !roomName) {
           loading.style.display = 'none'; loadingBar.style.display = 'none'; noRoom.style.display = 'block';
           setSheetPanelVisible(false);
           return;
         }
-        noRoom.style.display = 'none'; loading.style.display = 'block'; loadingBar.style.display = 'block'; sheetList.style.display = 'none';
+        if (!silent) {
+          noRoom.style.display = 'none'; loading.style.display = 'block'; loadingBar.style.display = 'block'; sheetList.style.display = 'none';
+        }
         fetch(api('/api/extensions/character-sheet/list') + '?room_creator=' + encodeURIComponent(roomCreator) + '&room_name=' + encodeURIComponent(roomName), { credentials: 'include' }).then(function (r) {
           return r.ok ? r.json() : { sheets: [], characters: [] };
         }).then(function (data) {
-          loading.style.display = 'none'; loadingBar.style.display = 'none'; sheets = data.sheets || []; characters = data.characters || [];
+          if (!silent) {
+            loading.style.display = 'none'; loadingBar.style.display = 'none';
+          }
+          sheets = data.sheets || []; characters = data.characters || [];
           sheetList.style.display = 'block';
           renderSheetList(openId);
-        }).catch(function () { loading.style.display = 'none'; loadingBar.style.display = 'none'; noRoom.style.display = 'block'; });
+        }).catch(function () {
+          if (!silent) {
+            loading.style.display = 'none'; loadingBar.style.display = 'none'; noRoom.style.display = 'block';
+          }
+        });
       }
 
       function mergeQeLinksFromData(data) {
@@ -1205,7 +1215,7 @@
           var payloadClean = cleanSpellArrays(JSON.parse(JSON.stringify(payload)));
           if (selectedId) {
             fetch(api('/api/extensions/character-sheet/sheet/' + selectedId), { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sheet: payloadClean, roomCreator: roomCreator, roomName: roomName }) })
-              .then(function (r) { if (r.ok) { currentData = payloadClean; loadList(); } else r.text().then(function (txt) { toast(txt || 'Errore', true); }); });
+              .then(function (r) { if (r.ok) { currentData = payloadClean; loadList(undefined, { silent: true }); } else r.text().then(function (txt) { toast(txt || 'Errore', true); }); });
           } else {
             fetch(api('/api/extensions/character-sheet/sheet'), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomCreator: roomCreator, roomName: roomName, name: payload.name || 'Nuova scheda' }) })
               .then(function (r) { return r.json(); })
