@@ -133,6 +133,21 @@
             min-width: 0;
         }
 
+        /* Lista: come scheda personaggio — occhio barrato (non visibile) in arancio/rosso */
+        .doc-list .ext-item-actions .ext-action-btn .fa-solid {
+            font-size: 15px;
+            line-height: 1;
+        }
+
+        .doc-list .ext-item-actions .ext-action-btn.visibility:not(.visibility-on) {
+            color: #bf360c;
+        }
+
+        .doc-list .ext-item-actions .ext-action-btn.visibility:not(.visibility-on):hover {
+            background: rgba(191, 54, 12, 0.12);
+            color: #d84315;
+        }
+
         .doc-list.doc-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
