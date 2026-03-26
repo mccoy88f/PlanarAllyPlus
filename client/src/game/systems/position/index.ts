@@ -30,7 +30,7 @@ const { mutable, readonly, mutableReactive: $ } = positionState;
 class PositionSystem implements System {
     clear(): void {
         mutable.gridOffset = { x: 0, y: 0 };
-        mutable.zoom = NaN;
+        mutable.zoom = 0.5;
     }
 
     get screenTopLeft(): GlobalPoint {

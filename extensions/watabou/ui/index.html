@@ -27,15 +27,8 @@
             overflow: hidden;
         }
 
-        .wb-toolbar {
-            display: flex;
-            align-items: center;
+        .ext-toolbar-bar.wb-toolbar {
             justify-content: space-between;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            border-bottom: 1px solid #e0e0e0;
-            background: #fafafa;
-            flex-shrink: 0;
         }
 
         .wb-back-btn,
@@ -320,7 +313,7 @@
 
 <body class="ext-ui-root">
     <div class="wb-root ext-modal-body-wrapper">
-        <div id="toolbar" class="wb-toolbar" style="display: none;">
+        <div id="toolbar" class="ext-toolbar-bar wb-toolbar" style="display: none;">
             <button type="button" id="backBtn" class="wb-back-btn">← Back</button>
             <div class="wb-export-group">
                 <button type="button" id="importMapBtn" class="wb-import-btn">Importa mappa</button>

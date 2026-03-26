@@ -40,6 +40,8 @@ export interface IShape extends SimpleShape {
     resizeToGrid: (resizePoint: number, retainAspectRatio: boolean) => void;
     resize: (resizePoint: number, point: GlobalPoint, retainAspectRatio: boolean) => number;
 
+    onSystemsLoaded?: () => void;
+
     strokeWidth: number;
 
     globalCompositeOperation: GlobalCompositeOperation;

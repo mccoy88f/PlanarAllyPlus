@@ -112,7 +112,7 @@ const tabs = computed(() => {
     tabs.push(...fixedTabs);
     if (owned.value) {
         tabs.push(...ownedTabs.value);
-        const shapeId = activeShapeStore.isComposite.value ? activeShapeStore.state.parentUuid : activeShapeStore.state.id;
+        const shapeId = activeShapeStore.isComposite.value ? activeShapeStore.parentUuid.value : activeShapeStore.state.id;
         if (shapeId !== undefined && hasDungeonData(shapeId)) {
             tabs.push({
                 id: "DungeonGen",

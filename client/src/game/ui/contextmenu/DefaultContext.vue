@@ -63,12 +63,16 @@ async function createSpawnLocation(): Promise<boolean> {
 
     const loc = toLP(defaultContextLeft.value, defaultContextTop.value);
 
-    const shape = new FontAwesomeIcon({ prefix: "fas", iconName: "arrows-to-circle" }, l2g(loc), 50, {
-        isSnappable: false,
-        fillColour: "black",
-        strokeColour: "white",
-        strokeWidth: 10,
-    });
+    const shape = new FontAwesomeIcon(
+        { prefix: "fas", iconName: "arrows-to-circle" },
+        l2g(loc),
+        50,
+        {
+            isSnappable: false,
+            strokeWidth: 10,
+        },
+        { fillColour: "black", strokeColour: ["white"] },
+    );
     propertiesSystem.setName(shape.id, spawnName, NO_SYNC);
 
     floorSystem

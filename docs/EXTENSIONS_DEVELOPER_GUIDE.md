@@ -118,10 +118,26 @@ Applica `ext-ui-root` al `<body>`.
 | Elemento | Classe | Valori standard |
 |----------|--------|-----------------|
 | **Contenuto principale** | `ext-body` | padding 1rem 1.5rem, overflow-y auto |
-| **Barra superiore** | `ext-toolbar-bar` | min-height 2.75rem, padding 0.625rem 1.5rem |
+| **Barra superiore** | `ext-toolbar-bar` | min-height 2.75rem, padding 0.625rem 1.5rem, sfondo `#fafafa`, bordo sotto `#eee` |
+| **Barra compatta (opz.)** | `ext-toolbar-bar ext-toolbar-bar--compact` | Stessi colori; padding ridotto (`0.35rem 1rem`), adatto a iframe stretti |
 | **Barra inferiore** | `ext-bottom-bar` | min-height 2.75rem, padding 0.625rem 1.5rem, margin 0 1.5rem 1rem |
 | **Pulsanti icona (barre)** | `ext-toolbar-btn`, `ext-search-add-btn` | 32×32px, icone 16×16px |
 | **Barra di ricerca** | `ext-search-bar` | Ricerca + pulsante +: icona lente a sinistra, input centrale, pulsante + (32×32) a destra |
+
+#### Matrice estensioni (barra superiore e ricerca)
+
+| Estensione | Pattern barra | Icona lente | Note |
+|------------|---------------|-------------|------|
+| **Character Sheet** | `ext-toolbar-bar--compact` → `ext-search-bar` + `cs-top-actions` (figli diretti, come Documenti) | SVG da `ui.css` (span vuoto) | Ricerca/`+` nella search bar; azioni e tab in `.cs-top-actions` |
+| **Documenti** | `ext-toolbar-bar` → `ext-search-bar` (figlio diretto) + altri controlli | SVG (`span` vuoto) | Lista/griglia e nuova cartella accanto alla ricerca |
+| **Time Manager** | Solo `ext-search-bar` dentro `ext-toolbar-bar` | SVG (`span` vuoto) | Layout minimo |
+| **Ambient Music** | `ext-toolbar-bar am-toolbar` | — (nessuna ricerca nella barra) | Controlli playback; `ext-toolbar-btn` |
+| **Watabou** | `ext-toolbar-bar wb-toolbar` | — | `justify-content: space-between` via classe dedicata |
+| **Guida** | Tab personalizzate (`guida-tabs`), non `ext-toolbar-bar` | — | Eccezione: navigazione a tab |
+| **Assets Installer** | Nessuna barra globale; sezioni `ext-ui-section` | — | — |
+| **Compendium (client)** | Stesso elemento `ext-toolbar-bar ext-search-bar` + grid Vue | Font Awesome / sfondo `ui.css` | Filtri e select aggiuntivi |
+
+**Regole:** preferisci sempre `ext-toolbar-bar` per la fascia superiore grigia; per la ricerca usa `ext-search-icon` come **`<span class="ext-search-icon" aria-hidden="true"></span>`** (icona SVG definita in `ui.css`, coerente ovunque). Evita l’emoji 🔍 nel markup.
 
 ### 5.3 Barra di ricerca unificata (ext-search-bar)
 
@@ -131,8 +147,8 @@ La barra di ricerca deve **sempre** avere a sinistra l’icona della lente e a d
 
 ```html
 <div class="ext-search-bar">
-    <span class="ext-search-icon" aria-hidden="true">&#128269;</span>
-    <!-- oppure con FontAwesome: <font-awesome-icon icon="search" class="ext-search-icon" /> -->
+    <span class="ext-search-icon" aria-hidden="true"></span>
+    <!-- L’icona è lo SVG in ui.css; in Vue si può usare <font-awesome-icon icon="search" class="ext-search-icon" /> (il figlio è nascosto, resta lo sfondo da ui.css) -->
     <input type="text" class="ext-search-input" placeholder="Cerca..." />
     <button type="button" class="ext-search-add-btn" title="Aggiungi">
         <span>+</span>

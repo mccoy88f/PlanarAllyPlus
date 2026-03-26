@@ -158,6 +158,8 @@ function runImportSystems(
 
     importSystemForms(compact, mode, true);
 
+    shape.onSystemsLoaded?.();
+
     return shape;
 }
 

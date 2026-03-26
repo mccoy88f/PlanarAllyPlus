@@ -15,7 +15,7 @@ When writing migrations make sure that these things are respected:
 - It's often a good idea to start the server with a clean save and use `.schema <table_name>` in sqlite to get the exact schema output that a clean save creates
 """
 
-SAVE_VERSION = 127
+SAVE_VERSION = 128
 
 import asyncio
 import json
@@ -984,6 +984,16 @@ def upgrade(
                     break
             if not column_exists:
                 db.execute_sql('ALTER TABLE "asset_entry" ADD COLUMN "options" TEXT')
+    elif version == 127:
+        # Upstream (PA dev): ambient light + flood-fill aura — version number shifted (PA+ uses 117–126 elsewhere)
+        with db.atomic():
+            db.execute_sql('ALTER TABLE "location_options" ADD COLUMN "ambient_light" INTEGER DEFAULT 0')
+            db.execute_sql(
+                "UPDATE location_options SET ambient_light = NULL WHERE id NOT IN (SELECT default_options_id FROM room)"
+            )
+            db.execute_sql('ALTER TABLE "aura" ADD COLUMN "flood_light" INTEGER NOT NULL DEFAULT 0')
+    else:
+        raise UnknownVersionException(f"No upgrade code for save format {version} was found.")
     inc_save_version(db)
     db.foreign_keys = True
 

@@ -244,9 +244,25 @@ input[type="checkbox"] {
 .ts-dot.success.filled  { background: var(--gold);      border-color: var(--gold-light); }
 
 /* ── MAIN LAYOUT ── */
-.main-layout { display: grid; grid-template-columns: 180px 1fr; gap: 12px; }
-.left-col    { display: flex; flex-direction: column; gap: 8px; }
-.right-col   { display: flex; flex-direction: column; gap: 8px; }
+/* Stessa griglia della riga topstats: colonna caratteristiche = larghezza riquadro bonus competenza */
+.main-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1.6fr 1fr;
+  gap: 10px;
+  align-items: start;
+}
+.left-col {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.right-col {
+  grid-column: 2 / 6;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .bonus-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
 /* ── ABILITY BLOCKS ── */
@@ -361,6 +377,10 @@ input[type="checkbox"] {
 .mid-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; }
 .mid-stat { text-align: center; }
 .mid-stat input { font-size: 1rem; font-weight: 700; font-family: var(--font-head); }
+.mid-stat input[data-field="speed"],
+.mid-stat input[data-field="size"] {
+  text-align: center;
+}
 
 /* ── WEAPONS ── */
 .weapons-table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
@@ -606,7 +626,13 @@ input[type="checkbox"] {
   .hdr-grid   { grid-template-columns: 1fr 1fr; }
   .hdr-grid-2 { grid-template-columns: 1fr 1fr; }
   .topstats   { grid-template-columns: 1fr 1fr 1fr; align-items: stretch; }
-  .main-layout{ grid-template-columns: 1fr; }
+  .main-layout {
+    grid-template-columns: 1fr;
+  }
+  .left-col,
+  .right-col {
+    grid-column: auto;
+  }
   .mid-stats  { grid-template-columns: repeat(2,1fr); }
   .bottom-right{ grid-template-columns: 1fr; }
   .p2-layout  { grid-template-columns: 1fr; }

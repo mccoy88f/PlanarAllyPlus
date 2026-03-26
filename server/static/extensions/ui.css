@@ -562,6 +562,13 @@
     margin: 0;
 }
 
+/* Variante compatta: stessi colori/bordo, meno altezza (liste dense, iframe stretti) */
+.ext-toolbar-bar.ext-toolbar-bar--compact {
+    min-height: 0;
+    padding: 0.35rem 1rem;
+    gap: 0.35rem;
+}
+
 .ext-toolbar-bar .ext-toolbar-btn,
 .ext-toolbar-bar .ext-ui-btn,
 .ext-toolbar-bar .ext-search-add-btn {
@@ -698,7 +705,7 @@
     color: #c62828;
 }
 
-/* Action buttons - 24x24 icon style, show only on parent hover */
+/* Action buttons - 24x24 icon style (liste estensioni, albero compendium, ecc.) */
 .ext-action-btn {
     width: 24px;
     height: 24px;
@@ -706,7 +713,7 @@
     border: none;
     border-radius: 4px;
     background: transparent;
-    color: #999;
+    color: #424242;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -716,7 +723,11 @@
 
 .ext-action-btn:hover {
     background: #e9ecef;
-    color: #333;
+    color: #212121;
+}
+
+.ext-action-btn.delete {
+    color: #c62828;
 }
 
 .ext-action-btn.delete:hover {
@@ -725,7 +736,7 @@
 }
 
 .ext-action-btn.visibility {
-    color: #555;
+    color: #1565c0;
 }
 
 .ext-action-btn.visibility:hover {
@@ -734,13 +745,13 @@
 }
 
 .ext-action-btn.visibility.visibility-on {
-    background: #e8f4fc;
-    color: #069;
+    color: #2e7d32;
+    background: rgba(46, 125, 50, 0.14);
 }
 
 .ext-action-btn.visibility.visibility-on:hover {
-    background: #d0e8f7;
-    color: #047;
+    background: rgba(46, 125, 50, 0.22);
+    color: #1b5e20;
 }
 
 .ext-action-btn.star {
@@ -763,8 +774,16 @@
 }
 
 .ext-action-btn svg {
-    width: 14px;
-    height: 14px;
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+}
+
+/* Font Awesome (webfont) nelle stesse dimensioni degli SVG sopra */
+.ext-action-btn .fa-solid,
+.ext-action-btn .fa-regular {
+    font-size: 15px;
+    line-height: 1;
 }
 
 .ext-item-actions {

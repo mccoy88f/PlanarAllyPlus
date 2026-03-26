@@ -69,6 +69,12 @@ The server scans `extensions/`, loads each `extension.toml`, and registers its A
 ## UI Guide
 All extension UIs follow the same visual style defined in `static/extensions/ui.css`. Use the predefined classes (`ext-ui-root`, `ext-toolbar-bar`, `ext-bottom-bar`, etc.) for a consistent look.
 
+**Top toolbar:** use `ext-toolbar-bar` for the gray bar (`#fafafa`, bottom border `#eee`). Optional compact variant: `ext-toolbar-bar ext-toolbar-bar--compact` (less vertical padding, same colors).
+
+**Search row:** use `ext-search-bar` with an **empty** `<span class="ext-search-icon" aria-hidden="true"></span>` so the standard magnifying-glass SVG from `ui.css` applies (do not use the 🔍 emoji in HTML). Pair with `ext-search-input` and `ext-search-add-btn` as in the Italian guide §5.3.
+
+See `docs/EXTENSIONS_DEVELOPER_GUIDE.md` (section 5) for the full matrix of extensions and layout patterns.
+
 ---
 
 ## Step‑by‑step extension creation

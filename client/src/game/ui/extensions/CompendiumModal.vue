@@ -2572,23 +2572,24 @@ onMounted(() => {
     }
 }
 
+/* Stessa estetica di ui.css .ext-toolbar-bar / .ext-toolbar-bar.ext-search-bar (#fafafa, padding 0.625rem 1.5rem) */
 .ext-search-bar {
     display: grid !important;
     grid-template-columns: auto auto 1fr auto auto auto auto;
     align-items: center;
     gap: 0.5rem;
-    background: #ffffff !important;
-    padding: 0.4rem 0.8rem;
-    border-radius: 4px;
-    border-bottom: 1px solid #eeeeee;
+    background: #fafafa !important;
+    padding: 0.625rem 1.5rem;
+    border-radius: 0;
+    border-bottom: 1px solid #eee;
 
     &.qe-tag-filter-shelf {
         border-top: none;
         border-bottom: none;
         margin-top: -1px;
         padding-top: 0;
-        background: #ffffff !important; /* Ensure same bg */
-        
+        background: #fafafa !important;
+
         .ga-spacer {
             pointer-events: none;
             visibility: hidden;
@@ -2597,7 +2598,7 @@ onMounted(() => {
 }
 
 .qe-tag-filter-shelf {
-    background: transparent;
+    background: #fafafa;
     border: none !important;
     border-radius: 0;
     padding: 0;

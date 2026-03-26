@@ -25,6 +25,12 @@ export interface ShapeOptions {
     templateNoteIds: NoteId[];
 
     collapsedIds: [LocalId, Vector][];
+
+    // Special shapes created by the light tool
+    // These have custom rendering logic that only applies during light tool interaction
+    // and generally interact with the ambient light system
+    lightShape: boolean;
+    ambientBarrier: boolean;
 }
 
 export interface ServerShapeOptions extends ShapeOptions {
