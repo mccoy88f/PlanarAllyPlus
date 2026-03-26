@@ -735,21 +735,25 @@
     color: #fff;
 }
 
-.ext-action-btn.visibility {
+.ext-action-btn.visibility,
+.ext-action-btn.visibility-btn {
     color: #1565c0;
 }
 
-.ext-action-btn.visibility:hover {
+.ext-action-btn.visibility:hover,
+.ext-action-btn.visibility-btn:hover {
     background: #e8f4fc;
     color: #069;
 }
 
-.ext-action-btn.visibility.visibility-on {
+.ext-action-btn.visibility.visibility-on,
+.ext-action-btn.visibility-btn.visibility-on {
     color: #2e7d32;
     background: rgba(46, 125, 50, 0.14);
 }
 
-.ext-action-btn.visibility.visibility-on:hover {
+.ext-action-btn.visibility.visibility-on:hover,
+.ext-action-btn.visibility-btn.visibility-on:hover {
     background: rgba(46, 125, 50, 0.22);
     color: #1b5e20;
 }

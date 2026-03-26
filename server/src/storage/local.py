@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..utils import get_asset_hash_subpath
+from ..utils import THUMBNAILS_DIR, get_asset_hash_subpath
 from .base import StorageBackend
+
+
+def _is_thumbnail_suffix(suffix: str | None) -> bool:
+    return suffix is not None and suffix.startswith(".thumb.")
 
 
 class LocalStorageBackend(StorageBackend):
@@ -13,9 +17,10 @@ class LocalStorageBackend(StorageBackend):
 
     def _path(self, file_hash: str, suffix: str | None = None) -> Path:
         sub = get_asset_hash_subpath(file_hash)
+        base = THUMBNAILS_DIR if _is_thumbnail_suffix(suffix) else self.assets_dir
         if suffix:
-            return self.assets_dir / f"{sub}{suffix}"
-        return self.assets_dir / sub
+            return base / f"{sub}{suffix}"
+        return base / sub
 
     async def store(self, file_hash: str, data: bytes, *, suffix: str | None = None) -> None:
         self.store_sync(file_hash, data, suffix=suffix)
@@ -46,10 +51,9 @@ class LocalStorageBackend(StorageBackend):
 
     def get_url(self, file_hash: str, *, thumbnail_format: str | None = None) -> str:
         sub = get_asset_hash_subpath(file_hash)
-        path = f"/static/assets/{sub}"
         if thumbnail_format is not None:
-            path = f"{path}.thumb.{thumbnail_format}"
-        return path
+            return f"/static/thumbnails/{sub}.thumb.{thumbnail_format}"
+        return f"/static/assets/{sub}"
 
     def get_public_url_base(self) -> str | None:
         return None

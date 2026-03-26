@@ -93,6 +93,34 @@ const nextItem = ref<{
 const itemLoading = ref(false);
 const showIndex = ref(false);
 const currentIndex = ref<{ slug: string; name: string; items: { slug: string; name: string }[] }[]>([]);
+/** Se valorizzato, l’indice mostra solo il ramo di questa collezione (sotto-albero). */
+const indexFocusCollectionSlug = ref<string | null>(null);
+
+interface IndexCollNode {
+    slug: string;
+    name: string;
+    items: { slug: string; name: string }[];
+    collections?: IndexCollNode[];
+}
+
+function findIndexNodeBySlug(nodes: IndexCollNode[], slug: string): IndexCollNode | null {
+    for (const n of nodes) {
+        if (n.slug === slug) return n;
+        if (n.collections?.length) {
+            const f = findIndexNodeBySlug(n.collections, slug);
+            if (f) return f;
+        }
+    }
+    return null;
+}
+
+const displayedIndex = computed(() => {
+    const full = currentIndex.value as IndexCollNode[];
+    if (!indexFocusCollectionSlug.value) return full;
+    const node = findIndexNodeBySlug(full, indexFocusCollectionSlug.value);
+    return node ? [node] : full;
+});
+
 const indexLoading = ref(false);
 const indexCompendium = ref<CompendiumMeta | null>(null);
 const indexMetadata = ref<Record<string, string>>({});
@@ -250,11 +278,16 @@ const breadcrumb = computed(() => {
         { label: fallback(compendium.name, compendium.slug), slug: compendium.slug, type: "compendium" },
     ];
 
-    if (collection.parentSlug) {
-        const parent = collectionsFor(compendium.id).find((c: CollectionMeta) => c.slug === collection.parentSlug);
-        if (parent) {
-            crumbs.push({ label: fallback(parent.name, parent.slug), slug: parent.slug, type: "collection" });
-        }
+    const ancestorChain: CollectionMeta[] = [];
+    let p: string | null | undefined = collection.parentSlug;
+    while (p) {
+        const col = collectionsFor(compendium.id).find((c: CollectionMeta) => c.slug === p);
+        if (!col) break;
+        ancestorChain.unshift(col);
+        p = col.parentSlug;
+    }
+    for (const col of ancestorChain) {
+        crumbs.push({ label: fallback(col.name, col.slug), slug: col.slug, type: "collection" });
     }
 
     crumbs.push({ label: fallback(collection.name, collection.slug), slug: collection.slug, type: "collection" });
@@ -264,16 +297,19 @@ const breadcrumb = computed(() => {
 
 async function navigateBreadcrumb(index: number): Promise<void> {
     if (!selectedItem.value) return;
-    const { compendium, collection } = selectedItem.value;
-    if (index === 0) {
-        // Navigate to compendium index
+    const { compendium } = selectedItem.value;
+    const crumbs = breadcrumb.value;
+    const crumb = crumbs[index];
+    if (!crumb || crumb.type === "item") return;
+
+    if (crumb.type === "compendium") {
         await showCompendiumIndex(compendium);
-    } else if (index === 1) {
-        // Expand the compendium and the collection in the sidebar
-        await ensureCompendiumExpanded(compendium.id);
-        await ensureCollectionExpanded(compendium.id, collection.slug);
-        // Select the first item if the current item doesn't belong to that collection
-        // (in practice the user is already on an item, so just expand sidebar)
+        return;
+    }
+
+    const coll = collectionsFor(compendium.id).find((c: CollectionMeta) => c.slug === crumb.slug);
+    if (coll) {
+        await showCollectionIndex(compendium, coll);
     }
 }
 
@@ -297,6 +333,16 @@ const isSearchDebouncing = computed(() => {
 function formatName(name: string): string {
     return name.charAt(0).toUpperCase() + name.slice(1);
 }
+
+const indexViewTitle = computed(() => {
+    const metaTitle = indexMetadata.value?.title;
+    if (!indexFocusCollectionSlug.value) {
+        return metaTitle || indexCompendium.value?.name || "";
+    }
+    const node = findIndexNodeBySlug(currentIndex.value as IndexCollNode[], indexFocusCollectionSlug.value);
+    if (node?.name) return formatName(node.name);
+    return metaTitle || indexCompendium.value?.name || "";
+});
 
 function handleMarkdownClick(e: MouseEvent): void {
     const target = (e.target as HTMLElement).closest("a[href^='qe:'], a[data-qe-collection]");
@@ -431,12 +477,33 @@ async function toggleCollection(compId: string, collSlug: string): Promise<void>
     expandedColls.value = next;
 }
 
+function collectionHasChildren(compId: string, coll: CollectionMeta): boolean {
+    if (subCollectionsFor(compId, coll.slug).length > 0) return true;
+    if ((coll.count ?? 0) > 0) return true;
+    return false;
+}
+
+async function expandAncestorsForCollection(compId: string, coll: CollectionMeta): Promise<void> {
+    const chain: CollectionMeta[] = [];
+    let p: string | null | undefined = coll.parentSlug;
+    while (p) {
+        const parent = collectionsFor(compId).find((c: CollectionMeta) => c.slug === p);
+        if (!parent) break;
+        chain.unshift(parent);
+        p = parent.parentSlug;
+    }
+    for (const c of chain) {
+        await ensureCollectionExpanded(compId, c.slug);
+    }
+}
+
 async function selectItem(
     compendium: CompendiumMeta,
     collection: CollectionMeta,
     item: ItemMeta,
 ): Promise<void> {
     showIndex.value = false;
+    indexFocusCollectionSlug.value = null;
     itemLoading.value = true;
     try {
         const r = await http.get(
@@ -536,6 +603,7 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
     indexLoading.value = true;
     indexCompendium.value = comp;
     selectedCompendiumId.value = comp.id;
+    indexFocusCollectionSlug.value = null;
 
     currentIndex.value = [];
     expandedIndexCollections.value.clear();
@@ -558,6 +626,66 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
     } finally {
         indexLoading.value = false;
     }
+    await ensureCompendiumExpanded(comp.id);
+    const roots = collectionsFor(comp.id).filter((c: CollectionMeta) => !c.parentSlug);
+    for (const c of roots) {
+        await ensureCollectionExpanded(comp.id, c.slug);
+    }
+}
+
+async function showCollectionIndex(comp: CompendiumMeta, coll: CollectionMeta): Promise<void> {
+    if (!collectionHasChildren(comp.id, coll)) {
+        await ensureCompendiumExpanded(comp.id);
+        await expandAncestorsForCollection(comp.id, coll);
+        await ensureCollectionExpanded(comp.id, coll.slug);
+        return;
+    }
+    selectedItem.value = null;
+    showIndex.value = true;
+    const indexAlreadyLoaded =
+        currentIndex.value.length > 0 && indexCompendium.value?.id === comp.id;
+    indexCompendium.value = comp;
+    selectedCompendiumId.value = comp.id;
+    indexFocusCollectionSlug.value = coll.slug;
+
+    if (!indexAlreadyLoaded) {
+        indexLoading.value = true;
+        currentIndex.value = [];
+        expandedIndexCollections.value.clear();
+        try {
+            const r = await http.get(
+                `/api/extensions/compendium/index?compendium=${encodeURIComponent(comp.id)}`,
+            );
+            if (r.ok) {
+                const data = (await r.json()) as { index: any[], metadata?: Record<string, string> };
+                originalIndex.value = null;
+                activeTranslationLang.value = null;
+                currentMarkdown.value = "";
+                currentIndex.value = data.index;
+                indexMetadata.value = data.metadata || {};
+                await checkTranslation("index");
+            }
+        } catch {
+            /* ignore */
+        } finally {
+            indexLoading.value = false;
+        }
+    }
+
+    await ensureCompendiumExpanded(comp.id);
+    await expandAncestorsForCollection(comp.id, coll);
+    await ensureCollectionExpanded(comp.id, coll.slug);
+    for (const sub of subCollectionsFor(comp.id, coll.slug)) {
+        await ensureCollectionExpanded(comp.id, sub.slug);
+    }
+}
+
+async function onCollectionLabelClick(comp: CompendiumMeta, coll: CollectionMeta): Promise<void> {
+    if (!collectionHasChildren(comp.id, coll)) {
+        await toggleCollection(comp.id, coll.slug);
+        return;
+    }
+    await showCollectionIndex(comp, coll);
 }
 
 async function selectItemBySlug(collSlug: string, itemSlug: string): Promise<void> {
@@ -1445,19 +1573,26 @@ onMounted(() => {
                                     :key="coll.slug"
                                     class="qe-tree-collection"
                                 >
-                                    <button
-                                        class="qe-tree-toggle coll"
-                                        :class="{ expanded: isExpanded(comp.id, coll.slug) }"
-                                        @click="toggleCollection(comp.id, coll.slug)"
-                                    >
-                                        <font-awesome-icon
-                                            :icon="
-                                                isExpanded(comp.id, coll.slug) ? 'chevron-down' : 'chevron-right'
-                                            "
-                                        />
-                                        {{ formatName(coll.name) }}
+                                    <div class="qe-tree-collection-row">
+                                        <button
+                                            type="button"
+                                            class="qe-tree-toggle coll"
+                                            :class="{ expanded: isExpanded(comp.id, coll.slug) }"
+                                            @click="toggleCollection(comp.id, coll.slug)"
+                                        >
+                                            <font-awesome-icon
+                                                :icon="
+                                                    isExpanded(comp.id, coll.slug) ? 'chevron-down' : 'chevron-right'
+                                                "
+                                            />
+                                        </button>
+                                        <span
+                                            class="qe-tree-coll-name"
+                                            :class="{ 'has-children': collectionHasChildren(comp.id, coll) }"
+                                            @click.stop="onCollectionLabelClick(comp, coll)"
+                                        >{{ formatName(coll.name) }}</span>
                                         <span class="qe-tree-count">({{ coll.count }})</span>
-                                    </button>
+                                    </div>
                                     <div
                                         v-show="isExpanded(comp.id, coll.slug)"
                                         class="qe-tree-items"
@@ -1468,17 +1603,24 @@ onMounted(() => {
                                                 v-if="child.type === 'collection'"
                                                 class="qe-tree-collection qe-tree-subcollection"
                                             >
-                                                <button
-                                                    class="qe-tree-toggle coll"
-                                                    :class="{ expanded: isExpanded(comp.id, child.slug) }"
-                                                    @click="toggleCollection(comp.id, child.slug)"
-                                                >
-                                                    <font-awesome-icon
-                                                        :icon="isExpanded(comp.id, child.slug) ? 'chevron-down' : 'chevron-right'"
-                                                    />
-                                                    {{ formatName(child.name) }}
+                                                <div class="qe-tree-collection-row">
+                                                    <button
+                                                        type="button"
+                                                        class="qe-tree-toggle coll"
+                                                        :class="{ expanded: isExpanded(comp.id, child.slug) }"
+                                                        @click="toggleCollection(comp.id, child.slug)"
+                                                    >
+                                                        <font-awesome-icon
+                                                            :icon="isExpanded(comp.id, child.slug) ? 'chevron-down' : 'chevron-right'"
+                                                        />
+                                                    </button>
+                                                    <span
+                                                        class="qe-tree-coll-name"
+                                                        :class="{ 'has-children': collectionHasChildren(comp.id, child) }"
+                                                        @click.stop="onCollectionLabelClick(comp, child)"
+                                                    >{{ formatName(child.name) }}</span>
                                                     <span class="qe-tree-count">({{ child.count }})</span>
-                                                </button>
+                                                </div>
                                                 <div
                                                     v-show="isExpanded(comp.id, child.slug)"
                                                     class="qe-tree-items"
@@ -1573,7 +1715,7 @@ onMounted(() => {
                         </div>
                         <div v-else class="qe-index-container">
                             <div class="qe-index-header">
-                                <h1 class="qe-index-title">{{ indexMetadata.title || indexCompendium?.name }}</h1>
+                                <h1 class="qe-index-title">{{ indexViewTitle }}</h1>
                                 <div v-if="isTranslated" class="translation-tag-container" ref="translationTagContainer">
                                     <div class="translation-tag" @click.stop="showTranslationTools = !showTranslationTools">
                                         <font-awesome-icon icon="check-circle" class="me-1" />
@@ -1595,7 +1737,7 @@ onMounted(() => {
 
                             <div class="qe-index-grid">
 
-                                <div v-for="coll in currentIndex" :key="coll.slug" class="qe-index-coll">
+                                <div v-for="coll in displayedIndex" :key="coll.slug" class="qe-index-coll">
                                     <h2 class="qe-index-coll-title">{{ formatName(coll.name) }}</h2>
                                     <div class="qe-index-item-list">
                                         <button 
@@ -1997,6 +2139,31 @@ onMounted(() => {
 
     .qe-tree-collection {
         margin-bottom: 0.15rem;
+    }
+
+    .qe-tree-collection-row {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        min-width: 0;
+        flex-wrap: nowrap;
+    }
+
+    .qe-tree-collection-row .qe-tree-toggle.coll {
+        flex-shrink: 0;
+    }
+
+    .qe-tree-coll-name {
+        flex: 1;
+        min-width: 0;
+        font-size: 0.85rem;
+        cursor: pointer;
+        color: #333;
+    }
+
+    .qe-tree-coll-name.has-children:hover {
+        text-decoration: underline;
+        color: #1565c0;
     }
 
     .qe-tree-items {
