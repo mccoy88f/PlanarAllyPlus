@@ -562,6 +562,13 @@
     margin: 0;
 }
 
+/* Variante compatta: stessi colori/bordo, meno altezza (liste dense, iframe stretti) */
+.ext-toolbar-bar.ext-toolbar-bar--compact {
+    min-height: 0;
+    padding: 0.35rem 1rem;
+    gap: 0.35rem;
+}
+
 .ext-toolbar-bar .ext-toolbar-btn,
 .ext-toolbar-bar .ext-ui-btn,
 .ext-toolbar-bar .ext-search-add-btn {

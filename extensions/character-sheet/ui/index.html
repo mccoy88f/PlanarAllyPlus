@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   <!-- Allineato al client (Font Awesome Free ~6.x / Compendium): icone lista e toolbar -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
-  <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=4" />
+  <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=5" />
   <script src="../../../../static/extensions/ext-bridge.js"></script>
   <link rel="stylesheet" href="sheet-it-5e.css?v=3" />
   <script src="sheet-it5e-render.js?v=1"></script>
@@ -45,14 +45,6 @@
       min-width: 0;
       margin: 0;
       padding: 0;
-    }
-
-    /* Barra superiore: più compatta rispetto al default ui.css (2.75rem + 0.625rem padding) */
-    #topBar.ext-toolbar-bar.cs-top-bar {
-      min-height: 0;
-      padding: 0.35rem 1rem;
-      align-items: center;
-      gap: 0.35rem;
     }
 
     /* Stessi gap/padding di .ext-toolbar-bar > .ext-search-bar (ui.css) */
@@ -280,15 +272,11 @@
       flex-shrink: 0;
     }
 
-    .cs-edit-toggle {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0;
-    }
-
-    /* Stesse dimensioni degli altri .cs-icon-toolbar-btn (export/import/stampa, +) */
-    .ext-toolbar-bar .cs-icon-toolbar-btn.cs-edit-toggle {
+    /*
+     * Icone toolbar (stampa, import, export, modifica): un solo box 32×32.
+     * Sovrascrive .ext-ui-btn (padding 0.5rem 1rem, gap 0.35rem) che altrimenti rende il toggle rettangolare.
+     */
+    .ext-toolbar-bar .cs-icon-toolbar-btn {
       width: 32px;
       min-width: 32px;
       max-width: 32px;
@@ -296,12 +284,20 @@
       min-height: 32px;
       max-height: 32px;
       padding: 0 !important;
-      box-sizing: border-box;
+      margin: 0;
+      gap: 0 !important;
+      line-height: 1 !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-sizing: border-box !important;
+      flex-shrink: 0;
     }
 
-    .ext-toolbar-bar .cs-icon-toolbar-btn.cs-edit-toggle .fa-solid {
+    .ext-toolbar-bar .cs-icon-toolbar-btn .fa-solid {
       font-size: 16px;
       line-height: 1;
+      display: block;
     }
 
     .cs-edit-toggle.cs-edit-enabled {
@@ -420,19 +416,7 @@
       flex-shrink: 0;
     }
 
-    /* Toolbar: icone export/import/stampa più leggibili (no .cs-edit-toggle: resta verde/rosso) */
     .ext-toolbar-bar .cs-icon-toolbar-btn:not(.cs-edit-toggle) {
-      width: 32px;
-      min-width: 32px;
-      max-width: 32px;
-      height: 32px;
-      min-height: 32px;
-      max-height: 32px;
-      padding: 0 !important;
-      box-sizing: border-box;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
       color: #333;
       border-color: #ccc;
       background: #fff;
@@ -444,11 +428,6 @@
       background: #f5f5f5;
     }
 
-    .ext-toolbar-bar .cs-icon-toolbar-btn:not(.cs-edit-toggle) .fa-solid {
-      font-size: 16px;
-      line-height: 1;
-    }
-
     @media print {
       @page {
         margin: 10mm;
@@ -458,7 +437,7 @@
         overflow: visible !important;
       }
 
-      .cs-top-bar,
+      #topBar,
       .cs-sidebar,
       #csTabBar,
       .cs-sidebar-toggle,
@@ -498,7 +477,7 @@
       </div>
     </div>
   </div>
-  <div id="topBar" class="ext-toolbar-bar cs-top-bar">
+  <div id="topBar" class="ext-toolbar-bar ext-toolbar-bar--compact">
     <div class="cs-toolbar-stack">
       <div class="ext-search-bar cs-ext-search-bar">
         <span class="ext-search-icon" aria-hidden="true"></span>

@@ -11,7 +11,7 @@
         * { box-sizing: border-box; }
         html, body { height: 100%; margin: 0; padding: 0; font-family: system-ui, sans-serif; font-size: 13px; }
         .am-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-        .am-toolbar { flex-shrink: 0; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-bottom: 1px solid #eee; background: #fafafa; flex-wrap: wrap; }
+        .ext-toolbar-bar.am-toolbar { flex-wrap: wrap; }
         .am-toolbar .am-now { flex: 1; min-width: 0; font-size: 0.85rem; color: #666; overflow: hidden; white-space: nowrap; position: relative; }
         .am-toolbar .am-now .am-now-text { display: inline-block; padding-right: 2em; }
         .am-toolbar .am-now.scrolling .am-now-text { animation: am-marquee 12s linear infinite; }
@@ -62,7 +62,7 @@
     </style>
 </head>
 <body class="ext-ui-root am-root">
-    <div class="am-toolbar">
+    <div class="ext-toolbar-bar am-toolbar">
         <button type="button" class="ext-toolbar-btn ext-toolbar-btn-add" id="addBtn" title=""></button>
         <button type="button" class="ext-toolbar-btn" id="prevBtn" title="">⏮</button>
         <button type="button" class="ext-toolbar-btn" id="playBtn" title="">▶</button>
