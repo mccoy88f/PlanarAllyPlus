@@ -15,8 +15,32 @@ from ....utils import ASSETS_DIR, get_asset_hash_subpath
 AUDIO_EXTENSIONS = frozenset({".mp3", ".ogg", ".wav", ".m4a", ".aac", ".flac", ".webm", ".weba", ".opus"})
 
 
-def _is_audio(name: str) -> bool:
-    return Path(name).suffix.lower() in AUDIO_EXTENSIONS
+def _effective_suffix(entry: AssetEntry) -> str:
+    """Suffix with leading dot. Upload stores entry name without extension; real ext is on Asset."""
+    suf = Path(entry.name).suffix.lower()
+    if suf in AUDIO_EXTENSIONS:
+        return suf
+    if entry.asset and entry.asset.extension:
+        e = entry.asset.extension.strip().lower().lstrip(".")
+        if e and f".{e}" in AUDIO_EXTENSIONS:
+            return f".{e}"
+    return suf
+
+
+def _display_filename(entry: AssetEntry) -> str:
+    """Filename for Content-Disposition / UI when entry.name omits extension."""
+    if Path(entry.name).suffix.lower() in AUDIO_EXTENSIONS:
+        return entry.name
+    ext = entry.asset.extension if entry.asset else None
+    if ext:
+        return f"{entry.name}.{ext}"
+    return entry.name
+
+
+def _is_audio_entry(entry: AssetEntry) -> bool:
+    if not entry.asset:
+        return False
+    return _effective_suffix(entry) in AUDIO_EXTENSIONS
 
 
 def _is_playlist(name: str) -> bool:
@@ -30,10 +54,10 @@ def _build_audio_tree(user: User, parent: AssetEntry | None) -> list[dict]:
     items: list[dict] = []
     for entry in AssetEntry.select().where((AssetEntry.parent == folder) & (AssetEntry.owner == user)):
         if entry.asset:
-            if _is_audio(entry.name):
+            if _is_audio_entry(entry):
                 items.append({
                     "id": entry.id,
-                    "name": entry.name,
+                    "name": _display_filename(entry),
                     "fileHash": entry.asset.file_hash,
                     "type": "audio",
                 })
@@ -127,7 +151,7 @@ async def serve_audio(request: web.Request) -> web.Response:
     if not entry:
         # Check shared access
         for candidate in AssetEntry.select().join(Asset).where(Asset.file_hash == file_hash):
-            if _is_audio(candidate.name) and candidate.can_be_accessed_by(user, right="view"):
+            if _is_audio_entry(candidate) and candidate.can_be_accessed_by(user, right="view"):
                 entry = candidate
                 break
 
@@ -138,7 +162,7 @@ async def serve_audio(request: web.Request) -> web.Response:
     if not path.exists():
         return web.HTTPNotFound(text="File not found")
 
-    ext = Path(entry.name).suffix.lower()
+    ext = _effective_suffix(entry)
     mime = {
         ".mp3": "audio/mpeg",
         ".ogg": "audio/ogg",
@@ -150,11 +174,12 @@ async def serve_audio(request: web.Request) -> web.Response:
         ".weba": "audio/webm",
         ".opus": "audio/opus",
     }.get(ext, "audio/*")
+    fname = _display_filename(entry)
     return web.FileResponse(
         path,
         headers={
             "Content-Type": mime,
-            "Content-Disposition": f'inline; filename="{entry.name}"',
+            "Content-Disposition": f'inline; filename="{fname}"',
         },
     )
 
