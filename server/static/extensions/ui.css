@@ -698,7 +698,7 @@
     color: #c62828;
 }
 
-/* Action buttons - 24x24 icon style, show only on parent hover */
+/* Action buttons - 24x24 icon style (liste estensioni, albero compendium, ecc.) */
 .ext-action-btn {
     width: 24px;
     height: 24px;
@@ -706,7 +706,7 @@
     border: none;
     border-radius: 4px;
     background: transparent;
-    color: #999;
+    color: #424242;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -716,7 +716,11 @@
 
 .ext-action-btn:hover {
     background: #e9ecef;
-    color: #333;
+    color: #212121;
+}
+
+.ext-action-btn.delete {
+    color: #c62828;
 }
 
 .ext-action-btn.delete:hover {
@@ -725,7 +729,7 @@
 }
 
 .ext-action-btn.visibility {
-    color: #555;
+    color: #1565c0;
 }
 
 .ext-action-btn.visibility:hover {
@@ -763,8 +767,16 @@
 }
 
 .ext-action-btn svg {
-    width: 14px;
-    height: 14px;
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+}
+
+/* Font Awesome (webfont) nelle stesse dimensioni degli SVG sopra */
+.ext-action-btn .fa-solid,
+.ext-action-btn .fa-regular {
+    font-size: 15px;
+    line-height: 1;
 }
 
 .ext-item-actions {

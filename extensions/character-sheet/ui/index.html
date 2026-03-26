@@ -8,7 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=2" />
+  <!-- Allineato al client (Font Awesome Free ~6.x / Compendium): icone lista e toolbar -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=4" />
   <script src="../../../../static/extensions/ext-bridge.js"></script>
   <link rel="stylesheet" href="sheet-it-5e.css?v=3" />
   <script src="sheet-it5e-render.js?v=1"></script>
@@ -71,7 +73,17 @@
     .cs-ext-search-bar .ext-search-icon {
       width: 20px;
       height: 20px;
-      background-size: 16px 16px;
+      font-size: 0.95rem;
+      background: none !important;
+      color: #666;
+    }
+
+    .cs-ext-search-bar .ext-search-icon > * {
+      display: block !important;
+    }
+
+    .cs-ext-search-bar .ext-search-icon .fa-solid {
+      line-height: 1;
     }
 
     /* Schede: stessa riga dopo Stampa, con | ; blu / arancione */
@@ -118,10 +130,10 @@
     }
 
     #csTabBar .tab-btn .cs-tab-icon {
-      width: 16px;
-      height: 16px;
+      font-size: 14px;
+      width: 1em;
       flex-shrink: 0;
-      display: block;
+      line-height: 1;
     }
 
     #csTabBar .tab-btn.tab-main {
@@ -265,14 +277,10 @@
       background: #cce5ff;
     }
 
-    /* Icone visibilità / elimina accanto al nome: contrasto più alto (ui.css usa #999, troppo chiaro) */
-    .cs-sheet-list .ext-item-actions .ext-action-btn svg {
-      width: 16px;
-      height: 16px;
-    }
-
-    .cs-sheet-list .ext-item-actions .ext-action-btn {
-      color: #37474f;
+    /* Lista schede: Font Awesome (stessi colori logici di ui.css / Compendium) */
+    .cs-sheet-list .ext-item-actions .ext-action-btn .fa-solid {
+      font-size: 15px;
+      line-height: 1;
     }
 
     .cs-sheet-list .ext-item-actions .ext-action-btn.visibility.visibility-on {
@@ -331,11 +339,6 @@
       border-color: #b71c1c;
     }
 
-    .cs-edit-toggle .cs-lock-icon {
-      width: 1.15em;
-      height: 1.15em;
-      display: block;
-    }
 
     .cs-toolbar-spacer {
       flex: 1;
@@ -430,8 +433,8 @@
       flex-shrink: 0;
     }
 
-    /* Stesse dimensioni di .ext-toolbar-bar .ext-search-add-btn (ui.css: 32×32, icona 16px) */
-    .ext-toolbar-bar .cs-icon-toolbar-btn {
+    /* Toolbar: icone export/import/stampa più leggibili (no .cs-edit-toggle: resta verde/rosso) */
+    .ext-toolbar-bar .cs-icon-toolbar-btn:not(.cs-edit-toggle) {
       width: 32px;
       min-width: 32px;
       max-width: 32px;
@@ -443,12 +446,25 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      color: #333;
+      border-color: #ccc;
+      background: #fff;
     }
 
-    .ext-toolbar-bar .cs-icon-toolbar-btn svg {
-      width: 16px;
-      height: 16px;
-      display: block;
+    .ext-toolbar-bar .cs-icon-toolbar-btn:not(.cs-edit-toggle):hover {
+      color: #111;
+      border-color: #999;
+      background: #f5f5f5;
+    }
+
+    .ext-toolbar-bar .cs-icon-toolbar-btn:not(.cs-edit-toggle) .fa-solid {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .cs-edit-toggle .fa-solid {
+      font-size: 1.15em;
+      line-height: 1;
     }
 
     @media print {
@@ -503,7 +519,7 @@
   <div id="topBar" class="ext-toolbar-bar cs-top-bar">
     <div class="cs-toolbar-stack">
       <div class="ext-search-bar cs-ext-search-bar">
-        <span class="ext-search-icon" aria-hidden="true">&#128269;</span>
+        <span class="ext-search-icon" aria-hidden="true"><i class="fa-solid fa-magnifying-glass"></i></span>
         <input type="text" id="sheetSearchInput" class="ext-search-input" placeholder="" />
         <button type="button" id="newBtn" class="ext-search-add-btn" title=""></button>
         <div class="cs-top-actions">
@@ -514,17 +530,12 @@
           <span class="cs-tab-divider" aria-hidden="true">|</span>
           <button type="button" id="editToggle" class="ext-ui-btn cs-edit-toggle cs-edit-disabled cs-icon-toolbar-btn" title=""></button>
           <div id="csTabBar" class="cs-ext-tab-strip cs-ext-tab-strip--inline" style="display: none" role="tablist">
-            <!-- Icone: Font Awesome Free 7.2.0 (Solid) — scroll, hat-wizard — fontawesome.com/license/free -->
             <button type="button" class="tab-btn tab-main active" data-cs-tab="main" role="tab" aria-selected="true">
-              <svg class="cs-tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" aria-hidden="true" focusable="false">
-                <path fill="currentColor" d="M0 112C0 70.5 31.6 36.4 72 32.4l0-.4 280 0c53 0 96 43 96 96l0 176-176 0c-39.8 0-72 32.2-72 72l0 60c0 24.3-19.7 44-44 44s-44-19.7-44-44l0-228-64 0c-26.5 0-48-21.5-48-48l0-48zM236.8 480c7.1-13.1 11.2-28.1 11.2-44l0-60c0-13.3 10.7-24 24-24l248 0c13.3 0 24 10.7 24 24l0 24c0 44.2-35.8 80-80 80l-227.2 0zM80 80c-17.7 0-32 14.3-32 32l0 48 64 0 0-48c0-17.7-14.3-32-32-32z"/>
-              </svg>
+              <i class="fa-solid fa-book-open cs-tab-icon" aria-hidden="true"></i>
               <span class="cs-tab-label"></span>
             </button>
             <button type="button" class="tab-btn tab-spells" data-cs-tab="spells" role="tab" aria-selected="false">
-              <svg class="cs-tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" aria-hidden="true" focusable="false">
-                <path fill="currentColor" d="M64 400l85.7-208.2c17-41.3 47.8-75.3 87.2-96.3L383.8 17.2c12.3-6.6 26.5 4.7 23 18.2L369.6 177.8c-1.1 4.1-1.6 8.3-1.6 12.6 0 6.3 1.2 12.6 3.6 18.5l76.4 191.1-207.1 0 11.8-35.4 40.4-13.5c6.5-2.2 10.9-8.3 10.9-15.2s-4.4-13-10.9-15.2l-40.4-13.5-13.5-40.4C237 260.4 230.9 256 224 256s-13 4.4-15.2 10.9l-13.5 40.4-40.4 13.5C148.4 323 144 329.1 144 336s4.4 13 10.9 15.2l40.4 13.5 11.8 35.4-143.1 0zM279.6 141.5c-1.1-3.3-4.1-5.5-7.6-5.5s-6.5 2.2-7.6 5.5l-6.7 20.2-20.2 6.7c-3.3 1.1-5.5 4.1-5.5 7.6s2.2 6.5 5.5 7.6l20.2 6.7 6.7 20.2c1.1 3.3 4.1 5.5 7.6 5.5s6.5-2.2 7.6-5.5l6.7-20.2 20.2-6.7c3.3-1.1 5.5-4.1 5.5-7.6s-2.2-6.5-5.5-7.6l-20.2-6.7-6.7-20.2zM32 448l448 0c17.7 0 32 14.3 32 32s-14.3 32-32 32L32 512c-17.7 0-32-14.3-32-32s14.3-32 32-32z"/>
-              </svg>
+              <i class="fa-solid fa-wand-magic-sparkles cs-tab-icon" aria-hidden="true"></i>
               <span class="cs-tab-label"></span>
             </button>
           </div>
@@ -1089,9 +1100,9 @@
         var searchVal = (document.getElementById('sheetSearchInput').value || '').trim().toLowerCase();
         var filtered = searchVal ? sheets.filter(function (s) { return (s.name || '').toLowerCase().indexOf(searchVal) >= 0; }) : sheets;
         sheetList.innerHTML = '';
-        var trashSvg = '<svg viewBox="0 0 448 512" fill="currentColor"><path d="M135.2 17.69L128 32H32C14.33 32 0 46.33 0 64v384c0 17.67 14.33 32 32 32h384c17.67 0 32-14.33 32-32V64c0-17.67-14.33-32-32-32h-96l-7.2-14.31A32 32 0 0 0 276.8 0H171.2a32 32 0 0 0-36 17.69zM64 96h384v352H64V96zm32 32v288h64V128H96zm128 0v288h64V128h-64zm128 0v288h64V128h-64z"/></svg>';
-        var eyeSvg = '<svg viewBox="0 0 576 512" fill="currentColor"><path d="M572.52 241.4C518.29 135.59 410.93 64 288 64S57.68 135.64 3.48 241.41a32 32 0 0 0 0 29.19C57.71 376.41 165.07 448 288 448s230.32-71.64 284.52-177.41a32 32 0 0 0 0-29.19zM288 400c-98.65 0-189.09-55-237.93-144C98.91 167 189.34 112 288 112s189.09 55 237.93 144C477.1 345 386.66 400 288 400zM288 160a160 160 0 1 0 0 320 160 160 0 0 0 0-320zm0 288a128 128 0 1 1 0-256 128 128 0 0 1 0 256z"/></svg>';
-        var eyeSlashSvg = '<svg viewBox="0 0 640 512" fill="currentColor"><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2L-3.1 38.8c-4.2 8.2-1.2 18.3 7 22.5l591.1 463.5c8.2 4.2 18.3 1.2 22.5-7l10.2-29.6c4.2-8.2 1.2-18.3-7-22.5L38.8 5.1zM288 160c-70.7 0-128 57.3-128 128c0 12.4 1.8 24.3 5.1 35.4l-94.5-74.1C57.68 135.64 165.07 64 288 64c123.2 0 230.3 71.6 284.5 177.4a32 32 0 0 1 0 29.19l-40.8 31.9C507.4 312.3 512 262.2 512 208c0-123.7-100.3-224-224-224zM96 288c0-35.3 28.7-64 64-64l46.1 36.1c-2.2 6.9-3.4 14.2-3.4 21.7 0 70.7 57.3 128 128 128 7.5 0 14.8-1.2 21.7-3.4L416 416c-70.7 0-128-57.3-128-128z"/></svg>';
+        var trashFa = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i>';
+        var eyeFa = '<i class="fa-solid fa-eye" aria-hidden="true"></i>';
+        var eyeSlashFa = '<i class="fa-solid fa-eye-slash" aria-hidden="true"></i>';
         filtered.forEach(function (s) {
           var li = document.createElement('li');
           li.className = 'ext-ui-list-item' + (selectedId === s.id ? ' selected' : '');
@@ -1108,7 +1119,7 @@
             visBtn.className = 'ext-action-btn visibility' + (s.visibleToPlayers ? ' visibility-on' : '');
             visBtn.type = 'button';
             visBtn.title = s.visibleToPlayers ? t('visibleToPlayers') : t('hiddenFromPlayers');
-            visBtn.innerHTML = s.visibleToPlayers ? eyeSvg : eyeSlashSvg;
+            visBtn.innerHTML = s.visibleToPlayers ? eyeFa : eyeSlashFa;
             visBtn.onclick = function (e) { e.stopPropagation(); toggleVisibility(s.id); };
             actions.appendChild(visBtn);
           }
@@ -1116,7 +1127,7 @@
           delBtn.className = 'ext-action-btn delete';
           delBtn.type = 'button';
           delBtn.title = t('delete');
-          delBtn.innerHTML = trashSvg;
+          delBtn.innerHTML = trashFa;
           delBtn.onclick = function (e) { e.stopPropagation(); deleteSheet(s.id); };
           actions.appendChild(delBtn);
           li.appendChild(content);
@@ -1255,14 +1266,14 @@
         });
       }
 
-      var svgExport = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>';
-      var svgImport = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
-      var svgPrint = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>';
+      var iconExport = '<i class="fa-solid fa-download" aria-hidden="true"></i>';
+      var iconImport = '<i class="fa-solid fa-upload" aria-hidden="true"></i>';
+      var iconPrint = '<i class="fa-solid fa-print" aria-hidden="true"></i>';
 
       function updateEditToggleBtn() {
         var btn = document.getElementById('editToggle');
-        var pencilIcon = '<svg class="cs-lock-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
-        var lockIcon = '<svg class="cs-lock-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg>';
+        var pencilIcon = '<i class="fa-solid fa-edit" aria-hidden="true"></i>';
+        var lockIcon = '<i class="fa-solid fa-lock" aria-hidden="true"></i>';
 
         btn.innerHTML = editingEnabled ? lockIcon : pencilIcon;
         btn.title = editingEnabled ? t('disableEdits') : t('enableEdits');
@@ -1381,16 +1392,16 @@
       };
 
       document.getElementById('sheetSearchInput').placeholder = t('searchSheets');
-      document.getElementById('newBtn').innerHTML = '+';
+      document.getElementById('newBtn').innerHTML = '<i class="fa-solid fa-plus" aria-hidden="true"></i>';
       document.getElementById('newBtn').title = t('newSheet');
       updateEditToggleBtn();
-      document.getElementById('exportJsonBtn').innerHTML = svgExport;
+      document.getElementById('exportJsonBtn').innerHTML = iconExport;
       document.getElementById('exportJsonBtn').title = t('export');
       document.getElementById('exportJsonBtn').setAttribute('aria-label', t('export'));
-      document.getElementById('importJsonBtn').innerHTML = svgImport;
+      document.getElementById('importJsonBtn').innerHTML = iconImport;
       document.getElementById('importJsonBtn').title = t('import');
       document.getElementById('importJsonBtn').setAttribute('aria-label', t('import'));
-      document.getElementById('exportPdfBtn').innerHTML = svgPrint;
+      document.getElementById('exportPdfBtn').innerHTML = iconPrint;
       document.getElementById('exportPdfBtn').title = t('print');
       document.getElementById('exportPdfBtn').setAttribute('aria-label', t('print'));
       var sidebarVisible = true;
