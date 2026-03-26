@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   <!-- Allineato al client (Font Awesome Free ~6.x / Compendium): icone lista e toolbar -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
-  <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=6" />
+  <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=7" />
   <script src="../../../../static/extensions/ext-bridge.js"></script>
   <link rel="stylesheet" href="sheet-it-5e.css?v=3" />
   <script src="sheet-it5e-render.js?v=1"></script>
@@ -28,6 +28,37 @@
       height: 100%;
       overflow: hidden;
       padding: 0;
+    }
+
+    /*
+     * Chrome UI (#topBar): altezza/padding da .ext-toolbar-bar in ui.css (come Compendium).
+     * sheet-it-5e.css applica input[type=text] globali (Inter, bordo sotto, focus rosso): qui isoliamo solo il campo ricerca.
+     */
+    #topBar .ext-search-input {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important;
+      font-size: 0.95rem !important;
+      color: #333 !important;
+      background: #fff !important;
+      border: 1px solid #ddd !important;
+      border-radius: 0.25rem !important;
+      box-shadow: none !important;
+      padding: 0.4rem 0.6rem !important;
+      width: auto;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    #topBar .ext-search-input:focus {
+      outline: none !important;
+      border-color: #888 !important;
+      background: #fff !important;
+    }
+
+    #topBar .ext-search-input::placeholder {
+      color: #666 !important;
+      font-style: normal !important;
+      font-size: 0.95rem !important;
+      opacity: 1 !important;
     }
 
     /* Azioni a destra: figlio diretto della toolbar → stesso flusso flex di ui.css che per .ext-toolbar-bar > .ext-search-bar */
@@ -456,7 +487,7 @@
       </div>
     </div>
   </div>
-  <div id="topBar" class="ext-toolbar-bar ext-toolbar-bar--compact">
+  <div id="topBar" class="ext-toolbar-bar">
     <div class="ext-search-bar">
       <span class="ext-search-icon" aria-hidden="true"></span>
       <input type="text" id="sheetSearchInput" class="ext-search-input" placeholder="" />
@@ -1088,20 +1119,30 @@
         }
       }
 
-      function loadList(openId) {
+      function loadList(openId, options) {
+        var silent = options && options.silent;
         if (!roomCreator || !roomName) {
           loading.style.display = 'none'; loadingBar.style.display = 'none'; noRoom.style.display = 'block';
           setSheetPanelVisible(false);
           return;
         }
-        noRoom.style.display = 'none'; loading.style.display = 'block'; loadingBar.style.display = 'block'; sheetList.style.display = 'none';
+        if (!silent) {
+          noRoom.style.display = 'none'; loading.style.display = 'block'; loadingBar.style.display = 'block'; sheetList.style.display = 'none';
+        }
         fetch(api('/api/extensions/character-sheet/list') + '?room_creator=' + encodeURIComponent(roomCreator) + '&room_name=' + encodeURIComponent(roomName), { credentials: 'include' }).then(function (r) {
           return r.ok ? r.json() : { sheets: [], characters: [] };
         }).then(function (data) {
-          loading.style.display = 'none'; loadingBar.style.display = 'none'; sheets = data.sheets || []; characters = data.characters || [];
+          if (!silent) {
+            loading.style.display = 'none'; loadingBar.style.display = 'none';
+          }
+          sheets = data.sheets || []; characters = data.characters || [];
           sheetList.style.display = 'block';
           renderSheetList(openId);
-        }).catch(function () { loading.style.display = 'none'; loadingBar.style.display = 'none'; noRoom.style.display = 'block'; });
+        }).catch(function () {
+          if (!silent) {
+            loading.style.display = 'none'; loadingBar.style.display = 'none'; noRoom.style.display = 'block';
+          }
+        });
       }
 
       function mergeQeLinksFromData(data) {
@@ -1174,7 +1215,7 @@
           var payloadClean = cleanSpellArrays(JSON.parse(JSON.stringify(payload)));
           if (selectedId) {
             fetch(api('/api/extensions/character-sheet/sheet/' + selectedId), { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sheet: payloadClean, roomCreator: roomCreator, roomName: roomName }) })
-              .then(function (r) { if (r.ok) { currentData = payloadClean; loadList(); } else r.text().then(function (txt) { toast(txt || 'Errore', true); }); });
+              .then(function (r) { if (r.ok) { currentData = payloadClean; loadList(undefined, { silent: true }); } else r.text().then(function (txt) { toast(txt || 'Errore', true); }); });
           } else {
             fetch(api('/api/extensions/character-sheet/sheet'), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomCreator: roomCreator, roomName: roomName, name: payload.name || 'Nuova scheda' }) })
               .then(function (r) { return r.json(); })
