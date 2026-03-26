@@ -738,13 +738,13 @@
 }
 
 .ext-action-btn.visibility.visibility-on {
-    background: #e8f4fc;
-    color: #069;
+    color: #2e7d32;
+    background: rgba(46, 125, 50, 0.14);
 }
 
 .ext-action-btn.visibility.visibility-on:hover {
-    background: #d0e8f7;
-    color: #047;
+    background: rgba(46, 125, 50, 0.22);
+    color: #1b5e20;
 }
 
 .ext-action-btn.star {

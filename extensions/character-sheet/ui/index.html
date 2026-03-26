@@ -55,35 +55,9 @@
       gap: 0.35rem;
     }
 
+    /* Stessi gap/padding di .ext-toolbar-bar > .ext-search-bar (ui.css) */
     .cs-ext-search-bar {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-    }
-
-    .cs-ext-search-bar .ext-search-input {
-      flex: 1;
-      min-width: 120px;
-      padding: 0.28rem 0.5rem;
-      font-size: 0.875rem;
-      line-height: 1.25;
-    }
-
-    .cs-ext-search-bar .ext-search-icon {
-      width: 20px;
-      height: 20px;
-      font-size: 0.95rem;
-      background: none !important;
-      color: #666;
-    }
-
-    .cs-ext-search-bar .ext-search-icon > * {
-      display: block !important;
-    }
-
-    .cs-ext-search-bar .ext-search-icon .fa-solid {
-      line-height: 1;
+      gap: 0.5rem;
     }
 
     /* Schede: stessa riga dopo Stampa, con | ; blu / arancione */
@@ -283,11 +257,6 @@
       line-height: 1;
     }
 
-    .cs-sheet-list .ext-item-actions .ext-action-btn.visibility.visibility-on {
-      color: #0d47a1;
-      background: rgba(21, 101, 192, 0.12);
-    }
-
     .cs-sheet-list .ext-item-actions .ext-action-btn.visibility:not(.visibility-on) {
       color: #bf360c;
     }
@@ -314,7 +283,25 @@
     .cs-edit-toggle {
       display: inline-flex;
       align-items: center;
-      gap: 0.35rem;
+      justify-content: center;
+      gap: 0;
+    }
+
+    /* Stesse dimensioni degli altri .cs-icon-toolbar-btn (export/import/stampa, +) */
+    .ext-toolbar-bar .cs-icon-toolbar-btn.cs-edit-toggle {
+      width: 32px;
+      min-width: 32px;
+      max-width: 32px;
+      height: 32px;
+      min-height: 32px;
+      max-height: 32px;
+      padding: 0 !important;
+      box-sizing: border-box;
+    }
+
+    .ext-toolbar-bar .cs-icon-toolbar-btn.cs-edit-toggle .fa-solid {
+      font-size: 16px;
+      line-height: 1;
     }
 
     .cs-edit-toggle.cs-edit-enabled {
@@ -462,11 +449,6 @@
       line-height: 1;
     }
 
-    .cs-edit-toggle .fa-solid {
-      font-size: 1.15em;
-      line-height: 1;
-    }
-
     @media print {
       @page {
         margin: 10mm;
@@ -519,7 +501,7 @@
   <div id="topBar" class="ext-toolbar-bar cs-top-bar">
     <div class="cs-toolbar-stack">
       <div class="ext-search-bar cs-ext-search-bar">
-        <span class="ext-search-icon" aria-hidden="true"><i class="fa-solid fa-magnifying-glass"></i></span>
+        <span class="ext-search-icon" aria-hidden="true"></span>
         <input type="text" id="sheetSearchInput" class="ext-search-input" placeholder="" />
         <button type="button" id="newBtn" class="ext-search-add-btn" title=""></button>
         <div class="cs-top-actions">
@@ -527,8 +509,8 @@
           <input type="file" id="importJsonInput" accept=".json" style="display:none" />
           <button type="button" id="importJsonBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
           <button type="button" id="exportPdfBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
-          <span class="cs-tab-divider" aria-hidden="true">|</span>
-          <button type="button" id="editToggle" class="ext-ui-btn cs-edit-toggle cs-edit-disabled cs-icon-toolbar-btn" title=""></button>
+          <span id="csTabDivider" class="cs-tab-divider" aria-hidden="true" style="display:none">|</span>
+          <button type="button" id="editToggle" class="ext-ui-btn cs-edit-toggle cs-edit-disabled cs-icon-toolbar-btn" title="" style="display:none"></button>
           <div id="csTabBar" class="cs-ext-tab-strip cs-ext-tab-strip--inline" style="display: none" role="tablist">
             <button type="button" class="tab-btn tab-main active" data-cs-tab="main" role="tab" aria-selected="true">
               <i class="fa-solid fa-book-open cs-tab-icon" aria-hidden="true"></i>
@@ -693,6 +675,10 @@
         sheetPanel.style.display = visible ? 'flex' : 'none';
         var tabStrip = document.getElementById('csTabBar');
         if (tabStrip) tabStrip.style.display = visible ? 'inline-flex' : 'none';
+        var editBtn = document.getElementById('editToggle');
+        if (editBtn) editBtn.style.display = visible ? 'inline-flex' : 'none';
+        var divEl = document.getElementById('csTabDivider');
+        if (divEl) divEl.style.display = visible ? '' : 'none';
       }
 
       var SKILL_KEYS = ['acrobatics', 'animalHandling', 'arcana', 'athletics', 'deception', 'history', 'insight', 'intimidation', 'investigation', 'medicine', 'nature', 'perception', 'performance', 'persuasion', 'religion', 'sleightOfHand', 'stealth', 'survival'];
@@ -1147,7 +1133,11 @@
       }
 
       function loadList(openId) {
-        if (!roomCreator || !roomName) { loading.style.display = 'none'; loadingBar.style.display = 'none'; noRoom.style.display = 'block'; return; }
+        if (!roomCreator || !roomName) {
+          loading.style.display = 'none'; loadingBar.style.display = 'none'; noRoom.style.display = 'block';
+          setSheetPanelVisible(false);
+          return;
+        }
         noRoom.style.display = 'none'; loading.style.display = 'block'; loadingBar.style.display = 'block'; sheetList.style.display = 'none';
         fetch(api('/api/extensions/character-sheet/list') + '?room_creator=' + encodeURIComponent(roomCreator) + '&room_name=' + encodeURIComponent(roomName), { credentials: 'include' }).then(function (r) {
           return r.ok ? r.json() : { sheets: [], characters: [] };
