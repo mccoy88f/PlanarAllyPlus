@@ -5,7 +5,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Documents</title>
-    <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=2" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=7" />
     <script src="../../../../static/extensions/ext-bridge.js"></script>
     <style>
         html,
@@ -196,9 +197,15 @@
             font-size: 0.9rem;
         }
 
-        .visibility-btn.on {
-            color: #2196f3;
-            font-weight: bold;
+        /* Toolbar: icone coerenti con ui.css (32×32) */
+        .ext-toolbar-bar .ext-toolbar-btn .fa-solid {
+            font-size: 16px;
+            line-height: 1;
+        }
+
+        .ext-toolbar-bar .ext-search-add-btn .fa-solid {
+            font-size: 1.1rem;
+            line-height: 1;
         }
 
         .doc-move-select {
@@ -280,7 +287,7 @@
             <input type="file" id="fileInput" class="ext-ui-file-input" accept=".pdf,application/pdf" multiple />
             <button type="button" id="uploadBtn" class="ext-search-add-btn" title=""></button>
         </div>
-        <button type="button" id="newFolderBtn" class="ext-ui-btn"></button>
+        <button type="button" id="newFolderBtn" class="ext-toolbar-btn" title=""></button>
         <div class="doc-view-toggle">
             <button type="button" id="viewListBtn" title="" class="ext-toolbar-btn active"><svg viewBox="0 0 24 24"
                     fill="currentColor">
@@ -604,8 +611,15 @@
             var L = TRANSLATIONS[locale] || TRANSLATIONS.en;
             document.documentElement.lang = locale;
 
-            function t(key) {
-                return L[key] || TRANSLATIONS.en[key] || key;
+            function t(key, vars) {
+                var s = L[key] || TRANSLATIONS.en[key] || key;
+                if (vars && typeof s === 'string') {
+                    Object.keys(vars).forEach(function (k) {
+                        var v = vars[k] != null ? String(vars[k]) : '';
+                        s = s.split('{{' + k + '}}').join(v);
+                    });
+                }
+                return s;
             }
 
             function base() {
@@ -615,9 +629,12 @@
             }
             function api(path) { return base() + path; }
 
-            document.getElementById('newFolderBtn').textContent = t('new_folder');
-            document.getElementById('uploadBtn').textContent = '+';
+            document.getElementById('newFolderBtn').innerHTML = '<i class="fa-solid fa-folder-plus" aria-hidden="true"></i>';
+            document.getElementById('newFolderBtn').title = t('new_folder');
+            document.getElementById('newFolderBtn').setAttribute('aria-label', t('new_folder'));
+            document.getElementById('uploadBtn').innerHTML = '<i class="fa-solid fa-plus" aria-hidden="true"></i>';
             document.getElementById('uploadBtn').title = t('upload_pdf');
+            document.getElementById('uploadBtn').setAttribute('aria-label', t('upload_pdf'));
             document.getElementById('docSearchInput').placeholder = t('search_documents');
             document.getElementById('loading').textContent = t('loading');
 
@@ -716,7 +733,7 @@
                 if (opts.visibilityToggle) {
                     var eyeTitle = it.visibleToPlayers ? t('visible_to_players') + ' (on)' : t('visible_to_players') + ' (off)';
                     var currentEye = it.visibleToPlayers ? eyeSvg : eyeSlashSvg;
-                    actions += '<button type="button" class="ext-action-btn visibility-btn' + (it.visibleToPlayers ? ' on' : '') + '" data-id="' + it.id + '" title="' + eyeTitle + '">' + currentEye + '</button>';
+                    actions += '<button type="button" class="ext-action-btn visibility' + (it.visibleToPlayers ? ' visibility-on' : '') + '" data-id="' + it.id + '" title="' + eyeTitle + '">' + currentEye + '</button>';
                 }
                 if (opts.rename) {
                     actions += '<button type="button" class="ext-action-btn rename-btn" data-id="' + it.id + '" title="' + t('rename') + '">' + pencilSvg + '</button>';
@@ -790,7 +807,7 @@
                             }
                         });
                     });
-                    listEl.querySelectorAll('.visibility-btn').forEach(function (el) {
+                    listEl.querySelectorAll('.ext-action-btn.visibility').forEach(function (el) {
                         el.addEventListener('click', async function (e) { e.stopPropagation(); await toggleVisibility(parseInt(el.dataset.id, 10)); });
                     });
                     listEl.querySelectorAll('.rename-btn').forEach(function (el) {
