@@ -128,7 +128,7 @@ Applica `ext-ui-root` al `<body>`.
 
 | Estensione | Pattern barra | Icona lente | Note |
 |------------|---------------|-------------|------|
-| **Character Sheet** | `ext-toolbar-bar--compact` → `ext-search-bar` + `cs-top-actions` (figli diretti, come Documenti) | SVG da `ui.css` (span vuoto) | Ricerca/`+` nella search bar; azioni e tab in `.cs-top-actions` |
+| **Character Sheet** | `ext-toolbar-bar` → `ext-search-bar` + `cs-top-actions` (figli diretti, come Documenti) | SVG da `ui.css` (span vuoto) | Il campo ricerca in `#topBar` forza font/bordi `ui.css` perché `sheet-it-5e.css` stilizza altrimenti tutti gli `input[type=text]` |
 | **Documenti** | `ext-toolbar-bar` → `ext-search-bar` (figlio diretto) + altri controlli | SVG (`span` vuoto) | Lista/griglia e nuova cartella accanto alla ricerca |
 | **Time Manager** | Solo `ext-search-bar` dentro `ext-toolbar-bar` | SVG (`span` vuoto) | Layout minimo |
 | **Ambient Music** | `ext-toolbar-bar am-toolbar` | — (nessuna ricerca nella barra) | Controlli playback; `ext-toolbar-btn` |
