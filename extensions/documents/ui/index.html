@@ -289,15 +289,8 @@
         </div>
         <button type="button" id="newFolderBtn" class="ext-toolbar-btn" title=""></button>
         <div class="doc-view-toggle">
-            <button type="button" id="viewListBtn" title="" class="ext-toolbar-btn active"><svg viewBox="0 0 24 24"
-                    fill="currentColor">
-                    <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
-                </svg></button>
-            <button type="button" id="viewGridBtn" title="" class="ext-toolbar-btn"><svg viewBox="0 0 24 24"
-                    fill="currentColor">
-                    <path
-                        d="M3 3v8h8V3H3zm6 6H5V5h4v4zm-6 4v8h8v-8H3zm6 6H5v-4h4v4zm4-16v8h8V3h-8zm6 6h-4V5h4v4zm-6 4v8h8v-8h-8zm6 6h-4v-4h4v4z" />
-                </svg></button>
+            <button type="button" id="viewListBtn" title="" class="ext-toolbar-btn active" aria-pressed="true"><i class="fa-solid fa-list" aria-hidden="true"></i></button>
+            <button type="button" id="viewGridBtn" title="" class="ext-toolbar-btn" aria-pressed="false"><i class="fa-solid fa-table-cells" aria-hidden="true"></i></button>
         </div>
     </div>
     <div id="content" class="doc-content">
@@ -654,11 +647,11 @@
             let items = [];
             let folderPath = [];
             let viewMode = localStorage.getItem('doc-view-mode') || 'list';
-            var pencilSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
-            var folderSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>';
-            var trashSvg = '<svg viewBox="0 0 448 512" fill="currentColor"><path d="M135.2 17.69L128 32H32C14.33 32 0 46.33 0 64v384c0 17.67 14.33 32 32 32h384c17.67 0 32-14.33 32-32V64c0-17.67-14.33-32-32-32h-96l-7.2-14.31A32 32 0 0 0 276.8 0H171.2a32 32 0 0 0-36 17.69zM64 96h384v352H64V96zm32 32v288h64V128H96zm128 0v288h64V128h-64zm128 0v288h64V128h-64z"/></svg>';
-            var eyeSvg = '<svg viewBox="0 0 576 512" fill="currentColor"><path d="M572.52 241.4C518.29 135.59 410.93 64 288 64S57.68 135.64 3.48 241.41a32 32 0 0 0 0 29.19C57.71 376.41 165.07 448 288 448s230.32-71.64 284.52-177.41a32 32 0 0 0 0-29.19zM288 400c-98.65 0-189.09-55-237.93-144C98.91 167 189.34 112 288 112s189.09 55 237.93 144C477.1 345 386.66 400 288 400zM288 160a160 160 0 1 0 0 320 160 160 0 0 0 0-320zm0 288a128 128 0 1 1 0-256 128 128 0 0 1 0 256z"/></svg>';
-            var eyeSlashSvg = '<svg viewBox="0 0 640 512" fill="currentColor"><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2L-3.1 38.8c-4.2 8.2-1.2 18.3 7 22.5l591.1 463.5c8.2 4.2 18.3 1.2 22.5-7l10.2-29.6c4.2-8.2 1.2-18.3-7-22.5L38.8 5.1zM288 160c-70.7 0-128 57.3-128 128c0 12.4 1.8 24.3 5.1 35.4l-94.5-74.1C57.68 135.64 165.07 64 288 64c123.2 0 230.3 71.6 284.5 177.4a32 32 0 0 1 0 29.19l-40.8 31.9C507.4 312.3 512 262.2 512 208c0-123.7-100.3-224-224-224zM96 288c0-35.3 28.7-64 64-64l46.1 36.1c-2.2 6.9-3.4 14.2-3.4 21.7 0 70.7 57.3 128 128 128 7.5 0 14.8-1.2 21.7-3.4L416 416c-70.7 0-128-57.3-128-128z"/></svg>';
+            var iconEye = '<i class="fa-solid fa-eye" aria-hidden="true"></i>';
+            var iconEyeSlash = '<i class="fa-solid fa-eye-slash" aria-hidden="true"></i>';
+            var iconPen = '<i class="fa-solid fa-pen" aria-hidden="true"></i>';
+            var iconFolderMove = '<i class="fa-solid fa-folder" aria-hidden="true"></i>';
+            var iconTrash = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i>';
 
             function showMsg(text, isError) {
                 msgEl.textContent = text;
@@ -732,17 +725,17 @@
                 let actions = '';
                 if (opts.visibilityToggle) {
                     var eyeTitle = it.visibleToPlayers ? t('visible_to_players') + ' (on)' : t('visible_to_players') + ' (off)';
-                    var currentEye = it.visibleToPlayers ? eyeSvg : eyeSlashSvg;
+                    var currentEye = it.visibleToPlayers ? iconEye : iconEyeSlash;
                     actions += '<button type="button" class="ext-action-btn visibility' + (it.visibleToPlayers ? ' visibility-on' : '') + '" data-id="' + it.id + '" title="' + eyeTitle + '">' + currentEye + '</button>';
                 }
                 if (opts.rename) {
-                    actions += '<button type="button" class="ext-action-btn rename-btn" data-id="' + it.id + '" title="' + t('rename') + '">' + pencilSvg + '</button>';
+                    actions += '<button type="button" class="ext-action-btn rename-btn" data-id="' + it.id + '" title="' + t('rename') + '">' + iconPen + '</button>';
                 }
                 if (opts.move) {
-                    actions += '<button type="button" class="ext-action-btn move-btn" data-id="' + it.id + '" title="' + t('move') + '">' + folderSvg + '</button>';
+                    actions += '<button type="button" class="ext-action-btn move-btn" data-id="' + it.id + '" title="' + t('move') + '">' + iconFolderMove + '</button>';
                 }
                 if (opts.delete) {
-                    actions += '<button type="button" class="ext-action-btn delete del-btn" data-id="' + it.id + '" title="' + t('delete') + '">' + trashSvg + '</button>';
+                    actions += '<button type="button" class="ext-action-btn delete del-btn" data-id="' + it.id + '" title="' + t('delete') + '">' + iconTrash + '</button>';
                 }
                 var contentClass = isFolder ? '' : ' doc-list-item-doc';
                 return '<li class="ext-ui-list-item" data-id="' + it.id + '" data-type="' + (it.type || 'document') + '">' +

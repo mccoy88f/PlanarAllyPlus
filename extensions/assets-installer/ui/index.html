@@ -5,7 +5,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Assets Installer</title>
-    <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=2" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=7" />
     <script src="../../../../static/extensions/ext-bridge.js"></script>
     <style>
         .ai-root {
@@ -387,7 +388,7 @@
                     });
             }
 
-            var trashSvg = '<svg viewBox="0 0 448 512" fill="currentColor"><path d="M135.2 17.69L128 32H32C14.33 32 0 46.33 0 64v384c0 17.67 14.33 32 32 32h384c17.67 0 32-14.33 32-32V64c0-17.67-14.33-32-32-32h-96l-7.2-14.31A32 32 0 0 0 276.8 0H171.2a32 32 0 0 0-36 17.69zM64 96h384v352H64V96zm32 32v288h64V128H96zm128 0v288h64V128h-64zm128 0v288h64V128h-64z"/></svg>';
+            var iconTrash = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i>';
             function formatInstallDate(isoStr) {
                 if (!isoStr) return '';
                 try {
@@ -410,7 +411,7 @@
                 return '<li class="ext-ui-list-item ai-item" data-id="' + it.id + '">' +
                     '<div class="ext-ui-list-item-content"><span class="ext-ui-list-item-name ai-item-name">' + nameEsc + '</span><div class="ext-ui-muted ai-item-meta">' + meta + '</div></div>' +
                     '<div class="ext-item-actions ai-item-actions">' +
-                    '<button type="button" class="ext-action-btn delete uninstall-btn" data-id="' + it.id + '" data-name="' + nameEsc + '" title="' + t('uninstall') + '">' + trashSvg + '</button>' +
+                    '<button type="button" class="ext-action-btn delete uninstall-btn" data-id="' + it.id + '" data-name="' + nameEsc + '" title="' + t('uninstall') + '">' + iconTrash + '</button>' +
                     '</div></li>';
             }
 
