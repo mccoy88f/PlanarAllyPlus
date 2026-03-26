@@ -45,9 +45,9 @@ const LOCALE_MAP: Record<string, string> = {
     dk: "da",
 };
 
-/** URL base per i file locale PDF.js (v3.11.174 usa .properties compatibile con vue3-pdf-app) */
+/** Allineato a pdf.js 2.4.456 (bundlato in vue3-pdf-app); v3.x ha chiavi l10n diverse e rompe i tooltip. */
 const PDF_LOCALE_BASE =
-    "https://raw.githubusercontent.com/mozilla/pdf.js/v3.11.174/l10n";
+    "https://raw.githubusercontent.com/mozilla/pdf.js/v2.4.456/l10n";
 const PDF_LOCALE_LINK_ID = "planarally-pdf-locale-link";
 
 const toolbarConfig = {

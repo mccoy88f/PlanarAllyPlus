@@ -1003,8 +1003,10 @@ async function loadCompendiums(): Promise<void> {
                         );
                         await toggleCollection(comp.id, targetColl.slug);
                         const items = itemsByKey.value.get(`${comp.id}/${targetColl.slug}`) ?? [];
-                        const itemMeta = items.find((i: ItemMeta) => i.slug === openItem.itemSlug);
-                        if (itemMeta) await selectItem(comp, targetColl, itemMeta);
+                        const itemMeta =
+                            items.find((i: ItemMeta) => i.slug === openItem.itemSlug) ??
+                            ({ slug: openItem.itemSlug, name: openItem.itemSlug } as ItemMeta);
+                        await selectItem(comp, targetColl, itemMeta);
                     }
                 }
                 extensionsState.mutableReactive.compendiumOpenItem = undefined;
@@ -1150,8 +1152,10 @@ watch(
         if (targetColl) {
             await ensureCollectionExpanded(comp.id, targetColl.slug);
             const items = itemsByKey.value.get(`${comp.id}/${targetColl.slug}`) ?? [];
-            const itemMeta = items.find((i: ItemMeta) => i.slug === openItem.itemSlug);
-            if (itemMeta) await selectItem(comp, targetColl, itemMeta);
+            const itemMeta =
+                items.find((i: ItemMeta) => i.slug === openItem.itemSlug) ??
+                ({ slug: openItem.itemSlug, name: openItem.itemSlug } as ItemMeta);
+            await selectItem(comp, targetColl, itemMeta);
         }
         extensionsState.mutableReactive.compendiumOpenItem = undefined;
     },

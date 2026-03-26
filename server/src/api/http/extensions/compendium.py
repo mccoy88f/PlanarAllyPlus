@@ -54,6 +54,20 @@ def _slugify(name: str) -> str:
     return re.sub(r"[-\s]+", "-", s).strip("-") or "compendium"
 
 
+def _item_slug_lookup_variants(requested: str) -> list[str]:
+    """Varianti di slug da provare in ordine (link/chat vs DB dopo import o slugify)."""
+    out: list[str] = []
+    seen: set[str] = set()
+    candidates = [requested, _slugify(requested)]
+    if "." in requested:
+        candidates.append(requested.replace(".", ""))
+    for s in candidates:
+        if s and s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
+
 def _config_path() -> Path:
     return _db_dir() / "compendiums.json"
 
@@ -1121,20 +1135,25 @@ async def get_item(request: web.Request) -> web.Response:
     comp_name = comp.get("name", "") if comp else ""
     try:
         conn = _get_conn(comp_id)
-        row = conn.execute(
-            """
-            SELECT c.slug, c.name, i.slug, i.name, i.markdown
-            FROM items i
-            JOIN collections c ON i.collection_id = c.id
-            WHERE c.slug = ? AND i.slug = ?
-            """,
-            (coll_slug, item_slug),
-        ).fetchone()
+        row = None
+        resolved_item_slug = item_slug
+        for variant in _item_slug_lookup_variants(item_slug):
+            row = conn.execute(
+                """
+                SELECT c.slug, c.name, i.slug, i.name, i.markdown
+                FROM items i
+                JOIN collections c ON i.collection_id = c.id
+                WHERE c.slug = ? AND i.slug = ?
+                """,
+                (coll_slug, variant),
+            ).fetchone()
+            if row:
+                resolved_item_slug = row[2]
+                break
         if not row:
             conn.close()
             return web.json_response({"error": "Item not found"}, status=404)
 
-            
         # Fetch tags
         tag_rows = conn.execute(
             """
@@ -1146,7 +1165,7 @@ async def get_item(request: web.Request) -> web.Response:
             JOIN collections c ON c.id = i.collection_id
             WHERE c.slug = ? AND i.slug = ?
             """,
-            (coll_slug, item_slug),
+            (coll_slug, resolved_item_slug),
         ).fetchall()
         conn.close()
         

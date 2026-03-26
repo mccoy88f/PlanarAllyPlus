@@ -542,15 +542,16 @@ async def toggle_document_visibility(request: web.Request) -> web.Response:
     if not pr or pr.role != Role.DM:
         return web.HTTPForbidden(text="Only the DM can toggle document visibility")
 
+    # L'ID nel body è l'id di AssetEntry (come in list/rename), non Asset.id
     try:
-        asset = Asset.get_by_id(asset_id)
-    except Asset.DoesNotExist:
+        entry = AssetEntry.get_by_id(asset_id)
+    except AssetEntry.DoesNotExist:
         return web.HTTPNotFound(text="Item not found")
-    if asset.owner != user:
+    if entry.owner != user:
         return web.HTTPForbidden(text="Not owner of this item")
-    if not _is_in_documents_tree(asset, user):
+    if not _is_in_documents_tree(entry, user):
         return web.HTTPBadRequest(text="Item not in documents")
-    if asset.file_hash and not asset.name.lower().endswith(".pdf"):
+    if entry.asset and not entry.name.lower().endswith(".pdf"):
         return web.HTTPBadRequest(text="Only documents and folders can have visibility toggled")
 
     room_key = _room_key(room_creator, room_name)

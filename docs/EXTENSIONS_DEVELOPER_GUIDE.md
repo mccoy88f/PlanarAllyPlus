@@ -139,6 +139,8 @@ Applica `ext-ui-root` al `<body>`.
 
 **Regole:** preferisci sempre `ext-toolbar-bar` per la fascia superiore grigia; per la ricerca usa `ext-search-icon` come **`<span class="ext-search-icon" aria-hidden="true"></span>`** (icona SVG definita in `ui.css`, coerente ovunque). Evita l’emoji 🔍 nel markup.
 
+**Azioni in lista** (`ext-action-btn`): usa **Font Awesome 6** (`<i class="fa-solid fa-…" aria-hidden="true"></i>`), dimensioni già definite in `ui.css` (15px). Evita SVG inline duplicati; stessi simboli di riferimento: occhio / occhio barrato (visibilità), penna (modifica), cartella (sposta), cestino (elimina), come in Documenti e Scheda personaggio.
+
 ### 5.3 Barra di ricerca unificata (ext-search-bar)
 
 La barra di ricerca deve **sempre** avere a sinistra l’icona della lente e a destra il pulsante +, come nelle altre estensioni (Compendium, Gestione estensioni, ecc.).
