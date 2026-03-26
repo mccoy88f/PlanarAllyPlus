@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   <!-- Allineato al client (Font Awesome Free ~6.x / Compendium): icone lista e toolbar -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
-  <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=5" />
+  <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=6" />
   <script src="../../../../static/extensions/ext-bridge.js"></script>
   <link rel="stylesheet" href="sheet-it-5e.css?v=3" />
   <script src="sheet-it5e-render.js?v=1"></script>
@@ -30,26 +30,13 @@
       padding: 0;
     }
 
-    .cs-toolbar-stack {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      width: 100%;
-    }
-
-    /* La search bar non è figlio diretto di .ext-toolbar-bar: senza questo eredita padding/margin da ui.css */
-    .cs-toolbar-stack .ext-search-bar {
-      flex: 1 1 auto;
-      min-width: 0;
-      margin: 0;
-      padding: 0;
-    }
-
-    /* Stessi gap/padding di .ext-toolbar-bar > .ext-search-bar (ui.css) */
-    .cs-ext-search-bar {
-      gap: 0.5rem;
+    /* Azioni a destra: figlio diretto della toolbar → stesso flusso flex di ui.css che per .ext-toolbar-bar > .ext-search-bar */
+    .ext-toolbar-bar > .cs-top-actions {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+      flex-shrink: 0;
     }
 
     /* Schede: stessa riga dopo Stampa, con | ; blu / arancione */
@@ -408,14 +395,6 @@
       word-wrap: break-word;
     }
 
-    .cs-top-actions {
-      display: inline-flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 4px;
-      flex-shrink: 0;
-    }
-
     .ext-toolbar-bar .cs-icon-toolbar-btn:not(.cs-edit-toggle) {
       color: #333;
       border-color: #ccc;
@@ -478,29 +457,27 @@
     </div>
   </div>
   <div id="topBar" class="ext-toolbar-bar ext-toolbar-bar--compact">
-    <div class="cs-toolbar-stack">
-      <div class="ext-search-bar cs-ext-search-bar">
-        <span class="ext-search-icon" aria-hidden="true"></span>
-        <input type="text" id="sheetSearchInput" class="ext-search-input" placeholder="" />
-        <button type="button" id="newBtn" class="ext-search-add-btn" title=""></button>
-        <div class="cs-top-actions">
-          <button type="button" id="exportJsonBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
-          <input type="file" id="importJsonInput" accept=".json" style="display:none" />
-          <button type="button" id="importJsonBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
-          <button type="button" id="exportPdfBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
-          <span id="csTabDivider" class="cs-tab-divider" aria-hidden="true" style="display:none">|</span>
-          <button type="button" id="editToggle" class="ext-ui-btn cs-edit-toggle cs-edit-disabled cs-icon-toolbar-btn" title="" style="display:none"></button>
-          <div id="csTabBar" class="cs-ext-tab-strip cs-ext-tab-strip--inline" style="display: none" role="tablist">
-            <button type="button" class="tab-btn tab-main active" data-cs-tab="main" role="tab" aria-selected="true">
-              <i class="fa-solid fa-book-open cs-tab-icon" aria-hidden="true"></i>
-              <span class="cs-tab-label"></span>
-            </button>
-            <button type="button" class="tab-btn tab-spells" data-cs-tab="spells" role="tab" aria-selected="false">
-              <i class="fa-solid fa-wand-magic-sparkles cs-tab-icon" aria-hidden="true"></i>
-              <span class="cs-tab-label"></span>
-            </button>
-          </div>
-        </div>
+    <div class="ext-search-bar">
+      <span class="ext-search-icon" aria-hidden="true"></span>
+      <input type="text" id="sheetSearchInput" class="ext-search-input" placeholder="" />
+      <button type="button" id="newBtn" class="ext-search-add-btn" title=""></button>
+    </div>
+    <div class="cs-top-actions">
+      <button type="button" id="exportJsonBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
+      <input type="file" id="importJsonInput" accept=".json" style="display:none" />
+      <button type="button" id="importJsonBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
+      <button type="button" id="exportPdfBtn" class="ext-ui-btn cs-icon-toolbar-btn" title=""></button>
+      <span id="csTabDivider" class="cs-tab-divider" aria-hidden="true" style="display:none">|</span>
+      <button type="button" id="editToggle" class="ext-ui-btn cs-edit-toggle cs-edit-disabled cs-icon-toolbar-btn" title="" style="display:none"></button>
+      <div id="csTabBar" class="cs-ext-tab-strip cs-ext-tab-strip--inline" style="display: none" role="tablist">
+        <button type="button" class="tab-btn tab-main active" data-cs-tab="main" role="tab" aria-selected="true">
+          <i class="fa-solid fa-book-open cs-tab-icon" aria-hidden="true"></i>
+          <span class="cs-tab-label"></span>
+        </button>
+        <button type="button" class="tab-btn tab-spells" data-cs-tab="spells" role="tab" aria-selected="false">
+          <i class="fa-solid fa-wand-magic-sparkles cs-tab-icon" aria-hidden="true"></i>
+          <span class="cs-tab-label"></span>
+        </button>
       </div>
     </div>
   </div>
