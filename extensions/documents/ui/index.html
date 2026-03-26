@@ -52,12 +52,48 @@
             font-size: 1.5rem;
         }
 
+        .doc-icon .fa-solid,
+        .folder-icon .fa-solid {
+            font-size: 1.35rem;
+            line-height: 1;
+        }
+
         .doc-icon {
-            color: #c00;
+            color: #c62828;
         }
 
         .folder-icon {
-            color: #f90;
+            color: #ef6c00;
+        }
+
+        .doc-loading {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #666;
+            font-style: italic;
+        }
+
+        .doc-loading .fa-solid {
+            font-style: normal;
+            color: #1565c0;
+        }
+
+        .doc-empty-msg {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0;
+            padding: 0;
+            color: #666;
+            font-style: italic;
+        }
+
+        .doc-empty-msg .fa-solid {
+            font-size: 1.25rem;
+            font-style: normal;
+            color: #999;
+            flex-shrink: 0;
         }
 
         .doc-thumb {
@@ -139,11 +175,14 @@
             line-height: 1;
         }
 
-        .doc-list .ext-item-actions .ext-action-btn.visibility:not(.visibility-on) {
+        /* visibility-btn = stesso ruolo di .visibility (liste Documenti); occhio off = arancio come scheda */
+        .doc-list .ext-item-actions .ext-action-btn.visibility:not(.visibility-on),
+        .doc-list .ext-item-actions .ext-action-btn.visibility-btn:not(.visibility-on) {
             color: #bf360c;
         }
 
-        .doc-list .ext-item-actions .ext-action-btn.visibility:not(.visibility-on):hover {
+        .doc-list .ext-item-actions .ext-action-btn.visibility:not(.visibility-on):hover,
+        .doc-list .ext-item-actions .ext-action-btn.visibility-btn:not(.visibility-on):hover {
             background: rgba(191, 54, 12, 0.12);
             color: #d84315;
         }
@@ -187,6 +226,11 @@
         .doc-list.doc-grid .doc-icon,
         .doc-list.doc-grid .folder-icon {
             font-size: 4rem;
+        }
+
+        .doc-list.doc-grid .doc-icon .fa-solid,
+        .doc-list.doc-grid .folder-icon .fa-solid {
+            font-size: inherit;
         }
 
         .doc-list.doc-grid .doc-thumb {
@@ -311,7 +355,7 @@
     <div id="content" class="doc-content">
         <div id="msg"></div>
         <div id="breadcrumb" class="doc-breadcrumb" style="display:none"></div>
-        <div id="loading" class="ext-ui-loading"></div>
+        <div id="loading" class="ext-ui-loading" style="display:none"></div>
         <div id="empty" class="ext-ui-empty" style="display:none"></div>
         <ul id="list" class="ext-ui-list doc-list" style="display:none"></ul>
     </div>
@@ -644,7 +688,6 @@
             document.getElementById('uploadBtn').title = t('upload_pdf');
             document.getElementById('uploadBtn').setAttribute('aria-label', t('upload_pdf'));
             document.getElementById('docSearchInput').placeholder = t('search_documents');
-            document.getElementById('loading').textContent = t('loading');
 
             const listEl = document.getElementById('list');
             const loadingEl = document.getElementById('loading');
@@ -673,6 +716,26 @@
                 msgEl.className = 'ext-ui-msg ' + (isError ? 'ext-ui-msg-error' : 'ext-ui-msg-success');
                 msgEl.style.display = 'block';
                 setTimeout(function () { msgEl.style.display = 'none'; }, 3000);
+            }
+
+            function setLoadingVisible(visible) {
+                if (visible) {
+                    loadingEl.innerHTML =
+                        '<span class="doc-loading"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><span class="doc-loading-text"></span></span>';
+                    var lt = loadingEl.querySelector('.doc-loading-text');
+                    if (lt) lt.textContent = t('loading');
+                    loadingEl.style.display = 'block';
+                } else {
+                    loadingEl.style.display = 'none';
+                }
+            }
+
+            function setEmptyMessage(msgKey, iconClass) {
+                var ic = iconClass || 'fa-folder-open';
+                emptyEl.innerHTML =
+                    '<p class="doc-empty-msg"><i class="fa-solid ' + ic + '" aria-hidden="true"></i><span class="doc-empty-text"></span></p>';
+                var span = emptyEl.querySelector('.doc-empty-text');
+                if (span) span.textContent = t(msgKey);
             }
 
             function buildFolderPath() {
@@ -730,18 +793,18 @@
                 const displayNameEsc = displayName(it).replace(/</g, '&lt;').replace(/"/g, '&quot;');
                 let iconHtml;
                 if (isFolder) {
-                    iconHtml = '<span class="folder-icon">📁</span>';
+                    iconHtml = '<span class="folder-icon"><i class="fa-solid fa-folder" aria-hidden="true"></i></span>';
                 } else if (it.thumbnailUrl) {
                     var thumbUrl = base() + it.thumbnailUrl;
                     iconHtml = '<img class="doc-thumb" src="' + thumbUrl + '" alt="" loading="lazy" />';
                 } else {
-                    iconHtml = '<span class="doc-icon">📄</span>';
+                    iconHtml = '<span class="doc-icon"><i class="fa-solid fa-file-pdf" aria-hidden="true"></i></span>';
                 }
                 let actions = '';
                 if (opts.visibilityToggle) {
                     var eyeTitle = it.visibleToPlayers ? t('visible_to_players') + ' (on)' : t('visible_to_players') + ' (off)';
                     var currentEye = it.visibleToPlayers ? iconEye : iconEyeSlash;
-                    actions += '<button type="button" class="ext-action-btn visibility' + (it.visibleToPlayers ? ' visibility-on' : '') + '" data-id="' + it.id + '" title="' + eyeTitle + '">' + currentEye + '</button>';
+                    actions += '<button type="button" class="ext-action-btn visibility visibility-btn' + (it.visibleToPlayers ? ' visibility-on' : '') + '" data-id="' + it.id + '" title="' + eyeTitle + '">' + currentEye + '</button>';
                 }
                 if (opts.rename) {
                     actions += '<button type="button" class="ext-action-btn rename-btn" data-id="' + it.id + '" title="' + t('rename') + '">' + iconPen + '</button>';
@@ -772,8 +835,8 @@
 
                 if (current.length === 0) {
                     listEl.style.display = 'none';
+                    setEmptyMessage('no_documents', 'fa-folder-open');
                     emptyEl.style.display = 'block';
-                    emptyEl.textContent = t('no_documents');
                 } else {
                     emptyEl.style.display = 'none';
                     folders.sort(function (a, b) { return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }); });
@@ -815,7 +878,7 @@
                             }
                         });
                     });
-                    listEl.querySelectorAll('.ext-action-btn.visibility').forEach(function (el) {
+                    listEl.querySelectorAll('.ext-action-btn.visibility, .ext-action-btn.visibility-btn').forEach(function (el) {
                         el.addEventListener('click', async function (e) { e.stopPropagation(); await toggleVisibility(parseInt(el.dataset.id, 10)); });
                     });
                     listEl.querySelectorAll('.rename-btn').forEach(function (el) {
@@ -936,7 +999,7 @@
             }
 
             async function load() {
-                loadingEl.style.display = 'block';
+                setLoadingVisible(true);
                 emptyEl.style.display = 'none';
                 listEl.style.display = 'none';
                 breadcrumbEl.style.display = 'none';
@@ -956,7 +1019,7 @@
                     if (currentFolderId === null || !items.some(function (it) { return it.id === currentFolderId || (it.type === 'folder' && it.folderId === currentFolderId); })) {
                         currentFolderId = rootId;
                     }
-                    loadingEl.style.display = 'none';
+                    setLoadingVisible(false);
                     render();
                     var missingThumbs = items.filter(function (it) { return it.type === 'document' && it.fileHash && !it.thumbnailUrl; }).map(function (it) { return it.fileHash; });
                     if (missingThumbs.length > 0) {
@@ -974,8 +1037,8 @@
                         } catch (e) { /* ignore */ }
                     }
                 } catch (e) {
-                    loadingEl.style.display = 'none';
-                    emptyEl.textContent = t('error_loading');
+                    setLoadingVisible(false);
+                    setEmptyMessage('error_loading', 'fa-triangle-exclamation');
                     emptyEl.style.display = 'block';
                 }
             }
