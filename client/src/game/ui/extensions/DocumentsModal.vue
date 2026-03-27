@@ -179,7 +179,7 @@ onMounted(() => {
 
 <template>
     <Modal v-if="visible" :visible="visible" :mask="false" @close="onClose">
-        <template #header="{ dragStart, dragEnd, toggleFullscreen, fullscreen }">
+        <template #header="{ dragStart, dragEnd, toggleMinimize, minimized, toggleFullscreen, fullscreen }">
             <div
                 class="ext-modal-header"
                 draggable="true"
@@ -188,6 +188,12 @@ onMounted(() => {
             >
                 <h2 class="ext-modal-title">{{ t("game.ui.extensions.DocumentsModal.title") }}</h2>
                 <div class="ext-modal-actions">
+                    <font-awesome-icon
+                        :icon="minimized ? ['far', 'window-restore'] : 'minus'"
+                        :title="minimized ? t('common.restore') : t('common.minimize')"
+                        class="ext-modal-btn"
+                        @click.stop="toggleMinimize?.()"
+                    />
                     <font-awesome-icon
                         :icon="fullscreen ? 'compress' : 'expand'"
                         :title="fullscreen ? t('common.fullscreen_exit') : t('common.fullscreen')"
