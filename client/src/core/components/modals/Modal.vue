@@ -166,6 +166,10 @@ function toggleFullscreen(): void {
 
     fullscreen.value = !fullscreen.value;
     if (fullscreen.value) {
+        if (minimized.value) {
+            minimized.value = false;
+            emit("minimize-toggle", false);
+        }
         preFullscreenState.left = container.value.style.left;
         preFullscreenState.top = container.value.style.top;
         preFullscreenState.width = container.value.style.width;
