@@ -627,10 +627,6 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
         indexLoading.value = false;
     }
     await ensureCompendiumExpanded(comp.id);
-    const roots = collectionsFor(comp.id).filter((c: CollectionMeta) => !c.parentSlug);
-    for (const c of roots) {
-        await ensureCollectionExpanded(comp.id, c.slug);
-    }
 }
 
 async function showCollectionIndex(comp: CompendiumMeta, coll: CollectionMeta): Promise<void> {
@@ -675,9 +671,6 @@ async function showCollectionIndex(comp: CompendiumMeta, coll: CollectionMeta): 
     await ensureCompendiumExpanded(comp.id);
     await expandAncestorsForCollection(comp.id, coll);
     await ensureCollectionExpanded(comp.id, coll.slug);
-    for (const sub of subCollectionsFor(comp.id, coll.slug)) {
-        await ensureCollectionExpanded(comp.id, sub.slug);
-    }
 }
 
 async function onCollectionLabelClick(comp: CompendiumMeta, coll: CollectionMeta): Promise<void> {
@@ -2118,12 +2111,6 @@ onMounted(() => {
         &.coll {
             font-weight: 400;
             font-size: 0.9rem;
-
-            .qe-tree-count {
-                font-size: 0.8rem;
-                color: #888;
-                margin-left: auto;
-            }
         }
     }
 
@@ -2150,7 +2137,14 @@ onMounted(() => {
     }
 
     .qe-tree-collection-row .qe-tree-toggle.coll {
+        flex: 0 0 auto;
+    }
+
+    .qe-tree-collection-row .qe-tree-count {
         flex-shrink: 0;
+        margin-left: auto;
+        font-size: 0.8rem;
+        color: #888;
     }
 
     .qe-tree-coll-name {
@@ -2159,6 +2153,7 @@ onMounted(() => {
         font-size: 0.85rem;
         cursor: pointer;
         color: #333;
+        text-align: left;
     }
 
     .qe-tree-coll-name.has-children:hover {
