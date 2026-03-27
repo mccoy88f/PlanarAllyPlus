@@ -65,6 +65,19 @@ interface SearchResult {
 }
 
 const loading = ref(true);
+/** Barra superiore (standard estensioni) durante fetch sidebar: collezioni / voci numerose. */
+const treeLoadingDepth = ref(0);
+const treeLoading = computed(() => treeLoadingDepth.value > 0);
+
+async function withTreeLoad<T>(fn: () => Promise<T>): Promise<T> {
+    treeLoadingDepth.value++;
+    try {
+        return await fn();
+    } finally {
+        treeLoadingDepth.value--;
+    }
+}
+
 const compendiums = ref<CompendiumMeta[]>([]);
 const defaultId = ref<string | null>(null);
 const selectedCompendiumId = ref<string | null>(null);
@@ -391,17 +404,19 @@ async function toggleCompendium(compId: string): Promise<void> {
     next.add(compId);
     expandedComps.value = next;
     if (collectionsByComp.value.has(compId)) return;
-    try {
-        const tagsParam = Array.from(selectedTagIds.value).join(",");
-        const url = `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}` + (tagsParam ? `&tags=${tagsParam}` : "");
-        const r = await http.get(url);
-        if (r.ok) {
-            const data = (await r.json()) as { collections: CollectionMeta[] };
-            collectionsByComp.value = new Map(collectionsByComp.value).set(compId, data.collections);
+    await withTreeLoad(async () => {
+        try {
+            const tagsParam = Array.from(selectedTagIds.value).join(",");
+            const url = `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}` + (tagsParam ? `&tags=${tagsParam}` : "");
+            const r = await http.get(url);
+            if (r.ok) {
+                const data = (await r.json()) as { collections: CollectionMeta[] };
+                collectionsByComp.value = new Map(collectionsByComp.value).set(compId, data.collections);
+            }
+        } catch {
+            /* ignore */
         }
-    } catch {
-        /* ignore */
-    }
+    });
 }
 
 
@@ -411,17 +426,19 @@ async function ensureCompendiumExpanded(compId: string): Promise<void> {
         expandedComps.value = new Set([...expandedComps.value, compId]);
     }
     if (collectionsByComp.value.has(compId)) return;
-    try {
-        const r = await http.get(
-            `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}`,
-        );
-        if (r.ok) {
-            const data = (await r.json()) as { collections: CollectionMeta[] };
-            collectionsByComp.value = new Map(collectionsByComp.value).set(compId, data.collections);
+    await withTreeLoad(async () => {
+        try {
+            const r = await http.get(
+                `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}`,
+            );
+            if (r.ok) {
+                const data = (await r.json()) as { collections: CollectionMeta[] };
+                collectionsByComp.value = new Map(collectionsByComp.value).set(compId, data.collections);
+            }
+        } catch {
+            /* ignore */
         }
-    } catch {
-        /* ignore */
-    }
+    });
 }
 
 /** Espande collezione e carica items se necessario (senza chiudere se già aperta). */
@@ -434,19 +451,21 @@ async function ensureCollectionExpanded(compId: string, collSlug: string): Promi
     }
     const key = `${compId}/${collSlug}`;
     if (itemsByKey.value.has(key)) return;
-    try {
-        const tagsParam = Array.from(selectedTagIds.value).join(",");
+    await withTreeLoad(async () => {
+        try {
+            const tagsParam = Array.from(selectedTagIds.value).join(",");
 
-        const r = await http.get(
-            `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}`,
-        );
-        if (r.ok) {
-            const data = (await r.json()) as { items: ItemMeta[] };
-            itemsByKey.value = new Map(itemsByKey.value).set(key, data.items);
+            const r = await http.get(
+                `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}`,
+            );
+            if (r.ok) {
+                const data = (await r.json()) as { items: ItemMeta[] };
+                itemsByKey.value = new Map(itemsByKey.value).set(key, data.items);
+            }
+        } catch {
+            /* ignore */
         }
-    } catch {
-        /* ignore */
-    }
+    });
 }
 
 async function toggleCollection(compId: string, collSlug: string): Promise<void> {
@@ -458,19 +477,21 @@ async function toggleCollection(compId: string, collSlug: string): Promise<void>
         set.add(collSlug);
         const key = `${compId}/${collSlug}`;
         if (!itemsByKey.value.has(key)) {
-            try {
-                const tagsParam = Array.from(selectedTagIds.value).join(",");
+            await withTreeLoad(async () => {
+                try {
+                    const tagsParam = Array.from(selectedTagIds.value).join(",");
 
-                const r = await http.get(
-                    `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}`,
-                );
-                if (r.ok) {
-                    const data = (await r.json()) as { items: ItemMeta[] };
-                    itemsByKey.value = new Map(itemsByKey.value).set(key, data.items);
+                    const r = await http.get(
+                        `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}`,
+                    );
+                    if (r.ok) {
+                        const data = (await r.json()) as { items: ItemMeta[] };
+                        itemsByKey.value = new Map(itemsByKey.value).set(key, data.items);
+                    }
+                } catch {
+                    /* ignore */
                 }
-            } catch {
-                /* ignore */
-            }
+            });
         }
     }
     next.set(compId, set);
@@ -627,10 +648,6 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
         indexLoading.value = false;
     }
     await ensureCompendiumExpanded(comp.id);
-    const roots = collectionsFor(comp.id).filter((c: CollectionMeta) => !c.parentSlug);
-    for (const c of roots) {
-        await ensureCollectionExpanded(comp.id, c.slug);
-    }
 }
 
 async function showCollectionIndex(comp: CompendiumMeta, coll: CollectionMeta): Promise<void> {
@@ -675,9 +692,6 @@ async function showCollectionIndex(comp: CompendiumMeta, coll: CollectionMeta): 
     await ensureCompendiumExpanded(comp.id);
     await expandAncestorsForCollection(comp.id, coll);
     await ensureCollectionExpanded(comp.id, coll.slug);
-    for (const sub of subCollectionsFor(comp.id, coll.slug)) {
-        await ensureCollectionExpanded(comp.id, sub.slug);
-    }
 }
 
 async function onCollectionLabelClick(comp: CompendiumMeta, coll: CollectionMeta): Promise<void> {
@@ -1225,7 +1239,9 @@ async function refetchAllCollections(): Promise<void> {
             } catch {}
         })());
     }
-    await Promise.all(promises);
+    await withTreeLoad(async () => {
+        await Promise.all(promises);
+    });
 }
 
 
@@ -1247,7 +1263,9 @@ async function refetchAllVisibleItems(): Promise<void> {
              } catch {}
          })());
     }
-    await Promise.all(promises);
+    await withTreeLoad(async () => {
+        await Promise.all(promises);
+    });
 }
 
 async function selectItemTag(tagId: number): Promise<void> {
@@ -1353,7 +1371,7 @@ onMounted(() => {
             </div>
         </template>
         <div class="ext-modal-body-wrapper">
-            <div v-if="installLoading || translateLoading" class="ext-progress-top-container">
+            <div v-if="installLoading || translateLoading || treeLoading" class="ext-progress-top-container">
                 <LoadingBar :progress="100" indeterminate height="6px" />
             </div>
             <div class="qe-body">
@@ -2118,12 +2136,6 @@ onMounted(() => {
         &.coll {
             font-weight: 400;
             font-size: 0.9rem;
-
-            .qe-tree-count {
-                font-size: 0.8rem;
-                color: #888;
-                margin-left: auto;
-            }
         }
     }
 
@@ -2150,7 +2162,14 @@ onMounted(() => {
     }
 
     .qe-tree-collection-row .qe-tree-toggle.coll {
+        flex: 0 0 auto;
+    }
+
+    .qe-tree-collection-row .qe-tree-count {
         flex-shrink: 0;
+        margin-left: auto;
+        font-size: 0.8rem;
+        color: #888;
     }
 
     .qe-tree-coll-name {
@@ -2159,6 +2178,7 @@ onMounted(() => {
         font-size: 0.85rem;
         cursor: pointer;
         color: #333;
+        text-align: left;
     }
 
     .qe-tree-coll-name.has-children:hover {
