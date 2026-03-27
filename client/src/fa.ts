@@ -104,6 +104,8 @@ import {
     faCircleExclamation,
     faFloppyDisk,
     faArrowsToCircle,
+    faFile,
+    faMusic,
 } from "@fortawesome/free-solid-svg-icons";
 
 export function loadFontAwesome(): void {
@@ -213,6 +215,8 @@ export function loadFontAwesome(): void {
         faWindowClose,
         faWindowRestore,
         faEyeSlash,
+        faFile,
+        faMusic,
     );
 
     dom.watch();

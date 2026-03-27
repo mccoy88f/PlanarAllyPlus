@@ -10,7 +10,12 @@ import { ctrlOrCmdPressed } from "../../core/utils";
 import { coreStore } from "../../store/core";
 import type { AssetEntryId } from "../models";
 import { assetState } from "../state";
-import { getImageSrcFromAssetId } from "../utils";
+import {
+    getImageSrcFromAssetId,
+    placeholderIconForNonImageAsset,
+    rawAssetUrlWorksAsImageTag,
+    serverCanGenerateThumbnailForAssetName,
+} from "../utils";
 
 import { canEdit } from "./access";
 import AssetContextMenu from "./AssetContext.vue";
@@ -242,12 +247,27 @@ async function showRenameUI(id: AssetEntryId): Promise<void> {
                 @dragstart="drag.startDrag($event, file.id)"
                 @dragend="drag.onDragEnd"
             >
-                <picture v-if="!thumbnailMisses.has(file.id)">
+                <div
+                    v-if="!serverCanGenerateThumbnailForAssetName(file.name)"
+                    class="asset-thumb-placeholder"
+                    aria-hidden="true"
+                >
+                    <font-awesome-icon :icon="placeholderIconForNonImageAsset(file.name)" />
+                </div>
+                <picture v-else-if="!thumbnailMisses.has(file.id)">
                     <source :srcset="getImageSrcFromAssetId(file.id, { thumbnailFormat: 'webp' })" type="image/webp" />
                     <source :srcset="getImageSrcFromAssetId(file.id, { thumbnailFormat: 'jpeg' })" type="image/jpeg" />
                     <img alt="" loading="lazy" @error="thumbnailMisses.add(file.id)" />
                 </picture>
-                <img v-else :src="getImageSrcFromAssetId(file.id)" alt="" loading="lazy" />
+                <img
+                    v-else-if="rawAssetUrlWorksAsImageTag(file.name)"
+                    :src="getImageSrcFromAssetId(file.id)"
+                    alt=""
+                    loading="lazy"
+                />
+                <div v-else class="asset-thumb-placeholder" aria-hidden="true">
+                    <font-awesome-icon :icon="placeholderIconForNonImageAsset(file.name)" />
+                </div>
                 <div class="asset-icons">
                     <font-awesome-icon v-if="isShared(file)" icon="user-tag" />
                     <font-awesome-icon v-if="file.has_templates" icon="floppy-disk" />
@@ -338,6 +358,18 @@ async function showRenameUI(id: AssetEntryId): Promise<void> {
                 // The below is purely to prevent a random chrome bug,
                 // where the setDragImage passed image is often ignored
                 transform: translate3d(0, 0, 0);
+            }
+
+            > .asset-thumb-placeholder {
+                width: 6.5rem;
+                height: 6.5rem;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: #e8e8e8;
+                border-radius: 0.25rem;
+                color: #555;
+                font-size: 1.5rem;
             }
 
             > .title {
