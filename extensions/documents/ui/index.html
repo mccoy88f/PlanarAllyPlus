@@ -169,6 +169,19 @@
             min-width: 0;
         }
 
+        /* Azioni sotto ogni elemento: solo on hover / focus (stesso pattern ui.css previsto) */
+        .doc-list .ext-ui-list-item .ext-item-actions {
+            opacity: 0;
+            transition: opacity 0.15s ease;
+            pointer-events: none;
+        }
+
+        .doc-list .ext-ui-list-item:hover .ext-item-actions,
+        .doc-list .ext-ui-list-item:focus-within .ext-item-actions {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
         /* Lista: come scheda personaggio — occhio barrato (non visibile) in arancio/rosso */
         .doc-list .ext-item-actions .ext-action-btn .fa-solid {
             font-size: 15px;

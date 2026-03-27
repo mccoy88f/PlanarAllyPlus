@@ -295,4 +295,17 @@ onMounted(() => {
     color: #c00;
     flex-shrink: 0;
 }
+
+/* Azioni riga: visibili solo al passaggio del mouse (o focus tastiera) */
+.documents-list-item .ext-item-actions {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+}
+
+.documents-list-item:hover .ext-item-actions,
+.documents-list-item:focus-within .ext-item-actions {
+    opacity: 1;
+    pointer-events: auto;
+}
 </style>
