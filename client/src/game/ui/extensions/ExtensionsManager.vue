@@ -250,7 +250,7 @@ async function onAddClick(): Promise<void> {
         extra-class="extensions-manager-modal"
         @close="close"
     >
-        <template #header="{ dragStart, dragEnd, toggleWindow, toggleFullscreen, fullscreen }">
+        <template #header="{ dragStart, dragEnd, toggleMinimize, minimized, toggleFullscreen, fullscreen }">
             <div
                 class="ext-modal-header"
                 draggable="true"
@@ -260,10 +260,10 @@ async function onAddClick(): Promise<void> {
                 <h2 class="ext-modal-title">{{ t("game.ui.extensions.ExtensionsManager.title") }}</h2>
                 <div class="ext-modal-actions">
                     <font-awesome-icon
-                        :icon="['far', 'square']"
-                        :title="t('game.ui.extensions.ExtensionModal.window')"
+                        :icon="minimized ? ['far', 'window-restore'] : 'minus'"
+                        :title="minimized ? t('common.restore') : t('common.minimize')"
                         class="ext-modal-btn"
-                        @click.stop="toggleWindow?.()"
+                        @click.stop="toggleMinimize?.()"
                     />
                     <font-awesome-icon
                         :icon="fullscreen ? 'compress' : 'expand'"

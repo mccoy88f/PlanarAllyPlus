@@ -38,6 +38,8 @@
     "close": "Close",
     "fullscreen": "Fullscreen",
     "fullscreen_exit": "Exit Fullscreen",
+    "minimize": "Minimize",
+    "restore": "Restore",
     "submit": "Submit",
     "create": "Create",
     "warning": "Warning",
@@ -1005,9 +1007,6 @@
           "visibility_on": "Extension visible to players",
           "visibility_off": "Extension hidden from players",
           "visibility_error": "Failed to update visibility"
-        },
-        "ExtensionModal": {
-          "window": "Open in separate window"
         },
         "time-manager": {
           "countdown_complete": "Countdown \"{name}\" completed!"

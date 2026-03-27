@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref, watch, watchEffect } from "vue";
 
-import WindowPortal from "../../../core/components/WindowPortal.vue";
 import type { ModalIndex } from "../../../game/systems/modals/types";
 import { clearDropCallback, registerDropCallback } from "../../../game/ui/firefox";
 
@@ -34,7 +33,7 @@ const props = withDefaults(
 );
 const emit = defineEmits<{
     (e: "close" | "focus"): void;
-    (e: "window-toggle", value: boolean): void;
+    (e: "minimize-toggle", value: boolean): void;
 }>();
 
 const container = ref<HTMLDivElement | null>(null);
@@ -159,27 +158,6 @@ function dragOver(_event: DragEvent): void {
     if (dragging && container.value) container.value.style.display = "none";
 }
 
-// Windowed mode
-
-const windowed = ref(false);
-const preWindowState = { left: "", top: "" };
-function toggleWindow(): void {
-    if (!container.value) return;
-
-    windowed.value = !windowed.value;
-    emit("window-toggle", windowed.value);
-
-    if (windowed.value) {
-        preWindowState.left = container.value.style.left;
-        preWindowState.top = container.value.style.top;
-        container.value.style.left = "0.4rem";
-        container.value.style.top = "0.4rem";
-    } else {
-        container.value.style.left = preWindowState.left;
-        container.value.style.top = preWindowState.top;
-    }
-}
-
 // Fullscreen mode
 const fullscreen = ref(false);
 const preFullscreenState = { left: "", top: "", width: "", height: "" };
@@ -188,6 +166,10 @@ function toggleFullscreen(): void {
 
     fullscreen.value = !fullscreen.value;
     if (fullscreen.value) {
+        if (minimized.value) {
+            minimized.value = false;
+            emit("minimize-toggle", false);
+        }
         preFullscreenState.left = container.value.style.left;
         preFullscreenState.top = container.value.style.top;
         preFullscreenState.width = container.value.style.width;
@@ -201,6 +183,17 @@ function toggleFullscreen(): void {
         container.value.style.height = preFullscreenState.height;
     }
 }
+
+/** Nasconde il contenuto (slot default), resta solo la barra titolo — niente finestra separata (about:blank). */
+const minimized = ref(false);
+function toggleMinimize(): void {
+    if (!container.value) return;
+    if (!minimized.value && fullscreen.value) {
+        toggleFullscreen();
+    }
+    minimized.value = !minimized.value;
+    emit("minimize-toggle", minimized.value);
+}
 </script>
 
 <template>
@@ -212,25 +205,26 @@ function toggleFullscreen(): void {
             @click="() => closeOnMaskClick && close()"
             @dragover.prevent="dragOver"
         >
-            <WindowPortal :visible="windowed" :modal-index="props.modalIndex">
-                <div
-                    ref="container"
-                    class="modal-container"
-                    :class="extraClass"
-                    :style="{ backgroundColor: colour }"
-                    @click.stop="emit('focus')"
-                >
-                    <slot
-                        name="header"
-                        :drag-start="dragStart"
-                        :drag-end="dragEnd"
-                        :toggle-window="toggleWindow"
-                        :toggle-fullscreen="toggleFullscreen"
-                        :fullscreen="fullscreen"
-                    ></slot>
+            <div
+                ref="container"
+                class="modal-container"
+                :class="[extraClass, { 'modal-container--minimized': minimized }]"
+                :style="{ backgroundColor: colour }"
+                @click.stop="emit('focus')"
+            >
+                <slot
+                    name="header"
+                    :drag-start="dragStart"
+                    :drag-end="dragEnd"
+                    :toggle-minimize="toggleMinimize"
+                    :minimized="minimized"
+                    :toggle-fullscreen="toggleFullscreen"
+                    :fullscreen="fullscreen"
+                ></slot>
+                <div v-show="!minimized" class="modal-default-slot">
                     <slot></slot>
                 </div>
-            </WindowPortal>
+            </div>
         </div>
     </transition>
 </template>
@@ -299,5 +293,20 @@ function toggleFullscreen(): void {
     max-height: none !important;
     border-radius: 0;
     z-index: 10000;
+}
+
+.modal-container.modal-container--minimized {
+    min-height: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    resize: horizontal;
+}
+
+.modal-default-slot {
+    min-height: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 </style>

@@ -1340,7 +1340,7 @@ onMounted(() => {
         @close="onClose"
         @focus="focusExtension('compendium')"
     >
-        <template #header="{ dragStart, dragEnd, toggleWindow, toggleFullscreen, fullscreen }">
+        <template #header="{ dragStart, dragEnd, toggleMinimize, minimized, toggleFullscreen, fullscreen }">
             <div
                 class="ext-modal-header"
                 draggable="true"
@@ -1350,10 +1350,10 @@ onMounted(() => {
                 <h2 class="ext-modal-title">{{ t("game.ui.extensions.CompendiumModal.title") }}</h2>
                 <div class="ext-modal-actions">
                     <font-awesome-icon
-                        :icon="['far', 'square']"
-                        :title="t('game.ui.extensions.ExtensionModal.window')"
+                        :icon="minimized ? ['far', 'window-restore'] : 'minus'"
+                        :title="minimized ? t('common.restore') : t('common.minimize')"
                         class="ext-modal-btn"
-                        @click.stop="toggleWindow?.()"
+                        @click.stop="toggleMinimize?.()"
                     />
                     <font-awesome-icon
                         :icon="fullscreen ? 'compress' : 'expand'"
@@ -2066,7 +2066,7 @@ onMounted(() => {
     height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 0.5rem 0;
+    padding: 0.5rem 0.5rem 0.5rem 0;
 }
 
 .qe-sidebar-toggle {
@@ -2168,6 +2168,7 @@ onMounted(() => {
     .qe-tree-collection-row .qe-tree-count {
         flex-shrink: 0;
         margin-left: auto;
+        padding-left: 0.25rem;
         font-size: 0.8rem;
         color: #888;
     }

@@ -125,18 +125,17 @@ function setText(event: Event, sync: boolean): void {
     noteSystem.setText(props.uuid, (event.target as HTMLTextAreaElement).value, sync, !sync);
 }
 
-const isWindowed = ref(false);
-const previousWindowState = { width: "", height: "" };
-function windowToggle(windowed: boolean): void {
-    isWindowed.value = windowed;
-    if (windowed) {
-        previousWindowState.width = modal.value!.container.style.width;
-        previousWindowState.height = modal.value!.container.style.height;
-        modal.value!.container.style.width = "auto";
-        modal.value!.container.style.height = "auto";
+const previousMinimizeDimensions = { width: "", height: "" };
+function minimizeToggle(minimized: boolean): void {
+    if (!modal.value) return;
+    if (minimized) {
+        previousMinimizeDimensions.width = modal.value.container.style.width;
+        previousMinimizeDimensions.height = modal.value.container.style.height;
+        modal.value.container.style.width = "auto";
+        modal.value.container.style.height = "auto";
     } else {
-        modal.value!.container.style.width = previousWindowState.width;
-        modal.value!.container.style.height = previousWindowState.height;
+        modal.value.container.style.width = previousMinimizeDimensions.width;
+        modal.value.container.style.height = previousMinimizeDimensions.height;
     }
 }
 </script>
@@ -150,7 +149,7 @@ function windowToggle(windowed: boolean): void {
         :modal-index="props.modalIndex"
         extra-class="note-dialog"
         @close="close"
-        @window-toggle="windowToggle"
+        @minimize-toggle="minimizeToggle"
     >
         <template #header="m">
             <header draggable="true" @dragstart="m.dragStart" @dragend="m.dragEnd">
@@ -170,9 +169,9 @@ function windowToggle(windowed: boolean): void {
                         @click="collapse"
                     />
                     <font-awesome-icon
-                        :icon="['far', 'window-restore']"
-                        :title="`${isWindowed ? t('game.ui.notes.NoteDialog.restore') : t('game.ui.notes.NoteDialog.pop_out')}`"
-                        @click="m.toggleWindow"
+                        :icon="m.minimized ? ['far', 'window-restore'] : 'minus'"
+                        :title="m.minimized ? t('common.restore') : t('common.minimize')"
+                        @click="m.toggleMinimize"
                     />
                     <font-awesome-icon
                         :icon="['far', 'window-close']"

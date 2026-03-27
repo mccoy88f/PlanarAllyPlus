@@ -38,6 +38,8 @@
     "close": "Chiudi",
     "fullscreen": "A tutto schermo",
     "fullscreen_exit": "Esci da tutto schermo",
+    "minimize": "Riduci",
+    "restore": "Ripristina",
     "submit": "Invia",
     "create": "Crea",
     "warning": "Avviso",
@@ -430,9 +432,6 @@
           "visibility_on": "Estensione visibile ai giocatori",
           "visibility_off": "Estensione nascosta ai giocatori",
           "visibility_error": "Impossibile aggiornare la visibilità"
-        },
-        "ExtensionModal": {
-          "window": "Apri in finestra separata"
         },
         "time-manager": {
           "countdown_complete": "Countdown \"{name}\" completato!"
