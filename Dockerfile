@@ -1,7 +1,7 @@
 # ---------- STAGE 1: CLONE ----------
 FROM alpine/git AS CLONER
-# Branch da clonare (su Portainer: Build args → PA_GIT_REF=dev se main non è aggiornato)
-ARG PA_GIT_REF=main
+# Default dev: main su GitHub può essere indietro rispetto al lockfile/patches. Override: --build-arg PA_GIT_REF=main
+ARG PA_GIT_REF=dev
 WORKDIR /usr/src
 
 # forza rebuild quando cambiano i commit sul branch scelto
@@ -12,7 +12,7 @@ RUN git clone --depth=1 --branch "${PA_GIT_REF}" https://github.com/mccoy88f/Pla
 # ---------- STAGE 2: BUILD CLIENT ----------
 FROM node:24-alpine AS BUILDER
 
-RUN apk add --no-cache python3 make g++
+RUN apk add --no-cache python3 make g++ git
 
 WORKDIR /usr/src/client
 
@@ -21,7 +21,10 @@ COPY --from=CLONER /usr/src/client/package-lock.json .
 # Necessario per postinstall → patch-package (vue3-pdf-app); senza cartella la patch non si applica.
 COPY --from=CLONER /usr/src/client/patches ./patches
 
-RUN npm ci && npm cache clean --force
+# Evita ERESOLVE su npm 10+ in ambiente CI/Alpine (stesso effetto di npm install --legacy-peer-deps)
+ENV NPM_CONFIG_LEGACY_PEER_DEPS=true
+
+RUN npm ci --no-audit --no-fund && npm cache clean --force
 
 COPY --from=CLONER /usr/src /usr/src
 
