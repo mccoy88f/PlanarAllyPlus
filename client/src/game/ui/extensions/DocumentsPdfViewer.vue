@@ -21,37 +21,6 @@ import { i18n } from "../../../i18n";
  */
 let pdfViewerOpenGeneration = 0;
 
-/** Log diagnostici: filtra la console con `[PDF Viewer]`. Rimuovere o disattivare quando non serve. */
-const PDF_LOG_PREFIX = "[PDF Viewer]";
-
-function pdfDebug(phase: string, data?: Record<string, unknown>): void {
-    if (data !== undefined) {
-        console.info(PDF_LOG_PREFIX, phase, data);
-    } else {
-        console.info(PDF_LOG_PREFIX, phase);
-    }
-}
-
-/** Dimensioni elementi pdf.js nel DOM (0×0 = tipico “pagine che non si disegnano”). */
-function logPdfViewerDomSizes(phase: string): void {
-    void nextTick(() => {
-        const modal = document.querySelector(".documents-pdf-viewer-modal");
-        const body = pdfViewerBodyRef.value;
-        const shell = document.querySelector(".documents-pdf-app-shell");
-        const pdfApp = document.querySelector(".documents-pdf-app-shell .pdf-app");
-        const viewerContainer = document.querySelector(".documents-pdf-app-shell #viewerContainer");
-        const mainViewer = document.querySelector(".documents-pdf-app-shell .pdfViewer");
-        pdfDebug(`DOM sizes · ${phase}`, {
-            modal: modal ? { w: modal.clientWidth, h: modal.clientHeight } : null,
-            pdfViewerBody: body ? { w: body.clientWidth, h: body.clientHeight } : null,
-            shell: shell ? { w: shell.clientWidth, h: shell.clientHeight } : null,
-            pdfApp: pdfApp ? { w: pdfApp.clientWidth, h: pdfApp.clientHeight } : null,
-            viewerContainer: viewerContainer ? { w: viewerContainer.clientWidth, h: viewerContainer.clientHeight } : null,
-            pdfViewer: mainViewer ? { w: mainViewer.clientWidth, h: mainViewer.clientHeight } : null,
-        });
-    });
-}
-
 const props = defineProps<{
     visible: boolean;
     onClose: () => void;
@@ -213,16 +182,14 @@ function setPdfLocale(): void {
     }
 }
 
-/** Precarica viewer.properties e attende un tick così pdf.js non inizializza con l10n vuota (errori #of_pages, print_progress_percent, ecc.). */
+/** Precarica viewer.properties e attende un tick così pdf.js non inizializza con l10n vuota. */
 async function ensurePdfLocaleReady(): Promise<void> {
     const locale = getPdfJsLocale();
-    const url = `${PDF_LOCALE_BASE}/${locale}/viewer.properties`;
     setPdfLocale();
     try {
-        const r = await fetch(url, { cache: "force-cache" });
-        pdfDebug("l10n viewer.properties", { locale, ok: r.ok, status: r.status });
-    } catch (e) {
-        pdfDebug("l10n viewer.properties fetch error", { locale, err: String(e) });
+        await fetch(`${PDF_LOCALE_BASE}/${locale}/viewer.properties`, { cache: "force-cache" });
+    } catch {
+        /* locale opzionale */
     }
     await nextTick();
     await new Promise<void>((r) => setTimeout(r, 0));
@@ -230,7 +197,6 @@ async function ensurePdfLocaleReady(): Promise<void> {
 
 /** Attende che il body del modale abbia dimensioni (transition Modal + extension layer) prima di montare pdf.js. */
 async function waitForPdfContainerLayout(): Promise<void> {
-    const t0 = Date.now();
     await nextTick();
     await new Promise<void>((resolve) => {
         requestAnimationFrame(() => {
@@ -242,19 +208,10 @@ async function waitForPdfContainerLayout(): Promise<void> {
         const el = pdfViewerBodyRef.value;
         /* Non usare offsetParent: con antenati fixed/transform può essere null anche con layout valido. */
         if (el && el.offsetWidth > 0 && el.offsetHeight > 0) {
-            pdfDebug("waitForPdfContainerLayout ok", {
-                w: el.offsetWidth,
-                h: el.offsetHeight,
-                waitedMs: Date.now() - t0,
-            });
             return;
         }
         await new Promise((r) => setTimeout(r, 20));
     }
-    const el = pdfViewerBodyRef.value;
-    pdfDebug("waitForPdfContainerLayout TIMEOUT (body ancora 0×0?)", {
-        body: el ? { w: el.offsetWidth, h: el.offsetHeight } : null,
-    });
 }
 
 type PdfViewerAppForSync = {
@@ -284,7 +241,6 @@ function wirePdfViewerPageSync(pdfApp: PdfViewerAppForSync): void {
 }
 
 function onAfterCreated(pdfApp: unknown): void {
-    pdfDebug("event after-created (PDFViewerApplication creato)");
     const app = pdfApp as {
         appOptions?: { set: (k: string, v: string) => void };
         l10n?: { setLanguage?: (l: string) => void };
@@ -312,22 +268,19 @@ function onAfterCreated(pdfApp: unknown): void {
 
 /** Senza altezza sul container pdf.js non disegna le pagine (0 pagine visibili); download e metadati funzionano comunque. */
 function forcePdfViewerLayout(pdfApp: { pdfViewer?: { update?: () => void; currentScaleValue?: string } }): void {
-    const run = (label: string): void => {
+    const run = (): void => {
         try {
             window.dispatchEvent(new Event("resize"));
             pdfApp.pdfViewer?.update?.();
-            pdfDebug(`forcePdfViewerLayout ${label}`, {
-                currentScaleValue: pdfApp.pdfViewer?.currentScaleValue ?? null,
-            });
-        } catch (e) {
-            pdfDebug(`forcePdfViewerLayout ${label} error`, { err: String(e) });
+        } catch {
+            /* ignore */
         }
     };
     void nextTick(() => {
         requestAnimationFrame(() => {
-            run("raf");
-            setTimeout(() => run("t50"), 50);
-            setTimeout(() => run("t200"), 200);
+            run();
+            setTimeout(run, 50);
+            setTimeout(run, 200);
         });
     });
 }
@@ -341,11 +294,6 @@ function onPagesRendered(pdfApp: {
     };
 }): void {
     const pv = pdfApp.pdfViewer;
-    pdfDebug("event pages-rendered", {
-        currentPage: pv?.currentPageNumber,
-        currentScaleValue: pv?.currentScaleValue ?? null,
-    });
-    logPdfViewerDomSizes("onPagesRendered");
 
     pdfLoadFailed.value = false;
     if (!pdfAppRef.value) {
@@ -367,12 +315,9 @@ function onPagesRendered(pdfApp: {
             if (pv) {
                 pv.currentScaleValue = "page-fit";
                 pv.update?.();
-                pdfDebug("pages-rendered setTimeout scale", {
-                    currentScaleValue: pv.currentScaleValue,
-                });
             }
-        } catch (e) {
-            pdfDebug("pages-rendered setTimeout error", { err: String(e) });
+        } catch {
+            /* ignore */
         }
     }, 0);
 
@@ -386,7 +331,6 @@ function onPagesRendered(pdfApp: {
 }
 
 function close(): void {
-    pdfDebug("close()");
     pdfMountReady.value = false;
     pdfViewerEventBusBound.value = false;
     fetchAbortController?.abort();
@@ -421,7 +365,6 @@ watch(
 
         const fileHash = doc.fileHash.trim();
         if (fileHash.length < 40) {
-            pdfDebug("watch: hash troppo corto", { len: fileHash.length });
             pdfLoadFailed.value = true;
             return;
         }
@@ -429,13 +372,6 @@ watch(
         pdfViewerOpenGeneration += 1;
         pdfViewerSessionId.value = pdfViewerOpenGeneration;
         const loadSessionId = pdfViewerSessionId.value;
-
-        pdfDebug("watch: start load", {
-            name: doc.name,
-            fileHashPrefix: `${fileHash.slice(0, 12)}…`,
-            sessionId: loadSessionId,
-            page: doc.page ?? null,
-        });
 
         /* Stesso hash della riapertura: senza abort restano due fetch attivi e stato/blob incoerenti. */
         fetchAbortController?.abort();
@@ -462,38 +398,29 @@ watch(
                 signal: controller.signal,
             });
             if (!response.ok) {
-                pdfDebug("fetch serve_document NON ok", { status: response.status, statusText: response.statusText });
                 pdfLoadFailed.value = true;
                 return;
             }
             const ct = response.headers.get("Content-Type") ?? "";
             if (!ct.toLowerCase().includes("application/pdf")) {
-                pdfDebug("fetch Content-Type inatteso", { contentType: ct });
                 pdfLoadFailed.value = true;
                 return;
             }
             const arrayBuffer = await response.arrayBuffer();
             if (arrayBuffer.byteLength < 100) {
-                pdfDebug("fetch arrayBuffer troppo piccolo", { byteLength: arrayBuffer.byteLength });
                 pdfLoadFailed.value = true;
                 return;
             }
             const blobUrl = URL.createObjectURL(new Blob([arrayBuffer], { type: "application/pdf" }));
             if (pdfViewerSessionId.value !== loadSessionId) {
                 URL.revokeObjectURL(blobUrl);
-                pdfDebug("watch: abort dopo blob (sessione superata da nuovo load)");
                 return;
             }
             lastBlobUrl = blobUrl;
             pdfSrc.value = blobUrl;
-            pdfDebug("fetch OK, blob creato", {
-                byteLength: arrayBuffer.byteLength,
-                blobUrlPrefix: blobUrl.slice(0, 32) + "…",
-            });
 
             await ensurePdfLocaleReady();
             if (pdfViewerSessionId.value !== loadSessionId) {
-                pdfDebug("watch: abort dopo l10n (sessione superata)");
                 if (lastBlobUrl) {
                     URL.revokeObjectURL(lastBlobUrl);
                     lastBlobUrl = null;
@@ -504,7 +431,6 @@ watch(
             }
             const stillOpen = extensionsState.raw.documentsPdfViewer?.fileHash?.trim() === fileHash;
             if (!stillOpen) {
-                pdfDebug("watch: abort dopo fetch (documento chiuso / hash cambiato)");
                 if (lastBlobUrl) {
                     URL.revokeObjectURL(lastBlobUrl);
                     lastBlobUrl = null;
@@ -515,7 +441,6 @@ watch(
             }
             await waitForPdfContainerLayout();
             if (pdfViewerSessionId.value !== loadSessionId) {
-                pdfDebug("watch: abort dopo layout (sessione superata)");
                 if (lastBlobUrl) {
                     URL.revokeObjectURL(lastBlobUrl);
                     lastBlobUrl = null;
@@ -525,7 +450,6 @@ watch(
                 return;
             }
             if (extensionsState.raw.documentsPdfViewer?.fileHash?.trim() !== fileHash) {
-                pdfDebug("watch: abort dopo waitForLayout (hash cambiato)");
                 if (lastBlobUrl) {
                     URL.revokeObjectURL(lastBlobUrl);
                     lastBlobUrl = null;
@@ -535,16 +459,10 @@ watch(
                 return;
             }
             pdfMountReady.value = true;
-            pdfDebug("pdfMountReady=true (VuePdfApp può montare)", {
-                sessionId: pdfViewerSessionId.value,
-            });
-            logPdfViewerDomSizes("after pdfMountReady");
         } catch (e) {
             if ((e as Error).name === "AbortError") {
-                pdfDebug("watch: AbortError", { message: (e as Error).message });
                 return;
             }
-            pdfDebug("watch: catch", { err: String(e), name: (e as Error).name });
             pdfLoadFailed.value = true;
         } finally {
             if (fetchAbortController === controller) {
