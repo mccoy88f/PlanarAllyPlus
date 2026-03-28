@@ -34,12 +34,14 @@ const pdfAppRef = ref<{
 
 const currentDoc = computed(() => extensionsState.reactive.documentsPdfViewer);
 
-/** Allineato a pdf.js 2.4.456 (bundlato in vue3-pdf-app); v3.x ha chiavi l10n diverse e rompe i tooltip. */
-const PDF_LOCALE_BASE =
+/** Allineato a pdf.js 2.4.456 (bundlato in vue3-pdf-app). */
+const PDF_LOCALE_FALLBACK_BASE =
     "https://raw.githubusercontent.com/mozilla/pdf.js/v2.4.456/l10n";
 const PDF_LOCALE_LINK_ID = "planarally-pdf-locale-link";
-/** pdf.js si aspetta il bundle completo; en-US è sempre coerente con le chiavi (#of_pages, ecc.). */
+/** pdf.js: bundle en-US con tutte le chiavi (of_pages, page_scale_percent, …). */
 const PDF_VIEWER_L10N_LOCALE = "en-US";
+/** Servito da /static/ (add_static) — stesso origine, niente CSP che blocca GitHub. */
+const PDF_VIEWER_PROPERTIES_PATH = "/static/pdfjs-l10n/en-US/viewer.properties";
 
 const toolbarConfig = {
     sidebar: {
@@ -128,8 +130,11 @@ function shareToChat(): void {
     toast.success(t("game.ui.extensions.DocumentsPdfViewer.share_success"));
 }
 
-function setPdfLocale(): void {
-    /* pdf.js viewer richiede rel="resource" (vedi viewer.html ufficiale); senza, l10n non si aggancia e le chiavi sono undefined. */
+/**
+ * Collega viewer.properties prima di aprire il PDF: altrimenti l10n resta vuota (#of_pages undefined).
+ * Usa file in /static/ (stesso sito); fallback GitHub se mancante (deploy vecchio).
+ */
+async function ensurePdfViewerL10n(): Promise<void> {
     let link = document.getElementById(PDF_LOCALE_LINK_ID) as HTMLLinkElement | null;
     if (!link) {
         link = document.createElement("link");
@@ -138,7 +143,16 @@ function setPdfLocale(): void {
     }
     link.rel = "resource";
     link.type = "application/l10n";
-    link.href = `${PDF_LOCALE_BASE}/${PDF_VIEWER_L10N_LOCALE}/viewer.properties`;
+
+    const localUrl = baseAdjust(PDF_VIEWER_PROPERTIES_PATH);
+    let href = localUrl;
+    try {
+        const r = await fetch(localUrl, { credentials: "same-origin" });
+        if (!r.ok) throw new Error(String(r.status));
+    } catch {
+        href = `${PDF_LOCALE_FALLBACK_BASE}/${PDF_VIEWER_L10N_LOCALE}/viewer.properties`;
+    }
+    link.href = href;
 
     try {
         (window as unknown as { PDFViewerApplicationOptions?: { set: (k: string, v: string) => void } })
@@ -156,7 +170,7 @@ function onAfterCreated(pdfApp: unknown): void {
     try {
         app?.appOptions?.set?.("locale", PDF_VIEWER_L10N_LOCALE);
     } catch {
-        setPdfLocale();
+        void ensurePdfViewerL10n();
     }
     try {
         app?.l10n?.setLanguage?.(PDF_VIEWER_L10N_LOCALE);
@@ -192,18 +206,15 @@ function onPagesRendered(pdfApp: { pdfViewer?: { currentPageNumber: number; scro
     const page = currentDoc.value?.page;
     if (page == null || page < 1 || !pdfApp?.pdfViewer) return;
     const pv = pdfApp.pdfViewer;
-    const scrollTo = (): void => {
-        pv.currentPageNumber = page;
+    pv.currentPageNumber = page;
+    /* scrollPageIntoView subito spesso fallisce (offsetParent); ritardo un solo tentativo. */
+    setTimeout(() => {
         try {
             pv.scrollPageIntoView?.({ pageNumber: page });
         } catch {
-            /* layout non ancora pronto */
+            /* ignorato */
         }
-    };
-    pv.currentPageNumber = page;
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => setTimeout(scrollTo, 80));
-    });
+    }, 400);
 }
 
 function close(): void {
@@ -259,6 +270,7 @@ watch(
         await nextTick();
 
         try {
+            await ensurePdfViewerL10n();
             const url = baseAdjust(`/api/extensions/documents/serve/${fileHash}`);
             const response = await fetch(url, {
                 credentials: "include",
