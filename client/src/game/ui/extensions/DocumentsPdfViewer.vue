@@ -24,12 +24,17 @@ const toast = useToast();
 
 const pdfSrc = ref<string | ArrayBuffer | null>(null);
 let lastBlobUrl: string | null = null;
+/** Incrementata a ogni caricamento PDF: forza il remount di vue3-pdf-app e evita "0 pagine" riaprendo lo stesso file. */
+const pdfViewerInstanceKey = ref(0);
 const pdfLoadFailed = ref(false);
 const currentPage = ref(1);
 const pdfAppRef = ref<{
     eventBus: { on: (e: string, cb: (e: { pageNumber: number }) => void) => void };
     pdfViewer?: { currentPageNumber: number };
 } | null>(null);
+
+let fetchAbortController: AbortController | null = null;
+let fetchAbortControllerHash: string | null = null;
 
 const currentDoc = computed(() => extensionsState.reactive.documentsPdfViewer);
 
@@ -211,14 +216,18 @@ function onPagesRendered(pdfApp: { pdfViewer?: { currentPageNumber: number; scro
 }
 
 function close(): void {
+    fetchAbortController?.abort();
+    fetchAbortController = null;
+    fetchAbortControllerHash = null;
     pdfAppRef.value = null;
+    if (lastBlobUrl) {
+        URL.revokeObjectURL(lastBlobUrl);
+        lastBlobUrl = null;
+    }
     pdfSrc.value = null;
     closeDocumentsPdfViewer();
     props.onClose();
 }
-
-let fetchAbortController: AbortController | null = null;
-let fetchAbortControllerHash: string | null = null;
 
 onBeforeUnmount(() => {
     fetchAbortController?.abort();
@@ -283,6 +292,7 @@ watch(
             const blob = new Blob([arrayBuffer], { type: "application/pdf" });
             lastBlobUrl = URL.createObjectURL(blob);
             pdfSrc.value = lastBlobUrl;
+            pdfViewerInstanceKey.value += 1;
         } catch (e) {
             if ((e as Error).name === "AbortError") return;
             pdfLoadFailed.value = true;
@@ -352,6 +362,7 @@ watch(
         <div class="pdf-viewer-body">
             <VuePdfApp
                 v-if="pdfSrc"
+                :key="pdfViewerInstanceKey"
                 :pdf="pdfSrc"
                 :page-number="currentDoc?.page ?? 1"
                 :config="toolbarConfig"
