@@ -39,8 +39,7 @@ chatMarkDown.renderer.rules.link_open = (tokens, idx, options, env, self) => {
             if (pageMatch) tokens[idx]?.attrSet("data-doc-page", pageMatch[1]!);
         }
         tokens[idx]?.attrSet("href", "#");
-        /* Hex hash: sempre minuscolo (stesso formato DB / URL serve) */
-        tokens[idx]?.attrSet("data-doc-hash", hashPart.toLowerCase());
+        tokens[idx]?.attrSet("data-doc-hash", hashPart);
         tokens[idx]?.attrSet("class", "doc-chat-link");
     } else {
         tokens[idx]?.attrSet("target", "_blank");
