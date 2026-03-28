@@ -4,6 +4,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Allinea al branch che usi su GitHub (dev = build con ultimo codice; main quando è allineato)
+      args:
+        PA_GIT_REF: dev
     restart: unless-stopped
     user: "9000"
     environment:
