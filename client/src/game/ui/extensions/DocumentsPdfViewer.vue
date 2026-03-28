@@ -12,7 +12,6 @@ import { chatSystem } from "../../systems/chat";
 import { extensionsState } from "../../systems/extensions/state";
 import { closeDocumentsPdfViewer, focusExtension } from "../../systems/extensions/ui";
 import { playerSystem } from "../../systems/players";
-import { i18n } from "../../../i18n";
 
 const props = defineProps<{
     visible: boolean;
@@ -23,6 +22,8 @@ const { t } = useI18n();
 const toast = useToast();
 
 const pdfSrc = ref<string | ArrayBuffer | null>(null);
+/** Evita mount di vue3-pdf-app prima che il modale abbia dimensioni (altrimenti offsetParent / pagine vuote). */
+const pdfMountReady = ref(false);
 let lastBlobUrl: string | null = null;
 const pdfLoadFailed = ref(false);
 const currentPage = ref(1);
@@ -33,22 +34,12 @@ const pdfAppRef = ref<{
 
 const currentDoc = computed(() => extensionsState.reactive.documentsPdfViewer);
 
-const LOCALE_MAP: Record<string, string> = {
-    en: "en-US",
-    it: "it",
-    de: "de",
-    es: "es-ES",
-    fr: "fr",
-    ru: "ru",
-    zh: "zh-CN",
-    tw: "zh-TW",
-    dk: "da",
-};
-
 /** Allineato a pdf.js 2.4.456 (bundlato in vue3-pdf-app); v3.x ha chiavi l10n diverse e rompe i tooltip. */
 const PDF_LOCALE_BASE =
     "https://raw.githubusercontent.com/mozilla/pdf.js/v2.4.456/l10n";
 const PDF_LOCALE_LINK_ID = "planarally-pdf-locale-link";
+/** pdf.js si aspetta il bundle completo; en-US è sempre coerente con le chiavi (#of_pages, ecc.). */
+const PDF_VIEWER_L10N_LOCALE = "en-US";
 
 const toolbarConfig = {
     sidebar: {
@@ -138,21 +129,20 @@ function shareToChat(): void {
 }
 
 function setPdfLocale(): void {
-    const locale = LOCALE_MAP[i18n.global.locale.value] ?? i18n.global.locale.value;
-
-    /* Inietta link per caricare il locale da raw GitHub (cache del browser al primo fetch) */
+    /* pdf.js viewer richiede rel="resource" (vedi viewer.html ufficiale); senza, l10n non si aggancia e le chiavi sono undefined. */
     let link = document.getElementById(PDF_LOCALE_LINK_ID) as HTMLLinkElement | null;
     if (!link) {
         link = document.createElement("link");
         link.id = PDF_LOCALE_LINK_ID;
-        link.setAttribute("type", "application/l10n");
         document.head.appendChild(link);
     }
-    link.href = `${PDF_LOCALE_BASE}/${locale}/viewer.properties`;
+    link.rel = "resource";
+    link.type = "application/l10n";
+    link.href = `${PDF_LOCALE_BASE}/${PDF_VIEWER_L10N_LOCALE}/viewer.properties`;
 
     try {
         (window as unknown as { PDFViewerApplicationOptions?: { set: (k: string, v: string) => void } })
-            .PDFViewerApplicationOptions?.set?.("locale", locale);
+            .PDFViewerApplicationOptions?.set?.("locale", PDF_VIEWER_L10N_LOCALE);
     } catch {
         /* vue3-pdf-app potrebbe non esporre le options */
     }
@@ -163,14 +153,13 @@ function onAfterCreated(pdfApp: unknown): void {
         appOptions?: { set: (k: string, v: string) => void };
         l10n?: { setLanguage?: (l: string) => void };
     };
-    const locale = LOCALE_MAP[i18n.global.locale.value] ?? i18n.global.locale.value;
     try {
-        app?.appOptions?.set?.("locale", locale);
+        app?.appOptions?.set?.("locale", PDF_VIEWER_L10N_LOCALE);
     } catch {
         setPdfLocale();
     }
     try {
-        app?.l10n?.setLanguage?.(locale);
+        app?.l10n?.setLanguage?.(PDF_VIEWER_L10N_LOCALE);
     } catch {
         /* fallback già provato sopra */
     }
@@ -203,11 +192,18 @@ function onPagesRendered(pdfApp: { pdfViewer?: { currentPageNumber: number; scro
     const page = currentDoc.value?.page;
     if (page == null || page < 1 || !pdfApp?.pdfViewer) return;
     const pv = pdfApp.pdfViewer;
-    pv.currentPageNumber = page;
-    setTimeout(() => {
+    const scrollTo = (): void => {
         pv.currentPageNumber = page;
-        pv.scrollPageIntoView?.({ pageNumber: page });
-    }, 50);
+        try {
+            pv.scrollPageIntoView?.({ pageNumber: page });
+        } catch {
+            /* layout non ancora pronto */
+        }
+    };
+    pv.currentPageNumber = page;
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => setTimeout(scrollTo, 80));
+    });
 }
 
 function close(): void {
@@ -232,6 +228,7 @@ watch(
     async (doc) => {
         if (!doc?.fileHash) {
             pdfSrc.value = null;
+            pdfMountReady.value = false;
             pdfLoadFailed.value = false;
             return;
         }
@@ -251,6 +248,7 @@ watch(
 
         setPdfLocale();
         pdfLoadFailed.value = false;
+        pdfMountReady.value = false;
         pdfSrc.value = null;
         if (lastBlobUrl) {
             URL.revokeObjectURL(lastBlobUrl);
@@ -283,6 +281,13 @@ watch(
             const blob = new Blob([arrayBuffer], { type: "application/pdf" });
             lastBlobUrl = URL.createObjectURL(blob);
             pdfSrc.value = lastBlobUrl;
+            await nextTick();
+            await new Promise<void>((resolve) => {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => resolve());
+                });
+            });
+            pdfMountReady.value = true;
         } catch (e) {
             if ((e as Error).name === "AbortError") return;
             pdfLoadFailed.value = true;
@@ -351,12 +356,13 @@ watch(
         </template>
         <div class="pdf-viewer-body">
             <VuePdfApp
-                v-if="pdfSrc"
+                v-if="pdfSrc && pdfMountReady"
                 :pdf="pdfSrc"
                 :page-number="currentDoc?.page ?? 1"
                 :config="toolbarConfig"
                 :file-name="(currentDoc?.name ?? 'document').replace(/\.pdf$/i, '') + '.pdf'"
                 class="documents-pdf-app"
+                style="height: 100%; width: 100%; min-height: 320px; flex: 1 1 auto"
                 @after-created="onAfterCreated"
                 @open="onOpen"
                 @pages-rendered="onPagesRendered"
