@@ -174,9 +174,7 @@ function toggleFullscreen(): void {
         preFullscreenState.top = container.value.style.top;
         preFullscreenState.width = container.value.style.width;
         preFullscreenState.height = container.value.style.height;
-        container.value.classList.add("modal-fullscreen");
     } else {
-        container.value.classList.remove("modal-fullscreen");
         container.value.style.left = preFullscreenState.left;
         container.value.style.top = preFullscreenState.top;
         container.value.style.width = preFullscreenState.width;
@@ -208,7 +206,11 @@ function toggleMinimize(): void {
             <div
                 ref="container"
                 class="modal-container"
-                :class="[extraClass, { 'modal-container--minimized': minimized }]"
+                :class="[
+                    extraClass,
+                    { 'modal-container--minimized': minimized && !fullscreen },
+                    { 'modal-fullscreen': fullscreen },
+                ]"
                 :style="{ backgroundColor: colour }"
                 @click.stop="emit('focus')"
             >
@@ -295,7 +297,8 @@ function toggleMinimize(): void {
     z-index: 10000;
 }
 
-.modal-container.modal-container--minimized {
+/* Solo barra titolo: mai in conflitto con fullscreen (stessa specificità vince l’ultima regola) */
+.modal-container.modal-container--minimized:not(.modal-fullscreen) {
     min-height: auto !important;
     height: auto !important;
     max-height: none !important;
