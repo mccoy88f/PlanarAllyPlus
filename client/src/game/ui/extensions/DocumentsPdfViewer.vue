@@ -15,10 +15,11 @@ import { playerSystem } from "../../systems/players";
 import { i18n } from "../../../i18n";
 
 /**
- * Incrementato a ogni chiusura del viewer; persiste tra unmount/remount così la prossima apertura
- * usa una :key nuova (stesso effetto di “file mai aperto” per vue3-pdf-app).
+ * Incrementato all’inizio di ogni caricamento documento (ogni volta che il watch apre un PDF).
+ * Così la :key cambia anche: prima apertura, cambio file senza chiudere, riapertura dopo chiusura.
+ * (Il vecchio solo-incremento in close() non aggiornava mai pdfViewerSessionId dentro la stessa istanza.)
  */
-let pdfViewerCloseGeneration = 0;
+let pdfViewerOpenGeneration = 0;
 
 const props = defineProps<{
     visible: boolean;
@@ -30,10 +31,8 @@ const toast = useToast();
 
 const pdfSrc = ref<string | ArrayBuffer | null>(null);
 let lastBlobUrl: string | null = null;
-/** Legata a pdfViewerCloseGeneration alla creazione dell’istanza; cambia dopo ogni chiusura. */
-const pdfViewerSessionId = ref(pdfViewerCloseGeneration);
-/** Incrementata a ogni caricamento PDF: forza il remount di vue3-pdf-app e evita "0 pagine" riaprendo lo stesso file. */
-const pdfViewerInstanceKey = ref(0);
+/** Aggiornata a ogni apertura/caricamento documento; usata come :key su VuePdfApp. */
+const pdfViewerSessionId = ref(0);
 /** Monta VuePdfApp solo dopo layout del modale + precaricamento l10n (evita #of_pages undefined, offsetParent scroll, fake worker instabile). */
 const pdfMountReady = ref(false);
 const pdfViewerBodyRef = ref<HTMLElement | null>(null);
@@ -268,7 +267,6 @@ function onPagesRendered(pdfApp: { pdfViewer?: { currentPageNumber: number; scro
 }
 
 function close(): void {
-    pdfViewerCloseGeneration += 1;
     pdfMountReady.value = false;
     fetchAbortController?.abort();
     fetchAbortController = null;
@@ -304,6 +302,9 @@ watch(
             pdfLoadFailed.value = true;
             return;
         }
+
+        pdfViewerOpenGeneration += 1;
+        pdfViewerSessionId.value = pdfViewerOpenGeneration;
 
         if (fetchAbortController && fetchAbortControllerHash !== fileHash) {
             fetchAbortController.abort();
@@ -346,7 +347,6 @@ watch(
             const blob = new Blob([arrayBuffer], { type: "application/pdf" });
             lastBlobUrl = URL.createObjectURL(blob);
             pdfSrc.value = lastBlobUrl;
-            pdfViewerInstanceKey.value += 1;
 
             await ensurePdfLocaleReady();
             const stillOpen = extensionsState.raw.documentsPdfViewer?.fileHash?.trim() === fileHash;
@@ -439,7 +439,7 @@ watch(
         <div ref="pdfViewerBodyRef" class="pdf-viewer-body">
             <VuePdfApp
                 v-if="pdfSrc && pdfMountReady"
-                :key="`${pdfViewerSessionId}-${pdfViewerInstanceKey}`"
+                :key="pdfViewerSessionId"
                 :pdf="pdfSrc"
                 :page-number="currentDoc?.page ?? 1"
                 :config="toolbarConfig"
