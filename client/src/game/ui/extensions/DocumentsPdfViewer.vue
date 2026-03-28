@@ -69,6 +69,8 @@ const pdfMountReady = ref(false);
 const pdfViewerBodyRef = ref<HTMLElement | null>(null);
 const pdfLoadFailed = ref(false);
 const currentPage = ref(1);
+/** Evita doppie registrazioni su eventBus (stessa istanza PDFViewerApplication). */
+const pdfViewerEventBusBound = ref(false);
 const pdfAppRef = ref<{
     eventBus: { on: (e: string, cb: (e: { pageNumber: number }) => void) => void };
     pdfViewer?: { currentPageNumber: number };
@@ -107,7 +109,8 @@ const PDF_LOCALE_LINK_ID = "planarally-pdf-locale-link";
 
 const toolbarConfig = {
     sidebar: {
-        viewThumbnail: true,
+        /* Thumbnails: molti warning l10n (#thumb_page_title) se le stringhe non sono ancora pronte. */
+        viewThumbnail: false,
         viewOutline: true,
         viewAttachments: false,
     },
@@ -256,6 +259,32 @@ async function waitForPdfContainerLayout(): Promise<void> {
     });
 }
 
+type PdfViewerAppForSync = {
+    eventBus: { on: (e: string, cb: (e: unknown) => void) => void };
+    page?: number;
+    pdfViewer?: { currentPageNumber: number };
+};
+
+function wirePdfViewerPageSync(pdfApp: PdfViewerAppForSync): void {
+    if (pdfViewerEventBusBound.value) return;
+    pdfViewerEventBusBound.value = true;
+
+    const syncFromApp = (): void => {
+        const p = (pdfApp as { page?: number }).page ?? pdfApp?.pdfViewer?.currentPageNumber;
+        if (typeof p === "number" && p > 0) currentPage.value = p;
+    };
+    syncFromApp();
+    if (pdfApp?.eventBus) {
+        const syncPage = (e: unknown): void => {
+            const ev = e as { pageNumber?: number; page?: number };
+            const p = ev?.pageNumber ?? ev?.page;
+            if (typeof p === "number" && p > 0) currentPage.value = p;
+        };
+        pdfApp.eventBus.on("pagechanging", syncPage);
+        pdfApp.eventBus.on("pagenumberchanged", syncPage);
+    }
+}
+
 function onAfterCreated(pdfApp: unknown): void {
     pdfDebug("event after-created (PDFViewerApplication creato)");
     const app = pdfApp as {
@@ -273,6 +302,14 @@ function onAfterCreated(pdfApp: unknown): void {
     } catch {
         /* fallback già provato sopra */
     }
+
+    /*
+     * vue3-pdf-app: il primo caricamento usa open() in onMounted, che NON emette mai "open"
+     * (solo openDocument dal file input emette "open"). Qui agganciamo ref + eventBus sempre.
+     */
+    pdfLoadFailed.value = false;
+    pdfAppRef.value = pdfApp as typeof pdfAppRef.value;
+    wirePdfViewerPageSync(pdfApp as PdfViewerAppForSync);
 }
 
 /** Senza altezza sul container pdf.js non disegna le pagine (0 pagine visibili); download e metadati funzionano comunque. */
@@ -297,57 +334,6 @@ function forcePdfViewerLayout(pdfApp: { pdfViewer?: { update?: () => void; curre
     });
 }
 
-function onOpen(pdfApp: {
-    eventBus: { on: (e: string, cb: (e: unknown) => void) => void };
-    page?: number;
-    pdfViewer?: {
-        currentPageNumber: number;
-        update?: () => void;
-        currentScaleValue?: string;
-    };
-}): void {
-    const appAny = pdfApp as {
-        pdfDocument?: { numPages?: number };
-        pdfViewer?: {
-            currentPageNumber: number;
-            update?: () => void;
-            currentScaleValue?: string;
-        };
-    };
-    const numPages = appAny.pdfDocument?.numPages;
-    pdfDebug("event open (PDF caricato, pagine non ancora renderizzate)", {
-        numPages: numPages ?? "n/d",
-        currentPage: pdfApp.pdfViewer?.currentPageNumber,
-        currentScaleValue: pdfApp.pdfViewer?.currentScaleValue ?? null,
-    });
-    logPdfViewerDomSizes("onOpen");
-
-    pdfLoadFailed.value = false;
-    pdfAppRef.value = pdfApp;
-    const syncFromApp = (): void => {
-        const p = (pdfApp as { page?: number }).page ?? pdfApp?.pdfViewer?.currentPageNumber;
-        if (typeof p === "number" && p > 0) currentPage.value = p;
-    };
-    syncFromApp();
-    if (pdfApp?.eventBus) {
-        const syncPage = (e: unknown): void => {
-            const ev = e as { pageNumber?: number; page?: number };
-            const p = ev?.pageNumber ?? ev?.page;
-            if (typeof p === "number" && p > 0) currentPage.value = p;
-        };
-        pdfApp.eventBus.on("pagechanging", syncPage);
-        pdfApp.eventBus.on("pagenumberchanged", syncPage);
-    }
-    try {
-        if (pdfApp.pdfViewer && !pdfApp.pdfViewer.currentScaleValue) {
-            pdfApp.pdfViewer.currentScaleValue = "page-fit";
-        }
-    } catch {
-        /* ignore */
-    }
-    forcePdfViewerLayout(pdfApp);
-}
-
 function onPagesRendered(pdfApp: {
     pdfViewer?: {
         currentPageNumber: number;
@@ -362,6 +348,20 @@ function onPagesRendered(pdfApp: {
         currentScaleValue: pv?.currentScaleValue ?? null,
     });
     logPdfViewerDomSizes("onPagesRendered");
+
+    pdfLoadFailed.value = false;
+    if (!pdfAppRef.value) {
+        pdfAppRef.value = pdfApp as typeof pdfAppRef.value;
+        wirePdfViewerPageSync(pdfApp as PdfViewerAppForSync);
+    }
+    try {
+        if (pv && !pv.currentScaleValue) {
+            pv.currentScaleValue = "page-fit";
+        }
+    } catch {
+        /* ignore */
+    }
+    forcePdfViewerLayout(pdfApp);
 
     /* README: dopo il primo render impostare la scala se il viewer era 0×0. */
     setTimeout(() => {
@@ -390,6 +390,7 @@ function onPagesRendered(pdfApp: {
 function close(): void {
     pdfDebug("close()");
     pdfMountReady.value = false;
+    pdfViewerEventBusBound.value = false;
     fetchAbortController?.abort();
     fetchAbortController = null;
     fetchAbortControllerHash = null;
@@ -414,6 +415,8 @@ watch(
     async (doc) => {
         if (!doc?.fileHash) {
             pdfMountReady.value = false;
+            pdfViewerEventBusBound.value = false;
+            pdfAppRef.value = null;
             pdfSrc.value = null;
             pdfLoadFailed.value = false;
             return;
@@ -444,6 +447,8 @@ watch(
         fetchAbortControllerHash = fileHash;
 
         pdfMountReady.value = false;
+        pdfViewerEventBusBound.value = false;
+        pdfAppRef.value = null;
         pdfLoadFailed.value = false;
         pdfSrc.value = null;
         if (lastBlobUrl) {
@@ -596,7 +601,6 @@ watch(
                     class="documents-pdf-app"
                     style="height: 100%; width: 100%; min-height: 0"
                     @after-created="onAfterCreated"
-                    @open="onOpen"
                     @pages-rendered="onPagesRendered"
                 />
             </div>
@@ -648,6 +652,19 @@ watch(
     height: 100%;
     display: flex;
     flex-direction: column;
+}
+
+/* offsetParent null / scrollViewer: il viewer deve avere contenitore posizionato e altezza nel flex. */
+.documents-pdf-viewer-modal .documents-pdf-app-shell :deep(#mainContainer),
+.documents-pdf-viewer-modal .documents-pdf-app-shell :deep(#viewerContainer) {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+}
+
+.documents-pdf-viewer-modal .documents-pdf-app-shell :deep(.scrollViewer) {
+    position: relative;
+    min-height: 0;
 }
 
 .documents-pdf-app {
