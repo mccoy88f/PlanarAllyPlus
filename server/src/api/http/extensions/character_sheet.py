@@ -165,6 +165,10 @@ async def list_all(request: web.Request) -> web.Response:
     is_dm = pr.role == Role.DM
     # Same idea as documents/list: DM + preview_as_player → filter like a player (fake player UX).
     player_view = (not is_dm) or (preview_as_player and is_dm)
+    # DM che usa anteprima: non è un giocatore reale — se filtrassimo come player (proprietario OR visibile),
+    # vedrebbe comunque tutte le schede create da lui come DM. Qui mostriamo solo schede esplicitamente
+    # condivise, per avvicinare la vista a quella dei giocatori (senza simulare un PG specifico).
+    dm_simulates_player = bool(preview_as_player and is_dm)
     characters = _get_characters_for_room(room, user, is_dm=not player_view)
     char_by_id = {c.id: c for c in characters}
 
@@ -179,10 +183,13 @@ async def list_all(request: web.Request) -> web.Response:
 
         sheets_query = CharacterSheet.select().where(CharacterSheet.room == room)
         if player_view:
-            # Use owner_id so filtering does not depend on FK object identity (Peewee User instance).
-            sheets_query = sheets_query.where(
-                (CharacterSheet.owner_id == user.id) | (CharacterSheet.visible_to_players == True)
-            )
+            if dm_simulates_player:
+                sheets_query = sheets_query.where(CharacterSheet.visible_to_players == True)
+            else:
+                # Use owner_id so filtering does not depend on FK object identity (Peewee User instance).
+                sheets_query = sheets_query.where(
+                    (CharacterSheet.owner_id == user.id) | (CharacterSheet.visible_to_players == True)
+                )
 
         result_sheets = []
         for sheet_record in sheets_query:
@@ -194,8 +201,14 @@ async def list_all(request: web.Request) -> web.Response:
 
             char_id = sheet_record.character.id if sheet_record.character else None
             char = char_by_id.get(char_id) if char_id else None
-            can_edit = _can_edit_sheet_content(user, pr, sheet_record)
-            can_delete = pr.role == Role.DM or sheet_record.owner_id == user.id
+            if dm_simulates_player:
+                can_edit = (sheet_record.owner_id == user.id) or bool(sheet_record.visible_to_players)
+                can_delete = sheet_record.owner_id == user.id
+                can_toggle_visibility = sheet_record.owner_id == user.id
+            else:
+                can_edit = _can_edit_sheet_content(user, pr, sheet_record)
+                can_delete = pr.role == Role.DM or sheet_record.owner_id == user.id
+                can_toggle_visibility = is_dm or sheet_record.owner_id == user.id
             char_name = char.name if char else None
 
             migrated = migrate_old_to_beyond(sheet_data)
@@ -216,7 +229,7 @@ async def list_all(request: web.Request) -> web.Response:
                 "canDelete": can_delete,
                 "isDefault": default_sheet_id == str(sheet_record.id),
                 "visibleToPlayers": sheet_record.visible_to_players,
-                "canToggleVisibility": is_dm or sheet_record.owner.id == user.id,
+                "canToggleVisibility": can_toggle_visibility,
             })
 
     result_sheets.sort(key=lambda s: (s.get("name") or "").lower())
@@ -225,6 +238,7 @@ async def list_all(request: web.Request) -> web.Response:
         "sheets": result_sheets,
         "isDm": is_dm,
         "playerView": player_view,
+        "dmPreviewAsPlayer": dm_simulates_player,
         "characters": [
             {
                 "id": c.id,
