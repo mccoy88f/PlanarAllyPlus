@@ -46,18 +46,25 @@ async def serve_document(request: web.Request) -> web.Response:
         return web.HTTPBadRequest(text="Invalid file hash")
 
     # Find entry: owned by user in documents tree, or DM's doc visible to players in user's room
-    docs_folder = _get_or_create_documents_folder(user)
-    entry = AssetEntry.select().join(Asset).where((Asset.file_hash == file_hash) & (AssetEntry.owner == user)).first()
-    
+    # Join esplicito su asset: evita join ambigui (più FK verso asset) che possono far fallire la query.
+    entry = (
+        AssetEntry.select()
+        .join(Asset, on=(AssetEntry.asset == Asset.id))
+        .where((Asset.file_hash == file_hash) & (AssetEntry.owner == user))
+        .first()
+    )
+
     if entry and _is_in_documents_tree(entry, user):
         pass  # User's own document
     else:
         entry = None
         vis_data = _load_document_visibility()
-        for candidate in AssetEntry.select().join(Asset).where(Asset.file_hash == file_hash):
+        for candidate in (
+            AssetEntry.select()
+            .join(Asset, on=(AssetEntry.asset == Asset.id))
+            .where(Asset.file_hash == file_hash)
+        ):
             if not candidate.name or not candidate.name.lower().endswith(".pdf"):
-                continue
-            if candidate.owner_id == user.id:
                 continue
             for room_key, vis_map in vis_data.items():
                 visible_ids = _get_visible_document_ids(candidate.owner, vis_map)
@@ -71,7 +78,8 @@ async def serve_document(request: web.Request) -> web.Response:
                 if not room or room.creator_id != candidate.owner_id:
                     continue
                 pr = PlayerRoom.get_or_none(PlayerRoom.room == room, PlayerRoom.player == user)
-                if not pr:
+                # Il creatore della stanza può servire i propri PDF anche senza riga PlayerRoom (dati legacy / edge case).
+                if not pr and room.creator_id != user.id:
                     continue
                 entry = candidate
                 break
