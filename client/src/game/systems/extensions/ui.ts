@@ -91,12 +91,22 @@ export function closeDocumentsModal(): void {
     extensionsState.mutableReactive.documentsModalOpen = false;
 }
 
+/** Suffisso aggiunto da getShareLink sui link in chat: "Nome file (p. 3)" — nel modale vogliamo solo il nome. */
+function stripPdfChatLinkPageSuffix(title: string): string {
+    return title.replace(/\s*\(\s*p\.\s*\d+\s*\)\s*$/i, "").trim();
+}
+
 export function openDocumentsPdfViewer(
     fileHash: string,
     name: string,
     page?: number,
 ): void {
-    extensionsState.mutableReactive.documentsPdfViewer = { fileHash, name, page };
+    const clean = stripPdfChatLinkPageSuffix(name);
+    extensionsState.mutableReactive.documentsPdfViewer = {
+        fileHash,
+        name: clean.length > 0 ? clean : name.trim(),
+        page,
+    };
     focusExtension("documents-pdf");
 }
 
