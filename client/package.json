@@ -4,6 +4,7 @@
     "private": true,
     "type": "module",
     "scripts": {
+        "postinstall": "patch-package",
         "dev": "vite",
         "serve": "vite preview",
         "clean": "node -e \"fs.rmSync('../server/static/vite', { recursive: true, force: true })\"",
@@ -22,6 +23,7 @@
     "dependencies": {
         "@babylonjs/core": "^8.22.2",
         "@babylonjs/materials": "^8.22.2",
+        "@dragdroptouch/drag-drop-touch": "^2.0.3",
         "@fortawesome/fontawesome-svg-core": "^7.2.0",
         "@fortawesome/free-brands-svg-icons": "^7.2.0",
         "@fortawesome/free-regular-svg-icons": "^7.2.0",
@@ -59,6 +61,7 @@
         "oxfmt": "^0.35.0",
         "oxlint": "^1.50.0",
         "oxlint-tsgolint": "^0.15.0",
+        "patch-package": "^8.0.1",
         "sass": "^1.97.3",
         "typescript": "^5.9.3",
         "upath": "^2.0.1",

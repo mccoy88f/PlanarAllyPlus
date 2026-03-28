@@ -124,6 +124,15 @@ def _can_edit_character(user: User, character: Character, is_dm: bool) -> bool:
     return character.owner_id == user.id
 
 
+def _can_edit_sheet_content(user: User, pr: PlayerRoom, sheet_record: CharacterSheet) -> bool:
+    """DM, proprietario della scheda, oppure scheda condivisa (visibile ai giocatori: contenuto modificabile da tutti in stanza)."""
+    if pr.role == Role.DM:
+        return True
+    if sheet_record.owner_id == user.id:
+        return True
+    return bool(sheet_record.visible_to_players)
+
+
 def _get_characters_for_room(room: Room, user: User, is_dm: bool) -> list[Character]:
     characters = Character.select().where(Character.campaign == room)
     if not is_dm:
@@ -132,7 +141,7 @@ def _get_characters_for_room(room: Room, user: User, is_dm: bool) -> list[Charac
         public_char_ids = CharacterSheet.select(CharacterSheet.character).where(
             (CharacterSheet.room == room) & (CharacterSheet.visible_to_players == True)
         )
-        characters = characters.where((Character.owner == user) | (Character.id.in_(public_char_ids)))
+        characters = characters.where((Character.owner_id == user.id) | (Character.id.in_(public_char_ids)))
     return list(characters)
 
 
@@ -141,6 +150,7 @@ async def list_all(request: web.Request) -> web.Response:
     user = await get_authorized_user(request)
     creator = request.query.get("room_creator", "").strip()
     room_name = request.query.get("room_name", "").strip()
+    preview_as_player = request.query.get("preview_as_player", "").strip().lower() in ("1", "true", "yes")
     if not creator or not room_name:
         return web.HTTPBadRequest(text="room_creator and room_name required")
 
@@ -153,7 +163,13 @@ async def list_all(request: web.Request) -> web.Response:
         return web.HTTPForbidden(text="Not in this room")
 
     is_dm = pr.role == Role.DM
-    characters = _get_characters_for_room(room, user, is_dm)
+    # Same idea as documents/list: DM + preview_as_player → filter like a player (fake player UX).
+    player_view = (not is_dm) or (preview_as_player and is_dm)
+    # DM che usa anteprima: non è un giocatore reale — se filtrassimo come player (proprietario OR visibile),
+    # vedrebbe comunque tutte le schede create da lui come DM. Qui mostriamo solo schede esplicitamente
+    # condivise, per avvicinare la vista a quella dei giocatori (senza simulare un PG specifico).
+    dm_simulates_player = bool(preview_as_player and is_dm)
+    characters = _get_characters_for_room(room, user, is_dm=not player_view)
     char_by_id = {c.id: c for c in characters}
 
     from ....db.db import db as ACTIVE_DB
@@ -166,8 +182,14 @@ async def list_all(request: web.Request) -> web.Response:
         default_sheet_id = str(default_record.sheet.id) if default_record else None
 
         sheets_query = CharacterSheet.select().where(CharacterSheet.room == room)
-        if not is_dm:
-            sheets_query = sheets_query.where((CharacterSheet.owner == user) | (CharacterSheet.visible_to_players == True))
+        if player_view:
+            if dm_simulates_player:
+                sheets_query = sheets_query.where(CharacterSheet.visible_to_players == True)
+            else:
+                # Use owner_id so filtering does not depend on FK object identity (Peewee User instance).
+                sheets_query = sheets_query.where(
+                    (CharacterSheet.owner_id == user.id) | (CharacterSheet.visible_to_players == True)
+                )
 
         result_sheets = []
         for sheet_record in sheets_query:
@@ -179,7 +201,14 @@ async def list_all(request: web.Request) -> web.Response:
 
             char_id = sheet_record.character.id if sheet_record.character else None
             char = char_by_id.get(char_id) if char_id else None
-            can_edit = is_dm or sheet_record.owner.id == user.id
+            if dm_simulates_player:
+                can_edit = (sheet_record.owner_id == user.id) or bool(sheet_record.visible_to_players)
+                can_delete = sheet_record.owner_id == user.id
+                can_toggle_visibility = sheet_record.owner_id == user.id
+            else:
+                can_edit = _can_edit_sheet_content(user, pr, sheet_record)
+                can_delete = pr.role == Role.DM or sheet_record.owner_id == user.id
+                can_toggle_visibility = is_dm or sheet_record.owner_id == user.id
             char_name = char.name if char else None
 
             migrated = migrate_old_to_beyond(sheet_data)
@@ -197,15 +226,19 @@ async def list_all(request: web.Request) -> web.Response:
                 "characterId": char_id,
                 "characterName": char_name,
                 "canEdit": can_edit,
+                "canDelete": can_delete,
                 "isDefault": default_sheet_id == str(sheet_record.id),
                 "visibleToPlayers": sheet_record.visible_to_players,
-                "canToggleVisibility": is_dm or sheet_record.owner.id == user.id,
+                "canToggleVisibility": can_toggle_visibility,
             })
 
     result_sheets.sort(key=lambda s: (s.get("name") or "").lower())
 
     return web.json_response({
         "sheets": result_sheets,
+        "isDm": is_dm,
+        "playerView": player_view,
+        "dmPreviewAsPlayer": dm_simulates_player,
         "characters": [
             {
                 "id": c.id,
@@ -461,7 +494,7 @@ async def update_sheet(request: web.Request) -> web.Response:
         return web.HTTPNotFound(text="Sheet not found")
     if sheet_record.room.id != room.id:
         return web.HTTPNotFound(text="Sheet not in this room")
-    if pr.role != Role.DM and sheet_record.owner.id != user.id:
+    if not _can_edit_sheet_content(user, pr, sheet_record):
         return web.HTTPForbidden(text="Cannot edit this sheet")
 
     migrated = migrate_old_to_beyond(sheet_data)
@@ -830,12 +863,16 @@ async def get_sheet_for_character(request: web.Request) -> web.Response:
         return web.HTTPForbidden(text="Cannot access this character")
 
     sheet_record = CharacterSheet.get_or_none(CharacterSheet.room == room, CharacterSheet.character == char)
-    
+
     if sheet_record:
-        if pr.role != Role.DM and sheet_record.owner.id != user.id:
-            return web.HTTPForbidden(text="Cannot access sheet for this character")
-        return web.json_response({"sheetId": str(sheet_record.id)})
-        
+        if pr.role == Role.DM:
+            return web.json_response({"sheetId": str(sheet_record.id)})
+        if sheet_record.owner_id == user.id:
+            return web.json_response({"sheetId": str(sheet_record.id)})
+        if sheet_record.visible_to_players:
+            return web.json_response({"sheetId": str(sheet_record.id)})
+        return web.HTTPForbidden(text="Cannot access sheet for this character")
+
     return web.HTTPNotFound(text="No sheet linked to this character")
 
 

@@ -331,12 +331,13 @@ async function showRenameUI(id: AssetEntryId): Promise<void> {
         overflow-x: hidden;
         overflow-y: auto;
 
-        // border: solid 2px transparent;
-        border: 5px dotted transparent;
+        // Bordo solido trasparente: evita il motivo "puntinato" a riposo; il tratteggio rosa solo in dropzone.
+        border: 5px solid transparent;
 
         user-select: none;
 
         &.dropzone {
+            border-style: dotted;
             border-color: #ffa8bf;
         }
 

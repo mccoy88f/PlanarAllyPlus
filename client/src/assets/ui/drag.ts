@@ -1,5 +1,5 @@
 import type { Ref } from "vue";
-import { onMounted, ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import { useToast } from "vue-toastification";
 
 import { assetSystem } from "..";
@@ -21,7 +21,7 @@ function showDropZone(): void {
 }
 
 function hideDropZone(): void {
-    dropZoneVisible.value--;
+    dropZoneVisible.value = Math.max(0, dropZoneVisible.value - 1);
 }
 
 function fsToFile(fl: FileSystemFileEntry): Promise<File> {
@@ -175,10 +175,25 @@ export function useDrag(
     _emit: (event: "onDragEnd" | "onDragLeave" | "onDragStart", value: DragEvent) => void,
 ): DragComposable {
     emit = _emit;
+
+    function resetDropZone(): void {
+        dropZoneVisible.value = 0;
+    }
+
     onMounted(() => {
         const body = document.getElementsByTagName("body")[0];
         body?.addEventListener("dragenter", showDropZone);
         body?.addEventListener("dragleave", hideDropZone);
+        // dragenter/dragleave sul body sono spesso squilibrati: azzera alla fine di ogni drag.
+        window.addEventListener("dragend", resetDropZone);
+        window.addEventListener("drop", resetDropZone);
+    });
+    onUnmounted(() => {
+        const body = document.getElementsByTagName("body")[0];
+        body?.removeEventListener("dragenter", showDropZone);
+        body?.removeEventListener("dragleave", hideDropZone);
+        window.removeEventListener("dragend", resetDropZone);
+        window.removeEventListener("drop", resetDropZone);
     });
 
     return {

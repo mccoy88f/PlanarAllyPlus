@@ -29,6 +29,17 @@ chatMarkDown.renderer.rules.link_open = (tokens, idx, options, env, self) => {
         tokens[idx]?.attrSet("data-qe-slug", slug);
         tokens[idx]?.attrSet("class", "qe-chat-link qe-internal-link");
     } else if (href.startsWith("doc:")) {
+        /* href="#": lo schema doc: non è standard; alcuni browser svuotano o alterano href="doc:…". */
+        const rest = href.slice(4).trim();
+        const hashIdx = rest.indexOf("#");
+        const hashPart = (hashIdx >= 0 ? rest.slice(0, hashIdx) : rest).trim();
+        if (hashIdx >= 0) {
+            const fragment = rest.slice(hashIdx + 1);
+            const pageMatch = /page=(\d+)/i.exec(fragment);
+            if (pageMatch) tokens[idx]?.attrSet("data-doc-page", pageMatch[1]!);
+        }
+        tokens[idx]?.attrSet("href", "#");
+        tokens[idx]?.attrSet("data-doc-hash", hashPart);
         tokens[idx]?.attrSet("class", "doc-chat-link");
     } else {
         tokens[idx]?.attrSet("target", "_blank");

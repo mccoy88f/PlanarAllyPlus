@@ -14,6 +14,13 @@ import { closeDocumentsPdfViewer, focusExtension } from "../../systems/extension
 import { playerSystem } from "../../systems/players";
 import { i18n } from "../../../i18n";
 
+/**
+ * Incrementato all’inizio di ogni caricamento documento (ogni volta che il watch apre un PDF).
+ * Così la :key cambia anche: prima apertura, cambio file senza chiudere, riapertura dopo chiusura.
+ * (Il vecchio solo-incremento in close() non aggiornava mai pdfViewerSessionId dentro la stessa istanza.)
+ */
+let pdfViewerOpenGeneration = 0;
+
 const props = defineProps<{
     visible: boolean;
     onClose: () => void;
@@ -24,15 +31,25 @@ const toast = useToast();
 
 const pdfSrc = ref<string | ArrayBuffer | null>(null);
 let lastBlobUrl: string | null = null;
+/** Aggiornata a ogni apertura/caricamento documento; usata come :key su VuePdfApp. */
+const pdfViewerSessionId = ref(0);
+/** Monta VuePdfApp solo dopo layout del modale + precaricamento l10n (evita #of_pages undefined, offsetParent scroll, fake worker instabile). */
+const pdfMountReady = ref(false);
+const pdfViewerBodyRef = ref<HTMLElement | null>(null);
 const pdfLoadFailed = ref(false);
 const currentPage = ref(1);
+/** Evita doppie registrazioni su eventBus (stessa istanza PDFViewerApplication). */
+const pdfViewerEventBusBound = ref(false);
 const pdfAppRef = ref<{
     eventBus: { on: (e: string, cb: (e: { pageNumber: number }) => void) => void };
     pdfViewer?: { currentPageNumber: number };
 } | null>(null);
 
+let fetchAbortController: AbortController | null = null;
+
 const currentDoc = computed(() => extensionsState.reactive.documentsPdfViewer);
 
+/** Allineato a pdf.js 2.4.456 (bundlato in vue3-pdf-app); cartelle l10n su raw GitHub. */
 const LOCALE_MAP: Record<string, string> = {
     en: "en-US",
     it: "it",
@@ -45,6 +62,14 @@ const LOCALE_MAP: Record<string, string> = {
     dk: "da",
 };
 
+/** Locale pdf.js dalla lingua del sito (vue-i18n). */
+function getPdfJsLocale(): string {
+    const raw = i18n.global.locale.value ?? "en";
+    if (LOCALE_MAP[raw]) return LOCALE_MAP[raw];
+    const short = raw.split("-")[0] ?? "en";
+    return LOCALE_MAP[short] ?? "en-US";
+}
+
 /** Allineato a pdf.js 2.4.456 (bundlato in vue3-pdf-app); v3.x ha chiavi l10n diverse e rompe i tooltip. */
 const PDF_LOCALE_BASE =
     "https://raw.githubusercontent.com/mozilla/pdf.js/v2.4.456/l10n";
@@ -52,7 +77,8 @@ const PDF_LOCALE_LINK_ID = "planarally-pdf-locale-link";
 
 const toolbarConfig = {
     sidebar: {
-        viewThumbnail: true,
+        /* Thumbnails: molti warning l10n (#thumb_page_title) se le stringhe non sono ancora pronte. */
+        viewThumbnail: false,
         viewOutline: true,
         viewAttachments: false,
     },
@@ -85,11 +111,10 @@ function getEffectivePage(): number {
         const p = parseInt(pageInput.value, 10);
         if (!Number.isNaN(p) && p > 0) return p;
     }
-    const app = pdfAppRef.value as { page?: number; pdfViewer?: { currentPageNumber: number } } | null;
+    const app = pdfAppRef.value as { pdfViewer?: { currentPageNumber: number } } | null;
     const fromViewer = app?.pdfViewer?.currentPageNumber;
     if (fromViewer != null && fromViewer > 0) return fromViewer;
-    const fromAppPage = app?.page;
-    if (fromAppPage != null && fromAppPage > 0) return fromAppPage;
+    /* Non leggere app.page: il getter pdf.js usa pdfViewer.currentPageNumber e può lanciare se pdfViewer è null. */
     if (currentPage.value > 0) return currentPage.value;
     const fromDoc = currentDoc.value?.page;
     if (fromDoc != null && fromDoc > 0) return fromDoc;
@@ -138,8 +163,7 @@ function shareToChat(): void {
 }
 
 function setPdfLocale(): void {
-    const locale = LOCALE_MAP[i18n.global.locale.value] ?? i18n.global.locale.value;
-
+    const locale = getPdfJsLocale();
     /* Inietta link per caricare il locale da raw GitHub (cache del browser al primo fetch) */
     let link = document.getElementById(PDF_LOCALE_LINK_ID) as HTMLLinkElement | null;
     if (!link) {
@@ -158,33 +182,50 @@ function setPdfLocale(): void {
     }
 }
 
-function onAfterCreated(pdfApp: unknown): void {
-    const app = pdfApp as {
-        appOptions?: { set: (k: string, v: string) => void };
-        l10n?: { setLanguage?: (l: string) => void };
-    };
-    const locale = LOCALE_MAP[i18n.global.locale.value] ?? i18n.global.locale.value;
+/** Precarica viewer.properties e attende un tick così pdf.js non inizializza con l10n vuota. */
+async function ensurePdfLocaleReady(): Promise<void> {
+    const locale = getPdfJsLocale();
+    setPdfLocale();
     try {
-        app?.appOptions?.set?.("locale", locale);
+        await fetch(`${PDF_LOCALE_BASE}/${locale}/viewer.properties`, { cache: "force-cache" });
     } catch {
-        setPdfLocale();
+        /* locale opzionale */
     }
-    try {
-        app?.l10n?.setLanguage?.(locale);
-    } catch {
-        /* fallback già provato sopra */
+    await nextTick();
+    await new Promise<void>((r) => setTimeout(r, 0));
+}
+
+/** Attende che il body del modale abbia dimensioni (transition Modal + extension layer) prima di montare pdf.js. */
+async function waitForPdfContainerLayout(): Promise<void> {
+    await nextTick();
+    await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => resolve());
+        });
+    });
+    const deadline = Date.now() + 600;
+    while (Date.now() < deadline) {
+        const el = pdfViewerBodyRef.value;
+        /* Non usare offsetParent: con antenati fixed/transform può essere null anche con layout valido. */
+        if (el && el.offsetWidth > 0 && el.offsetHeight > 0) {
+            return;
+        }
+        await new Promise((r) => setTimeout(r, 20));
     }
 }
 
-function onOpen(pdfApp: {
+type PdfViewerAppForSync = {
     eventBus: { on: (e: string, cb: (e: unknown) => void) => void };
-    page?: number;
     pdfViewer?: { currentPageNumber: number };
-}): void {
-    pdfLoadFailed.value = false;
-    pdfAppRef.value = pdfApp;
+};
+
+function wirePdfViewerPageSync(pdfApp: PdfViewerAppForSync): void {
+    if (pdfViewerEventBusBound.value) return;
+    pdfViewerEventBusBound.value = true;
+
     const syncFromApp = (): void => {
-        const p = (pdfApp as { page?: number }).page ?? pdfApp?.pdfViewer?.currentPageNumber;
+        /* Non usare .page su PDFViewerApplication: getter che legge pdfViewer prima che sia pronto → TypeError. */
+        const p = pdfApp.pdfViewer?.currentPageNumber;
         if (typeof p === "number" && p > 0) currentPage.value = p;
     };
     syncFromApp();
@@ -199,10 +240,89 @@ function onOpen(pdfApp: {
     }
 }
 
-function onPagesRendered(pdfApp: { pdfViewer?: { currentPageNumber: number; scrollPageIntoView?: (n: { pageNumber: number }) => void } }): void {
-    const page = currentDoc.value?.page;
-    if (page == null || page < 1 || !pdfApp?.pdfViewer) return;
+function onAfterCreated(pdfApp: unknown): void {
+    const app = pdfApp as {
+        appOptions?: { set: (k: string, v: string) => void };
+        l10n?: { setLanguage?: (l: string) => void };
+    };
+    const locale = getPdfJsLocale();
+    try {
+        app?.appOptions?.set?.("locale", locale);
+    } catch {
+        setPdfLocale();
+    }
+    try {
+        app?.l10n?.setLanguage?.(locale);
+    } catch {
+        /* fallback già provato sopra */
+    }
+
+    /*
+     * vue3-pdf-app: il primo caricamento usa open() in onMounted, che NON emette mai "open"
+     * (solo openDocument dal file input emette "open"). Qui agganciamo ref + eventBus sempre.
+     */
+    pdfLoadFailed.value = false;
+    pdfAppRef.value = pdfApp as typeof pdfAppRef.value;
+    wirePdfViewerPageSync(pdfApp as PdfViewerAppForSync);
+}
+
+/** Senza altezza sul container pdf.js non disegna le pagine (0 pagine visibili); download e metadati funzionano comunque. */
+function forcePdfViewerLayout(pdfApp: { pdfViewer?: { update?: () => void; currentScaleValue?: string } }): void {
+    const run = (): void => {
+        try {
+            window.dispatchEvent(new Event("resize"));
+            pdfApp.pdfViewer?.update?.();
+        } catch {
+            /* ignore */
+        }
+    };
+    void nextTick(() => {
+        requestAnimationFrame(() => {
+            run();
+            setTimeout(run, 50);
+            setTimeout(run, 200);
+        });
+    });
+}
+
+function onPagesRendered(pdfApp: {
+    pdfViewer?: {
+        currentPageNumber: number;
+        currentScaleValue?: string;
+        update?: () => void;
+        scrollPageIntoView?: (n: { pageNumber: number }) => void;
+    };
+}): void {
     const pv = pdfApp.pdfViewer;
+
+    pdfLoadFailed.value = false;
+    if (!pdfAppRef.value) {
+        pdfAppRef.value = pdfApp as typeof pdfAppRef.value;
+        wirePdfViewerPageSync(pdfApp as PdfViewerAppForSync);
+    }
+    try {
+        if (pv && !pv.currentScaleValue) {
+            pv.currentScaleValue = "page-fit";
+        }
+    } catch {
+        /* ignore */
+    }
+    forcePdfViewerLayout(pdfApp);
+
+    /* README: dopo il primo render impostare la scala se il viewer era 0×0. */
+    setTimeout(() => {
+        try {
+            if (pv) {
+                pv.currentScaleValue = "page-fit";
+                pv.update?.();
+            }
+        } catch {
+            /* ignore */
+        }
+    }, 0);
+
+    const page = currentDoc.value?.page;
+    if (page == null || page < 1 || !pv) return;
     pv.currentPageNumber = page;
     setTimeout(() => {
         pv.currentPageNumber = page;
@@ -211,26 +331,33 @@ function onPagesRendered(pdfApp: { pdfViewer?: { currentPageNumber: number; scro
 }
 
 function close(): void {
+    pdfMountReady.value = false;
+    pdfViewerEventBusBound.value = false;
+    fetchAbortController?.abort();
+    fetchAbortController = null;
     pdfAppRef.value = null;
+    if (lastBlobUrl) {
+        URL.revokeObjectURL(lastBlobUrl);
+        lastBlobUrl = null;
+    }
     pdfSrc.value = null;
     closeDocumentsPdfViewer();
     props.onClose();
 }
 
-let fetchAbortController: AbortController | null = null;
-let fetchAbortControllerHash: string | null = null;
-
 onBeforeUnmount(() => {
     fetchAbortController?.abort();
     if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
-    const link = document.getElementById(PDF_LOCALE_LINK_ID);
-    link?.remove();
+    /* Non rimuovere il link l10n: la prossima apertura riusa la cache e evita race con pdf.js. */
 });
 
 watch(
     () => currentDoc.value,
     async (doc) => {
         if (!doc?.fileHash) {
+            pdfMountReady.value = false;
+            pdfViewerEventBusBound.value = false;
+            pdfAppRef.value = null;
             pdfSrc.value = null;
             pdfLoadFailed.value = false;
             return;
@@ -242,14 +369,18 @@ watch(
             return;
         }
 
-        if (fetchAbortController && fetchAbortControllerHash !== fileHash) {
-            fetchAbortController.abort();
-        }
+        pdfViewerOpenGeneration += 1;
+        pdfViewerSessionId.value = pdfViewerOpenGeneration;
+        const loadSessionId = pdfViewerSessionId.value;
+
+        /* Stesso hash della riapertura: senza abort restano due fetch attivi e stato/blob incoerenti. */
+        fetchAbortController?.abort();
         const controller = new AbortController();
         fetchAbortController = controller;
-        fetchAbortControllerHash = fileHash;
 
-        setPdfLocale();
+        pdfMountReady.value = false;
+        pdfViewerEventBusBound.value = false;
+        pdfAppRef.value = null;
         pdfLoadFailed.value = false;
         pdfSrc.value = null;
         if (lastBlobUrl) {
@@ -280,16 +411,62 @@ watch(
                 pdfLoadFailed.value = true;
                 return;
             }
-            const blob = new Blob([arrayBuffer], { type: "application/pdf" });
-            lastBlobUrl = URL.createObjectURL(blob);
-            pdfSrc.value = lastBlobUrl;
+            const blobUrl = URL.createObjectURL(new Blob([arrayBuffer], { type: "application/pdf" }));
+            if (pdfViewerSessionId.value !== loadSessionId) {
+                URL.revokeObjectURL(blobUrl);
+                return;
+            }
+            lastBlobUrl = blobUrl;
+            pdfSrc.value = blobUrl;
+
+            await ensurePdfLocaleReady();
+            if (pdfViewerSessionId.value !== loadSessionId) {
+                if (lastBlobUrl) {
+                    URL.revokeObjectURL(lastBlobUrl);
+                    lastBlobUrl = null;
+                }
+                pdfSrc.value = null;
+                pdfMountReady.value = false;
+                return;
+            }
+            const stillOpen = extensionsState.raw.documentsPdfViewer?.fileHash?.trim() === fileHash;
+            if (!stillOpen) {
+                if (lastBlobUrl) {
+                    URL.revokeObjectURL(lastBlobUrl);
+                    lastBlobUrl = null;
+                }
+                pdfSrc.value = null;
+                pdfMountReady.value = false;
+                return;
+            }
+            await waitForPdfContainerLayout();
+            if (pdfViewerSessionId.value !== loadSessionId) {
+                if (lastBlobUrl) {
+                    URL.revokeObjectURL(lastBlobUrl);
+                    lastBlobUrl = null;
+                }
+                pdfSrc.value = null;
+                pdfMountReady.value = false;
+                return;
+            }
+            if (extensionsState.raw.documentsPdfViewer?.fileHash?.trim() !== fileHash) {
+                if (lastBlobUrl) {
+                    URL.revokeObjectURL(lastBlobUrl);
+                    lastBlobUrl = null;
+                }
+                pdfSrc.value = null;
+                pdfMountReady.value = false;
+                return;
+            }
+            pdfMountReady.value = true;
         } catch (e) {
-            if ((e as Error).name === "AbortError") return;
+            if ((e as Error).name === "AbortError") {
+                return;
+            }
             pdfLoadFailed.value = true;
         } finally {
             if (fetchAbortController === controller) {
                 fetchAbortController = null;
-                fetchAbortControllerHash = null;
             }
         }
     },
@@ -349,18 +526,22 @@ watch(
                 </div>
             </div>
         </template>
-        <div class="pdf-viewer-body">
-            <VuePdfApp
-                v-if="pdfSrc"
-                :pdf="pdfSrc"
-                :page-number="currentDoc?.page ?? 1"
-                :config="toolbarConfig"
-                :file-name="(currentDoc?.name ?? 'document').replace(/\.pdf$/i, '') + '.pdf'"
-                class="documents-pdf-app"
-                @after-created="onAfterCreated"
-                @open="onOpen"
-                @pages-rendered="onPagesRendered"
-            />
+        <div ref="pdfViewerBodyRef" class="pdf-viewer-body">
+            <!-- vue3-pdf-app: senza altezza esplicita sul root non renderizza le pagine (README). -->
+            <div v-if="pdfSrc && pdfMountReady" class="documents-pdf-app-shell">
+                <VuePdfApp
+                    :key="pdfViewerSessionId"
+                    :pdf="pdfSrc"
+                    page-scale="page-fit"
+                    :page-number="currentDoc?.page ?? 1"
+                    :config="toolbarConfig"
+                    :file-name="(currentDoc?.name ?? 'document').replace(/\.pdf$/i, '') + '.pdf'"
+                    class="documents-pdf-app"
+                    style="height: 100%; width: 100%; min-height: 0"
+                    @after-created="onAfterCreated"
+                    @pages-rendered="onPagesRendered"
+                />
+            </div>
             <div v-else-if="currentDoc && !pdfLoadFailed" class="ext-ui-loading pdf-viewer-loading">
                 {{ t("game.ui.extensions.DocumentsModal.loading") }}
             </div>
@@ -391,6 +572,37 @@ watch(
     overflow: hidden;
     display: flex;
     flex-direction: column;
+}
+
+/* Shell: altrimenti .pdf-app (root vue3-pdf-app) può avere altezza 0 e non disegnare le pagine. */
+.documents-pdf-app-shell {
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.documents-pdf-viewer-modal .documents-pdf-app-shell :deep(.pdf-app) {
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* offsetParent null / scrollViewer: il viewer deve avere contenitore posizionato e altezza nel flex. */
+.documents-pdf-viewer-modal .documents-pdf-app-shell :deep(#mainContainer),
+.documents-pdf-viewer-modal .documents-pdf-app-shell :deep(#viewerContainer) {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+}
+
+.documents-pdf-viewer-modal .documents-pdf-app-shell :deep(.scrollViewer) {
+    position: relative;
+    min-height: 0;
 }
 
 .documents-pdf-app {

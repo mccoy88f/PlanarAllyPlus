@@ -1,4 +1,5 @@
 import "../style.css";
+import { enableDragDropTouch } from "@dragdroptouch/drag-drop-touch";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { createApp } from "vue";
 import { watch } from "vue";
@@ -14,6 +15,9 @@ import { router } from "./router";
 import { bootstrapRouter } from "./router/bootstrap";
 
 bootstrapRouter();
+
+// Touch: emula HTML5 drag-and-drop (asset → cartelle / mappa). Il canvas di gioco non usa `draggable`, quindi i touch lì restano gestiti da `game/tools/events.ts` (long-press incluso).
+enableDragDropTouch();
 
 loadFontAwesome();
 

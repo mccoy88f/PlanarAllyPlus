@@ -14,7 +14,10 @@ from ...state.auth import auth_state
 
 
 async def is_authed(request):
-    user = await get_authorized_user(request)
+    """Risposta 200 + JSON; non usare get_authorized_user (altrimenti 401 senza sessione)."""
+    user = None
+    if username := await authorized_userid(request):
+        user = User.by_name(username)
 
     if user is None:
         data = {"auth": False, "username": ""}

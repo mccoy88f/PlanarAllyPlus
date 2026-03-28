@@ -46,19 +46,26 @@ async def serve_document(request: web.Request) -> web.Response:
         return web.HTTPBadRequest(text="Invalid file hash")
 
     # Find entry: owned by user in documents tree, or DM's doc visible to players in user's room
-    docs_folder = _get_or_create_documents_folder(user)
-    entry = AssetEntry.select().join(Asset).where((Asset.file_hash == file_hash) & (AssetEntry.owner == user)).first()
-    
+    # Join esplicito su asset: evita join ambigui (più FK verso asset) che possono far fallire la query.
+    entry = (
+        AssetEntry.select()
+        .join(Asset, on=(AssetEntry.asset == Asset.id))
+        .where((Asset.file_hash == file_hash) & (AssetEntry.owner == user))
+        .first()
+    )
+
     if entry and _is_in_documents_tree(entry, user):
         pass  # User's own document
     else:
         entry = None
-        for candidate in AssetEntry.select().join(Asset).where(Asset.file_hash == file_hash):
+        vis_data = _load_document_visibility()
+        for candidate in (
+            AssetEntry.select()
+            .join(Asset, on=(AssetEntry.asset == Asset.id))
+            .where(Asset.file_hash == file_hash)
+        ):
             if not candidate.name or not candidate.name.lower().endswith(".pdf"):
                 continue
-            if candidate.owner == user:
-                continue
-            vis_data = _load_document_visibility()
             for room_key, vis_map in vis_data.items():
                 visible_ids = _get_visible_document_ids(candidate.owner, vis_map)
                 if candidate.id not in visible_ids:
@@ -68,8 +75,14 @@ async def serve_document(request: web.Request) -> web.Response:
                     continue
                 cr, rn = parts[0], parts[1]
                 room = _get_room(cr, rn)
-                if not room or room.creator != candidate.owner:
+                if not room or room.creator_id != candidate.owner_id:
                     continue
+                pr = PlayerRoom.get_or_none(PlayerRoom.room == room, PlayerRoom.player == user)
+                # Il creatore della stanza può servire i propri PDF anche senza riga PlayerRoom (dati legacy / edge case).
+                if not pr and room.creator_id != user.id:
+                    continue
+                entry = candidate
+                break
             if entry is not None:
                 break
 
@@ -168,6 +181,18 @@ def _get_visible_document_ids(owner: User, vis_map: dict[str, bool]) -> set[int]
     return visible_ids
 
 
+def _reparent_dm_visible_tree_top_level(nodes: list[dict], new_parent_id: int) -> list[dict]:
+    """Collega i nodi di primo livello dell'albero documenti del DM sotto la cartella virtuale (id new_parent_id)."""
+    result: list[dict] = []
+    for it in nodes:
+        node = {k: v for k, v in it.items() if k != "children"}
+        node["folderId"] = new_parent_id
+        if it.get("type") == "folder" and it.get("children") is not None:
+            node["children"] = it["children"]
+        result.append(node)
+    return result
+
+
 def _build_documents_tree(
     user: User,
     parent: AssetEntry | None,
@@ -249,6 +274,7 @@ async def list_documents(request: web.Request) -> web.Response:
     user = await get_authorized_user(request)
     room_creator = request.query.get("room_creator", "").strip()
     room_name = request.query.get("room_name", "").strip()
+    preview_as_player = request.query.get("preview_as_player", "").strip().lower() in ("1", "true", "yes")
 
     docs_folder = _get_or_create_documents_folder(user)
     visibility_map: dict[str, bool] | None = None
@@ -263,38 +289,37 @@ async def list_documents(request: web.Request) -> web.Response:
                 room_key = _room_key(room_creator, room_name)
                 vis = _get_room_visibility(room_key)
                 if pr.role == Role.DM:
-                    visibility_map = vis
-                    can_toggle = True
-                    tree = _build_documents_tree(
-                        user, None, visibility_map=visibility_map, can_toggle_visibility=True
-                    )
+                    # DM testing "fake player": same tree a player would see (only visible PDFs).
+                    if preview_as_player:
+                        visible_ids = _get_visible_document_ids(user, vis)
+                        tree = _build_documents_tree(
+                            user, None, owner_filter=user, visible_asset_ids=visible_ids
+                        )
+                    else:
+                        visibility_map = vis
+                        can_toggle = True
+                        tree = _build_documents_tree(
+                            user, None, visibility_map=visibility_map, can_toggle_visibility=True
+                        )
                 else:
                     dm = room.creator
+                    dm_tree: list[dict] = []
                     if dm != user:
                         visible_ids = _get_visible_document_ids(dm, vis)
                         dm_tree = _build_documents_tree(
                             user, None, owner_filter=dm, visible_asset_ids=visible_ids
                         )
-
-                        def extract_docs(items: list) -> list[dict]:
-                            out: list[dict] = []
-                            for it in items:
-                                if it["type"] == "document":
-                                    out.append({**it, "folderId": -1, "visibleToPlayers": True})
-                                else:
-                                    out.extend(extract_docs(it.get("children", [])))
-                            return out
-
-                        dm_visible_docs = extract_docs(dm_tree)
+                        if dm_tree:
+                            dm_tree = _reparent_dm_visible_tree_top_level(dm_tree, -1)
                     tree = _build_documents_tree(user, None)
-                    if dm_visible_docs:
+                    if dm_tree:
                         tree.insert(0, {
                             "id": -1,
                             "name": "Visible to players",
                             "nameKey": "visible_to_players",
                             "folderId": docs_folder.id,
                             "type": "folder",
-                            "children": dm_visible_docs,
+                            "children": dm_tree,
                         })
                 docs_folder = _get_or_create_documents_folder(user)
             else:
@@ -315,7 +340,23 @@ async def list_documents(request: web.Request) -> web.Response:
         return out
 
     flat = flatten(tree, docs_folder.id)
-    return web.json_response({"documents": flat, "tree": tree, "rootId": docs_folder.id})
+
+    # In partita: solo il DM può caricare/rinominare/spostare/eliminare; i player solo consultano.
+    can_manage_documents = True
+    if room_creator and room_name:
+        room = _get_room(room_creator, room_name)
+        if room:
+            pr = PlayerRoom.get_or_none(PlayerRoom.room == room, PlayerRoom.player == user)
+            can_manage_documents = pr is not None and pr.role == Role.DM
+
+    return web.json_response(
+        {
+            "documents": flat,
+            "tree": tree,
+            "rootId": docs_folder.id,
+            "canManageDocuments": can_manage_documents,
+        }
+    )
 
 
 def _get_documents_parent(user: User, parent_id: int | None) -> AssetEntry:
