@@ -26,6 +26,9 @@ const pdfSrc = ref<string | ArrayBuffer | null>(null);
 let lastBlobUrl: string | null = null;
 /** Incrementata a ogni caricamento PDF: forza il remount di vue3-pdf-app e evita "0 pagine" riaprendo lo stesso file. */
 const pdfViewerInstanceKey = ref(0);
+/** Monta VuePdfApp solo dopo layout del modale + precaricamento l10n (evita #of_pages undefined, offsetParent scroll, fake worker instabile). */
+const pdfMountReady = ref(false);
+const pdfViewerBodyRef = ref<HTMLElement | null>(null);
 const pdfLoadFailed = ref(false);
 const currentPage = ref(1);
 const pdfAppRef = ref<{
@@ -163,6 +166,39 @@ function setPdfLocale(): void {
     }
 }
 
+/** Precarica viewer.properties e attende un tick così pdf.js non inizializza con l10n vuota (errori #of_pages, print_progress_percent, ecc.). */
+async function ensurePdfLocaleReady(): Promise<void> {
+    const locale = LOCALE_MAP[i18n.global.locale.value] ?? i18n.global.locale.value;
+    const url = `${PDF_LOCALE_BASE}/${locale}/viewer.properties`;
+    setPdfLocale();
+    try {
+        await fetch(url, { cache: "force-cache" });
+    } catch {
+        /* offline: il viewer userà fallback / stringhe mancanti */
+    }
+    await nextTick();
+    await new Promise<void>((r) => setTimeout(r, 0));
+}
+
+/** Attende che il body del modale abbia dimensioni (transition Modal + extension layer) prima di montare pdf.js. */
+async function waitForPdfContainerLayout(): Promise<void> {
+    await nextTick();
+    await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => resolve());
+        });
+    });
+    const deadline = Date.now() + 600;
+    while (Date.now() < deadline) {
+        const el = pdfViewerBodyRef.value;
+        /* Non usare offsetParent: con antenati fixed/transform può essere null anche con layout valido. */
+        if (el && el.offsetWidth > 0 && el.offsetHeight > 0) {
+            return;
+        }
+        await new Promise((r) => setTimeout(r, 20));
+    }
+}
+
 function onAfterCreated(pdfApp: unknown): void {
     const app = pdfApp as {
         appOptions?: { set: (k: string, v: string) => void };
@@ -216,6 +252,7 @@ function onPagesRendered(pdfApp: { pdfViewer?: { currentPageNumber: number; scro
 }
 
 function close(): void {
+    pdfMountReady.value = false;
     fetchAbortController?.abort();
     fetchAbortController = null;
     fetchAbortControllerHash = null;
@@ -232,14 +269,14 @@ function close(): void {
 onBeforeUnmount(() => {
     fetchAbortController?.abort();
     if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
-    const link = document.getElementById(PDF_LOCALE_LINK_ID);
-    link?.remove();
+    /* Non rimuovere il link l10n: la prossima apertura riusa la cache e evita race con pdf.js. */
 });
 
 watch(
     () => currentDoc.value,
     async (doc) => {
         if (!doc?.fileHash) {
+            pdfMountReady.value = false;
             pdfSrc.value = null;
             pdfLoadFailed.value = false;
             return;
@@ -258,7 +295,7 @@ watch(
         fetchAbortController = controller;
         fetchAbortControllerHash = fileHash;
 
-        setPdfLocale();
+        pdfMountReady.value = false;
         pdfLoadFailed.value = false;
         pdfSrc.value = null;
         if (lastBlobUrl) {
@@ -293,6 +330,29 @@ watch(
             lastBlobUrl = URL.createObjectURL(blob);
             pdfSrc.value = lastBlobUrl;
             pdfViewerInstanceKey.value += 1;
+
+            await ensurePdfLocaleReady();
+            const stillOpen = extensionsState.raw.documentsPdfViewer?.fileHash?.trim() === fileHash;
+            if (!stillOpen) {
+                if (lastBlobUrl) {
+                    URL.revokeObjectURL(lastBlobUrl);
+                    lastBlobUrl = null;
+                }
+                pdfSrc.value = null;
+                pdfMountReady.value = false;
+                return;
+            }
+            await waitForPdfContainerLayout();
+            if (extensionsState.raw.documentsPdfViewer?.fileHash?.trim() !== fileHash) {
+                if (lastBlobUrl) {
+                    URL.revokeObjectURL(lastBlobUrl);
+                    lastBlobUrl = null;
+                }
+                pdfSrc.value = null;
+                pdfMountReady.value = false;
+                return;
+            }
+            pdfMountReady.value = true;
         } catch (e) {
             if ((e as Error).name === "AbortError") return;
             pdfLoadFailed.value = true;
@@ -359,9 +419,9 @@ watch(
                 </div>
             </div>
         </template>
-        <div class="pdf-viewer-body">
+        <div ref="pdfViewerBodyRef" class="pdf-viewer-body">
             <VuePdfApp
-                v-if="pdfSrc"
+                v-if="pdfSrc && pdfMountReady"
                 :key="pdfViewerInstanceKey"
                 :pdf="pdfSrc"
                 :page-number="currentDoc?.page ?? 1"
