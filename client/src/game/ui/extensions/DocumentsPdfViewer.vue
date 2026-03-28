@@ -232,10 +232,33 @@ function onAfterCreated(pdfApp: unknown): void {
     }
 }
 
+/** Senza altezza sul container pdf.js non disegna le pagine (0 pagine visibili); download e metadati funzionano comunque. */
+function forcePdfViewerLayout(pdfApp: { pdfViewer?: { update?: () => void; currentScaleValue?: string } }): void {
+    const run = (): void => {
+        try {
+            window.dispatchEvent(new Event("resize"));
+            pdfApp.pdfViewer?.update?.();
+        } catch {
+            /* ignore */
+        }
+    };
+    void nextTick(() => {
+        requestAnimationFrame(() => {
+            run();
+            setTimeout(run, 50);
+            setTimeout(run, 200);
+        });
+    });
+}
+
 function onOpen(pdfApp: {
     eventBus: { on: (e: string, cb: (e: unknown) => void) => void };
     page?: number;
-    pdfViewer?: { currentPageNumber: number };
+    pdfViewer?: {
+        currentPageNumber: number;
+        update?: () => void;
+        currentScaleValue?: string;
+    };
 }): void {
     pdfLoadFailed.value = false;
     pdfAppRef.value = pdfApp;
@@ -253,9 +276,37 @@ function onOpen(pdfApp: {
         pdfApp.eventBus.on("pagechanging", syncPage);
         pdfApp.eventBus.on("pagenumberchanged", syncPage);
     }
+    try {
+        if (pdfApp.pdfViewer && !pdfApp.pdfViewer.currentScaleValue) {
+            pdfApp.pdfViewer.currentScaleValue = "page-fit";
+        }
+    } catch {
+        /* ignore */
+    }
+    forcePdfViewerLayout(pdfApp);
 }
 
-function onPagesRendered(pdfApp: { pdfViewer?: { currentPageNumber: number; scrollPageIntoView?: (n: { pageNumber: number }) => void } }): void {
+function onPagesRendered(pdfApp: {
+    pdfViewer?: {
+        currentPageNumber: number;
+        currentScaleValue?: string;
+        update?: () => void;
+        scrollPageIntoView?: (n: { pageNumber: number }) => void;
+    };
+}): void {
+    /* README: dopo il primo render impostare la scala se il viewer era 0×0. */
+    setTimeout(() => {
+        try {
+            const pv = pdfApp.pdfViewer;
+            if (pv) {
+                pv.currentScaleValue = "page-fit";
+                pv.update?.();
+            }
+        } catch {
+            /* ignore */
+        }
+    }, 0);
+
     const page = currentDoc.value?.page;
     if (page == null || page < 1 || !pdfApp?.pdfViewer) return;
     const pv = pdfApp.pdfViewer;
@@ -437,18 +488,22 @@ watch(
             </div>
         </template>
         <div ref="pdfViewerBodyRef" class="pdf-viewer-body">
-            <VuePdfApp
-                v-if="pdfSrc && pdfMountReady"
-                :key="pdfViewerSessionId"
-                :pdf="pdfSrc"
-                :page-number="currentDoc?.page ?? 1"
-                :config="toolbarConfig"
-                :file-name="(currentDoc?.name ?? 'document').replace(/\.pdf$/i, '') + '.pdf'"
-                class="documents-pdf-app"
-                @after-created="onAfterCreated"
-                @open="onOpen"
-                @pages-rendered="onPagesRendered"
-            />
+            <!-- vue3-pdf-app: senza altezza esplicita sul root non renderizza le pagine (README). -->
+            <div v-if="pdfSrc && pdfMountReady" class="documents-pdf-app-shell">
+                <VuePdfApp
+                    :key="pdfViewerSessionId"
+                    :pdf="pdfSrc"
+                    page-scale="page-fit"
+                    :page-number="currentDoc?.page ?? 1"
+                    :config="toolbarConfig"
+                    :file-name="(currentDoc?.name ?? 'document').replace(/\.pdf$/i, '') + '.pdf'"
+                    class="documents-pdf-app"
+                    style="height: 100%; width: 100%; min-height: 0"
+                    @after-created="onAfterCreated"
+                    @open="onOpen"
+                    @pages-rendered="onPagesRendered"
+                />
+            </div>
             <div v-else-if="currentDoc && !pdfLoadFailed" class="ext-ui-loading pdf-viewer-loading">
                 {{ t("game.ui.extensions.DocumentsModal.loading") }}
             </div>
@@ -477,6 +532,24 @@ watch(
     flex: 1;
     min-height: 0;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Shell: altrimenti .pdf-app (root vue3-pdf-app) può avere altezza 0 e non disegnare le pagine. */
+.documents-pdf-app-shell {
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.documents-pdf-viewer-modal .documents-pdf-app-shell :deep(.pdf-app) {
+    flex: 1;
+    min-height: 0;
+    height: 100%;
     display: flex;
     flex-direction: column;
 }
