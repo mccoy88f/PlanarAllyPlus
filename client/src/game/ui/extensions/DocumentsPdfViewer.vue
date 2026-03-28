@@ -14,6 +14,12 @@ import { closeDocumentsPdfViewer, focusExtension } from "../../systems/extension
 import { playerSystem } from "../../systems/players";
 import { i18n } from "../../../i18n";
 
+/**
+ * Incrementato a ogni chiusura del viewer; persiste tra unmount/remount così la prossima apertura
+ * usa una :key nuova (stesso effetto di “file mai aperto” per vue3-pdf-app).
+ */
+let pdfViewerCloseGeneration = 0;
+
 const props = defineProps<{
     visible: boolean;
     onClose: () => void;
@@ -24,6 +30,8 @@ const toast = useToast();
 
 const pdfSrc = ref<string | ArrayBuffer | null>(null);
 let lastBlobUrl: string | null = null;
+/** Legata a pdfViewerCloseGeneration alla creazione dell’istanza; cambia dopo ogni chiusura. */
+const pdfViewerSessionId = ref(pdfViewerCloseGeneration);
 /** Incrementata a ogni caricamento PDF: forza il remount di vue3-pdf-app e evita "0 pagine" riaprendo lo stesso file. */
 const pdfViewerInstanceKey = ref(0);
 /** Monta VuePdfApp solo dopo layout del modale + precaricamento l10n (evita #of_pages undefined, offsetParent scroll, fake worker instabile). */
@@ -41,6 +49,7 @@ let fetchAbortControllerHash: string | null = null;
 
 const currentDoc = computed(() => extensionsState.reactive.documentsPdfViewer);
 
+/** Allineato a pdf.js 2.4.456 (bundlato in vue3-pdf-app); cartelle l10n su raw GitHub. */
 const LOCALE_MAP: Record<string, string> = {
     en: "en-US",
     it: "it",
@@ -52,6 +61,14 @@ const LOCALE_MAP: Record<string, string> = {
     tw: "zh-TW",
     dk: "da",
 };
+
+/** Locale pdf.js dalla lingua del sito (vue-i18n). */
+function getPdfJsLocale(): string {
+    const raw = i18n.global.locale.value ?? "en";
+    if (LOCALE_MAP[raw]) return LOCALE_MAP[raw];
+    const short = raw.split("-")[0] ?? "en";
+    return LOCALE_MAP[short] ?? "en-US";
+}
 
 /** Allineato a pdf.js 2.4.456 (bundlato in vue3-pdf-app); v3.x ha chiavi l10n diverse e rompe i tooltip. */
 const PDF_LOCALE_BASE =
@@ -146,8 +163,7 @@ function shareToChat(): void {
 }
 
 function setPdfLocale(): void {
-    const locale = LOCALE_MAP[i18n.global.locale.value] ?? i18n.global.locale.value;
-
+    const locale = getPdfJsLocale();
     /* Inietta link per caricare il locale da raw GitHub (cache del browser al primo fetch) */
     let link = document.getElementById(PDF_LOCALE_LINK_ID) as HTMLLinkElement | null;
     if (!link) {
@@ -168,7 +184,7 @@ function setPdfLocale(): void {
 
 /** Precarica viewer.properties e attende un tick così pdf.js non inizializza con l10n vuota (errori #of_pages, print_progress_percent, ecc.). */
 async function ensurePdfLocaleReady(): Promise<void> {
-    const locale = LOCALE_MAP[i18n.global.locale.value] ?? i18n.global.locale.value;
+    const locale = getPdfJsLocale();
     const url = `${PDF_LOCALE_BASE}/${locale}/viewer.properties`;
     setPdfLocale();
     try {
@@ -204,7 +220,7 @@ function onAfterCreated(pdfApp: unknown): void {
         appOptions?: { set: (k: string, v: string) => void };
         l10n?: { setLanguage?: (l: string) => void };
     };
-    const locale = LOCALE_MAP[i18n.global.locale.value] ?? i18n.global.locale.value;
+    const locale = getPdfJsLocale();
     try {
         app?.appOptions?.set?.("locale", locale);
     } catch {
@@ -252,6 +268,7 @@ function onPagesRendered(pdfApp: { pdfViewer?: { currentPageNumber: number; scro
 }
 
 function close(): void {
+    pdfViewerCloseGeneration += 1;
     pdfMountReady.value = false;
     fetchAbortController?.abort();
     fetchAbortController = null;
@@ -422,7 +439,7 @@ watch(
         <div ref="pdfViewerBodyRef" class="pdf-viewer-body">
             <VuePdfApp
                 v-if="pdfSrc && pdfMountReady"
-                :key="pdfViewerInstanceKey"
+                :key="`${pdfViewerSessionId}-${pdfViewerInstanceKey}`"
                 :pdf="pdfSrc"
                 :page-number="currentDoc?.page ?? 1"
                 :config="toolbarConfig"
