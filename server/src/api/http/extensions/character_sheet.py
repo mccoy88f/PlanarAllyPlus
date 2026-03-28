@@ -141,6 +141,7 @@ async def list_all(request: web.Request) -> web.Response:
     user = await get_authorized_user(request)
     creator = request.query.get("room_creator", "").strip()
     room_name = request.query.get("room_name", "").strip()
+    preview_as_player = request.query.get("preview_as_player", "").strip().lower() in ("1", "true", "yes")
     if not creator or not room_name:
         return web.HTTPBadRequest(text="room_creator and room_name required")
 
@@ -153,7 +154,9 @@ async def list_all(request: web.Request) -> web.Response:
         return web.HTTPForbidden(text="Not in this room")
 
     is_dm = pr.role == Role.DM
-    characters = _get_characters_for_room(room, user, is_dm)
+    # Same idea as documents/list: DM + preview_as_player → filter like a player (fake player UX).
+    player_view = (not is_dm) or (preview_as_player and is_dm)
+    characters = _get_characters_for_room(room, user, is_dm=not player_view)
     char_by_id = {c.id: c for c in characters}
 
     from ....db.db import db as ACTIVE_DB
@@ -166,7 +169,7 @@ async def list_all(request: web.Request) -> web.Response:
         default_sheet_id = str(default_record.sheet.id) if default_record else None
 
         sheets_query = CharacterSheet.select().where(CharacterSheet.room == room)
-        if not is_dm:
+        if player_view:
             sheets_query = sheets_query.where((CharacterSheet.owner == user) | (CharacterSheet.visible_to_players == True))
 
         result_sheets = []

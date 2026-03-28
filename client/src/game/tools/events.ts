@@ -32,6 +32,27 @@ function isPanModeButtons(buttons: number): boolean {
     return false;
 }
 
+/** End drag/resize/etc. when RMB is pressed while LMB is still down — mouseDown skips non-primary buttons, so the tool never got an up event. */
+function finalizeLeftButtonToolOperation(event: MouseEvent): void {
+    const targetTool = activeTool.value;
+    const tool = toolMap[targetTool];
+    if (!tool.active.value) return;
+    const synthetic = new MouseEvent("mouseup", {
+        button: 0,
+        buttons: event.buttons & ~1,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        screenX: event.screenX,
+        screenY: event.screenY,
+        bubbles: true,
+        cancelable: true,
+    });
+    Object.defineProperty(synthetic, "target", { value: event.target });
+    Object.defineProperty(synthetic, "pageX", { value: event.pageX });
+    Object.defineProperty(synthetic, "pageY", { value: event.pageY });
+    void mouseUp(synthetic);
+}
+
 export function mouseDown(event: MouseEvent): void {
     if ((event.target as HTMLElement).tagName !== "CANVAS") return;
 
@@ -40,6 +61,11 @@ export function mouseDown(event: MouseEvent): void {
         toolMap[targetTool].onPanStart();
         targetTool = ToolName.Pan;
         if (event.button === 2) uiSystem.preventContextMenu(false);
+    } else if (event.button === 2) {
+        // Right-click while left is still held: board handlers ignore mousedown for button≠0,
+        // so e.g. select drag stays active and the shape follows the cursor behind the context menu.
+        if ((event.buttons & 1) !== 0) finalizeLeftButtonToolOperation(event);
+        return;
     } else if (event.button !== 0) {
         return;
     }
@@ -247,11 +273,10 @@ export function touchStart(event: TouchEvent): void {
                     cancelable: true,
                 });
                 Object.defineProperty(mockEvent, "target", { value: event.target });
+                // Chiudi drag/resize prima del menu: non azzerare active qui — SelectTool.onUp()
+                // inizia con if (!this.active.value) return e non salverebbe mai lo spostamento.
+                if (tool.active.value) void tool.onTouchEnd(event, getFeatures(activeTool.value));
                 void contextMenu(mockEvent);
-                if (tool.active.value) {
-                    tool.active.value = false;
-                    void tool.onTouchEnd(event, getFeatures(activeTool.value));
-                }
                 longPressTimeout = undefined;
             }, 1000);
         }

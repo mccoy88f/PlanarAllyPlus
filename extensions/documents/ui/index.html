@@ -1024,6 +1024,8 @@
                     var rn = params.get('room_name');
                     if (rc && rn) {
                         listUrl += '?room_creator=' + encodeURIComponent(rc) + '&room_name=' + encodeURIComponent(rn);
+                        var pp = params.get('preview_as_player');
+                        if (pp) listUrl += '&preview_as_player=' + encodeURIComponent(pp);
                     }
                     const r = await fetch(listUrl, { credentials: 'include' });
                     const data = r.ok ? await r.json() : { documents: [], rootId: null };

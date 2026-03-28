@@ -249,6 +249,7 @@ async def list_documents(request: web.Request) -> web.Response:
     user = await get_authorized_user(request)
     room_creator = request.query.get("room_creator", "").strip()
     room_name = request.query.get("room_name", "").strip()
+    preview_as_player = request.query.get("preview_as_player", "").strip().lower() in ("1", "true", "yes")
 
     docs_folder = _get_or_create_documents_folder(user)
     visibility_map: dict[str, bool] | None = None
@@ -263,11 +264,18 @@ async def list_documents(request: web.Request) -> web.Response:
                 room_key = _room_key(room_creator, room_name)
                 vis = _get_room_visibility(room_key)
                 if pr.role == Role.DM:
-                    visibility_map = vis
-                    can_toggle = True
-                    tree = _build_documents_tree(
-                        user, None, visibility_map=visibility_map, can_toggle_visibility=True
-                    )
+                    # DM testing "fake player": same tree a player would see (only visible PDFs).
+                    if preview_as_player:
+                        visible_ids = _get_visible_document_ids(user, vis)
+                        tree = _build_documents_tree(
+                            user, None, owner_filter=user, visible_asset_ids=visible_ids
+                        )
+                    else:
+                        visibility_map = vis
+                        can_toggle = True
+                        tree = _build_documents_tree(
+                            user, None, visibility_map=visibility_map, can_toggle_visibility=True
+                        )
                 else:
                     dm = room.creator
                     if dm != user:

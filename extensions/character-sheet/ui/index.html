@@ -1130,7 +1130,9 @@
         if (!silent) {
           noRoom.style.display = 'none'; loading.style.display = 'block'; loadingBar.style.display = 'block'; sheetList.style.display = 'none';
         }
-        fetch(api('/api/extensions/character-sheet/list') + '?room_creator=' + encodeURIComponent(roomCreator) + '&room_name=' + encodeURIComponent(roomName), { credentials: 'include' }).then(function (r) {
+        var listQs = '?room_creator=' + encodeURIComponent(roomCreator) + '&room_name=' + encodeURIComponent(roomName);
+        if (params.get('preview_as_player')) listQs += '&preview_as_player=' + encodeURIComponent(params.get('preview_as_player'));
+        fetch(api('/api/extensions/character-sheet/list') + listQs, { credentials: 'include' }).then(function (r) {
           return r.ok ? r.json() : { sheets: [], characters: [] };
         }).then(function (data) {
           if (!silent) {

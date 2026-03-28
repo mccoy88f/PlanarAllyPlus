@@ -141,6 +141,9 @@ const iframeUrl = computed(() => {
     if (ext?.id === "character-sheet") {
         params.set("qe_enabled", "1");
     }
+    if (gameState.reactive.isFakePlayer) {
+        params.set("preview_as_player", "1");
+    }
     url += "?" + params.toString();
     return url;
 });
