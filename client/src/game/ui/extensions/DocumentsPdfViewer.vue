@@ -34,14 +34,14 @@ const pdfAppRef = ref<{
 
 const currentDoc = computed(() => extensionsState.reactive.documentsPdfViewer);
 
-/** Allineato a pdf.js 2.4.456 (bundlato in vue3-pdf-app). */
-const PDF_LOCALE_FALLBACK_BASE =
-    "https://raw.githubusercontent.com/mozilla/pdf.js/v2.4.456/l10n";
+/** Locale pdf.js 2.4.x servito da /static (evita CSP che blocca raw.githubusercontent.com). */
 const PDF_LOCALE_LINK_ID = "planarally-pdf-locale-link";
-/** pdf.js: bundle en-US con tutte le chiavi (of_pages, page_scale_percent, …). */
+/** pdf.js si aspetta il bundle completo; en-US è sempre coerente con le chiavi (#of_pages, ecc.). */
 const PDF_VIEWER_L10N_LOCALE = "en-US";
-/** Servito da /static/ (add_static) — stesso origine, niente CSP che blocca GitHub. */
-const PDF_VIEWER_PROPERTIES_PATH = "/static/pdfjs-l10n/en-US/viewer.properties";
+
+function pdfViewerPropertiesUrl(): string {
+    return baseAdjust("/static/pdfjs-l10n/en-US/viewer.properties");
+}
 
 const toolbarConfig = {
     sidebar: {
@@ -130,11 +130,8 @@ function shareToChat(): void {
     toast.success(t("game.ui.extensions.DocumentsPdfViewer.share_success"));
 }
 
-/**
- * Collega viewer.properties prima di aprire il PDF: altrimenti l10n resta vuota (#of_pages undefined).
- * Usa file in /static/ (stesso sito); fallback GitHub se mancante (deploy vecchio).
- */
-async function ensurePdfViewerL10n(): Promise<void> {
+function setPdfLocale(): void {
+    /* pdf.js viewer richiede rel="resource" (vedi viewer.html ufficiale); senza, l10n non si aggancia e le chiavi sono undefined. */
     let link = document.getElementById(PDF_LOCALE_LINK_ID) as HTMLLinkElement | null;
     if (!link) {
         link = document.createElement("link");
@@ -143,16 +140,7 @@ async function ensurePdfViewerL10n(): Promise<void> {
     }
     link.rel = "resource";
     link.type = "application/l10n";
-
-    const localUrl = baseAdjust(PDF_VIEWER_PROPERTIES_PATH);
-    let href = localUrl;
-    try {
-        const r = await fetch(localUrl, { credentials: "same-origin" });
-        if (!r.ok) throw new Error(String(r.status));
-    } catch {
-        href = `${PDF_LOCALE_FALLBACK_BASE}/${PDF_VIEWER_L10N_LOCALE}/viewer.properties`;
-    }
-    link.href = href;
+    link.href = pdfViewerPropertiesUrl();
 
     try {
         (window as unknown as { PDFViewerApplicationOptions?: { set: (k: string, v: string) => void } })
@@ -170,7 +158,7 @@ function onAfterCreated(pdfApp: unknown): void {
     try {
         app?.appOptions?.set?.("locale", PDF_VIEWER_L10N_LOCALE);
     } catch {
-        void ensurePdfViewerL10n();
+        setPdfLocale();
     }
     try {
         app?.l10n?.setLanguage?.(PDF_VIEWER_L10N_LOCALE);
@@ -202,19 +190,47 @@ function onOpen(pdfApp: {
     }
 }
 
-function onPagesRendered(pdfApp: { pdfViewer?: { currentPageNumber: number; scrollPageIntoView?: (n: { pageNumber: number }) => void } }): void {
-    const page = currentDoc.value?.page;
-    if (page == null || page < 1 || !pdfApp?.pdfViewer) return;
+/** Se il link chiede pagina > numPages (PDF corto), pdf.js va in errore (offsetParent, l10n rotto). */
+function clampPdfPage(requested: number, numPages: number): number {
+    if (!Number.isFinite(requested) || requested < 1) return 1;
+    return Math.min(Math.floor(requested), numPages);
+}
+
+function onPagesRendered(pdfApp: {
+    pdfDocument?: { numPages: number };
+    pdfViewer?: { currentPageNumber: number; scrollPageIntoView?: (n: { pageNumber: number }) => void };
+    page?: number;
+}): void {
+    const numPages = pdfApp.pdfDocument?.numPages;
+    if (numPages == null || numPages < 1 || !pdfApp.pdfViewer) return;
+
+    const requested = currentDoc.value?.page ?? 1;
     const pv = pdfApp.pdfViewer;
-    pv.currentPageNumber = page;
-    /* scrollPageIntoView subito spesso fallisce (offsetParent); ritardo un solo tentativo. */
+
+    /* vue3-pdf-app fa setTimeout(() => page = props.pageNumber) prima di emit pages-rendered; il nostro
+     * handler può girare prima che quel timeout applichi la pagina richiesta. setTimeout(0) applica il
+     * clamp dopo, così non resta page > numPages (PDF corti / link con pagina troppo alta). */
     setTimeout(() => {
+        const page = clampPdfPage(requested, numPages);
         try {
-            pv.scrollPageIntoView?.({ pageNumber: page });
+            (pdfApp as { page?: number }).page = page;
         } catch {
-            /* ignorato */
+            /* ignore */
         }
-    }, 400);
+
+        const scrollTo = (): void => {
+            try {
+                pv.currentPageNumber = page;
+                pv.scrollPageIntoView?.({ pageNumber: page });
+            } catch {
+                /* layout non ancora pronto */
+            }
+        };
+        pv.currentPageNumber = page;
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => setTimeout(scrollTo, 80));
+        });
+    }, 0);
 }
 
 function close(): void {
@@ -270,7 +286,6 @@ watch(
         await nextTick();
 
         try {
-            await ensurePdfViewerL10n();
             const url = baseAdjust(`/api/extensions/documents/serve/${fileHash}`);
             const response = await fetch(url, {
                 credentials: "include",
