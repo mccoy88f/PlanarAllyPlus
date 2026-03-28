@@ -4,6 +4,7 @@
     "private": true,
     "type": "module",
     "scripts": {
+        "postinstall": "patch-package",
         "dev": "vite",
         "serve": "vite preview",
         "clean": "node -e \"fs.rmSync('../server/static/vite', { recursive: true, force: true })\"",
@@ -60,6 +61,7 @@
         "oxfmt": "^0.35.0",
         "oxlint": "^1.50.0",
         "oxlint-tsgolint": "^0.15.0",
+        "patch-package": "^8.0.1",
         "sass": "^1.97.3",
         "typescript": "^5.9.3",
         "upath": "^2.0.1",

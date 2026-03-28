@@ -1,0 +1,13 @@
+diff --git a/node_modules/vue3-pdf-app/dist/vue3-pdf-app.umd.js b/node_modules/vue3-pdf-app/dist/vue3-pdf-app.umd.js
+index f9d81f4..6ce9c6e 100644
+--- a/node_modules/vue3-pdf-app/dist/vue3-pdf-app.umd.js
++++ b/node_modules/vue3-pdf-app/dist/vue3-pdf-app.umd.js
+@@ -27853,6 +27853,8 @@ window.print = window.__nativePrint__ || pdfPrint;
+       app.PDFViewerApplication.unbindEvents();
+       app.PDFViewerApplication.unbindWindowEvents();
+       app.PDFViewerApplication.pdfDocument?.destroy();
++      /* Second mount: initializedPromise is already settled; .then(open) would run before initialize() completes. Reset like pdf.js createPromiseCapability (viewer.js). */
++      app.PDFViewerApplication._initializedCapability = (function(){const capability=Object.create(null);let isSettled=false;Object.defineProperty(capability,"settled",{get:function(){return isSettled}});capability.promise=new Promise(function(resolve,reject){capability.resolve=function(data){isSettled=true;resolve(data)};capability.reject=function(reason){isSettled=true;reject(reason)}});return capability})();
+       const el = document.getElementById(PDF_FILE_INPUT_ID);
+       el && el.remove();
+       // __nativePrint__ is assigned in pdf_print_service.js
