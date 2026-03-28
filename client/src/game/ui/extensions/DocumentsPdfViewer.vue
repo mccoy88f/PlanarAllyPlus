@@ -77,7 +77,6 @@ const pdfAppRef = ref<{
 } | null>(null);
 
 let fetchAbortController: AbortController | null = null;
-let fetchAbortControllerHash: string | null = null;
 
 const currentDoc = computed(() => extensionsState.reactive.documentsPdfViewer);
 
@@ -392,7 +391,6 @@ function close(): void {
     pdfViewerEventBusBound.value = false;
     fetchAbortController?.abort();
     fetchAbortController = null;
-    fetchAbortControllerHash = null;
     pdfAppRef.value = null;
     if (lastBlobUrl) {
         URL.revokeObjectURL(lastBlobUrl);
@@ -430,20 +428,19 @@ watch(
 
         pdfViewerOpenGeneration += 1;
         pdfViewerSessionId.value = pdfViewerOpenGeneration;
+        const loadSessionId = pdfViewerSessionId.value;
 
         pdfDebug("watch: start load", {
             name: doc.name,
             fileHashPrefix: `${fileHash.slice(0, 12)}…`,
-            sessionId: pdfViewerSessionId.value,
+            sessionId: loadSessionId,
             page: doc.page ?? null,
         });
 
-        if (fetchAbortController && fetchAbortControllerHash !== fileHash) {
-            fetchAbortController.abort();
-        }
+        /* Stesso hash della riapertura: senza abort restano due fetch attivi e stato/blob incoerenti. */
+        fetchAbortController?.abort();
         const controller = new AbortController();
         fetchAbortController = controller;
-        fetchAbortControllerHash = fileHash;
 
         pdfMountReady.value = false;
         pdfViewerEventBusBound.value = false;
@@ -481,15 +478,30 @@ watch(
                 pdfLoadFailed.value = true;
                 return;
             }
-            const blob = new Blob([arrayBuffer], { type: "application/pdf" });
-            lastBlobUrl = URL.createObjectURL(blob);
-            pdfSrc.value = lastBlobUrl;
+            const blobUrl = URL.createObjectURL(new Blob([arrayBuffer], { type: "application/pdf" }));
+            if (pdfViewerSessionId.value !== loadSessionId) {
+                URL.revokeObjectURL(blobUrl);
+                pdfDebug("watch: abort dopo blob (sessione superata da nuovo load)");
+                return;
+            }
+            lastBlobUrl = blobUrl;
+            pdfSrc.value = blobUrl;
             pdfDebug("fetch OK, blob creato", {
                 byteLength: arrayBuffer.byteLength,
-                blobUrlPrefix: lastBlobUrl.slice(0, 32) + "…",
+                blobUrlPrefix: blobUrl.slice(0, 32) + "…",
             });
 
             await ensurePdfLocaleReady();
+            if (pdfViewerSessionId.value !== loadSessionId) {
+                pdfDebug("watch: abort dopo l10n (sessione superata)");
+                if (lastBlobUrl) {
+                    URL.revokeObjectURL(lastBlobUrl);
+                    lastBlobUrl = null;
+                }
+                pdfSrc.value = null;
+                pdfMountReady.value = false;
+                return;
+            }
             const stillOpen = extensionsState.raw.documentsPdfViewer?.fileHash?.trim() === fileHash;
             if (!stillOpen) {
                 pdfDebug("watch: abort dopo fetch (documento chiuso / hash cambiato)");
@@ -502,6 +514,16 @@ watch(
                 return;
             }
             await waitForPdfContainerLayout();
+            if (pdfViewerSessionId.value !== loadSessionId) {
+                pdfDebug("watch: abort dopo layout (sessione superata)");
+                if (lastBlobUrl) {
+                    URL.revokeObjectURL(lastBlobUrl);
+                    lastBlobUrl = null;
+                }
+                pdfSrc.value = null;
+                pdfMountReady.value = false;
+                return;
+            }
             if (extensionsState.raw.documentsPdfViewer?.fileHash?.trim() !== fileHash) {
                 pdfDebug("watch: abort dopo waitForLayout (hash cambiato)");
                 if (lastBlobUrl) {
@@ -527,7 +549,6 @@ watch(
         } finally {
             if (fetchAbortController === controller) {
                 fetchAbortController = null;
-                fetchAbortControllerHash = null;
             }
         }
     },
