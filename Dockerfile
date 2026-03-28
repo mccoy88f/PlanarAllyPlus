@@ -1,11 +1,13 @@
 # ---------- STAGE 1: CLONE ----------
 FROM alpine/git AS CLONER
+# Branch da clonare (su Portainer: Build args → PA_GIT_REF=dev se main non è aggiornato)
+ARG PA_GIT_REF=main
 WORKDIR /usr/src
 
-# forza rebuild quando cambiano i commit
-ADD https://api.github.com/repos/mccoy88f/PlanarAllyPlus/commits/main /dev/null
+# forza rebuild quando cambiano i commit sul branch scelto
+ADD https://api.github.com/repos/mccoy88f/PlanarAllyPlus/commits/${PA_GIT_REF} /dev/null
 
-RUN git clone --depth=1 --branch main https://github.com/mccoy88f/PlanarAllyPlus.git .
+RUN git clone --depth=1 --branch "${PA_GIT_REF}" https://github.com/mccoy88f/PlanarAllyPlus.git .
 
 # ---------- STAGE 2: BUILD CLIENT ----------
 FROM node:24-alpine AS BUILDER
@@ -16,6 +18,8 @@ WORKDIR /usr/src/client
 
 COPY --from=CLONER /usr/src/client/package.json .
 COPY --from=CLONER /usr/src/client/package-lock.json .
+# Necessario per postinstall → patch-package (vue3-pdf-app); senza cartella la patch non si applica.
+COPY --from=CLONER /usr/src/client/patches ./patches
 
 RUN npm ci && npm cache clean --force
 
