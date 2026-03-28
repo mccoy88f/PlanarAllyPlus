@@ -96,7 +96,8 @@ export function openDocumentsPdfViewer(
     name: string,
     page?: number,
 ): void {
-    extensionsState.mutableReactive.documentsPdfViewer = { fileHash, name, page };
+    const h = fileHash.trim().toLowerCase();
+    extensionsState.mutableReactive.documentsPdfViewer = { fileHash: h, name, page };
     focusExtension("documents-pdf");
 }
 

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from aiohttp import web
+from peewee import fn
 
 from ....auth import get_authorized_user
 from ....db.models.asset import Asset
@@ -41,28 +42,32 @@ def _is_in_documents_tree(entry: AssetEntry, user: User) -> bool:
 async def serve_document(request: web.Request) -> web.Response:
     """Serve a PDF with Content-Disposition: inline so it displays in browser instead of downloading."""
     user = await get_authorized_user(request)
-    file_hash = request.match_info.get("file_hash", "").strip()
+    file_hash = request.match_info.get("file_hash", "").strip().lower()
     if not file_hash or len(file_hash) < 40:
         return web.HTTPBadRequest(text="Invalid file hash")
 
     # Find entry: owned by user in documents tree, or DM's doc visible to players in user's room
     # Join esplicito su asset: evita join ambigui (più FK verso asset) che possono far fallire la query.
-    entry = (
+    # Confronto hash case-insensitive (hex da chat / DB può differire).
+    own_entry = (
         AssetEntry.select()
         .join(Asset, on=(AssetEntry.asset == Asset.id))
-        .where((Asset.file_hash == file_hash) & (AssetEntry.owner == user))
+        .where((fn.Lower(Asset.file_hash) == file_hash) & (AssetEntry.owner == user))
         .first()
     )
 
-    if entry and _is_in_documents_tree(entry, user):
-        pass  # User's own document
-    else:
-        entry = None
+    entry: AssetEntry | None = None
+    disk_path = ASSETS_DIR / get_asset_hash_subpath(file_hash)
+    if own_entry and own_entry.name and own_entry.name.lower().endswith(".pdf") and disk_path.exists():
+        # Proprietario con file reale su disco: ok anche se l'albero cartelle non risale più a extensions/documents.
+        entry = own_entry
+
+    if entry is None:
         vis_data = _load_document_visibility()
         for candidate in (
             AssetEntry.select()
             .join(Asset, on=(AssetEntry.asset == Asset.id))
-            .where(Asset.file_hash == file_hash)
+            .where(fn.Lower(Asset.file_hash) == file_hash)
         ):
             if not candidate.name or not candidate.name.lower().endswith(".pdf"):
                 continue

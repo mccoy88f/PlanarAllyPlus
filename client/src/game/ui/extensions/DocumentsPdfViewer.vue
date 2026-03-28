@@ -233,7 +233,7 @@ watch(
             return;
         }
 
-        const fileHash = doc.fileHash.trim();
+        const fileHash = doc.fileHash.trim().toLowerCase();
         if (fileHash.length < 40) {
             pdfLoadFailed.value = true;
             return;
@@ -357,6 +357,7 @@ watch(
         <div class="pdf-viewer-body">
             <VuePdfApp
                 v-if="pdfSrc && pdfMountReady"
+                :key="`${currentDoc?.fileHash ?? ''}-${currentDoc?.page ?? 0}`"
                 :pdf="pdfSrc"
                 :page-number="currentDoc?.page ?? 1"
                 :config="toolbarConfig"

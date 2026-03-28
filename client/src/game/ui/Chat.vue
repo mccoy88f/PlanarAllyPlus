@@ -127,7 +127,7 @@ function handleContainerClick(event: MouseEvent): void {
         }
         const name = target.textContent?.trim() || "";
         openDocumentsPdfViewer(
-            docHashAttr.trim(),
+            docHashAttr.trim().toLowerCase(),
             name || t("game.ui.extensions.DocumentsPdfViewer.document_fallback"),
             page,
         );
@@ -160,7 +160,11 @@ function handleContainerClick(event: MouseEvent): void {
         }
         const name = target.textContent?.trim() || "";
         if (fileHash) {
-            openDocumentsPdfViewer(fileHash, name || t("game.ui.extensions.DocumentsPdfViewer.document_fallback"), page);
+            openDocumentsPdfViewer(
+                fileHash.toLowerCase(),
+                name || t("game.ui.extensions.DocumentsPdfViewer.document_fallback"),
+                page,
+            );
         }
     }
 }
