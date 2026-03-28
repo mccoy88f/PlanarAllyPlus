@@ -323,7 +323,23 @@ async def list_documents(request: web.Request) -> web.Response:
         return out
 
     flat = flatten(tree, docs_folder.id)
-    return web.json_response({"documents": flat, "tree": tree, "rootId": docs_folder.id})
+
+    # In partita: solo il DM può caricare/rinominare/spostare/eliminare; i player solo consultano.
+    can_manage_documents = True
+    if room_creator and room_name:
+        room = _get_room(room_creator, room_name)
+        if room:
+            pr = PlayerRoom.get_or_none(PlayerRoom.room == room, PlayerRoom.player == user)
+            can_manage_documents = pr is not None and pr.role == Role.DM
+
+    return web.json_response(
+        {
+            "documents": flat,
+            "tree": tree,
+            "rootId": docs_folder.id,
+            "canManageDocuments": can_manage_documents,
+        }
+    )
 
 
 def _get_documents_parent(user: User, parent_id: int | None) -> AssetEntry:

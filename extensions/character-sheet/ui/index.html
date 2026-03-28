@@ -659,12 +659,18 @@
       var sheetPanel = document.getElementById('sheetPanel');
       var editForm = document.getElementById('editForm');
 
+      function currentSheetCanEdit() {
+        if (!selectedId) return false;
+        var cur = sheets.find(function (s) { return s.id === selectedId; });
+        return cur ? !!cur.canEdit : false;
+      }
+
       function setSheetPanelVisible(visible) {
         sheetPanel.style.display = visible ? 'flex' : 'none';
         var tabStrip = document.getElementById('csTabBar');
         if (tabStrip) tabStrip.style.display = visible ? 'inline-flex' : 'none';
         var editBtn = document.getElementById('editToggle');
-        if (editBtn) editBtn.style.display = visible ? 'inline-flex' : 'none';
+        if (editBtn) editBtn.style.display = visible && currentSheetCanEdit() ? 'inline-flex' : 'none';
         var divEl = document.getElementById('csTabDivider');
         if (divEl) divEl.style.display = visible ? '' : 'none';
       }
@@ -1097,13 +1103,15 @@
             visBtn.onclick = function (e) { e.stopPropagation(); toggleVisibility(s.id); };
             actions.appendChild(visBtn);
           }
-          var delBtn = document.createElement('button');
-          delBtn.className = 'ext-action-btn delete';
-          delBtn.type = 'button';
-          delBtn.title = t('delete');
-          delBtn.innerHTML = trashFa;
-          delBtn.onclick = function (e) { e.stopPropagation(); deleteSheet(s.id); };
-          actions.appendChild(delBtn);
+          if (s.canDelete) {
+            var delBtn = document.createElement('button');
+            delBtn.className = 'ext-action-btn delete';
+            delBtn.type = 'button';
+            delBtn.title = t('delete');
+            delBtn.innerHTML = trashFa;
+            delBtn.onclick = function (e) { e.stopPropagation(); deleteSheet(s.id); };
+            actions.appendChild(delBtn);
+          }
           li.appendChild(content);
           li.appendChild(actions);
           li.onclick = function () {
@@ -1138,7 +1146,12 @@
           if (!silent) {
             loading.style.display = 'none'; loadingBar.style.display = 'none';
           }
-          sheets = data.sheets || []; characters = data.characters || [];
+          var rawSheets = data.sheets || [];
+          // Giocatori: mostra solo schede di cui sei proprietario o esplicitamente visibili (doppio controllo sul client).
+          if (data.playerView && !data.isDm) {
+            rawSheets = rawSheets.filter(function (s) { return s.visibleToPlayers || s.canEdit; });
+          }
+          sheets = rawSheets; characters = data.characters || [];
           sheetList.style.display = 'block';
           renderSheetList(openId);
         }).catch(function () {
@@ -1169,10 +1182,10 @@
         qs('/api/extensions/character-sheet/sheet/' + id).then(function (r) { return r.json(); }).then(function (data) {
           selectedId = id; currentData = data.sheet || {}; currentTab = 'main'; editingEnabled = false;
           mergeQeLinksFromData(currentData);
-          updateEditToggleBtn();
           selectPrompt.style.display = 'none';
           setSheetPanelVisible(true);
           renderAll(toFormData(currentData));
+          updateEditToggleBtn();
         });
       }
 
@@ -1211,6 +1224,7 @@
       var autoSaveTimer = null;
       function scheduleAutoSave() {
         if (!editingEnabled || !roomCreator || !roomName) return;
+        if (!currentSheetCanEdit()) return;
         if (autoSaveTimer) clearTimeout(autoSaveTimer);
         autoSaveTimer = setTimeout(function () {
           autoSaveTimer = null;
@@ -1264,6 +1278,13 @@
         var btn = document.getElementById('editToggle');
         var pencilIcon = '<i class="fa-solid fa-edit" aria-hidden="true"></i>';
         var lockIcon = '<i class="fa-solid fa-lock" aria-hidden="true"></i>';
+        var canEdit = currentSheetCanEdit();
+        btn.style.display = canEdit ? 'inline-flex' : 'none';
+        if (!canEdit && editingEnabled) {
+          editingEnabled = false;
+          var fd0 = Object.assign({}, selectedId && currentData && Object.keys(currentData).length ? toFormData(currentData) : {}, getFormData());
+          renderAll(fd0);
+        }
 
         btn.innerHTML = editingEnabled ? lockIcon : pencilIcon;
         btn.title = editingEnabled ? t('disableEdits') : t('enableEdits');
@@ -1272,6 +1293,7 @@
         btn.classList.toggle('cs-edit-disabled', !editingEnabled);
       }
       document.getElementById('editToggle').onclick = function () {
+        if (!currentSheetCanEdit()) return;
         editingEnabled = !editingEnabled;
         var fd = Object.assign({}, selectedId && currentData && Object.keys(currentData).length ? toFormData(currentData) : {}, getFormData());
         renderAll(fd);

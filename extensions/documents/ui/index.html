@@ -119,33 +119,54 @@
             min-width: 0;
         }
 
-        .doc-breadcrumb {
+        /* Breadcrumb allineato a CompendiumModal (.qe-breadcrumb) */
+        .qe-breadcrumb.doc-breadcrumb {
+            flex-shrink: 0;
             display: flex;
             align-items: center;
-            gap: 0.25rem;
-            margin-bottom: 0.75rem;
-            font-size: 0.9rem;
             flex-wrap: wrap;
+            gap: 0.75rem;
+            padding: 0.5rem 1.5rem;
+            margin: 0 -1.5rem 0.75rem -1.5rem;
+            width: calc(100% + 3rem);
+            box-sizing: border-box;
+            background: #fafafa;
+            border-bottom: 1px solid #eee;
+            font-size: 0.85rem;
+            color: #555;
         }
 
-        .doc-breadcrumb span {
-            color: #666;
+        .qe-breadcrumb .qe-breadcrumb-path {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .qe-breadcrumb .qe-breadcrumb-sep {
+            color: #999;
+        }
+
+        .qe-breadcrumb .qe-breadcrumb-item {
+            text-transform: capitalize;
+        }
+
+        .qe-breadcrumb .qe-breadcrumb-link {
+            background: none;
+            border: none;
+            padding: 0;
+            margin: 0;
             cursor: pointer;
-        }
-
-        .doc-breadcrumb span:hover {
-            color: #333;
-            text-decoration: underline;
-        }
-
-        .doc-breadcrumb .current {
-            color: #333;
-            cursor: default;
-            font-weight: 600;
-        }
-
-        .doc-breadcrumb .current:hover {
+            color: #5b8ef0;
+            font-size: inherit;
+            font-family: inherit;
+            text-transform: capitalize;
             text-decoration: none;
+        }
+
+        .qe-breadcrumb .qe-breadcrumb-link:hover {
+            text-decoration: underline;
+            color: #3a6fd8;
         }
 
         .doc-view-toggle {
@@ -306,8 +327,11 @@
                 font-size: 2.5rem;
             }
 
-            .doc-breadcrumb {
-                font-size: 0.85rem;
+            .qe-breadcrumb.doc-breadcrumb {
+                font-size: 0.8rem;
+                padding: 0.45rem 1rem;
+                margin: 0 -1rem 0.5rem -1rem;
+                width: calc(100% + 2rem);
             }
         }
 
@@ -367,7 +391,7 @@
     </div>
     <div id="content" class="doc-content">
         <div id="msg"></div>
-        <div id="breadcrumb" class="doc-breadcrumb" style="display:none"></div>
+        <div id="breadcrumb" class="qe-breadcrumb doc-breadcrumb" style="display:none" role="navigation" aria-label="Breadcrumb"></div>
         <div id="loading" class="ext-ui-loading" style="display:none"></div>
         <div id="empty" class="ext-ui-empty" style="display:none"></div>
         <ul id="list" class="ext-ui-list doc-list" style="display:none"></ul>
@@ -717,6 +741,8 @@
             let currentFolderId = null;
             let items = [];
             let folderPath = [];
+            /** DM in partita: può caricare/modificare; player solo lettura (da API). */
+            let canManageDocuments = true;
             let viewMode = localStorage.getItem('doc-view-mode') || 'list';
             var iconEye = '<i class="fa-solid fa-eye" aria-hidden="true"></i>';
             var iconEyeSlash = '<i class="fa-solid fa-eye-slash" aria-hidden="true"></i>';
@@ -767,15 +793,38 @@
                 folderPath = buildFolderPath();
                 if (folderPath.length === 0) {
                     breadcrumbEl.style.display = 'none';
+                    breadcrumbEl.innerHTML = '';
                     return;
                 }
-                const parts = ['<span class="nav" data-id="' + rootId + '">' + t('documents') + '</span>'];
-                folderPath.forEach(function (f) {
-                    parts.push('<span class="nav" data-id="' + f.id + '">' + (f.name || '').replace(/</g, '&lt;') + '</span>');
+                const path = document.createElement('div');
+                path.className = 'qe-breadcrumb-path';
+                const rootBtn = document.createElement('button');
+                rootBtn.type = 'button';
+                rootBtn.className = 'qe-breadcrumb-link nav';
+                rootBtn.dataset.id = String(rootId);
+                rootBtn.textContent = t('documents');
+                path.appendChild(rootBtn);
+                folderPath.forEach(function (f, i) {
+                    const sep = document.createElement('span');
+                    sep.className = 'qe-breadcrumb-sep';
+                    sep.textContent = ' › ';
+                    path.appendChild(sep);
+                    if (i < folderPath.length - 1) {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'qe-breadcrumb-link nav';
+                        btn.dataset.id = String(f.id);
+                        btn.textContent = f.name || '';
+                        path.appendChild(btn);
+                    } else {
+                        const cur = document.createElement('span');
+                        cur.className = 'qe-breadcrumb-item';
+                        cur.textContent = f.name || '';
+                        path.appendChild(cur);
+                    }
                 });
-                const last = folderPath[folderPath.length - 1];
-                parts[parts.length - 1] = '<span class="current">' + (last.name || '').replace(/</g, '&lt;') + '</span>';
-                breadcrumbEl.innerHTML = parts.join(' &gt; ');
+                breadcrumbEl.innerHTML = '';
+                breadcrumbEl.appendChild(path);
                 breadcrumbEl.style.display = 'flex';
                 breadcrumbEl.querySelectorAll('.nav').forEach(function (el) {
                     el.addEventListener('click', function () {
@@ -843,8 +892,9 @@
                 renderBreadcrumb();
                 topBarEl.style.display = 'flex';
                 var inSharedFolder = currentFolderId === -1;
-                uploadBtn.style.display = inSharedFolder ? 'none' : '';
-                newFolderBtn.style.display = inSharedFolder ? 'none' : '';
+                var allowEdit = canManageDocuments && !inSharedFolder;
+                uploadBtn.style.display = allowEdit ? '' : 'none';
+                newFolderBtn.style.display = allowEdit ? '' : 'none';
 
                 if (current.length === 0) {
                     listEl.style.display = 'none';
@@ -855,8 +905,8 @@
                     folders.sort(function (a, b) { return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }); });
                     docs.sort(function (a, b) { return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }); });
                     let html = '';
-                    var canEdit = function (it) { return !it.shared; };
-                    var visToggle = function (it) { return !!it.canToggleVisibility; };
+                    var canEdit = function (it) { return canManageDocuments && !it.shared; };
+                    var visToggle = function (it) { return canManageDocuments && !!it.canToggleVisibility; };
                     folders.forEach(function (f) {
                         html += renderItem(f, { rename: canEdit(f), move: canEdit(f), delete: canEdit(f), visibilityToggle: visToggle(f) });
                     });
@@ -1031,12 +1081,15 @@
                     const data = r.ok ? await r.json() : { documents: [], rootId: null };
                     items = data.documents || [];
                     rootId = data.rootId;
+                    canManageDocuments = data.canManageDocuments !== false;
                     if (currentFolderId === null || !items.some(function (it) { return it.id === currentFolderId || (it.type === 'folder' && it.folderId === currentFolderId); })) {
                         currentFolderId = rootId;
                     }
                     setLoadingVisible(false);
                     render();
-                    var missingThumbs = items.filter(function (it) { return it.type === 'document' && it.fileHash && !it.thumbnailUrl; }).map(function (it) { return it.fileHash; });
+                    var missingThumbs = canManageDocuments
+                        ? items.filter(function (it) { return it.type === 'document' && it.fileHash && !it.thumbnailUrl; }).map(function (it) { return it.fileHash; })
+                        : [];
                     if (missingThumbs.length > 0) {
                         try {
                             var genR = await fetch(api('/api/extensions/documents/generate-thumbnails'), {
@@ -1082,6 +1135,7 @@
             }
 
             newFolderBtn.addEventListener('click', async function () {
+                if (!canManageDocuments) return;
                 const name = typeof parentPrompt === 'function' ? await parentPrompt(t('folder_name'), t('new_folder'), '') : prompt(t('folder_name'));
                 if (!name || !name.trim()) return;
                 fetch(api('/api/extensions/documents/folder'), {
@@ -1096,6 +1150,7 @@
             });
 
             fileInput.addEventListener('change', async function () {
+                if (!canManageDocuments) return;
                 const files = fileInput.files;
                 if (!files || files.length === 0) return;
                 const pdfs = Array.prototype.filter.call(files, function (f) { return f.name.toLowerCase().endsWith('.pdf'); });
@@ -1140,7 +1195,10 @@
                 }
             });
 
-            uploadBtn.addEventListener('click', function () { fileInput.click(); });
+            uploadBtn.addEventListener('click', function () {
+                if (!canManageDocuments) return;
+                fileInput.click();
+            });
             docSearchInput.addEventListener('input', function () { render(); });
 
             load();
