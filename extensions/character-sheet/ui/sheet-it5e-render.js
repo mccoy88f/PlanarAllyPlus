@@ -144,21 +144,32 @@
       return '<textarea data-field="' + field + '" rows="' + (rows || 3) + '" style="width:100%">' + esc(val || '') + '</textarea>';
     }
 
-    function inpSpellName(field, val) {
+    /** Campi su una riga (tabella armi, cast/gittata/note incantesimi): in sola lettura con compendio come txt() / nome incantesimo. */
+    function inpQeInline(field, val, attrs, opts) {
+      opts = opts || {};
       if (isView && qeEnabled) {
-        var raw = esc(val || '');
+        var raw = esc(String(val != null ? val : ''));
         var content = injectQeLinksHtml(val || '', qeNamesCache, esc);
+        var fontSize = opts.fontSize || '0.7rem';
+        var style = 'font-size:' + fontSize + ';line-height:1.25';
+        if (attrs && attrs.indexOf('flex:1') !== -1) style += ';flex:1;min-width:0';
         return (
           '<input type="hidden" data-field="' +
           field +
           '" value="' +
           raw +
-          '" /><div class="cs-markdown" style="font-size:0.64rem">' +
+          '" /><div class="cs-markdown cs-qe-inline-view" style="' +
+          style +
+          '">' +
           content +
           '</div>'
         );
       }
-      return inp(field, val);
+      return inp(field, val, attrs);
+    }
+
+    function inpSpellName(field, val) {
+      return inpQeInline(field, val, '', { fontSize: '0.64rem' });
     }
 
     function skillLabel(key) {
@@ -288,8 +299,8 @@
     html += '<div class="box"><div class="section-title">' + t('weaponsTitle') + '</div><table class="weapons-table"><thead><tr>';
     html += '<th style="width:28%">' + t('attackName') + '</th><th style="width:16%">' + t('atkBonus') + ' / CD</th><th style="width:22%">' + t('damageType') + '</th><th>' + t('notes') + '</th></tr></thead><tbody id="weapons-body">';
     weaponRows.forEach(function (w, idx) {
-      html += '<tr data-weapon-row="' + idx + '"><td>' + inp('weapon_' + idx + '_name', w.name) + '</td><td>' + inp('weapon_' + idx + '_bonus', w.bonus) + '</td><td>' + inp('weapon_' + idx + '_damage', w.damage) + '</td><td style="display:flex;gap:4px;align-items:center">';
-      html += inp('weapon_' + idx + '_notes', w.notes, ' style="flex:1"');
+      html += '<tr data-weapon-row="' + idx + '"><td>' + inpQeInline('weapon_' + idx + '_name', w.name) + '</td><td>' + inpQeInline('weapon_' + idx + '_bonus', w.bonus) + '</td><td>' + inpQeInline('weapon_' + idx + '_damage', w.damage) + '</td><td style="display:flex;gap:4px;align-items:center">';
+      html += inpQeInline('weapon_' + idx + '_notes', w.notes, ' style="flex:1"');
       if (!isView) html += '<button type="button" class="weapon-row-remove" data-weapon-remove="' + idx + '" title="">✕</button>';
       html += '</td></tr>';
     });
@@ -349,7 +360,7 @@
     html += '<th class="flags-col">C/R/M</th><th>' + t('notes') + '</th></tr></thead><tbody>';
     spellRows.forEach(function (sp, si) {
       html += '<tr data-spell-row="' + si + '"><td>' + inp('spellrow_' + si + '_lvl', sp.level) + '</td><td>' + inpSpellName('spellrow_' + si + '_name', sp.name) + '</td>';
-      html += '<td>' + inp('spellrow_' + si + '_cast', sp.cast) + '</td><td>' + inp('spellrow_' + si + '_range', sp.range) + '</td><td>';
+      html += '<td>' + inpQeInline('spellrow_' + si + '_cast', sp.cast, '', { fontSize: '0.64rem' }) + '</td><td>' + inpQeInline('spellrow_' + si + '_range', sp.range, '', { fontSize: '0.64rem' }) + '</td><td>';
       html += '<div style="display:flex;gap:3px;justify-content:center;align-items:center">';
       var cc = sp.conc ? ' checked' : '';
       var rc = sp.ritual ? ' checked' : '';
@@ -358,7 +369,7 @@
       html += '<label class="spell-check"><input type="checkbox" data-spell-flags="' + si + '" data-flag="ritual"' + rc + (isView ? ' disabled' : '') + ' /><span>R</span></label>';
       html += '<label class="spell-check"><input type="checkbox" data-spell-flags="' + si + '" data-flag="mat"' + mc + (isView ? ' disabled' : '') + ' /><span>M</span></label>';
       html += '</div></td><td style="display:flex;gap:4px;align-items:center">';
-      html += inp('spellrow_' + si + '_notes', sp.notes, ' style="flex:1;font-size:0.64rem"');
+      html += inpQeInline('spellrow_' + si + '_notes', sp.notes, ' style="flex:1;font-size:0.64rem"', { fontSize: '0.64rem' });
       if (!isView) html += '<button type="button" class="spell-row-remove" data-spell-remove="' + si + '">✕</button>';
       html += '</td></tr>';
     });
