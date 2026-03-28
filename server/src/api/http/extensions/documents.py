@@ -53,12 +53,12 @@ async def serve_document(request: web.Request) -> web.Response:
         pass  # User's own document
     else:
         entry = None
+        vis_data = _load_document_visibility()
         for candidate in AssetEntry.select().join(Asset).where(Asset.file_hash == file_hash):
             if not candidate.name or not candidate.name.lower().endswith(".pdf"):
                 continue
-            if candidate.owner == user:
+            if candidate.owner_id == user.id:
                 continue
-            vis_data = _load_document_visibility()
             for room_key, vis_map in vis_data.items():
                 visible_ids = _get_visible_document_ids(candidate.owner, vis_map)
                 if candidate.id not in visible_ids:
@@ -68,8 +68,13 @@ async def serve_document(request: web.Request) -> web.Response:
                     continue
                 cr, rn = parts[0], parts[1]
                 room = _get_room(cr, rn)
-                if not room or room.creator != candidate.owner:
+                if not room or room.creator_id != candidate.owner_id:
                     continue
+                pr = PlayerRoom.get_or_none(PlayerRoom.room == room, PlayerRoom.player == user)
+                if not pr:
+                    continue
+                entry = candidate
+                break
             if entry is not None:
                 break
 
@@ -166,6 +171,18 @@ def _get_visible_document_ids(owner: User, vis_map: dict[str, bool]) -> set[int]
             collect_from_folder(entry)
 
     return visible_ids
+
+
+def _reparent_dm_visible_tree_top_level(nodes: list[dict], new_parent_id: int) -> list[dict]:
+    """Collega i nodi di primo livello dell'albero documenti del DM sotto la cartella virtuale (id new_parent_id)."""
+    result: list[dict] = []
+    for it in nodes:
+        node = {k: v for k, v in it.items() if k != "children"}
+        node["folderId"] = new_parent_id
+        if it.get("type") == "folder" and it.get("children") is not None:
+            node["children"] = it["children"]
+        result.append(node)
+    return result
 
 
 def _build_documents_tree(
@@ -278,31 +295,23 @@ async def list_documents(request: web.Request) -> web.Response:
                         )
                 else:
                     dm = room.creator
+                    dm_tree: list[dict] = []
                     if dm != user:
                         visible_ids = _get_visible_document_ids(dm, vis)
                         dm_tree = _build_documents_tree(
                             user, None, owner_filter=dm, visible_asset_ids=visible_ids
                         )
-
-                        def extract_docs(items: list) -> list[dict]:
-                            out: list[dict] = []
-                            for it in items:
-                                if it["type"] == "document":
-                                    out.append({**it, "folderId": -1, "visibleToPlayers": True})
-                                else:
-                                    out.extend(extract_docs(it.get("children", [])))
-                            return out
-
-                        dm_visible_docs = extract_docs(dm_tree)
+                        if dm_tree:
+                            dm_tree = _reparent_dm_visible_tree_top_level(dm_tree, -1)
                     tree = _build_documents_tree(user, None)
-                    if dm_visible_docs:
+                    if dm_tree:
                         tree.insert(0, {
                             "id": -1,
                             "name": "Visible to players",
                             "nameKey": "visible_to_players",
                             "folderId": docs_folder.id,
                             "type": "folder",
-                            "children": dm_visible_docs,
+                            "children": dm_tree,
                         })
                 docs_folder = _get_or_create_documents_folder(user)
             else:
