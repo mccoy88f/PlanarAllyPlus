@@ -143,11 +143,10 @@ function getEffectivePage(): number {
         const p = parseInt(pageInput.value, 10);
         if (!Number.isNaN(p) && p > 0) return p;
     }
-    const app = pdfAppRef.value as { page?: number; pdfViewer?: { currentPageNumber: number } } | null;
+    const app = pdfAppRef.value as { pdfViewer?: { currentPageNumber: number } } | null;
     const fromViewer = app?.pdfViewer?.currentPageNumber;
     if (fromViewer != null && fromViewer > 0) return fromViewer;
-    const fromAppPage = app?.page;
-    if (fromAppPage != null && fromAppPage > 0) return fromAppPage;
+    /* Non leggere app.page: il getter pdf.js usa pdfViewer.currentPageNumber e può lanciare se pdfViewer è null. */
     if (currentPage.value > 0) return currentPage.value;
     const fromDoc = currentDoc.value?.page;
     if (fromDoc != null && fromDoc > 0) return fromDoc;
@@ -261,7 +260,6 @@ async function waitForPdfContainerLayout(): Promise<void> {
 
 type PdfViewerAppForSync = {
     eventBus: { on: (e: string, cb: (e: unknown) => void) => void };
-    page?: number;
     pdfViewer?: { currentPageNumber: number };
 };
 
@@ -270,7 +268,8 @@ function wirePdfViewerPageSync(pdfApp: PdfViewerAppForSync): void {
     pdfViewerEventBusBound.value = true;
 
     const syncFromApp = (): void => {
-        const p = (pdfApp as { page?: number }).page ?? pdfApp?.pdfViewer?.currentPageNumber;
+        /* Non usare .page su PDFViewerApplication: getter che legge pdfViewer prima che sia pronto → TypeError. */
+        const p = pdfApp.pdfViewer?.currentPageNumber;
         if (typeof p === "number" && p > 0) currentPage.value = p;
     };
     syncFromApp();
