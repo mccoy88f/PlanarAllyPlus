@@ -12,6 +12,8 @@ from ....db.models.asset import Asset
 from ....db.models.asset_entry import AssetEntry
 from ....utils import ASSETS_DIR, STATIC_DIR, get_asset_hash_subpath
 
+from .wall_svg import save_walls_svg_asset
+
 # PlanarAlly grid: 1 cell = 50 pixels
 GRID_SIZE = 50
 PADDING = 50
@@ -239,26 +241,34 @@ async def generate(request: web.Request) -> web.Response:
     except ImportError:
         pass
 
-    return web.json_response(
-        {
-            "url": url,
-            "assetId": entry.id,
-            "name": shape_name,
-            "gridCells": {"width": cells_x, "height": cells_y},
-            "imageWidth": canvas_width,
-            "imageHeight": canvas_height,
-            "syncSquareSize": GRID_SIZE,
-            "padding": PADDING,
-            "seed": seed,
-            "walls": {
-                "lines": wall_lines,
-            },
-            "doors": [
-                {"x": d.x - bounds[0], "y": d.y - bounds[1], "direction": d.direction, "type": d.door_type.name}
-                for d in dungeon.doors.values()
-            ],
-        }
+    payload: dict = {
+        "url": url,
+        "assetId": entry.id,
+        "name": shape_name,
+        "gridCells": {"width": cells_x, "height": cells_y},
+        "imageWidth": canvas_width,
+        "imageHeight": canvas_height,
+        "syncSquareSize": GRID_SIZE,
+        "padding": PADDING,
+        "seed": seed,
+        "walls": {
+            "lines": wall_lines,
+        },
+        "doors": [
+            {"x": d.x - bounds[0], "y": d.y - bounds[1], "direction": d.direction, "type": d.door_type.name}
+            for d in dungeon.doors.values()
+        ],
+    }
+    svg_extra = save_walls_svg_asset(
+        user,
+        folder,
+        shape_name,
+        {"lines": wall_lines},
+        {"width": cells_x, "height": cells_y},
     )
+    if svg_extra:
+        payload.update(svg_extra)
+    return web.json_response(payload)
 
 
 async def _generate_building(
@@ -341,31 +351,39 @@ async def _generate_building(
     canvas_width  = result.width  * GRID_SIZE + PADDING * 2
     canvas_height = result.height * GRID_SIZE + PADDING * 2
 
-    return web.json_response(
-        {
-            "url": url,
-            "assetId": entry.id,
-            "name": shape_name,
-            "gridCells": {"width": result.width, "height": result.height},
-            "imageWidth": canvas_width,
-            "imageHeight": canvas_height,
-            "syncSquareSize": GRID_SIZE,
-            "padding": PADDING,
-            "seed": seed,
-            "walls": {
-                "lines": wall_lines,
-            },
-            "doors": [
-                {
-                    # Clamp coordinates to canvas bounds so the client never
-                    # receives negative or out-of-canvas values (entrance gaps
-                    # can be at y=-1 or x=-1 when on the north/west edge).
-                    "x":         max(0, min(d.x, result.width  - 1)),
-                    "y":         max(0, min(d.y, result.height - 1)),
-                    "direction": d.direction,
-                    "type":      d.door_type,
-                }
-                for d in result.doors
-            ],
-        }
+    payload: dict = {
+        "url": url,
+        "assetId": entry.id,
+        "name": shape_name,
+        "gridCells": {"width": result.width, "height": result.height},
+        "imageWidth": canvas_width,
+        "imageHeight": canvas_height,
+        "syncSquareSize": GRID_SIZE,
+        "padding": PADDING,
+        "seed": seed,
+        "walls": {
+            "lines": wall_lines,
+        },
+        "doors": [
+            {
+                # Clamp coordinates to canvas bounds so the client never
+                # receives negative or out-of-canvas values (entrance gaps
+                # can be at y=-1 or x=-1 when on the north/west edge).
+                "x":         max(0, min(d.x, result.width  - 1)),
+                "y":         max(0, min(d.y, result.height - 1)),
+                "direction": d.direction,
+                "type":      d.door_type,
+            }
+            for d in result.doors
+        ],
+    }
+    svg_extra = save_walls_svg_asset(
+        user,
+        folder,
+        shape_name,
+        {"lines": wall_lines},
+        {"width": result.width, "height": result.height},
     )
+    if svg_extra:
+        payload.update(svg_extra)
+    return web.json_response(payload)

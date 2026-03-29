@@ -310,6 +310,7 @@ async function generate(clearSeed = false): Promise<void> {
                 syncSquareSize?: number;
                 seed: number;
                 doors?: DoorData[];
+                wallsSvgName?: string;
             };
             previewUrl.value = data.url;
             generatedAssetId.value = data.assetId ?? null;
@@ -330,6 +331,11 @@ async function generate(clearSeed = false): Promise<void> {
                 buildingParams.value.seed = String(data.seed);
             } else {
                 params.value.seed = String(data.seed);
+            }
+            if (data.wallsSvgName) {
+                toast.info(
+                    t("game.ui.extensions.DungeongenModal.walls_svg_saved", { name: data.wallsSvgName }),
+                );
             }
         } else {
             const text = await response.text();

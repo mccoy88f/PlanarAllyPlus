@@ -1,5 +1,6 @@
 """AI Generator extension - OpenRouter and Google AI Studio."""
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -1020,16 +1021,21 @@ async def import_map(request: web.Request) -> web.Response:
     entry = AssetEntry.create(name=asset_name, asset=asset, owner=user, parent=folder)
 
     from ....thumbnail import generate_thumbnail_for_asset
+
     asyncio.create_task(generate_thumbnail_for_asset(h))
 
     asset_url = f"/static/assets/{get_asset_hash_subpath(h).as_posix()}"
+
+    grid_cells = map_data.get("gridCells", {"width": 20, "height": 15})
+    if not isinstance(grid_cells, dict):
+        grid_cells = {"width": 20, "height": 15}
 
     return web.json_response({
         "url": asset_url,
         "assetId": asset.id,
         "entryId": entry.id,
         "name": stem,
-        "gridCells": map_data.get("gridCells", {"width": 20, "height": 15}),
+        "gridCells": grid_cells,
         "walls": map_data.get("walls"),
         "doors": map_data.get("doors", []),
     })
