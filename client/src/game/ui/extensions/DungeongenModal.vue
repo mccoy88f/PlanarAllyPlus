@@ -8,24 +8,24 @@ import HeaderModeSelector from "../../../core/components/HeaderModeSelector.vue"
 import Modal from "../../../core/components/modals/Modal.vue";
 import { baseAdjust } from "../../../core/http";
 import { http } from "../../../core/http";
+import { updateShapeMetadataCustomDataValue } from "../../assetEntryMetadata";
 import {
     addDungeonToMap,
     type BuildingGenParams,
     type DungeonGenParams,
     type DungeonGenStoredData,
-    DUNGEON_PARAMS_CUSTOM_DATA_NAME,
-    DUNGEON_PARAMS_CUSTOM_DATA_SOURCE,
+    DUNGEON_ASSET_SRC_PREFIX,
     getDungeonStoredData,
+    parseFileHashFromStaticAssetUrl,
     type WallData,
     type DoorData,
 } from "../../dungeongen";
 import { toGP } from "../../../core/geometry";
-import { getGlobalId, getShape } from "../../id";
-import type { Asset } from "../../shapes/variants/asset";
 import type { AssetId } from "../../../assets/models";
+import { getShape } from "../../id";
+import type { Asset } from "../../shapes/variants/asset";
 import { extensionsState } from "../../systems/extensions/state";
 import { closeDungeongenModal, focusExtension } from "../../systems/extensions/ui";
-import { customDataSystem } from "../../systems/customData";
 import { propertiesSystem } from "../../systems/properties";
 import { SERVER_SYNC } from "../../../core/models/types";
 
@@ -42,7 +42,6 @@ const isEditMode = computed(() => editShapeId.value !== undefined);
 
 const generating = ref(false);
 const previewUrl = ref<string | null>(null);
-const generatedAssetId = ref<AssetId | null>(null);
 const gridCells = ref<{ width: number; height: number } | null>(null);
 const dungeonMeta = ref<{
     imageWidth: number;
@@ -72,7 +71,6 @@ let _skipModeWatch = false;
 watch(mode, () => {
     if (_skipModeWatch) return;
     previewUrl.value = null;
-    generatedAssetId.value = null;
     gridCells.value = null;
     dungeonMeta.value = null;
     dungeonWalls.value = null;
@@ -239,7 +237,7 @@ watch(
             const stored = getDungeonStoredData(shapeId);
             if (stored) {
                 // Detect if stored params are building params
-                const storedParams = stored.params as Record<string, unknown>;
+                const storedParams = stored.params as unknown as Record<string, unknown>;
                 // Suppress the mode-change watcher so it doesn't wipe the preview
                 // we are about to restore from the existing asset.
                 _skipModeWatch = true;
@@ -257,7 +255,7 @@ watch(
 
                 const shape = getShape(shapeId);
                 if (shape && "src" in shape) {
-                    previewUrl.value = (shape as Asset).src;
+                    previewUrl.value = (shape as { src?: string }).src ?? null;
                 }
                 // Re-enable mode-change clearing after Vue has flushed the watcher queue.
                 nextTick(() => { _skipModeWatch = false; });
@@ -270,7 +268,6 @@ watch(
 async function generate(clearSeed = false): Promise<void> {
     generating.value = true;
     previewUrl.value = null;
-    generatedAssetId.value = null;
     gridCells.value = null;
     dungeonMeta.value = null;
     dungeonWalls.value = null;
@@ -302,7 +299,6 @@ async function generate(clearSeed = false): Promise<void> {
         if (response.ok) {
             const data = (await response.json()) as {
                 url: string;
-                assetId?: AssetId;
                 name?: string;
                 gridCells: { width: number; height: number };
                 imageWidth?: number;
@@ -312,7 +308,6 @@ async function generate(clearSeed = false): Promise<void> {
                 doors?: DoorData[];
             };
             previewUrl.value = data.url;
-            generatedAssetId.value = data.assetId ?? null;
             generatedName.value = data.name ?? "";
             gridCells.value = data.gridCells;
             dungeonMeta.value =
@@ -343,6 +338,41 @@ async function generate(clearSeed = false): Promise<void> {
     }
 }
 
+/** Salva in libreria (commit) se l’anteprima è ancora in temp; altrimenti usa asset/hash già permanenti. */
+async function promotePreviewToLibraryStore(
+    storedData: DungeonGenStoredData,
+): Promise<{ imageUrl: string; assetModelId: AssetId; fileHash: string } | null> {
+    const url = previewUrl.value;
+    if (!url) return null;
+
+    if (url.startsWith(DUNGEON_ASSET_SRC_PREFIX)) {
+        const tempFilename = url.split("/").pop()!;
+        const r = await http.postJson("/api/extensions/dungeongen/commit", {
+            tempFilename,
+            storedData,
+        });
+        if (!r.ok) {
+            const text = await r.text();
+            toast.error(text || t("game.ui.extensions.DungeongenModal.add_failed"));
+            return null;
+        }
+        const d = (await r.json()) as { url: string; assetId: number; fileHash: string };
+        return {
+            imageUrl: d.url,
+            assetModelId: d.assetId as AssetId,
+            fileHash: d.fileHash,
+        };
+    }
+
+    const fileHash = parseFileHashFromStaticAssetUrl(url);
+    if (!fileHash) return null;
+    const sid = editShapeId.value;
+    const shape = sid !== undefined ? getShape(sid) : undefined;
+    const aid = shape && "assetId" in shape ? (shape as Asset).assetId : undefined;
+    if (aid === undefined) return null;
+    return { imageUrl: url, assetModelId: aid, fileHash };
+}
+
 async function addToMap(): Promise<void> {
     if (!previewUrl.value || !gridCells.value) return;
     if (isEditMode.value) {
@@ -357,8 +387,19 @@ async function addToMap(): Promise<void> {
         const currentSeed = mode.value === "building"
             ? buildingParams.value.seed
             : params.value.seed;
+        const storedData: DungeonGenStoredData = {
+            params: currentParams,
+            seed: currentSeed,
+            gridCells: gridCells.value,
+            dungeonMeta: dungeonMeta.value ?? undefined,
+            walls: dungeonWalls.value ?? undefined,
+            doors: dungeonDoors.value ?? undefined,
+        };
+        const promoted = await promotePreviewToLibraryStore(storedData);
+        if (!promoted) return;
+
         const asset = await addDungeonToMap(
-            previewUrl.value,
+            promoted.imageUrl,
             gridCells.value,
             toGP(0, 0),
             {
@@ -368,6 +409,8 @@ async function addToMap(): Promise<void> {
                 seed: currentSeed,
                 walls: dungeonWalls.value ?? undefined,
                 doors: dungeonDoors.value ?? undefined,
+                assetModelId: promoted.assetModelId,
+                fileHash: promoted.fileHash,
             },
         );
         if (asset) {
@@ -396,11 +439,6 @@ async function replaceOnMap(): Promise<void> {
             ? { ...buildingParams.value }
             : { ...params.value };
         propertiesSystem.setName(shapeId, newSeed, SERVER_SYNC);
-        if (generatedAssetId.value === null) {
-            throw new Error("No asset ID available for replace");
-        }
-        (shape as Asset).setImage(generatedAssetId.value, previewUrl.value, true);
-
         const storedData: DungeonGenStoredData = {
             params: currentParams,
             seed: newSeed,
@@ -409,17 +447,15 @@ async function replaceOnMap(): Promise<void> {
             walls: dungeonWalls.value ?? undefined,
             doors: dungeonDoors.value ?? undefined,
         };
-        const globalId = getGlobalId(shapeId);
-        if (globalId) {
-            const elemId = customDataSystem.getElementId({
-                shapeId: globalId,
-                source: DUNGEON_PARAMS_CUSTOM_DATA_SOURCE,
-                prefix: "/",
-                name: DUNGEON_PARAMS_CUSTOM_DATA_NAME,
-            });
-            if (elemId !== undefined) {
-                customDataSystem.updateValue(shapeId, elemId, JSON.stringify(storedData), true);
-            }
+        const promoted = await promotePreviewToLibraryStore(storedData);
+        if (!promoted) {
+            throw new Error("Could not save preview to asset library");
+        }
+        (shape as Asset).setImage(promoted.assetModelId, promoted.fileHash, true);
+        previewUrl.value = promoted.imageUrl;
+
+        if (!updateShapeMetadataCustomDataValue(shapeId, JSON.stringify(storedData))) {
+            throw new Error("Could not update shape metadata (MapsGen / asset_entry)");
         }
         toast.success(t("game.ui.extensions.DungeongenModal.replaced_on_map"));
         closeDungeongenModal();
@@ -434,7 +470,6 @@ async function replaceOnMap(): Promise<void> {
 
 function close(): void {
     previewUrl.value = null;
-    generatedAssetId.value = null;
     gridCells.value = null;
     dungeonMeta.value = null;
     dungeonWalls.value = null;
@@ -480,10 +515,9 @@ async function makeRealisticWithAI(): Promise<void> {
             extraPrompt: extraAiPrompt.value,
         });
         if (resp.ok) {
-            const data = (await resp.json()) as { imageUrl?: string; assetId?: AssetId };
+            const data = (await resp.json()) as { imageUrl?: string };
             if (data.imageUrl) {
                 previewUrl.value = data.imageUrl;
-                if (data.assetId !== undefined) generatedAssetId.value = data.assetId;
                 toast.success(t("game.ui.extensions.DungeongenModal.realistic_done"));
             }
         } else {

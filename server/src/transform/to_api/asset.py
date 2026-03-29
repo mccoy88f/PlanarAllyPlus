@@ -52,6 +52,7 @@ def transform_asset(
         children=pydantic_children,
         shares=[],
         has_templates=entry.asset.templates.count() > 0 if entry.asset else False,
+        options=entry.options,
     )
 
     if share_info is None or share_info.right == "edit":

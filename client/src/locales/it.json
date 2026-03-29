@@ -404,7 +404,11 @@
         "DungeongenSettings": {
           "tab": "MapsGen",
           "desc": "Modifica questa mappa usando l'interfaccia dell'estensione MapsGen.",
-          "edit_in_dungeongen": "Modifica in MapsGen"
+          "edit_in_dungeongen": "Modifica in MapsGen",
+          "reposition_walls": "Riposiziona muri",
+          "reposition_walls_hint": "Ricrea muri e porte in base ai dati MapsGen e alla posizione attuale della mappa sulla griglia.",
+          "reposition_walls_done": "Muri e porte aggiornati.",
+          "reposition_walls_failed": "Impossibile riposizionare (manca dati muri/porte o forma non valida)."
         },
         "ExtensionsManager": {
           "title": "Gestisci estensioni",

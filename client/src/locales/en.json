@@ -979,7 +979,11 @@
         "DungeongenSettings": {
           "tab": "MapsGen",
           "desc": "Modify this map using the MapsGen extension interface.",
-          "edit_in_dungeongen": "Edit in MapsGen"
+          "edit_in_dungeongen": "Edit in MapsGen",
+          "reposition_walls": "Reposition walls",
+          "reposition_walls_hint": "Recreate walls and doors from MapsGen data at the map’s current grid position.",
+          "reposition_walls_done": "Walls and doors updated.",
+          "reposition_walls_failed": "Could not reposition (missing wall/door data or invalid shape)."
         },
         "ExtensionsManager": {
           "title": "Manage Extensions",

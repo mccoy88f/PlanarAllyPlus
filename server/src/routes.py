@@ -164,6 +164,7 @@ main_app.router.add_post(f"{subpath}/api/extensions/character-sheet/upload", ext
 main_app.router.add_post(f"{subpath}/api/extensions/character-sheet/default", extensions.character_sheet.set_default)
 main_app.router.add_get(f"{subpath}/api/extensions/character-sheet/default", extensions.character_sheet.get_default)
 main_app.router.add_post(f"{subpath}/api/extensions/dungeongen/generate", extensions.dungeongen.generate)
+main_app.router.add_post(f"{subpath}/api/extensions/dungeongen/commit", extensions.dungeongen.commit)
 main_app.router.add_post(f"{subpath}/api/extensions/watabou/import", extensions.watabou.import_image)
 main_app.router.add_post(f"{subpath}/api/extensions/watabou/upload", extensions.watabou.upload_image)
 main_app.router.add_get(

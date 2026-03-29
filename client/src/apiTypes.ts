@@ -37,6 +37,8 @@ export interface ApiAsset {
   owner: string;
   assetId: AssetId | null;
   fileHash: string | null;
+  /** JSON string (es. metadati MapsGen su AssetEntry.options) */
+  options?: string | null;
   children: ApiAsset[] | null;
   shares: ApiAssetShare[];
   has_templates: boolean;
