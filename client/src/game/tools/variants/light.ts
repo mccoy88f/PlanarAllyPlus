@@ -533,7 +533,18 @@ class LightTool extends Tool implements ITool {
         if (this.state.selectedShape === undefined) return;
         const auras = auraSystem.getAll(this.state.selectedShape);
         if (auras.length === 0) return;
-        auraSystem.update(this.state.selectedShape, auras[0]!.uuid, this.state.pointLight.edit, SERVER_SYNC);
+        const e = this.state.pointLight.edit;
+        auraSystem.update(
+            this.state.selectedShape,
+            auras[0]!.uuid,
+            {
+                value: e.brightRadius,
+                dim: e.dimRadius,
+                colour: e.colour,
+                angle: e.angle,
+            },
+            SERVER_SYNC,
+        );
     }
 
     // --- Mouse styles ---

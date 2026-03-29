@@ -13,6 +13,11 @@ from ...mail import send_mail
 from ...state.auth import auth_state
 
 
+def _extensions_enabled(opts) -> bool:
+    """Allineato a is_authed: NULL in DB → False."""
+    return bool(opts.extensions_enabled) if opts.extensions_enabled is not None else False
+
+
 async def is_authed(request):
     """Risposta 200 + JSON; non usare get_authorized_user (altrimenti 401 senza sessione)."""
     user = None
@@ -22,13 +27,11 @@ async def is_authed(request):
     if user is None:
         data = {"auth": False, "username": ""}
     else:
-        opts = user.default_options
-        extensions_enabled = bool(opts.extensions_enabled) if opts.extensions_enabled is not None else False
         data = {
             "auth": True,
             "username": user.name,
             "email": user.email,
-            "extensions_enabled": extensions_enabled,
+            "extensions_enabled": _extensions_enabled(user.default_options),
         }
         user.update_last_login()
     return web.json_response(data)
@@ -40,7 +43,12 @@ async def login(request):
     except web.HTTPUnauthorized:
         pass
     else:
-        return web.json_response({"email": user.email})
+        return web.json_response(
+            {
+                "email": user.email,
+                "extensions_enabled": _extensions_enabled(user.default_options),
+            }
+        )
 
     data = await request.json()
     username = data["username"]
@@ -48,7 +56,12 @@ async def login(request):
     u = User.by_name(username)
     if u is None or not u.check_password(password):
         return web.HTTPUnauthorized(reason="Username and/or Password do not match")
-    response = web.json_response({"email": u.email})
+    response = web.json_response(
+        {
+            "email": u.email,
+            "extensions_enabled": _extensions_enabled(u.default_options),
+        }
+    )
     u.update_last_login()
     await remember(request, response, username)
     return response
@@ -80,7 +93,12 @@ async def register(request):
             return web.HTTPServerError(
                 reason="An unexpected error occured on the server during account creation.  Operation reverted."
             )
-        response = web.HTTPOk()
+        response = web.json_response(
+            {
+                "email": user.email or "",
+                "extensions_enabled": _extensions_enabled(user.default_options),
+            }
+        )
         user.update_last_login()
         await remember(request, response, username)
         return response

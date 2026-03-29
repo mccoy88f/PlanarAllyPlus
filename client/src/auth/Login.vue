@@ -47,8 +47,9 @@ async function login(): Promise<void> {
     if (response.ok) {
         coreStore.setUsername(username.value);
         coreStore.setAuthenticated(true);
-        const data = (await response.json()) as { email?: string };
+        const data = (await response.json()) as { email?: string; extensions_enabled?: boolean };
         if (data.email !== undefined) coreStore.setEmail(data.email);
+        coreStore.setExtensionsEnabled(data.extensions_enabled ?? false);
         await router.push((route.query.redirect as string) ?? "/");
     } else {
         toast.error(await getErrorReason(response));
@@ -64,6 +65,9 @@ async function register(): Promise<void> {
     if (response.ok) {
         coreStore.setUsername(username.value);
         coreStore.setAuthenticated(true);
+        const data = (await response.json()) as { email?: string; extensions_enabled?: boolean };
+        if (data.email !== undefined) coreStore.setEmail(data.email);
+        coreStore.setExtensionsEnabled(data.extensions_enabled ?? false);
         await router.push((route.query.redirect as string) ?? "/");
     } else {
         toast.error(await getErrorReason(response));
