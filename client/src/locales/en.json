@@ -914,7 +914,6 @@
           "edit_mode_note": "You are editing the selected map. The seed cannot be changed.",
           "generate_error": "Failed to generate dungeon",
           "add_failed": "Failed to add dungeon to map",
-          "walls_svg_saved": "A wall-geometry SVG was also saved to your library as «{name}» (dungeongen folder). Use Extra → Load walls (svg) on the map to apply vision/movement blocking.",
           "footprint": "Footprint",
           "layout": "Layout",
           "size_building": "Building size",
@@ -980,7 +979,11 @@
         "DungeongenSettings": {
           "tab": "MapsGen",
           "desc": "Modify this map using the MapsGen extension interface.",
-          "edit_in_dungeongen": "Edit in MapsGen"
+          "edit_in_dungeongen": "Edit in MapsGen",
+          "reposition_walls": "Reposition walls",
+          "reposition_walls_hint": "Recreate walls and doors from MapsGen data at the map’s current grid position.",
+          "reposition_walls_done": "Walls and doors updated.",
+          "reposition_walls_failed": "Could not reposition (missing wall/door data or invalid shape)."
         },
         "ExtensionsManager": {
           "title": "Manage Extensions",

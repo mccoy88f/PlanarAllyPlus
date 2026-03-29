@@ -9,7 +9,7 @@ import { useModal } from "../../../core/plugins/modals/plugin";
 import { baseAdjust, http } from "../../../core/http";
 import { extensionsState } from "../../systems/extensions/state";
 import { gameState } from "../../systems/game/state";
-import { addDungeonToMap } from "../../dungeongen";
+import { addDungeonToMap, parseFileHashFromStaticAssetUrl, type DoorData } from "../../dungeongen";
 import {
     requestCloseExtensionModal,
     focusExtension,
@@ -45,7 +45,13 @@ async function handleMessage(event: MessageEvent): Promise<void> {
     }
 
     if (data?.type === "planarally-add-to-map" && data.url) {
-        await addDungeonToMap(data.url, data.gridCells || { width: 40, height: 40 }, undefined, { name: data.name, params: undefined, seed: "" });
+        await addDungeonToMap(data.url, data.gridCells || { width: 40, height: 40 }, undefined, {
+            name: data.name,
+            params: undefined,
+            seed: "",
+            assetModelId: data.assetId,
+            fileHash: parseFileHashFromStaticAssetUrl(data.url),
+        });
         toast.success(t("game.ui.extensions.watabou.added_to_map"));
         return;
     }
@@ -55,8 +61,21 @@ async function handleMessage(event: MessageEvent): Promise<void> {
         try {
             const response = await http.postJson("/api/extensions/watabou/import", { url: data.url, generator: data.generator });
             if (response.ok) {
-                const resData = (await response.json()) as { url: string; name: string; gridCells: { width: number; height: number }; doors?: any[] };
-                await addDungeonToMap(resData.url, resData.gridCells, undefined, { name: resData.name, params: undefined, seed: "", doors: resData.doors });
+                const resData = (await response.json()) as {
+                    url: string;
+                    name: string;
+                    assetId: import("../../../assets/models").AssetId;
+                    gridCells: { width: number; height: number };
+                    doors?: DoorData[];
+                };
+                await addDungeonToMap(resData.url, resData.gridCells, undefined, {
+                    name: resData.name,
+                    params: undefined,
+                    seed: "",
+                    doors: resData.doors,
+                    assetModelId: resData.assetId,
+                    fileHash: parseFileHashFromStaticAssetUrl(resData.url),
+                });
                 toast.dismiss(toastId);
                 toast.success(t("game.ui.extensions.watabou.added_to_map"));
             } else {

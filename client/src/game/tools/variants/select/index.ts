@@ -562,7 +562,9 @@ class SelectTool extends Tool implements ISelectTool {
                 if (!accessSystem.hasAccessTo(shape.id, "movement")) return;
 
                 let targetPoint = gp;
-                const skipResizeSnap = "src" in shape && isDungeonAsset((shape as { src?: string }).src);
+                const skipResizeSnap =
+                    "src" in shape &&
+                    isDungeonAsset((shape as { src?: string }).src, shape.id);
                 if (
                     event &&
                     playerSettingsState.useSnapping(event) &&
@@ -787,7 +789,7 @@ class SelectTool extends Tool implements ISelectTool {
                         });
 
                     const skipResizeToGrid =
-                        "src" in sel && isDungeonAsset((sel as { src?: string }).src);
+                        "src" in sel && isDungeonAsset((sel as { src?: string }).src, sel.id);
                     if (
                         event &&
                         locationSettingsState.raw.useGrid.value &&

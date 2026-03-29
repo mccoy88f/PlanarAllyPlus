@@ -23,6 +23,8 @@ class ApiAsset(TypeIdModel):
     # The ID is supposed to be the source of truth
     assetId: int | None = Field(json_schema_extra={"typeId": "AssetId"})
     fileHash: str | None
+    # Optional JSON string (e.g. MapsGen / MapsGen stored metadata on AssetEntry)
+    options: str | None = None
     # If specified, this provides the list of children for this asset
     # This should only be provided for folders (i.e. assets without a fileHash)
     # And is only provided in specific calls

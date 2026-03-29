@@ -13,6 +13,8 @@ import { coreStore } from "../store/core";
 
 import { requestAssetTemplates } from "./api/emits/asset";
 import { fetchFullShape, sendShapesMove } from "./api/emits/shape/core";
+import { syncAssetEntryMetadataToCustomData } from "./assetEntryMetadata";
+import { parseDungeonStoredDataFromEntryOptions } from "./dungeongen";
 import { getLocalId, getShape } from "./id";
 import { moveShapes } from "./operations/movement";
 import { loadFromServer } from "./shapes/transformations";
@@ -24,6 +26,7 @@ import { floorState } from "./systems/floors/state";
 import { noteSystem } from "./systems/notes";
 import { playerSystem } from "./systems/players";
 import { locationSettingsState } from "./systems/settings/location/state";
+import { playerSettingsState } from "./systems/settings/players/state";
 import { addShape, selectionBoxFunction } from "./temp";
 import { handleDropFF } from "./ui/firefox";
 
@@ -128,6 +131,28 @@ export async function dropAsset(
 ): Promise<Asset | undefined> {
     let dimensions: { width: number; height: number } | undefined;
 
+    const inode = assetState.reactive.idMap.get(data.entryId);
+    const mapsGenStored = parseDungeonStoredDataFromEntryOptions(inode?.options ?? null);
+    const gridSize = playerSettingsState.gridSize.value ?? DEFAULT_GRID_SIZE;
+    if (mapsGenStored) {
+        if (
+            mapsGenStored.dungeonMeta?.imageWidth != null &&
+            mapsGenStored.dungeonMeta?.imageHeight != null &&
+            mapsGenStored.dungeonMeta?.syncSquareSize != null
+        ) {
+            const scale = gridSize / mapsGenStored.dungeonMeta.syncSquareSize;
+            dimensions = {
+                width: mapsGenStored.dungeonMeta.imageWidth * scale,
+                height: mapsGenStored.dungeonMeta.imageHeight * scale,
+            };
+        } else if (mapsGenStored.gridCells) {
+            dimensions = {
+                width: mapsGenStored.gridCells.width * gridSize,
+                height: mapsGenStored.gridCells.height * gridSize,
+            };
+        }
+    }
+
     const assetInfo = await requestAssetTemplates({ assetId: data.assetId, entryId: data.entryId });
     if (assetInfo.success) {
         // First check if there are templates and if so, if we want to use one
@@ -205,6 +230,10 @@ export async function dropAsset(
             );
 
             layer.addShape(asset, SyncMode.FULL_SYNC, InvalidationMode.WITH_LIGHT);
+
+            if (inode?.options?.trim()) {
+                syncAssetEntryMetadataToCustomData(asset, inode.options);
+            }
 
             resolve(asset);
         });

@@ -1,8 +1,11 @@
 """Dungeongen extension - procedural dungeon generation API."""
 
-import hashlib
-import random
 import asyncio
+import hashlib
+import json
+import random
+import re
+import uuid
 from pathlib import Path
 
 from aiohttp import web
@@ -12,11 +15,20 @@ from ....db.models.asset import Asset
 from ....db.models.asset_entry import AssetEntry
 from ....utils import ASSETS_DIR, STATIC_DIR, get_asset_hash_subpath
 
-from .wall_svg import save_walls_svg_asset
-
 # PlanarAlly grid: 1 cell = 50 pixels
 GRID_SIZE = 50
 PADDING = 50
+
+_TEMP_DUNGEON_PREFIX = STATIC_DIR / "temp" / "dungeons"
+_TEMP_FILENAME_RE = re.compile(r"^[0-9a-f]{32}\.png$")
+
+
+def _write_temp_dungeon_png(png_bytes: bytes) -> str:
+    """Write PNG under static/temp/dungeons. Returns URL path /static/temp/dungeons/...."""
+    _TEMP_DUNGEON_PREFIX.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}.png"
+    (_TEMP_DUNGEON_PREFIX / filename).write_bytes(png_bytes)
+    return f"/static/temp/dungeons/{filename}"
 
 
 async def generate(request: web.Request) -> web.Response:
@@ -140,7 +152,7 @@ async def generate(request: web.Request) -> web.Response:
     # Route to building generator if mode == "building"
     mode = data.get("mode", "dungeon")
     if mode == "building":
-        return await _generate_building(request, data, seed, user)
+        return await _generate_building(request, data, seed)
 
     generator = DungeonGenerator(params)
     dungeon = generator.generate(seed=seed)
@@ -192,29 +204,9 @@ async def generate(request: web.Request) -> web.Response:
     except Exception as e:
         return web.HTTPInternalServerError(text=f"Render failed: {e}")
 
-    # Save to assets
-    sh = hashlib.sha1(png_bytes)
-    hashname = sh.hexdigest()
-    full_hash_path = ASSETS_DIR / get_asset_hash_subpath(hashname)
-
-    if not full_hash_path.exists():
-        full_hash_path.parent.mkdir(parents=True, exist_ok=True)
-        full_hash_path.write_bytes(png_bytes)
-
-    folder = AssetEntry.get_or_create_extension_folder(user, "dungeongen")
-    filename = f"dungeon_{seed}.png"
-    
-    asset, _ = Asset.get_or_create(
-        file_hash=hashname,
-        defaults={"kind": "regular", "extension": "png", "file_size": len(png_bytes)},
-    )
-    entry = AssetEntry.create(name=filename, asset=asset, owner=user, parent=folder)
-
-    from ....thumbnail import generate_thumbnail_for_asset
-    asyncio.create_task(generate_thumbnail_for_asset(hashname))
-
-    url = f"/static/assets/{get_asset_hash_subpath(hashname).as_posix()}"
-    shape_name = Path(filename).stem
+    # Preview only: temp file — library entry is created on "add to map" (commit).
+    url = _write_temp_dungeon_png(png_bytes)
+    shape_name = f"dungeon_{seed}"
 
     # Extract walls from occupancy grid
     wall_lines = []
@@ -241,41 +233,31 @@ async def generate(request: web.Request) -> web.Response:
     except ImportError:
         pass
 
-    payload: dict = {
-        "url": url,
-        "assetId": entry.id,
-        "name": shape_name,
-        "gridCells": {"width": cells_x, "height": cells_y},
-        "imageWidth": canvas_width,
-        "imageHeight": canvas_height,
-        "syncSquareSize": GRID_SIZE,
-        "padding": PADDING,
-        "seed": seed,
-        "walls": {
-            "lines": wall_lines,
-        },
-        "doors": [
-            {"x": d.x - bounds[0], "y": d.y - bounds[1], "direction": d.direction, "type": d.door_type.name}
-            for d in dungeon.doors.values()
-        ],
-    }
-    svg_extra = save_walls_svg_asset(
-        user,
-        folder,
-        shape_name,
-        {"lines": wall_lines},
-        {"width": cells_x, "height": cells_y},
+    return web.json_response(
+        {
+            "url": url,
+            "name": shape_name,
+            "gridCells": {"width": cells_x, "height": cells_y},
+            "imageWidth": canvas_width,
+            "imageHeight": canvas_height,
+            "syncSquareSize": GRID_SIZE,
+            "padding": PADDING,
+            "seed": seed,
+            "walls": {
+                "lines": wall_lines,
+            },
+            "doors": [
+                {"x": d.x - bounds[0], "y": d.y - bounds[1], "direction": d.direction, "type": d.door_type.name}
+                for d in dungeon.doors.values()
+            ],
+        }
     )
-    if svg_extra:
-        payload.update(svg_extra)
-    return web.json_response(payload)
 
 
 async def _generate_building(
     request: web.Request,
     data: dict,
     seed: int,
-    user,
 ) -> web.Response:
     """Handle building generation and return JSON identical in shape to dungeon generation."""
     try:
@@ -326,7 +308,67 @@ async def _generate_building(
     except Exception as e:
         return web.HTTPInternalServerError(text=f"Building generation failed: {e}")
 
-    # Save PNG asset (same pattern as dungeon path)
+    url = _write_temp_dungeon_png(png_bytes)
+    shape_name = f"building_{seed}"
+    canvas_width  = result.width  * GRID_SIZE + PADDING * 2
+    canvas_height = result.height * GRID_SIZE + PADDING * 2
+
+    return web.json_response(
+        {
+            "url": url,
+            "name": shape_name,
+            "gridCells": {"width": result.width, "height": result.height},
+            "imageWidth": canvas_width,
+            "imageHeight": canvas_height,
+            "syncSquareSize": GRID_SIZE,
+            "padding": PADDING,
+            "seed": seed,
+            "walls": {
+                "lines": wall_lines,
+            },
+            "doors": [
+                {
+                    # Clamp coordinates to canvas bounds so the client never
+                    # receives negative or out-of-canvas values (entrance gaps
+                    # can be at y=-1 or x=-1 when on the north/west edge).
+                    "x":         max(0, min(d.x, result.width  - 1)),
+                    "y":         max(0, min(d.y, result.height - 1)),
+                    "direction": d.direction,
+                    "type":      d.door_type,
+                }
+                for d in result.doors
+            ],
+        }
+    )
+
+
+async def commit(request: web.Request) -> web.Response:
+    """Promote a temp dungeon PNG to the asset library with JSON metadata in asset_entry.options."""
+    user = await get_authorized_user(request)
+
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.HTTPBadRequest(text="Invalid JSON")
+
+    temp_filename = (body.get("tempFilename") or "").strip()
+    if not _TEMP_FILENAME_RE.match(temp_filename):
+        return web.HTTPBadRequest(text="Invalid tempFilename")
+
+    stored = body.get("storedData")
+    if stored is not None and not isinstance(stored, dict):
+        return web.HTTPBadRequest(text="storedData must be an object")
+
+    temp_path = _TEMP_DUNGEON_PREFIX / temp_filename
+    try:
+        temp_path.resolve().relative_to(_TEMP_DUNGEON_PREFIX.resolve())
+    except ValueError:
+        return web.HTTPBadRequest(text="Invalid path")
+
+    if not temp_path.is_file():
+        return web.json_response({"error": "Temp file not found or expired."}, status=404)
+
+    png_bytes = temp_path.read_bytes()
     sh = hashlib.sha1(png_bytes)
     hashname = sh.hexdigest()
     full_hash_path = ASSETS_DIR / get_asset_hash_subpath(hashname)
@@ -335,55 +377,55 @@ async def _generate_building(
         full_hash_path.parent.mkdir(parents=True, exist_ok=True)
         full_hash_path.write_bytes(png_bytes)
 
-    folder = AssetEntry.get_or_create_extension_folder(user, "dungeongen")
-    filename = f"building_{seed}.png"
     asset, _ = Asset.get_or_create(
         file_hash=hashname,
         defaults={"kind": "regular", "extension": "png", "file_size": len(png_bytes)},
     )
-    entry = AssetEntry.create(name=filename, asset=asset, owner=user, parent=folder)
+    folder = AssetEntry.get_or_create_extension_folder(user, "dungeongen")
+
+    seed_hint = ""
+    if isinstance(stored, dict):
+        seed_hint = str(stored.get("seed") or "").strip()
+    base_name = f"mapsgen_{seed_hint}" if seed_hint else f"mapsgen_{uuid.uuid4().hex[:8]}"
+    filename = f"{base_name}.png"
+    if (
+        AssetEntry.get_or_none(
+            (AssetEntry.owner == user) & (AssetEntry.parent == folder) & (AssetEntry.name == filename)  # type: ignore
+        )
+        is not None
+    ):
+        filename = f"{base_name}_{uuid.uuid4().hex[:6]}.png"
+
+    options_str: str | None
+    if stored is not None:
+        options_str = json.dumps(stored, separators=(",", ":"))
+    else:
+        options_str = None
+
+    entry = AssetEntry.create(
+        name=filename,
+        asset=asset,
+        owner=user,
+        parent=folder,
+        options=options_str,
+    )
 
     from ....thumbnail import generate_thumbnail_for_asset
+
     asyncio.create_task(generate_thumbnail_for_asset(hashname))
 
-    url = f"/static/assets/{get_asset_hash_subpath(hashname).as_posix()}"
-    shape_name = f"building_{seed}"
-    canvas_width  = result.width  * GRID_SIZE + PADDING * 2
-    canvas_height = result.height * GRID_SIZE + PADDING * 2
+    try:
+        temp_path.unlink()
+    except OSError:
+        pass
 
-    payload: dict = {
-        "url": url,
-        "assetId": entry.id,
-        "name": shape_name,
-        "gridCells": {"width": result.width, "height": result.height},
-        "imageWidth": canvas_width,
-        "imageHeight": canvas_height,
-        "syncSquareSize": GRID_SIZE,
-        "padding": PADDING,
-        "seed": seed,
-        "walls": {
-            "lines": wall_lines,
-        },
-        "doors": [
-            {
-                # Clamp coordinates to canvas bounds so the client never
-                # receives negative or out-of-canvas values (entrance gaps
-                # can be at y=-1 or x=-1 when on the north/west edge).
-                "x":         max(0, min(d.x, result.width  - 1)),
-                "y":         max(0, min(d.y, result.height - 1)),
-                "direction": d.direction,
-                "type":      d.door_type,
-            }
-            for d in result.doors
-        ],
-    }
-    svg_extra = save_walls_svg_asset(
-        user,
-        folder,
-        shape_name,
-        {"lines": wall_lines},
-        {"width": result.width, "height": result.height},
+    url = f"/static/assets/{get_asset_hash_subpath(hashname).as_posix()}"
+    return web.json_response(
+        {
+            "url": url,
+            "entryId": entry.id,
+            "assetId": asset.id,
+            "fileHash": hashname,
+            "name": Path(filename).stem,
+        }
     )
-    if svg_extra:
-        payload.update(svg_extra)
-    return web.json_response(payload)

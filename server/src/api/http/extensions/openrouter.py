@@ -1,6 +1,5 @@
 """AI Generator extension - OpenRouter and Google AI Studio."""
 
-import asyncio
 import base64
 import hashlib
 import json
@@ -571,37 +570,15 @@ async def transform_image(request: web.Request) -> web.Response:
             status=502,
         )
 
-    # Decode the image once, then save as a proper PlanarAlly asset so the
-    # client gets a valid assetId it can pass to setImage().
+    # Validate payload; image is written only to temp (MapsGen commit adds to library on "add to map").
     try:
-        img_bytes = _decode_data_url(result_data_url)
+        _decode_data_url(result_data_url)
     except ValueError as e:
         return web.json_response({"error": str(e)}, status=502)
 
-    try:
-        h = hashlib.sha1(img_bytes).hexdigest()
-        asset_path = ASSETS_DIR / get_asset_hash_subpath(h)
-        if not asset_path.exists():
-            asset_path.parent.mkdir(parents=True, exist_ok=True)
-            asset_path.write_bytes(img_bytes)
-        folder = AssetEntry.get_or_create_extension_folder(user, "dungeongen")
-        filename = f"realistic_{uuid.uuid4().hex[:8]}.png"
-        asset, _ = Asset.get_or_create(
-            file_hash=h,
-            defaults={"kind": "regular", "extension": "png", "file_size": len(img_bytes)},
-        )
-        entry = AssetEntry.create(name=filename, asset=asset, owner=user, parent=folder)
-
-        from ....thumbnail import generate_thumbnail_for_asset
-        asyncio.create_task(generate_thumbnail_for_asset(h))
-
-        asset_url = f"/static/assets/{get_asset_hash_subpath(h).as_posix()}"
-        return web.json_response({"imageUrl": asset_url, "assetId": asset.id, "entryId": entry.id})
-    except Exception:
-        # Asset creation failed — fall back to temp file so the user still
-        # sees the result, but replace will not work without assetId.
-        url = _save_generated_image(result_data_url)
-        return web.json_response({"imageUrl": url})
+    # Same as MapsGen generate: temp file only; library entry on "add to map" (dungeongen/commit).
+    url = _save_generated_image(result_data_url)
+    return web.json_response({"imageUrl": url})
 
 
 # ── Vision helpers ─────────────────────────────────────────────────────────────
@@ -1021,21 +998,16 @@ async def import_map(request: web.Request) -> web.Response:
     entry = AssetEntry.create(name=asset_name, asset=asset, owner=user, parent=folder)
 
     from ....thumbnail import generate_thumbnail_for_asset
-
     asyncio.create_task(generate_thumbnail_for_asset(h))
 
     asset_url = f"/static/assets/{get_asset_hash_subpath(h).as_posix()}"
-
-    grid_cells = map_data.get("gridCells", {"width": 20, "height": 15})
-    if not isinstance(grid_cells, dict):
-        grid_cells = {"width": 20, "height": 15}
 
     return web.json_response({
         "url": asset_url,
         "assetId": asset.id,
         "entryId": entry.id,
         "name": stem,
-        "gridCells": grid_cells,
+        "gridCells": map_data.get("gridCells", {"width": 20, "height": 15}),
         "walls": map_data.get("walls"),
         "doors": map_data.get("doors", []),
     })
