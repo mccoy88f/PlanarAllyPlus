@@ -211,7 +211,6 @@
     document.querySelector('#repeatMode option[value="none"]').textContent = L.repeatNone;
     document.querySelector('#repeatMode option[value="one"]').textContent = L.repeatOne;
     document.querySelector('#repeatMode option[value="all"]').textContent = L.repeatAll;
-    seekBarEl.title = L.seekBar;
 
     var baseUrl = '';
     var m = window.location.pathname.match(/^(.+)\/api\/extensions\//);
@@ -228,6 +227,7 @@
     var seekBarEl = document.getElementById('seekBar');
     var seekCurrentEl = document.getElementById('seekCurrent');
     var seekTotalEl = document.getElementById('seekTotal');
+    if (seekBarEl) seekBarEl.title = L.seekBar;
     var repeatMode = 'none';
     var rootId = null;
     var currentFolderId = null;
