@@ -1107,6 +1107,8 @@
         "CompendiumModal": {
           "title": "Compendium",
           "continue_reading": "Continue reading the next item: {name}",
+          "back_to": "Return to: {name}",
+          "proceed_to": "Proceed to: {name}",
           "loading": "Loading...",
           "search_placeholder": "Search in compendiums...",
           "filter_tags_placeholder": "Search or select tags...",
@@ -1152,7 +1154,11 @@
           "clear_translation": "Clear Translation",
           "rerun_translation": "Rerun Translation",
           "expand_sidebar": "Expand sidebar",
-          "collapse_sidebar": "Collapse sidebar"
+          "collapse_sidebar": "Collapse sidebar",
+          "add_to_assets": "Add to assets",
+          "asset_upload_success": "Image saved to asset library (extensions/compendium/…)",
+          "asset_upload_error": "Could not save the image to assets (network or permissions).",
+          "asset_upload_no_root": "Asset library not ready. Open the Assets panel and try again."
         },
         "DocumentsModal": {
           "title": "Documents",

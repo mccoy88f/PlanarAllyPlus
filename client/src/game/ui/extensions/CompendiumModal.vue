@@ -19,6 +19,9 @@ import { extensionsState } from "../../systems/extensions/state";
 import LoadingBar from "../../../core/components/LoadingBar.vue";
 import GroupedAutocomplete from "./components/GroupedAutocomplete.vue";
 import { playerSystem } from "../../systems/players";
+import { assetSystem } from "../../../assets";
+import { assetState } from "../../../assets/state";
+import { socket } from "../../../assets/socket";
 
 
 
@@ -98,6 +101,12 @@ const selectedItem = ref<{
     item: ItemFull;
 } | null>(null);
 const nextItem = ref<{
+    itemSlug: string;
+    itemName: string;
+    collectionSlug: string;
+    collectionName: string;
+} | null>(null);
+const prevItem = ref<{
     itemSlug: string;
     itemName: string;
     collectionSlug: string;
@@ -307,6 +316,132 @@ const breadcrumb = computed(() => {
     crumbs.push({ label: fallback(item.name, item.slug), slug: item.slug, type: "item" });
     return crumbs;
 });
+
+/** Menu contestuale su immagine: salva in Assets sotto extensions/compendium/… (breadcrumb) */
+const imgContextMenu = ref<{ x: number; y: number; img: HTMLImageElement } | null>(null);
+const addToAssetsLoading = ref(false);
+
+function sanitizeAssetFolderName(name: string): string {
+    const s = name.trim().replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim();
+    return s || "_";
+}
+
+function buildCompendiumAssetDirectories(): string[] {
+    return ["extensions", "compendium", ...breadcrumb.value.map((c) => sanitizeAssetFolderName(c.label))];
+}
+
+function filenameFromImageSrc(src: string): string {
+    try {
+        if (src.startsWith("data:")) {
+            return "compendium-image.png";
+        }
+        const u = new URL(src, window.location.href);
+        const seg = u.pathname.split("/").filter(Boolean).pop() || "image";
+        const decoded = decodeURIComponent(seg);
+        return decoded || "image.png";
+    } catch {
+        return "compendium-image.png";
+    }
+}
+
+async function blobFromImageSrc(src: string): Promise<{ blob: Blob; filename: string }> {
+    let filename = filenameFromImageSrc(src);
+    if (src.startsWith("data:")) {
+        const comma = src.indexOf(",");
+        if (comma < 0) throw new Error("invalid data uri");
+        const head = src.slice(5, comma);
+        const mime = head.split(";")[0].trim() || "image/png";
+        const b64 = src.slice(comma + 1);
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const blob = new Blob([bytes], { type: mime });
+        if (!/\.\w{2,5}$/i.test(filename)) {
+            const ext =
+                mime.includes("jpeg") || mime.includes("jpg")
+                    ? ".jpg"
+                    : mime.includes("webp")
+                      ? ".webp"
+                      : mime.includes("gif")
+                        ? ".gif"
+                        : mime.includes("svg")
+                          ? ".svg"
+                          : ".png";
+            filename = filename.replace(/\.png$/i, "") + ext;
+        }
+        return { blob, filename };
+    }
+    const res = await fetch(src, { credentials: "include" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const ct = res.headers.get("content-type");
+    if (!/\.\w{2,5}$/i.test(filename) && ct?.startsWith("image/")) {
+        const ext =
+            ct.includes("jpeg") || ct.includes("jpg")
+                ? ".jpg"
+                : ct.includes("png")
+                  ? ".png"
+                  : ct.includes("webp")
+                    ? ".webp"
+                    : ct.includes("gif")
+                      ? ".gif"
+                      : ct.includes("svg")
+                        ? ".svg"
+                        : ".png";
+        filename = filename.replace(/\.[^.]+$/, "") + ext;
+    }
+    return { blob, filename };
+}
+
+function handleMarkdownContextMenu(e: MouseEvent): void {
+    const t = e.target;
+    const img =
+        t instanceof HTMLImageElement ? t : (t as HTMLElement | null)?.closest?.("img");
+    if (!(img instanceof HTMLImageElement)) {
+        imgContextMenu.value = null;
+        return;
+    }
+    if (!selectedItem.value) return;
+    e.preventDefault();
+    imgContextMenu.value = { x: e.clientX, y: e.clientY, img };
+}
+
+function closeImgContextMenu(): void {
+    imgContextMenu.value = null;
+}
+
+async function addCompendiumImageToAssets(): Promise<void> {
+    if (!imgContextMenu.value?.img || !selectedItem.value || addToAssetsLoading.value) return;
+    const { img } = imgContextMenu.value;
+    closeImgContextMenu();
+    addToAssetsLoading.value = true;
+    try {
+        const { blob, filename } = await blobFromImageSrc(img.src);
+        const file = new File([blob], filename, { type: blob.type || "image/png" });
+        const dirs = buildCompendiumAssetDirectories();
+        if (socket.disconnected) socket.connect();
+        if (assetState.raw.root === undefined) {
+            await assetSystem.rootCallback.wait();
+        }
+        const target = assetState.raw.root;
+        if (target === undefined) {
+            toast.error(t("game.ui.extensions.CompendiumModal.asset_upload_no_root"));
+            return;
+        }
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        await assetSystem.upload(dt.files, {
+            target: () => target,
+            newDirectories: dirs,
+        });
+        toast.success(t("game.ui.extensions.CompendiumModal.asset_upload_success"));
+    } catch (err) {
+        console.error(err);
+        toast.error(t("game.ui.extensions.CompendiumModal.asset_upload_error"));
+    } finally {
+        addToAssetsLoading.value = false;
+    }
+}
 
 async function navigateBreadcrumb(index: number): Promise<void> {
     if (!selectedItem.value) return;
@@ -586,6 +721,7 @@ async function selectFromSearch(result: SearchResult): Promise<void> {
 
 async function fetchNextItem(compId: string, collSlug: string, itemSlug: string): Promise<void> {
     nextItem.value = null;
+    prevItem.value = null;
     try {
         const r = await http.get(
             `/api/extensions/compendium/next?compendium=${encodeURIComponent(compId)}&collection=${encodeURIComponent(collSlug)}&slug=${encodeURIComponent(itemSlug)}`,
@@ -593,8 +729,10 @@ async function fetchNextItem(compId: string, collSlug: string, itemSlug: string)
         if (r.ok) {
             const data = (await r.json()) as {
                 next: { itemSlug: string; itemName: string; collectionSlug: string; collectionName: string } | null;
+                prev: { itemSlug: string; itemName: string; collectionSlug: string; collectionName: string } | null;
             };
             nextItem.value = data.next;
+            prevItem.value = data.prev;
         }
     } catch {
         /* ignore */
@@ -605,6 +743,23 @@ async function navigateToNextItem(): Promise<void> {
     if (!nextItem.value || !selectedItem.value) return;
     const comp = selectedItem.value.compendium;
     const { collectionSlug, collectionName, itemSlug, itemName } = nextItem.value;
+
+    await ensureCollectionExpanded(comp.id, collectionSlug);
+
+    const coll: CollectionMeta = {
+        slug: collectionSlug,
+        name: collectionName,
+        parentSlug: null,
+        count: 0,
+    };
+    const itemMeta: ItemMeta = { slug: itemSlug, name: itemName };
+    await selectItem(comp, coll, itemMeta);
+}
+
+async function navigateToPrevItem(): Promise<void> {
+    if (!prevItem.value || !selectedItem.value) return;
+    const comp = selectedItem.value.compendium;
+    const { collectionSlug, collectionName, itemSlug, itemName } = prevItem.value;
 
     await ensureCollectionExpanded(comp.id, collectionSlug);
 
@@ -1129,6 +1284,7 @@ async function loadCompendiums(): Promise<void> {
             qeNames.value = await getQeNames();
             const openItem = extensionsState.raw.compendiumOpenItem;
             if (openItem && compendiums.value.length > 0) {
+                sidebarCollapsed.value = true;
                 const comp = openItem.compendiumSlug
                     ? compendiums.value.find((c: CompendiumMeta) => c.slug === openItem.compendiumSlug)
                     : compendiums.value.find((c: CompendiumMeta) => c.isDefault) ?? compendiums.value[0];
@@ -1288,6 +1444,7 @@ watch(
     () => [extensionsState.raw.compendiumOpenItem, compendiums.value.length] as const,
     async ([openItem]) => {
         if (!openItem || !props.visible || !compendiums.value.length) return;
+        sidebarCollapsed.value = true;
         const comp = openItem.compendiumSlug
             ? compendiums.value.find((c: CompendiumMeta) => c.slug === openItem.compendiumSlug)
             : compendiums.value.find((c: CompendiumMeta) => c.isDefault) ?? compendiums.value[0];
@@ -1811,6 +1968,7 @@ onMounted(() => {
                         v-else-if="selectedItem"
                         class="qe-markdown"
                         @click="handleMarkdownClick"
+                        @contextmenu="handleMarkdownContextMenu"
                     >
                         <div
                             v-if="itemLoading"
@@ -1830,10 +1988,29 @@ onMounted(() => {
 
                                  </div>
                              </div>
-                <div v-if="nextItem" class="qe-continue-reading">
-                                <button class="qe-continue-link" @click="navigateToNextItem">
-                                    {{ t("game.ui.extensions.CompendiumModal.continue_reading", { name: nextItem.itemName }) }}
-                                </button>
+                <div v-if="nextItem || prevItem" class="qe-continue-reading">
+                                <div class="qe-nav-adjacent">
+                                    <div class="qe-nav-col qe-nav-col--left">
+                                        <button
+                                            v-if="prevItem"
+                                            type="button"
+                                            class="qe-nav-link qe-nav-link--prev"
+                                            @click="navigateToPrevItem"
+                                        >
+                                            {{ t("game.ui.extensions.CompendiumModal.back_to", { name: prevItem.itemName }) }}
+                                        </button>
+                                    </div>
+                                    <div class="qe-nav-col qe-nav-col--right">
+                                        <button
+                                            v-if="nextItem"
+                                            type="button"
+                                            class="qe-nav-link qe-nav-link--next"
+                                            @click="navigateToNextItem"
+                                        >
+                                            {{ t("game.ui.extensions.CompendiumModal.proceed_to", { name: nextItem.itemName }) }}
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1845,6 +2022,29 @@ onMounted(() => {
         </div>
     </div>
 </Modal>
+
+    <Teleport to="body">
+        <div
+            v-if="imgContextMenu"
+            class="qe-img-ctx-backdrop"
+            @mousedown="closeImgContextMenu"
+        >
+            <div
+                class="qe-img-ctx-menu"
+                :style="{ left: imgContextMenu.x + 'px', top: imgContextMenu.y + 'px' }"
+                @mousedown.stop
+            >
+                <button
+                    type="button"
+                    class="qe-img-ctx-item"
+                    :disabled="addToAssetsLoading"
+                    @click="addCompendiumImageToAssets"
+                >
+                    {{ t("game.ui.extensions.CompendiumModal.add_to_assets") }}
+                </button>
+            </div>
+        </div>
+    </Teleport>
 
     <Teleport to="body">
         <div v-if="installDialogOpen" class="qe-install-overlay" @click.self="installDialogOpen = false">
@@ -2371,27 +2571,50 @@ onMounted(() => {
     border-top: 1px solid #e2e8f0;
 }
 
-.qe-continue-link {
+.qe-nav-adjacent {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+}
+
+.qe-nav-col {
+    flex: 1;
+    min-width: 0;
+
+    &--left {
+        text-align: left;
+    }
+
+    &--right {
+        text-align: right;
+    }
+}
+
+.qe-nav-link {
     background: transparent;
     border: none;
     color: #3182ce;
-    font-weight: 700;
+    font-weight: 600;
     cursor: pointer;
-    font-size: 1.05rem;
-    text-align: left;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    transition: color 0.2s, transform 0.2s;
-    
+    font-size: 0.98rem;
+    line-height: 1.35;
+    padding: 0.15rem 0;
+    transition: color 0.2s;
+
     &:hover {
         color: #2b6cb0;
-        transform: translateX(4px);
+        text-decoration: underline;
     }
 
-    &::after {
-        content: " →";
-        font-size: 1.2rem;
+    &--prev {
+        text-align: left;
+    }
+
+    &--next {
+        text-align: right;
     }
 }
 
@@ -2749,6 +2972,45 @@ onMounted(() => {
     max-width: 50%;
     display: block;
     margin: 0.5rem auto;
+}
+
+.qe-img-ctx-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    background: transparent;
+}
+
+.qe-img-ctx-menu {
+    position: fixed;
+    z-index: 10051;
+    min-width: 12rem;
+    padding: 0.25rem 0;
+    background: var(--modal-bg, #fff);
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.qe-img-ctx-item {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.85rem;
+    border: none;
+    background: transparent;
+    text-align: left;
+    font-size: 0.9rem;
+    cursor: pointer;
+    color: inherit;
+
+    &:hover:not(:disabled) {
+        background: rgba(0, 0, 0, 0.06);
+    }
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: wait;
+    }
 }
 
 .filter-btn {

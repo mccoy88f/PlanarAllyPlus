@@ -1532,7 +1532,7 @@ async def delete_translation(request: web.Request) -> web.Response:
 
 
 async def get_next_item(request: web.Request) -> web.Response:
-    """Ritorna il prossimo item secondo l'alberatura (DFS). Query: compendium, collection, slug."""
+    """Ritorna item precedente e successivo secondo l'alberatura (DFS). Query: compendium, collection, slug."""
     await get_authorized_user(request)
     comp_param = request.query.get("compendium", "").strip()
     comp_id = _resolve_compendium_id(comp_param)
@@ -1540,10 +1540,10 @@ async def get_next_item(request: web.Request) -> web.Response:
     item_slug = request.query.get("slug", "").strip()
 
     if not comp_id or not coll_slug or not item_slug:
-        return web.json_response({"next": None})
-    
+        return web.json_response({"next": None, "prev": None})
+
     if not _ensure_sqlite(comp_id):
-        return web.json_response({"next": None})
+        return web.json_response({"next": None, "prev": None})
 
     try:
         conn = _get_conn(comp_id)
@@ -1614,14 +1614,13 @@ async def get_next_item(request: web.Request) -> web.Response:
             # Se vogliamo includere anche i suoi item, dobbiamo chiamare traverse()
             traverse(r["slug"])
 
-        # 4. Cerchiamo l'elemento successivo a quello corrente
-        found_current = False
-        for entry in all_flattened_items:
-            if found_current:
-                return web.json_response({"next": entry})
+        # 4. Elemento precedente e successivo (stesso ordine DFS della sidebar)
+        for i, entry in enumerate(all_flattened_items):
             if entry["collectionSlug"] == coll_slug and entry["itemSlug"] == item_slug:
-                found_current = True
-                
-        return web.json_response({"next": None})
+                prev_entry = all_flattened_items[i - 1] if i > 0 else None
+                next_entry = all_flattened_items[i + 1] if i + 1 < len(all_flattened_items) else None
+                return web.json_response({"next": next_entry, "prev": prev_entry})
+
+        return web.json_response({"next": None, "prev": None})
     except Exception as e:
-        return web.json_response({"error": str(e), "next": None}, status=500)
+        return web.json_response({"error": str(e), "next": None, "prev": None}, status=500)

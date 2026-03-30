@@ -562,8 +562,8 @@
         it: {
           name: "Nome", classLevel: "Classe e livello", background: "Background", playerName: "Nome giocatore", faction: "Fazione", race: "Razza", alignment: "Allineamento", xp: "PE", dciNo: "N° DCI",
           str: "FOR", dex: "DES", con: "COS", int: "INT", wis: "SAG", cha: "CAR", ac: "CA", init: "Iniziativa", speed: "Velocità", inspiration: "Ispirazione Eroica", proficiencyBonus: "Bonus competenza",
-          savingThrows: "Tiri salvezza", skills: "Abilità", passivePerception: "Percezione passiva", otherProficiencies: "Altre competenze e lingue", deathSaves: "Tiri per la morte",
-          maxHp: "PF max", hp: "PF correnti", tempHp: "PF temporanei", hitDice: "Dadi vita", attacks: "Attacchi e incantesimi", equipment: "Equipaggiamento", equipment2: "Equipaggiamento 2",
+          savingThrows: "Tiri salvezza", skills: "Abilità", passivePerception: "Percezione passiva", otherProficiencies: "Altre competenze", deathSaves: "Tiri per la morte",
+          maxHp: "PF max", hp: "PF correnti", tempHp: "PF temporanei", hitDice: "Dadi vita", attacks: "Attacchi e incantesimi", equipment: "Equipaggiamento", equipment2: "Armatura, abbigliamento e scudo",
           personalityTraits: "Tratti", ideals: "Ideali", bonds: "Legami", flaws: "Difetti", featuresTraits: "Tratti e talenti", cp: "RM", sp: "AR", ep: "EL", gp: "OR", pp: "PL",
           successes: "Successi", failures: "Fallimenti", armourClass: "Classe armatura",
           acrobatics: "Acrobazia", animalHandling: "Addestrare animali", arcana: "Arcana", athletics: "Atletica", deception: "Inganno", history: "Storia", insight: "Intuizione",
@@ -879,6 +879,7 @@
         var spellMerged = spellRowsToLegacy(fd.spellBookRows || []);
         var dndsheets = {
           playerName: fd.playerName || '', faction: fd.faction || '', dciNo: fd.dciNo || '', alignment: fd.alignment || '', passivePerception: fd.passivePerception || '',
+          proficiencyBonus: fd.proficiencyBonus != null ? String(fd.proficiencyBonus) : '',
           strMod: fd.strMod || '', dexMod: fd.dexMod || '', conMod: fd.conMod || '', intMod: fd.intMod || '', wisMod: fd.wisMod || '', chaMod: fd.chaMod || '',
           equipment2: fd.equipment2 || '', attacks: atkFromW,
           age: fd.age || '', height: fd.height || '', weight: fd.weight || '', eyes: fd.eyes || '', skin: fd.skin || '', hair: fd.hair || '',
@@ -919,6 +920,7 @@
           planarally: {
             armorClass: parseInt(fd.ac || 10, 10) || 10,
             initiative: parseInt(fd.init || 0, 10) || 0,
+            proficiencyBonus: fd.proficiencyBonus != null ? String(fd.proficiencyBonus) : '',
             passivePerception: fd.passivePerception || '',
             hitDiceTotal: fd.hitDiceMax || '',
             hitDiceRemaining: fd.hitDice || '',

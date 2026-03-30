@@ -65,9 +65,9 @@ const DEFAULT_TASKS_IT: TaskDef[] = [
 
 IMPORTANTE: Tutti i contenuti testuali (nome, tratti, ideali, legami, difetti, background, descrizioni, incantesimi, equipaggiamento, ecc.) devono essere in italiano.
 
-Usa questo template come struttura. COMPILA TUTTI i campi con valori coerenti (nome, classe, sottoclasse, livello, specie/razza, statistiche, modificatori, tratti, background, equipaggiamento, CA, PF, dadi vita, ispirazione, tiri salvezza, abilità, percezione passiva, armi, trucchetti e incantesimi, slot, lingue, sintonie, ecc.). Non lasciare campi vuoti dove ha senso inserire un valore.
+Usa questo template come struttura. COMPILA TUTTI i campi con valori coerenti (nome, classe, sottoclasse, livello, specie/razza, statistiche, modificatori, tratti, background, equipaggiamento, CA, PF, dadi vita, ispirazione, tiri salvezza, abilità, bonus competenza, percezione passiva, armi, trucchetti e incantesimi, slot, lingue, sintonie, ecc.). Non lasciare campi vuoti dove ha senso inserire un valore.
 
-Struttura attesa (oltre al template): in dndsheets includi weaponRows (fino a 5 righe: name, bonus, damage, notes) e spellBookRows (fino a 20 righe: level, name, cast, range, notes, prepared, conc, ritual, mat); classNameOnly, sheetLevel, subclass; shieldEquipped, size, hitDiceType, hitDiceSpent; armorLight/Medium/Heavy/Shields; classFeatures, speciesTraits, feats; weaponsProfText, toolsProfText; languagesText, appearanceText; spellcastingAbility, spellcastingModText; attunement1–3; factionImg; slot incantesimo lvl1SpellSlotsTotal/lvl1SpellSlotsUsed … fino al livello 9; cantrips e lvl1Spells…lvl9Spells per gli elenchi classici. In planarally imposta passivePerception e allinea savingThrows/skills ai valori in dndsheets.
+Struttura attesa (oltre al template): in dndsheets includi weaponRows (fino a 5 righe: name, bonus, damage, notes) e spellBookRows (fino a 20 righe: level, name, cast, range, notes, prepared, conc, ritual, mat); classNameOnly, sheetLevel, subclass; shieldEquipped, size, hitDiceType, hitDiceSpent; armorLight/Medium/Heavy/Shields; classFeatures, speciesTraits, feats; weaponsProfText, toolsProfText; languagesText, appearanceText; spellcastingAbility, spellcastingModText; attunement1–3; factionImg; slot incantesimo lvl1SpellSlotsTotal/lvl1SpellSlotsUsed … fino al livello 9; cantrips e lvl1Spells…lvl9Spells per gli elenchi classici. Imposta proficiencyBonus (stesso valore in dndsheets e planarally, coerente col livello) e passivePerception; allinea savingThrows/skills tra planarally e dndsheets.
 
 Template (rispetta questa struttura esatta):
 ${CHARACTER_SHEET_TEMPLATE}
@@ -103,7 +103,7 @@ Regole per stat block NPC:
 - Tipo creatura (es. "Small Humanoid") → race.fullName e size
 - Sensi (Darkvision, ecc.) → otherProficiencies o featuresTraits
 
-Compila il seguente template JSON con TUTTI i dati trovati (inclusi weaponRows, spellBookRows, slot incantesimo, competenze armature, scudo, dadi vita, sintonie, ecc. quando presenti). Rispondi SOLO con il JSON completo, senza testo aggiuntivo, senza blocchi markdown.
+Compila il seguente template JSON con TUTTI i dati trovati (inclusi weaponRows, spellBookRows, slot incantesimo, competenze armature, scudo, dadi vita, sintonie, bonus competenza, ecc. quando presenti). Rispondi SOLO con il JSON completo, senza testo aggiuntivo, senza blocchi markdown.
 
 Template (rispetta questa struttura esatta):
 ${CHARACTER_SHEET_TEMPLATE}
@@ -135,9 +135,9 @@ const DEFAULT_TASKS_EN: TaskDef[] = [
 
 IMPORTANT: All text content (name, traits, ideals, bonds, flaws, background, descriptions, spells, equipment, etc.) must be in English.
 
-Use this template as the structure. FILL IN ALL fields with coherent values (name, class, subclass, level, species/race, stats, modifiers, traits, background, equipment, AC, HP, hit dice, inspiration, saving throws, skills, passive perception, weapons, cantrips/spells, slots, languages, attunement, etc.). Do not leave fields empty where a value makes sense.
+Use this template as the structure. FILL IN ALL fields with coherent values (name, class, subclass, level, species/race, stats, modifiers, traits, background, equipment, AC, HP, hit dice, inspiration, saving throws, skills, proficiency bonus, passive perception, weapons, cantrips/spells, slots, languages, attunement, etc.). Do not leave fields empty where a value makes sense.
 
-Expected structure (beyond the template): in dndsheets include weaponRows (up to 5 rows: name, bonus, damage, notes) and spellBookRows (up to 20 rows: level, name, cast, range, notes, prepared, conc, ritual, mat); classNameOnly, sheetLevel, subclass; shieldEquipped, size, hitDiceType, hitDiceSpent; armorLight/Medium/Heavy/Shields; classFeatures, speciesTraits, feats; weaponsProfText, toolsProfText; languagesText, appearanceText; spellcastingAbility, spellcastingModText; attunement1–3; factionImg; spell slot fields lvl1SpellSlotsTotal/lvl1SpellSlotsUsed … through level 9; cantrips and lvl1Spells…lvl9Spells for classic spell lists. In planarally set passivePerception and align savingThrows/skills with dndsheets.
+Expected structure (beyond the template): in dndsheets include weaponRows (up to 5 rows: name, bonus, damage, notes) and spellBookRows (up to 20 rows: level, name, cast, range, notes, prepared, conc, ritual, mat); classNameOnly, sheetLevel, subclass; shieldEquipped, size, hitDiceType, hitDiceSpent; armorLight/Medium/Heavy/Shields; classFeatures, speciesTraits, feats; weaponsProfText, toolsProfText; languagesText, appearanceText; spellcastingAbility, spellcastingModText; attunement1–3; factionImg; spell slot fields lvl1SpellSlotsTotal/lvl1SpellSlotsUsed … through level 9; cantrips and lvl1Spells…lvl9Spells for classic spell lists. Set proficiencyBonus (same string in dndsheets and planarally, consistent with level) and passivePerception; align savingThrows/skills between planarally and dndsheets.
 
 Template (follow this exact structure):
 ${CHARACTER_SHEET_TEMPLATE}
@@ -173,7 +173,7 @@ Rules for NPC stat blocks:
 - Creature type (e.g. "Small Humanoid") → race.fullName and size
 - Senses (Darkvision, etc.) → otherProficiencies or featuresTraits
 
-Fill in the following JSON template with ALL data found (including weaponRows, spellBookRows, spell slots, armor proficiencies, shield, hit dice, attunement, etc. when present). Reply ONLY with the complete JSON, without any additional text or markdown blocks.
+Fill in the following JSON template with ALL data found (including weaponRows, spellBookRows, spell slots, armor proficiencies, shield, hit dice, attunement, proficiency bonus, etc. when present). Reply ONLY with the complete JSON, without any additional text or markdown blocks.
 
 Template (follow this exact structure):
 ${CHARACTER_SHEET_TEMPLATE}
