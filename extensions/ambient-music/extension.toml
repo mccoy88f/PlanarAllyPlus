@@ -1,9 +1,9 @@
 [extension]
 id = "ambient-music"
 name = "Ambient Music"
-version = "1.0.0"
-description_en = "Play audio files from assets. Playlists, volume control and repeat."
-description_it = "Riproduce file audio dagli asset. Playlist, controllo volume e ripetizione."
+version = "1.0.1"
+description_en = "Play audio files from assets. Playlists, volume control, seek bar and repeat."
+description_it = "Riproduce file audio dagli asset. Playlist, controllo volume, barra di avanzamento e ripetizione."
 author = "mccoy88f"
 entry = "ui/index.html"
 titleBarColor = "#5c6bc0"

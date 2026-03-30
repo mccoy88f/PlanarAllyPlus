@@ -59,6 +59,35 @@
         .am-add-footer { gap: 0.5rem; }
         .am-audio-check { margin: 0; cursor: pointer; }
         .am-audio-selectable.selected { background: #e8eaf6; }
+        .am-seek-bar-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 0.75rem 0.45rem;
+            border-top: 1px solid #eee;
+            background: #fafafa;
+            flex-shrink: 0;
+        }
+        .am-seek-bar-wrap .am-time {
+            font-size: 0.72rem;
+            color: #555;
+            font-variant-numeric: tabular-nums;
+            min-width: 2.75rem;
+            flex-shrink: 0;
+        }
+        .am-seek-bar-wrap .am-time-current { text-align: right; }
+        .am-seek-bar-wrap .am-time-total { text-align: left; }
+        .am-seek-bar-wrap .am-seek {
+            flex: 1;
+            min-width: 0;
+            height: 0.45rem;
+            accent-color: var(--am-accent);
+            cursor: pointer;
+        }
+        .am-seek-bar-wrap .am-seek:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body class="ext-ui-root am-root">
@@ -77,6 +106,11 @@
             <option value="one"></option>
             <option value="all"></option>
         </select>
+    </div>
+    <div class="am-seek-bar-wrap" id="seekBarWrap" aria-label="seek">
+        <span class="am-time am-time-current" id="seekCurrent">0:00</span>
+        <input type="range" class="am-seek" id="seekBar" min="0" max="1000" step="1" value="0" title="" disabled />
+        <span class="am-time am-time-total" id="seekTotal">0:00</span>
     </div>
     <div id="explorerModal" class="am-explorer-modal">
         <div class="am-explorer-inner" onclick="event.stopPropagation()">
@@ -126,7 +160,8 @@
         rename: "Rinomina", dragToReorder: "Trascina per riordinare",
         repeatNone: "Nessuna", repeatOne: "Ripeti traccia", repeatAll: "Ripeti playlist",
         prev: "Precedente", next: "Successivo", play: "Play", pause: "Pausa",
-        loading: "Caricamento...", loadError: "Errore caricamento", assets: "Asset"
+        loading: "Caricamento...", loadError: "Errore caricamento", assets: "Asset",
+        seekBar: "Posizione nella traccia"
     } : {
         add: "Add tracks", browse: "Browse assets", explorerTitle: "Choose audio file", explorerOpenTitle: "Open playlist", explorerSaveTitle: "Save playlist", searchPlaceholder: "Search...", playlist: "Playlist", showPlaylist: "Show playlist", hidePlaylist: "Hide playlist",
         savePlaylist: "Save playlist", openPlaylist: "Open playlist",
@@ -135,7 +170,8 @@
         rename: "Rename", dragToReorder: "Drag to reorder",
         repeatNone: "None", repeatOne: "Repeat track", repeatAll: "Repeat playlist",
         prev: "Previous", next: "Next", play: "Play", pause: "Pause",
-        loading: "Loading...", loadError: "Load error", assets: "Assets"
+        loading: "Loading...", loadError: "Load error", assets: "Assets",
+        seekBar: "Position in track"
     };
     document.getElementById('addBtn').innerHTML = '<span style="font-size:1.1rem">+</span>';
     document.getElementById('addBtn').title = L.add;
@@ -175,6 +211,7 @@
     document.querySelector('#repeatMode option[value="none"]').textContent = L.repeatNone;
     document.querySelector('#repeatMode option[value="one"]').textContent = L.repeatOne;
     document.querySelector('#repeatMode option[value="all"]').textContent = L.repeatAll;
+    seekBarEl.title = L.seekBar;
 
     var baseUrl = '';
     var m = window.location.pathname.match(/^(.+)\/api\/extensions\//);
@@ -186,6 +223,11 @@
     var playlistName = '';
     var currentIndex = 0;
     var sound = null;
+    var seekTimer = null;
+    var seekDragging = false;
+    var seekBarEl = document.getElementById('seekBar');
+    var seekCurrentEl = document.getElementById('seekCurrent');
+    var seekTotalEl = document.getElementById('seekTotal');
     var repeatMode = 'none';
     var rootId = null;
     var currentFolderId = null;
@@ -202,6 +244,50 @@
     var selectedAudios = {};
 
     function getServeUrl(hash) { return apiBase + '/serve/' + hash; }
+
+    function formatTime(sec) {
+        if (sec == null || !isFinite(sec) || sec < 0) return '0:00';
+        var s = Math.floor(sec % 60);
+        var m = Math.floor((sec / 60) % 60);
+        var h = Math.floor(sec / 3600);
+        if (h > 0) return h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+        return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function stopSeekLoop() {
+        if (seekTimer) { clearInterval(seekTimer); seekTimer = null; }
+    }
+
+    function seekUiReset() {
+        seekCurrentEl.textContent = '0:00';
+        seekTotalEl.textContent = '0:00';
+        seekBarEl.value = '0';
+        seekBarEl.disabled = true;
+    }
+
+    function updateSeekUI() {
+        if (!sound || seekDragging) return;
+        var dur = sound.duration();
+        var cur = sound.seek();
+        if (typeof cur !== 'number' || !isFinite(cur)) cur = 0;
+        if (typeof dur !== 'number' || !isFinite(dur) || dur <= 0) {
+            seekTotalEl.textContent = '0:00';
+            seekCurrentEl.textContent = formatTime(cur);
+            seekBarEl.value = '0';
+            seekBarEl.disabled = true;
+            return;
+        }
+        seekBarEl.disabled = false;
+        seekTotalEl.textContent = formatTime(dur);
+        seekCurrentEl.textContent = formatTime(cur);
+        seekBarEl.value = String(Math.min(1000, Math.max(0, (cur / dur) * 1000)));
+    }
+
+    function startSeekLoop() {
+        stopSeekLoop();
+        updateSeekUI();
+        seekTimer = setInterval(updateSeekUI, 250);
+    }
 
     function saveToStorage() {
         try {
@@ -350,6 +436,8 @@
 
     function loadAndPlay(index) {
         if (index < 0 || index >= playlist.length) return;
+        stopSeekLoop();
+        seekUiReset();
         currentIndex = index;
         var item = playlist[index];
         if (sound) sound.unload();
@@ -357,7 +445,11 @@
             src: [getServeUrl(item.fileHash)],
             html5: true,
             volume: document.getElementById('volume').value / 100,
+            onload: function() {
+                updateSeekUI();
+            },
             onend: function() {
+                stopSeekLoop();
                 if (repeatMode === 'one') {
                     sound.play();
                 } else if (repeatMode === 'all' && playlist.length > 0) {
@@ -367,6 +459,7 @@
                     loadAndPlay(index + 1);
                 } else {
                     setNowLabel('-');
+                    seekUiReset();
                     document.getElementById('playBtn').textContent = '▶';
                     renderPlaylist();
                     notifyPlaying(false);
@@ -380,8 +473,11 @@
                 renderPlaylist();
                 notifyPlaying(true);
                 saveToStorage();
+                startSeekLoop();
             },
             onpause: function() {
+                stopSeekLoop();
+                updateSeekUI();
                 document.getElementById('playBtn').textContent = '▶';
                 document.getElementById('playBtn').title = L.play;
                 notifyPlaying(false);
@@ -417,6 +513,25 @@
         saveToStorage();
     };
     document.getElementById('repeatMode').onchange = function() { repeatMode = this.value; saveToStorage(); };
+
+    seekBarEl.addEventListener('pointerdown', function() { seekDragging = true; });
+    function seekPointerUp() {
+        if (!seekDragging) return;
+        seekDragging = false;
+        updateSeekUI();
+    }
+    seekBarEl.addEventListener('pointerup', seekPointerUp);
+    seekBarEl.addEventListener('pointercancel', seekPointerUp);
+    window.addEventListener('pointerup', seekPointerUp);
+    seekBarEl.addEventListener('input', function() {
+        if (!sound) return;
+        var dur = sound.duration();
+        if (typeof dur !== 'number' || !isFinite(dur) || dur <= 0) return;
+        var pos = (parseFloat(seekBarEl.value) / 1000) * dur;
+        sound.seek(pos);
+        var cur = sound.seek();
+        seekCurrentEl.textContent = formatTime(typeof cur === 'number' && isFinite(cur) ? cur : pos);
+    });
 
     function notifyPlaying(playing) {
         try {
