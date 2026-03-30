@@ -17,6 +17,15 @@ const toast = useToast();
 
 const { raw, mutableReactive: $ } = assetState;
 
+/** Same as server `assetmgmt_upload` naming: AssetEntry name is filename without final extension. */
+function entryNameFromUploadFilename(uploadName: string): string {
+    const parts = uploadName.split(".");
+    if (parts.length > 1) {
+        return parts.slice(0, -1).join(".");
+    }
+    return uploadName;
+}
+
 class AssetSystem implements System {
     rootCallback = callbackProvider();
 
@@ -232,7 +241,7 @@ class AssetSystem implements System {
         for (const file of fls) {
             const uuid = uuidv4();
             const slices = Math.ceil(file.size / CHUNK_SIZE);
-            $.pendingUploads.push(file.name);
+            $.pendingUploads.push(entryNameFromUploadFilename(file.name));
             for (let slice = 0; slice < slices; slice++) {
                 // oxlint-disable-next-line no-await-in-loop
                 const uploadedFile = await new Promise<ApiAsset | undefined>((resolve) => {
