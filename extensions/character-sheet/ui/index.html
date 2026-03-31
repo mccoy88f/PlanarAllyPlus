@@ -697,6 +697,11 @@
         btn.classList.toggle('cs-preview-active', previewAsPlayer);
       }
 
+      /** True solo quando il pannello contenuto scheda è aperto (scheda selezionata e caricata). */
+      function sheetContentPanelIsVisible() {
+        return sheetPanel && sheetPanel.style.display !== 'none';
+      }
+
       function setSheetPanelVisible(visible) {
         sheetPanel.style.display = visible ? 'flex' : 'none';
         var tabStrip = document.getElementById('csTabBar');
@@ -1334,7 +1339,8 @@
         var btn = document.getElementById('editToggle');
         var pencilIcon = '<i class="fa-solid fa-edit" aria-hidden="true"></i>';
         var lockIcon = '<i class="fa-solid fa-lock" aria-hidden="true"></i>';
-        var canEdit = !!selectedId && currentSheetCanEdit();
+        var canEdit =
+          !!selectedId && currentSheetCanEdit() && sheetContentPanelIsVisible();
         btn.style.display = canEdit ? 'inline-flex' : 'none';
         if (!canEdit && editingEnabled) {
           editingEnabled = false;

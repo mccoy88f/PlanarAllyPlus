@@ -334,7 +334,7 @@ const breadcrumb = computed(() => {
     return crumbs;
 });
 
-/** Menu contestuale su immagine: salva in Assets sotto extensions/compendium/… (breadcrumb) */
+/** Menu contestuale su immagine: salva in Assets sotto extensions/compendium/… (ultima cartella = slug voce) */
 const imgContextMenu = ref<{ x: number; y: number; img: HTMLImageElement } | null>(null);
 const addToAssetsLoading = ref(false);
 const markdownContentRef = ref<HTMLElement | null>(null);
@@ -457,8 +457,17 @@ function sanitizeAssetFolderName(name: string): string {
     return s || "_";
 }
 
+/**
+ * Percorso upload/lookup in libreria. L’ultima cartella è lo slug della voce (univoco),
+ * non il nome visualizzato: così due elementi omonimi non collidono sulla stessa cartella.
+ */
 function buildCompendiumAssetDirectories(): string[] {
-    return ["extensions", "compendium", ...breadcrumb.value.map((c) => sanitizeAssetFolderName(c.label))];
+    const crumbs = breadcrumb.value;
+    if (crumbs.length === 0) return ["extensions", "compendium"];
+    const head = crumbs.slice(0, -1).map((c) => sanitizeAssetFolderName(c.label));
+    const last = crumbs[crumbs.length - 1];
+    const itemFolder = sanitizeAssetFolderName(last.slug || last.label);
+    return ["extensions", "compendium", ...head, itemFolder];
 }
 
 function filenameFromImageSrc(src: string): string {
@@ -3321,7 +3330,8 @@ onMounted(() => {
 .qe-img-ctx-item--disabled {
     padding: 0.5rem 0.75rem;
     font-size: 0.85rem;
-    color: #666;
+    color: #9a9a9a;
+    opacity: 0.92;
     cursor: default;
     user-select: none;
 }
