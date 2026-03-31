@@ -2825,6 +2825,17 @@ onMounted(() => {
         margin: 0.4rem 0;
     }
 
+    :deep(blockquote) {
+        text-align: center;
+        margin: 0.75rem auto;
+        padding: 0.5rem 1rem;
+        max-width: 95%;
+    }
+
+    :deep(blockquote p) {
+        text-align: center;
+    }
+
     :deep(ul),
     :deep(ol) {
         margin: 0.4rem 0;
