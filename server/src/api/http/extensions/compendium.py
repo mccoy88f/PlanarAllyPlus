@@ -1358,6 +1358,23 @@ async def search(request: web.Request) -> web.Response:
             results.extend(part)
         except Exception:
             pass
+
+    default_id = config.get("defaultId")
+    q_lower = q.lower()
+
+    def _search_sort_key(r: dict) -> tuple:
+        name_lower = (r.get("itemName") or "").lower()
+        if name_lower == q_lower:
+            match_tier = 0
+        elif name_lower.startswith(q_lower):
+            match_tier = 1
+        else:
+            match_tier = 2
+        # Tra pari rilevanza, il compendio predefinito (stella) viene prima.
+        prefer_default = 0 if r.get("compendiumId") == default_id else 1
+        return (match_tier, prefer_default, name_lower)
+
+    results.sort(key=_search_sort_key)
     return web.json_response({"results": results})
 
 

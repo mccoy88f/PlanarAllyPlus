@@ -287,6 +287,14 @@ const searchResultCompendiums = computed(() => {
             list.push({ id, name: r.compendiumName ?? "?" });
         }
     }
+    list.sort((a, b) => {
+        const def = defaultId.value;
+        if (def) {
+            if (a.id === def && b.id !== def) return -1;
+            if (b.id === def && a.id !== def) return 1;
+        }
+        return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    });
     return list;
 });
 
@@ -1723,6 +1731,12 @@ onMounted(() => {
                             :class="{ active: searchCompendiumFilter === comp.id }"
                             @click="setSearchCompendiumFilter(comp.id)"
                         >
+                            <font-awesome-icon
+                                v-if="defaultId === comp.id"
+                                icon="star"
+                                class="qe-search-filter-default-star"
+                                :title="t('game.ui.extensions.CompendiumModal.default_compendium')"
+                            />
                             {{ comp.name }}
                         </button>
                     </div>
@@ -1738,7 +1752,15 @@ onMounted(() => {
                                     ? `${result.compendiumName} › ${formatName(result.collectionName)}`
                                     : formatName(result.collectionName) }}
                             </span>
-                            <span class="ext-ui-list-item-name">{{ result.itemName }}</span>
+                            <span class="ext-ui-list-item-name qe-search-result-title">
+                                <font-awesome-icon
+                                    v-if="defaultId && result.compendiumId === defaultId"
+                                    icon="star"
+                                    class="qe-search-result-default-star"
+                                    :title="t('game.ui.extensions.CompendiumModal.default_compendium')"
+                                />
+                                {{ result.itemName }}
+                            </span>
                         </div>
                     </div>
                     <div v-if="filteredSearchResults.length === 0" class="ext-ui-empty qe-search-empty">
@@ -2309,6 +2331,9 @@ onMounted(() => {
     }
 
     .qe-filter-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
         padding: 0.25rem 0.6rem;
         font-size: 0.8rem;
 
@@ -2317,6 +2342,22 @@ onMounted(() => {
             border-color: #888;
             color: #333;
         }
+    }
+
+    .qe-search-filter-default-star {
+        color: #f9a825;
+        flex-shrink: 0;
+    }
+
+    .qe-search-result-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .qe-search-result-default-star {
+        color: #f9a825;
+        flex-shrink: 0;
     }
 
     /* Search results use ext-ui-stacked (standard variant in ui.css) */
