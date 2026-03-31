@@ -306,11 +306,20 @@
       margin: 0;
       gap: 0 !important;
       line-height: 1 !important;
-      display: inline-flex !important;
       align-items: center !important;
       justify-content: center !important;
       box-sizing: border-box !important;
       flex-shrink: 0;
+    }
+
+    /* display senza !important sul toggle modifica: altrimenti inline style display:none viene ignorato */
+    .ext-toolbar-bar .cs-icon-toolbar-btn:not(.cs-edit-toggle) {
+      display: inline-flex !important;
+    }
+
+    /* Default nascosto; .ext-ui-btn darebbe inline-flex — serve regola più specifica */
+    .ext-toolbar-bar .cs-icon-toolbar-btn.cs-edit-toggle {
+      display: none;
     }
 
     .ext-toolbar-bar .cs-icon-toolbar-btn .fa-solid {
