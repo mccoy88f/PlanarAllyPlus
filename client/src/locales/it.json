@@ -531,6 +531,8 @@
         },
         "CompendiumModal": {
           "title": "Compendium",
+          "preview_close": "Chiudi anteprima",
+          "continue_in_compendium": "Continua sul compendio",
           "continue_reading": "Continua a leggere il prossimo elemento: {name}",
           "back_to": "Torna a: {name}",
           "proceed_to": "Procedi verso: {name}",

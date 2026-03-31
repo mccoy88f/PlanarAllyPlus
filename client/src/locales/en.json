@@ -1106,6 +1106,8 @@
         },
         "CompendiumModal": {
           "title": "Compendium",
+          "preview_close": "Close preview",
+          "continue_in_compendium": "Continue in compendium",
           "continue_reading": "Continue reading the next item: {name}",
           "back_to": "Return to: {name}",
           "proceed_to": "Proceed to: {name}",
