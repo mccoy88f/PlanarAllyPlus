@@ -467,35 +467,20 @@
         var slug = a.getAttribute('data-qe-slug');
         if (coll && slug) {
           var target = window.top || window.parent;
-          var msg = { type: 'planarally-open-qe', collection: coll, slug: slug };
-          if (comp) msg.compendium = comp;
-          target.postMessage(msg, '*');
-        }
-        return false;
-      };
-      a.addEventListener('mouseenter', function () {
-        var comp = a.getAttribute('data-qe-compendium');
-        var coll = a.getAttribute('data-qe-collection');
-        var slug = a.getAttribute('data-qe-slug');
-        if (coll && slug) {
-          var target = window.top || window.parent;
-          var rect = a.getBoundingClientRect();
           target.postMessage(
             {
               type: 'planarally-qe-hover',
               collection: coll,
               slug: slug,
               compendium: comp || undefined,
-              clientX: rect.left,
-              clientY: rect.bottom
+              clientX: ev.clientX,
+              clientY: ev.clientY
             },
             '*'
           );
         }
-      });
-      a.addEventListener('mouseleave', function () {
-        (window.top || window.parent).postMessage({ type: 'planarally-qe-hover-end' }, '*');
-      });
+        return false;
+      };
     });
 
     if (!editingEnabled) return;

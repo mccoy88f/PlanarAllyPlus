@@ -1106,6 +1106,8 @@
         },
         "CompendiumModal": {
           "title": "Compendium",
+          "preview_close": "Close preview",
+          "continue_in_compendium": "Continue in compendium",
           "continue_reading": "Continue reading the next item: {name}",
           "back_to": "Return to: {name}",
           "proceed_to": "Proceed to: {name}",
@@ -1166,7 +1168,8 @@
           "add_to_assets": "Add to assets",
           "asset_upload_success": "Image saved to asset library (extensions/compendium/…)",
           "asset_upload_error": "Could not save the image to assets (network or permissions).",
-          "asset_upload_no_root": "Asset library not ready. Open the Assets panel and try again."
+          "asset_upload_no_root": "Asset library not ready. Open the Assets panel and try again.",
+          "drag_to_map_requires_assets": "Add the image to assets first (right-click → Add to assets); then you can drag it onto the map from here or from the library."
         },
         "DocumentsModal": {
           "title": "Documents",

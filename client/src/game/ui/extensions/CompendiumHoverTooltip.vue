@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 
 import { http } from "../../../core/http";
 import { getQeNames, renderQeMarkdown } from "../../systems/extensions/compendium";
 import { openCompendiumModalForItem } from "../../systems/extensions/ui";
+
+const { t } = useI18n();
 
 const visible = ref(false);
 const x = ref(0);
@@ -15,10 +18,7 @@ const loading = ref(false);
 const collectionSlug = ref("");
 const itemSlug = ref("");
 const compendiumSlug = ref<string | undefined>(undefined);
-const isMouseOverTooltip = ref(false);
-let hideTimer: ReturnType<typeof setTimeout> | null = null;
 let loadingTimer: ReturnType<typeof setTimeout> | null = null;
-let hoverTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function fetchItem(comp: string | undefined, coll: string, slug: string): Promise<void> {
     if (loadingTimer) clearTimeout(loadingTimer);
@@ -72,10 +72,6 @@ function parseQeHref(href: string): { comp?: string; coll: string; slug: string 
 }
 
 function showAtCoords(coll: string, slug: string, comp: string | undefined, screenX: number, screenY: number): void {
-    if (hideTimer) {
-        clearTimeout(hideTimer);
-        hideTimer = null;
-    }
     compendiumSlug.value = comp;
     collectionSlug.value = coll;
     itemSlug.value = slug;
@@ -95,10 +91,6 @@ function showAtCoords(coll: string, slug: string, comp: string | undefined, scre
 }
 
 function show(e: MouseEvent, href: string): void {
-    if (hideTimer) {
-        clearTimeout(hideTimer);
-        hideTimer = null;
-    }
     const parsed = parseQeHref(href);
     if (!parsed || !parsed.coll || !parsed.slug) return;
 
@@ -128,70 +120,29 @@ function stripLeadingTitle(md: string, itemTitle: string): string {
     return md.replace(re, "");
 }
 
-function scheduleHide(): void {
-    if (hideTimer) clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => {
-        visible.value = false;
-        hideTimer = null;
-    }, 400);
+function closeTooltip(): void {
+    visible.value = false;
 }
 
-function cancelHide(): void {
-    if (hideTimer) {
-        clearTimeout(hideTimer);
-        hideTimer = null;
-    }
+function openFullCompendiumAndClose(): void {
+    openCompendiumModalForItem(
+        collectionSlug.value,
+        itemSlug.value,
+        compendiumSlug.value,
+    );
+    closeTooltip();
 }
 
-function handleMouseOver(e: MouseEvent): void {
-    /* Su touch, il browser emula spesso mouseover prima del click: evita anteprima + modale insieme. */
-    if (!window.matchMedia("(hover: hover)").matches) return;
-    const target = (e.target as HTMLElement).closest("a[href^='qe:'], a[data-qe-collection]");
-    if (!(target instanceof HTMLAnchorElement)) return;
-    cancelHide();
+function getQeHrefFromAnchor(target: HTMLAnchorElement): string | null {
     const dataComp = target.getAttribute("data-qe-compendium");
     const dataColl = target.getAttribute("data-qe-collection");
     const dataSlug = target.getAttribute("data-qe-slug");
-    const href = target.getAttribute("href");
-    let qeHref: string | undefined;
     if (dataColl && dataSlug) {
-        qeHref = dataComp ? `qe:${dataComp}/${dataColl}/${dataSlug}` : `qe:${dataColl}/${dataSlug}`;
-    } else if (href?.startsWith("qe:")) {
-        qeHref = href;
+        return dataComp ? `qe:${dataComp}/${dataColl}/${dataSlug}` : `qe:${dataColl}/${dataSlug}`;
     }
-
-    if (qeHref) {
-        if (hoverTimer) clearTimeout(hoverTimer);
-        hoverTimer = setTimeout(() => {
-            show(e, qeHref!);
-            hoverTimer = null;
-        }, 200);
-    }
-}
-
-function handleMouseOut(e: MouseEvent): void {
-    if (hoverTimer) {
-        clearTimeout(hoverTimer);
-        hoverTimer = null;
-    }
-    const target = e.target as HTMLElement;
-    const related = e.relatedTarget as HTMLElement | null;
-    const fromLink = target.closest("a[href^='qe:'], a[data-qe-collection]");
-    const fromTooltip = target.closest(".qe-hover-tooltip");
-    const toLink = related?.closest("a[href^='qe:'], a[data-qe-collection]");
-    const toTooltip = related?.closest(".qe-hover-tooltip");
-    if (fromLink && !toTooltip && !toLink) scheduleHide();
-    if (fromTooltip && !toLink && !toTooltip) scheduleHide();
-}
-
-function handleMouseEnterTooltip(): void {
-    isMouseOverTooltip.value = true;
-    cancelHide();
-}
-
-function handleMouseLeaveTooltip(): void {
-    isMouseOverTooltip.value = false;
-    scheduleHide();
+    const href = target.getAttribute("href");
+    if (href?.startsWith("qe:")) return href;
+    return null;
 }
 
 function findIframeForSource(source: MessageEventSource | null): HTMLIFrameElement | null {
@@ -227,59 +178,43 @@ function handleMessage(e: MessageEvent): void {
             screenY = rect.top + clientY;
         }
         showAtCoords(coll, slug, comp, screenX, screenY);
-    } else if (d.type === "planarally-qe-hover-end") {
-        if (isMouseOverTooltip.value) return;
-        if (hideTimer) clearTimeout(hideTimer);
-        hideTimer = setTimeout(() => {
-            if (isMouseOverTooltip.value) return;
-            visible.value = false;
-            hideTimer = null;
-        }, 600);
     }
 }
 
 function handleDocumentClick(e: MouseEvent): void {
     const target = (e.target as HTMLElement).closest("a[data-qe-collection], a[href^='qe:']");
-    if (!(target instanceof HTMLAnchorElement)) return;
-    if (target.closest(".compendium-modal")) return;
-    const dataComp = target.getAttribute("data-qe-compendium");
-    const dataColl = target.getAttribute("data-qe-collection");
-    const dataSlug = target.getAttribute("data-qe-slug");
-    if (dataColl && dataSlug) {
-        e.preventDefault();
-        e.stopPropagation();
-        openCompendiumModalForItem(dataColl, dataSlug, dataComp ?? undefined);
+    if (target instanceof HTMLAnchorElement && !target.closest(".compendium-modal")) {
+        const qeHref = getQeHrefFromAnchor(target);
+        if (qeHref) {
+            e.preventDefault();
+            e.stopPropagation();
+            show(e, qeHref);
+        }
         return;
     }
-    const href = target.getAttribute("href");
-    if (href?.startsWith("qe:")) {
-        e.preventDefault();
+    if (visible.value && !(e.target as HTMLElement).closest(".qe-hover-tooltip")) {
+        closeTooltip();
+    }
+}
+
+function handleEscape(e: KeyboardEvent): void {
+    if (e.key === "Escape" && visible.value) {
         e.stopPropagation();
-        const parsed = parseQeHref(href);
-        if (parsed) {
-            openCompendiumModalForItem(
-                parsed.coll,
-                parsed.slug,
-                parsed.comp,
-            );
-        }
+        closeTooltip();
     }
 }
 
 onMounted(() => {
     getQeNames(); // preload per autolink
-    document.addEventListener("mouseover", handleMouseOver);
-    document.addEventListener("mouseout", handleMouseOut);
     document.addEventListener("click", handleDocumentClick, true);
     window.addEventListener("message", handleMessage);
+    window.addEventListener("keydown", handleEscape, true);
 });
 
 onUnmounted(() => {
-    document.removeEventListener("mouseover", handleMouseOver);
-    document.removeEventListener("mouseout", handleMouseOut);
     document.removeEventListener("click", handleDocumentClick, true);
     window.removeEventListener("message", handleMessage);
-    if (hideTimer) clearTimeout(hideTimer);
+    window.removeEventListener("keydown", handleEscape, true);
 });
 </script>
 
@@ -289,18 +224,29 @@ onUnmounted(() => {
             v-if="visible"
             class="qe-hover-tooltip"
             :style="{ left: `${x}px`, top: `${y}px` }"
-            @mouseenter="handleMouseEnterTooltip"
-            @mouseleave="handleMouseLeaveTooltip"
             @click.stop
         >
             <div class="qe-tooltip-header">
                 <span class="qe-tooltip-title">{{ loading ? '...' : title }}</span>
+                <button
+                    type="button"
+                    class="qe-tooltip-close"
+                    :aria-label="t('game.ui.extensions.CompendiumModal.preview_close')"
+                    @click="closeTooltip"
+                >
+                    ×
+                </button>
             </div>
             <div v-if="path" class="qe-tooltip-path-bar">{{ path }}</div>
             <div v-if="loading" class="qe-tooltip-loading">...</div>
             <div v-else class="qe-tooltip-body">
                 <!-- eslint-disable-next-line vue/no-v-html -->
                 <div v-html="renderQeMarkdown(markdown.substring(0, 600) + (markdown.length > 600 ? '...' : ''))" />
+            </div>
+            <div class="qe-tooltip-footer">
+                <button type="button" class="qe-tooltip-continue" @click="openFullCompendiumAndClose">
+                    {{ t("game.ui.extensions.CompendiumModal.continue_in_compendium") }}
+                </button>
             </div>
         </div>
     </Teleport>
@@ -339,6 +285,27 @@ onUnmounted(() => {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex: 1;
+}
+
+.qe-tooltip-close {
+    flex-shrink: 0;
+    width: 1.75rem;
+    height: 1.75rem;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0.25rem;
+    background: transparent;
+    color: #555;
+    font-size: 1.35rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.qe-tooltip-close:hover {
+    background: #eee;
+    color: #111;
 }
 
 .qe-tooltip-path-bar {
@@ -373,5 +340,30 @@ onUnmounted(() => {
     max-width: 50%;
     display: block;
     margin: 0.5rem auto;
+}
+
+.qe-tooltip-footer {
+    flex-shrink: 0;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #eee;
+}
+
+.qe-tooltip-continue {
+    width: 100%;
+    margin: 0;
+    padding: 0.45rem 0.5rem;
+    border: none;
+    border-radius: 0.35rem;
+    background: #f0f0f0;
+    color: #1a5fb4;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+}
+
+.qe-tooltip-continue:hover {
+    background: #e4e4e4;
 }
 </style>

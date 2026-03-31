@@ -29,6 +29,8 @@ import { NoteManagerMode } from "../../systems/notes/types";
 import { assetSystem } from "../../../assets";
 import { assetState } from "../../../assets/state";
 import { socket } from "../../../assets/socket";
+import type { DropAssetInfo } from "../../dropAsset";
+import { openAssetManagerAfterCompendiumUpload } from "../../systems/assets/ui";
 
 
 
@@ -287,6 +289,14 @@ const searchResultCompendiums = computed(() => {
             list.push({ id, name: r.compendiumName ?? "?" });
         }
     }
+    list.sort((a, b) => {
+        const def = defaultId.value;
+        if (def) {
+            if (a.id === def && b.id !== def) return -1;
+            if (b.id === def && a.id !== def) return 1;
+        }
+        return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    });
     return list;
 });
 
@@ -327,6 +337,34 @@ const breadcrumb = computed(() => {
 /** Menu contestuale su immagine: salva in Assets sotto extensions/compendium/… (breadcrumb) */
 const imgContextMenu = ref<{ x: number; y: number; img: HTMLImageElement } | null>(null);
 const addToAssetsLoading = ref(false);
+
+/** Dopo "Aggiungi ad asset", consente il drag sulla mappa con lo stesso payload della libreria asset. */
+const compendiumDragCache = new Map<string, DropAssetInfo>();
+
+function normalizeCompendiumImgSrc(src: string): string {
+    try {
+        const u = new URL(src, window.location.href);
+        return u.pathname + u.search;
+    } catch {
+        return src;
+    }
+}
+
+function handleCompendiumImageDragStart(e: DragEvent): void {
+    const raw = e.target;
+    const img =
+        raw instanceof HTMLImageElement ? raw : (raw as HTMLElement | null)?.closest?.("img");
+    if (!(img instanceof HTMLImageElement) || e.dataTransfer === null) return;
+    const info = compendiumDragCache.get(normalizeCompendiumImgSrc(img.src));
+    if (!info) {
+        e.preventDefault();
+        toast.info(t("game.ui.extensions.CompendiumModal.drag_to_map_requires_assets"));
+        return;
+    }
+    e.dataTransfer.setData("text/plain", JSON.stringify(info));
+    e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.setDragImage(img, 0, 0);
+}
 
 function sanitizeAssetFolderName(name: string): string {
     const s = name.trim().replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim();
@@ -437,10 +475,19 @@ async function addCompendiumImageToAssets(): Promise<void> {
         }
         const dt = new DataTransfer();
         dt.items.add(file);
-        await assetSystem.upload(dt.files, {
+        const uploadedFiles = await assetSystem.upload(dt.files, {
             target: () => target,
             newDirectories: dirs,
         });
+        const up = uploadedFiles[0];
+        if (up?.fileHash && up.assetId != null) {
+            compendiumDragCache.set(normalizeCompendiumImgSrc(img.src), {
+                assetHash: up.fileHash,
+                entryId: up.id,
+                assetId: up.assetId,
+            });
+            await openAssetManagerAfterCompendiumUpload(up.id);
+        }
         toast.success(t("game.ui.extensions.CompendiumModal.asset_upload_success"));
     } catch (err) {
         console.error(err);
@@ -1723,6 +1770,12 @@ onMounted(() => {
                             :class="{ active: searchCompendiumFilter === comp.id }"
                             @click="setSearchCompendiumFilter(comp.id)"
                         >
+                            <font-awesome-icon
+                                v-if="defaultId === comp.id"
+                                icon="star"
+                                class="qe-search-filter-default-star"
+                                :title="t('game.ui.extensions.CompendiumModal.default_compendium')"
+                            />
                             {{ comp.name }}
                         </button>
                     </div>
@@ -1738,7 +1791,15 @@ onMounted(() => {
                                     ? `${result.compendiumName} › ${formatName(result.collectionName)}`
                                     : formatName(result.collectionName) }}
                             </span>
-                            <span class="ext-ui-list-item-name">{{ result.itemName }}</span>
+                            <span class="ext-ui-list-item-name qe-search-result-title">
+                                <font-awesome-icon
+                                    v-if="defaultId && result.compendiumId === defaultId"
+                                    icon="star"
+                                    class="qe-search-result-default-star"
+                                    :title="t('game.ui.extensions.CompendiumModal.default_compendium')"
+                                />
+                                {{ result.itemName }}
+                            </span>
                         </div>
                     </div>
                     <div v-if="filteredSearchResults.length === 0" class="ext-ui-empty qe-search-empty">
@@ -2040,6 +2101,7 @@ onMounted(() => {
                         class="qe-markdown"
                         @click="handleMarkdownClick"
                         @contextmenu="handleMarkdownContextMenu"
+                        @dragstart.capture="handleCompendiumImageDragStart"
                     >
                         <div
                             v-if="itemLoading"
@@ -2309,6 +2371,9 @@ onMounted(() => {
     }
 
     .qe-filter-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
         padding: 0.25rem 0.6rem;
         font-size: 0.8rem;
 
@@ -2317,6 +2382,22 @@ onMounted(() => {
             border-color: #888;
             color: #333;
         }
+    }
+
+    .qe-search-filter-default-star {
+        color: #f9a825;
+        flex-shrink: 0;
+    }
+
+    .qe-search-result-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .qe-search-result-default-star {
+        color: #f9a825;
+        flex-shrink: 0;
     }
 
     /* Search results use ext-ui-stacked (standard variant in ui.css) */
@@ -3101,6 +3182,11 @@ onMounted(() => {
     max-width: 50%;
     display: block;
     margin: 0.5rem auto;
+    cursor: grab;
+}
+
+.qe-markdown-content :deep(img:active) {
+    cursor: grabbing;
 }
 
 .qe-img-ctx-backdrop {

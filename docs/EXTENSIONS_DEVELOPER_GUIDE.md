@@ -203,10 +203,9 @@ Le estensioni con `entry` in `extension.toml` vengono caricate in un iframe. Per
 | `planarally-confirm` | `{ id, title, message }` | Modale conferma (sì/no) — risponde con `planarally-confirm-response` |
 | `planarally-prompt` | `{ id, question, title, defaultValue }` | Modale prompt — risponde con `planarally-prompt-response` |
 | `planarally-toast` | `{ message, error? }` | Toast successo o errore |
-| `planarally-open-qe` | `{ collection, slug, compendium? }` | Apre il Compendium sull’articolo |
+| `planarally-open-qe` | `{ collection, slug, compendium? }` | Apre il Compendium sull’articolo (a schermo intero) |
 | `planarally-open-document` | `{ fileHash, name, page? }` | Apre il visualizzatore PDF (est. Documents) |
-| `planarally-qe-hover` | `{ collection, slug, compendium?, clientX, clientY }` | Mostra tooltip compendio in hover |
-| `planarally-qe-hover-end` | — | Nasconde tooltip compendio |
+| `planarally-qe-hover` | `{ collection, slug, compendium?, clientX, clientY }` | Mostra l’anteprima compendio (popup); `clientX`/`clientY` relativi alla viewport dell’iframe. Dal popup si può aprire il compendio completo. |
 | `planarally-close-extension` | — | Chiede al client di chiudere l'estensione (usato per ESC) |
 
 **Note sul tasto ESC:**
