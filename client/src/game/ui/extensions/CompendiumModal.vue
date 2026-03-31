@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useToast } from "vue-toastification";
 
@@ -27,10 +27,10 @@ import { openNoteManager } from "../../systems/notes/ui";
 import type { NoteId } from "../../systems/notes/types";
 import { NoteManagerMode } from "../../systems/notes/types";
 import { assetSystem } from "../../../assets";
+import { getFolderByPath } from "../../../assets/emits";
 import { assetState } from "../../../assets/state";
 import { socket } from "../../../assets/socket";
 import type { DropAssetInfo } from "../../dropAsset";
-import { openAssetManagerAfterCompendiumUpload } from "../../systems/assets/ui";
 
 
 
@@ -337,9 +337,12 @@ const breadcrumb = computed(() => {
 /** Menu contestuale su immagine: salva in Assets sotto extensions/compendium/… (breadcrumb) */
 const imgContextMenu = ref<{ x: number; y: number; img: HTMLImageElement } | null>(null);
 const addToAssetsLoading = ref(false);
+const markdownContentRef = ref<HTMLElement | null>(null);
 
-/** Dopo "Aggiungi ad asset", consente il drag sulla mappa con lo stesso payload della libreria asset. */
-const compendiumDragCache = new Map<string, DropAssetInfo>();
+/** Dopo "Aggiungi ad asset" o lookup server, consente il drag con lo stesso payload della libreria asset. */
+const compendiumDragCache = ref<Record<string, DropAssetInfo>>({});
+/** Evita richieste duplicate mentre Folder.GetByPath è in corso. */
+const compendiumDragResolvePending = new Set<string>();
 
 function normalizeCompendiumImgSrc(src: string): string {
     try {
@@ -350,12 +353,80 @@ function normalizeCompendiumImgSrc(src: string): string {
     }
 }
 
+/** Stesso criterio di `assetSystem.upload` / server: nome voce = nome file senza ultima estensione. */
+function entryNameFromUploadFilename(uploadName: string): string {
+    const parts = uploadName.split(".");
+    if (parts.length > 1) {
+        return parts.slice(0, -1).join(".");
+    }
+    return uploadName;
+}
+
+function setCompendiumDropInfo(src: string, info: DropAssetInfo): void {
+    const key = normalizeCompendiumImgSrc(src);
+    compendiumDragCache.value = { ...compendiumDragCache.value, [key]: info };
+}
+
+function getDropInfoForCompendiumImg(img: HTMLImageElement): DropAssetInfo | null {
+    const key = normalizeCompendiumImgSrc(img.src);
+    return compendiumDragCache.value[key] ?? null;
+}
+
+/**
+ * Cerca in libreria il file con lo stesso percorso e nome dell'upload dal compendio
+ * (`extensions/compendium/…` + nome da URL). Se `Folder.GetByPath` non risolve tutto il path,
+ * il server può restituire la root: in quel caso `path.length` non coincide e si ignora.
+ */
+async function resolveCompendiumImageInAssetLibrary(img: HTMLImageElement): Promise<void> {
+    const key = normalizeCompendiumImgSrc(img.src);
+    if (compendiumDragCache.value[key] || compendiumDragResolvePending.has(key)) return;
+    if (!selectedItem.value) return;
+    compendiumDragResolvePending.add(key);
+    try {
+        if (socket.disconnected) socket.connect();
+        if (assetState.raw.root === undefined) {
+            await assetSystem.rootCallback.wait();
+        }
+        const dirs = buildCompendiumAssetDirectories();
+        if (dirs.length === 0) return;
+        const pathStr = dirs.join("/");
+        let filename: string;
+        try {
+            filename = filenameFromImageSrc(img.src);
+        } catch {
+            return;
+        }
+        const baseName = entryNameFromUploadFilename(filename);
+        const data = await getFolderByPath(pathStr);
+        if (!data.path || data.path.length !== dirs.length) {
+            return;
+        }
+        const children = data.folder.children ?? [];
+        const child = children.find(
+            (c) =>
+                c.fileHash &&
+                c.assetId != null &&
+                (c.name === baseName || c.name === filename),
+        );
+        if (!child?.fileHash || child.assetId == null) return;
+        setCompendiumDropInfo(img.src, {
+            assetHash: child.fileHash,
+            entryId: child.id,
+            assetId: child.assetId,
+        });
+    } catch {
+        /* cartella assente o socket */
+    } finally {
+        compendiumDragResolvePending.delete(key);
+    }
+}
+
 function handleCompendiumImageDragStart(e: DragEvent): void {
     const raw = e.target;
     const img =
         raw instanceof HTMLImageElement ? raw : (raw as HTMLElement | null)?.closest?.("img");
     if (!(img instanceof HTMLImageElement) || e.dataTransfer === null) return;
-    const info = compendiumDragCache.get(normalizeCompendiumImgSrc(img.src));
+    const info = getDropInfoForCompendiumImg(img);
     if (!info) {
         e.preventDefault();
         toast.info(t("game.ui.extensions.CompendiumModal.drag_to_map_requires_assets"));
@@ -365,6 +436,21 @@ function handleCompendiumImageDragStart(e: DragEvent): void {
     e.dataTransfer.effectAllowed = "copy";
     e.dataTransfer.setDragImage(img, 0, 0);
 }
+
+const imgContextMenuAlreadyInAssets = computed(() => {
+    const img = imgContextMenu.value?.img;
+    if (!img) return false;
+    return getDropInfoForCompendiumImg(img) !== null;
+});
+
+watch(
+    () => imgContextMenu.value?.img,
+    async (img) => {
+        if (img instanceof HTMLImageElement) {
+            await resolveCompendiumImageInAssetLibrary(img);
+        }
+    },
+);
 
 function sanitizeAssetFolderName(name: string): string {
     const s = name.trim().replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim();
@@ -458,6 +544,7 @@ function closeImgContextMenu(): void {
 async function addCompendiumImageToAssets(): Promise<void> {
     if (!imgContextMenu.value?.img || !selectedItem.value || addToAssetsLoading.value) return;
     const { img } = imgContextMenu.value;
+    if (getDropInfoForCompendiumImg(img)) return;
     closeImgContextMenu();
     addToAssetsLoading.value = true;
     try {
@@ -481,12 +568,11 @@ async function addCompendiumImageToAssets(): Promise<void> {
         });
         const up = uploadedFiles[0];
         if (up?.fileHash && up.assetId != null) {
-            compendiumDragCache.set(normalizeCompendiumImgSrc(img.src), {
+            setCompendiumDropInfo(img.src, {
                 assetHash: up.fileHash,
                 entryId: up.id,
                 assetId: up.assetId,
             });
-            await openAssetManagerAfterCompendiumUpload(up.id);
         }
         toast.success(t("game.ui.extensions.CompendiumModal.asset_upload_success"));
     } catch (err) {
@@ -1582,6 +1668,22 @@ watch(
     { immediate: true },
 );
 
+watch(
+    () => [selectedMarkdownHtml.value, itemLoading.value] as const,
+    async ([, loading]) => {
+        if (loading) return;
+        await nextTick();
+        await nextTick();
+        const root = markdownContentRef.value;
+        if (!root) return;
+        root.querySelectorAll("img").forEach((el) => {
+            if (el instanceof HTMLImageElement) {
+                void resolveCompendiumImageInAssetLibrary(el);
+            }
+        });
+    },
+);
+
 watch(searchQuery, (newVal) => {
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
     const trimmed = newVal.trim();
@@ -2111,6 +2213,7 @@ onMounted(() => {
                         </div>
                         <div v-else>
                             <div
+                                ref="markdownContentRef"
                                 class="qe-markdown-content"
                                 v-html="selectedMarkdownHtml"
                             />
@@ -2190,7 +2293,15 @@ onMounted(() => {
                 :style="{ left: imgContextMenu.x + 'px', top: imgContextMenu.y + 'px' }"
                 @mousedown.stop
             >
+                <div
+                    v-if="imgContextMenuAlreadyInAssets"
+                    class="qe-img-ctx-item qe-img-ctx-item--disabled"
+                    role="status"
+                >
+                    {{ t("game.ui.extensions.CompendiumModal.image_already_in_assets") }}
+                </div>
                 <button
+                    v-else
                     type="button"
                     class="qe-img-ctx-item"
                     :disabled="addToAssetsLoading"
@@ -3205,6 +3316,14 @@ onMounted(() => {
     border: 1px solid var(--border-color, #ddd);
     border-radius: 6px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.qe-img-ctx-item--disabled {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    color: #666;
+    cursor: default;
+    user-select: none;
 }
 
 .qe-img-ctx-item {
