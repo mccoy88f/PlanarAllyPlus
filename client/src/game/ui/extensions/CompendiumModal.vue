@@ -19,6 +19,13 @@ import { extensionsState } from "../../systems/extensions/state";
 import LoadingBar from "../../../core/components/LoadingBar.vue";
 import GroupedAutocomplete from "./components/GroupedAutocomplete.vue";
 import { playerSystem } from "../../systems/players";
+import type { ApiNote, ApiNoteRoom } from "../../../apiTypes";
+import { coreStore } from "../../../store/core";
+import { gameState } from "../../systems/game/state";
+import { noteSystem } from "../../systems/notes";
+import { openNoteManager } from "../../systems/notes/ui";
+import type { NoteId } from "../../systems/notes/types";
+import { NoteManagerMode } from "../../systems/notes/types";
 import { assetSystem } from "../../../assets";
 import { assetState } from "../../../assets/state";
 import { socket } from "../../../assets/socket";
@@ -1354,6 +1361,17 @@ function setSearchCompendiumFilter(id: string | null): void {
     searchCompendiumFilter.value = searchCompendiumFilter.value === id ? null : id;
 }
 
+const shareModalOpen = ref(false);
+
+function openShareModal(): void {
+    if (!selectedItem.value) return;
+    shareModalOpen.value = true;
+}
+
+function closeShareModal(): void {
+    shareModalOpen.value = false;
+}
+
 function shareToChat(): void {
     if (!selectedItem.value) return;
     const { compendium, collection, item } = selectedItem.value;
@@ -1368,6 +1386,58 @@ function shareToChat(): void {
         true,
     );
     toast.success(t("game.ui.extensions.CompendiumModal.share_success"));
+}
+
+function shareToChatAndClose(): void {
+    shareToChat();
+    closeShareModal();
+}
+
+async function addCompendiumToNote(): Promise<void> {
+    if (!selectedItem.value) return;
+    const { item } = selectedItem.value;
+    const text = (currentMarkdown.value || item.markdown || "").trim();
+    const title = (item.name || "").trim() || t("game.ui.extensions.CompendiumModal.note_title_fallback");
+
+    const fullRoom = gameState.fullRoomName.value || "";
+    const slash = fullRoom.indexOf("/");
+    const rooms: ApiNoteRoom[] = [];
+    if (slash > 0) {
+        const roomCreator = fullRoom.slice(0, slash);
+        const roomName = fullRoom.slice(slash + 1);
+        if (roomCreator && roomName) {
+            rooms.push({
+                roomCreator,
+                roomName,
+                locationId: null,
+                locationName: null,
+            });
+        }
+    }
+
+    const id = uuidv4() as unknown as NoteId;
+    const note: ApiNote = {
+        uuid: id,
+        creator: coreStore.state.username,
+        title,
+        text,
+        showOnHover: false,
+        showIconOnShape: false,
+        rooms,
+        tags: [],
+        access: [],
+        shapes: [],
+    };
+
+    try {
+        await noteSystem.newNote(note, true);
+        closeShareModal();
+        openNoteManager(NoteManagerMode.Edit, id);
+        toast.success(t("game.ui.extensions.CompendiumModal.note_created_open"));
+    } catch (e) {
+        console.error(e);
+        toast.error(t("game.ui.extensions.CompendiumModal.note_create_error"));
+    }
 }
 
 async function loadAllGlobalTags(): Promise<void> {
@@ -1876,9 +1946,10 @@ onMounted(() => {
                             </div>
                         </div>
                         <button
+                            type="button"
                             class="qe-share-btn"
-                            :title="t('game.ui.extensions.CompendiumModal.share_to_chat')"
-                            @click="shareToChat"
+                            :title="t('game.ui.extensions.CompendiumModal.share_menu_hint')"
+                            @click="openShareModal"
                         >
                             <font-awesome-icon icon="share-alt" />
                             {{ t("game.ui.extensions.CompendiumModal.share") }}
@@ -2022,6 +2093,29 @@ onMounted(() => {
         </div>
     </div>
 </Modal>
+
+    <Teleport to="body">
+        <div
+            v-if="shareModalOpen"
+            class="ext-ui-overlay open qe-share-overlay"
+            role="dialog"
+            aria-modal="true"
+            @click.self="closeShareModal"
+        >
+            <div class="ext-ui-overlay-panel ext-ui-overlay-panel--sm ext-ui-overlay-panel--padded qe-share-modal-panel" @click.stop>
+                <h3 class="qe-share-modal-title">{{ t("game.ui.extensions.CompendiumModal.share_dialog_title") }}</h3>
+                <p class="qe-share-modal-hint">{{ t("game.ui.extensions.CompendiumModal.share_dialog_hint") }}</p>
+                <div class="qe-share-modal-actions">
+                    <button type="button" class="ext-ui-btn ext-ui-btn-primary" @click="shareToChatAndClose">
+                        {{ t("game.ui.extensions.CompendiumModal.share_to_chat_action") }}
+                    </button>
+                    <button type="button" class="ext-ui-btn ext-ui-btn-success" @click="addCompendiumToNote">
+                        {{ t("game.ui.extensions.CompendiumModal.add_as_note") }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </Teleport>
 
     <Teleport to="body">
         <div
@@ -2768,6 +2862,30 @@ onMounted(() => {
     color: #666;
     font-style: italic;
     padding: 1rem;
+}
+
+/* Modale condividi (sopra il modale Compendium; stile base da static/extensions/ui.css .ext-ui-overlay) */
+.qe-share-overlay {
+    z-index: 10052;
+}
+
+.qe-share-modal-title {
+    margin: 0 0 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.qe-share-modal-hint {
+    margin: 0 0 1rem;
+    font-size: 0.9rem;
+    color: #666;
+    line-height: 1.35;
+}
+
+.qe-share-modal-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 .qe-install-overlay {

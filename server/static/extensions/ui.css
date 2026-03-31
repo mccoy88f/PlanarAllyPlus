@@ -5,6 +5,12 @@
  *   <link rel="stylesheet" href="../../../../static/extensions/ui.css">
  *
  * You can override any class with your own CSS. All classes use the .ext-ui- prefix.
+ *
+ * Overlay modale (sfondo scuro + pannello centrato):
+ *   .ext-ui-overlay              — fullscreen, nascosto di default
+ *   .ext-ui-overlay.open         — mostra (o .active per compatibilità)
+ *   .ext-ui-overlay-panel        — contenitore bianco centrato
+ *   Modificatori: --sm (450px), --lg (720px), --padded, --radius-lg, --max-h-70
  */
 
 /* Reset & base */
@@ -392,6 +398,62 @@
     font-size: 0.9rem;
     font-weight: 600;
     color: #666;
+}
+
+/* ==========================================================================
+   Overlay modale — sfondo scuro semi-trasparente + pannello centrato
+   Apertura: element.classList.add('open')  (consigliato) oppure .active
+   ========================================================================== */
+.ext-ui-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    box-sizing: border-box;
+    padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+        max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+    background: rgba(0, 0, 0, 0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.ext-ui-overlay.open,
+.ext-ui-overlay.active {
+    display: flex;
+}
+
+.ext-ui-overlay-panel {
+    background: #fff;
+    border-radius: 8px;
+    width: 100%;
+    max-width: min(90vw, 500px);
+    max-height: min(90vh, 900px);
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+    overflow: hidden;
+}
+
+.ext-ui-overlay-panel--sm {
+    max-width: min(90vw, 450px);
+}
+
+.ext-ui-overlay-panel--lg {
+    max-width: min(90vw, 720px);
+}
+
+.ext-ui-overlay-panel--padded {
+    padding: 1.5rem;
+}
+
+.ext-ui-overlay-panel--radius-lg {
+    border-radius: 12px;
+}
+
+.ext-ui-overlay-panel--max-h-70 {
+    max-height: 70vh;
 }
 
 /* ==========================================================================

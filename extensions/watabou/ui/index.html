@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Watabou Generators</title>
-    <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=2" />
+    <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=8" />
     <style>
         * {
             box-sizing: border-box;
@@ -199,34 +199,7 @@
             overflow: hidden;
         }
 
-        /* Modal & Dropzone */
-        .wb-modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            padding: 2rem;
-        }
-
-        .wb-modal-overlay.active {
-            display: flex;
-        }
-
-        .wb-modal {
-            background: #fff;
-            border-radius: 12px;
-            width: 100%;
-            max-width: 500px;
-            padding: 1.5rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            position: relative;
-        }
+        /* Modal & Dropzone (overlay: .ext-ui-overlay + .ext-ui-overlay-panel da static/extensions/ui.css) */
 
         .wb-modal-header {
             font-size: 1.25rem;
@@ -327,8 +300,8 @@
             <iframe id="generatorFrame" title="Watabou Generator"
                 sandbox="allow-downloads allow-scripts allow-same-origin allow-forms allow-popups allow-modals"></iframe>
         </div>
-        <div id="importModal" class="wb-modal-overlay">
-            <div class="wb-modal">
+        <div id="importModal" class="ext-ui-overlay">
+            <div class="ext-ui-overlay-panel ext-ui-overlay-panel--padded ext-ui-overlay-panel--radius-lg">
                 <div class="wb-modal-header">
                     <span id="importModalTitle">Importa Mappa</span>
                     <span class="wb-modal-close" id="closeImportModal">&times;</span>
@@ -465,7 +438,7 @@
             }
 
             function toggleImportModal(show) {
-                importModal.classList.toggle("active", show);
+                importModal.classList.toggle("open", show);
             }
 
             async function handleFileUpload(file) {
