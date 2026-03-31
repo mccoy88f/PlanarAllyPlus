@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Musica d'ambiente</title>
-    <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=2" />
+    <link rel="stylesheet" href="../../../../static/extensions/ui.css?v=8" />
     <script src="https://cdn.jsdelivr.net/npm/howler@2.2.4/dist/howler.min.js"></script>
     <style>
         :root { --am-accent: #5c6bc0; }
@@ -61,9 +61,6 @@
             overflow: hidden !important;
         }
         .am-audio-icon { color: var(--am-accent); font-size: 1.2rem; }
-        .am-explorer-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 1000; }
-        .am-explorer-modal.open { display: flex; }
-        .am-explorer-inner { background: #fff; border-radius: 8px; width: min(90vw, 450px); max-height: 70vh; display: flex; flex-direction: column; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
         .am-explorer-header { padding: 0.5rem 1rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
         .am-explorer-header h3 { margin: 0; font-size: 1rem; }
         .am-explorer-close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #666; padding: 0.25rem; }
@@ -148,8 +145,8 @@
             <div id="playlist"></div>
         </div>
     </div>
-    <div id="explorerModal" class="am-explorer-modal">
-        <div class="am-explorer-inner" onclick="event.stopPropagation()">
+    <div id="explorerModal" class="ext-ui-overlay">
+        <div class="ext-ui-overlay-panel ext-ui-overlay-panel--sm ext-ui-overlay-panel--max-h-70" onclick="event.stopPropagation()">
             <div class="am-explorer-header">
                 <h3 id="explorerTitle"></h3>
                 <button type="button" class="am-explorer-close" id="explorerClose">✕</button>
