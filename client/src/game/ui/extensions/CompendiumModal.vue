@@ -29,6 +29,8 @@ import { NoteManagerMode } from "../../systems/notes/types";
 import { assetSystem } from "../../../assets";
 import { assetState } from "../../../assets/state";
 import { socket } from "../../../assets/socket";
+import type { DropAssetInfo } from "../../dropAsset";
+import { openAssetManagerAfterCompendiumUpload } from "../../systems/assets/ui";
 
 
 
@@ -336,6 +338,34 @@ const breadcrumb = computed(() => {
 const imgContextMenu = ref<{ x: number; y: number; img: HTMLImageElement } | null>(null);
 const addToAssetsLoading = ref(false);
 
+/** Dopo "Aggiungi ad asset", consente il drag sulla mappa con lo stesso payload della libreria asset. */
+const compendiumDragCache = new Map<string, DropAssetInfo>();
+
+function normalizeCompendiumImgSrc(src: string): string {
+    try {
+        const u = new URL(src, window.location.href);
+        return u.pathname + u.search;
+    } catch {
+        return src;
+    }
+}
+
+function handleCompendiumImageDragStart(e: DragEvent): void {
+    const raw = e.target;
+    const img =
+        raw instanceof HTMLImageElement ? raw : (raw as HTMLElement | null)?.closest?.("img");
+    if (!(img instanceof HTMLImageElement) || e.dataTransfer === null) return;
+    const info = compendiumDragCache.get(normalizeCompendiumImgSrc(img.src));
+    if (!info) {
+        e.preventDefault();
+        toast.info(t("game.ui.extensions.CompendiumModal.drag_to_map_requires_assets"));
+        return;
+    }
+    e.dataTransfer.setData("text/plain", JSON.stringify(info));
+    e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.setDragImage(img, 0, 0);
+}
+
 function sanitizeAssetFolderName(name: string): string {
     const s = name.trim().replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim();
     return s || "_";
@@ -445,10 +475,19 @@ async function addCompendiumImageToAssets(): Promise<void> {
         }
         const dt = new DataTransfer();
         dt.items.add(file);
-        await assetSystem.upload(dt.files, {
+        const uploadedFiles = await assetSystem.upload(dt.files, {
             target: () => target,
             newDirectories: dirs,
         });
+        const up = uploadedFiles[0];
+        if (up?.fileHash && up.assetId != null) {
+            compendiumDragCache.set(normalizeCompendiumImgSrc(img.src), {
+                assetHash: up.fileHash,
+                entryId: up.id,
+                assetId: up.assetId,
+            });
+            await openAssetManagerAfterCompendiumUpload(up.id);
+        }
         toast.success(t("game.ui.extensions.CompendiumModal.asset_upload_success"));
     } catch (err) {
         console.error(err);
@@ -2062,6 +2101,7 @@ onMounted(() => {
                         class="qe-markdown"
                         @click="handleMarkdownClick"
                         @contextmenu="handleMarkdownContextMenu"
+                        @dragstart.capture="handleCompendiumImageDragStart"
                     >
                         <div
                             v-if="itemLoading"
@@ -3142,6 +3182,11 @@ onMounted(() => {
     max-width: 50%;
     display: block;
     margin: 0.5rem auto;
+    cursor: grab;
+}
+
+.qe-markdown-content :deep(img:active) {
+    cursor: grabbing;
 }
 
 .qe-img-ctx-backdrop {

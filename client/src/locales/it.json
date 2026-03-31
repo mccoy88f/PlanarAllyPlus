@@ -593,7 +593,8 @@
           "add_to_assets": "Aggiungi ad asset",
           "asset_upload_success": "Immagine salvata nella libreria asset (extensions/compendium/…)",
           "asset_upload_error": "Impossibile salvare l'immagine negli asset (rete o permessi).",
-          "asset_upload_no_root": "Libreria asset non pronta. Apri la finestra Asset e riprova."
+          "asset_upload_no_root": "Libreria asset non pronta. Apri la finestra Asset e riprova.",
+          "drag_to_map_requires_assets": "Aggiungi prima l’immagine agli asset (tasto destro → Aggiungi ad asset); poi potrai trascinarla sulla mappa dal compendio o dalla libreria."
         },
         "DocumentsModal": {
           "title": "Documenti",

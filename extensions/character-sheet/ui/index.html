@@ -667,6 +667,8 @@
       }
 
       var sheets = [], characters = [], selectedId = null, currentData = {}, currentTab = 'main', editingEnabled = false;
+      /** Se valorizzato, la prossima loadSheet(id) per questo id apre in modifica (es. Nuova scheda). */
+      var pendingOpenInEditAfterLoad = null;
       var sheetList = document.getElementById('sheetList');
       var loading = document.getElementById('loading');
       var loadingBar = document.getElementById('loadingBar');
@@ -700,7 +702,7 @@
         var tabStrip = document.getElementById('csTabBar');
         if (tabStrip) tabStrip.style.display = visible ? 'inline-flex' : 'none';
         var editBtn = document.getElementById('editToggle');
-        if (editBtn) editBtn.style.display = visible && currentSheetCanEdit() ? 'inline-flex' : 'none';
+        if (editBtn) editBtn.style.display = visible && selectedId && currentSheetCanEdit() ? 'inline-flex' : 'none';
         var divEl = document.getElementById('csTabDivider');
         if (divEl) divEl.style.display = visible ? '' : 'none';
       }
@@ -1221,12 +1223,25 @@
       function loadSheet(id) {
         if (!roomCreator || !roomName) return;
         qs('/api/extensions/character-sheet/sheet/' + id).then(function (r) { return r.json(); }).then(function (data) {
-          selectedId = id; currentData = data.sheet || {}; currentTab = 'main'; editingEnabled = false;
+          var openEdit = pendingOpenInEditAfterLoad === id;
+          if (openEdit) pendingOpenInEditAfterLoad = null;
+          selectedId = id; currentData = data.sheet || {}; currentTab = 'main'; editingEnabled = openEdit;
           mergeQeLinksFromData(currentData);
           selectPrompt.style.display = 'none';
           setSheetPanelVisible(true);
           renderAll(toFormData(currentData));
           updateEditToggleBtn();
+          if (openEdit) {
+            requestAnimationFrame(function () {
+              var nameEl = editForm.querySelector('[data-field="name"]');
+              if (nameEl && typeof nameEl.focus === 'function') {
+                nameEl.focus();
+                try { nameEl.select(); } catch (e) { }
+              }
+            });
+          }
+        }).catch(function () {
+          if (pendingOpenInEditAfterLoad === id) pendingOpenInEditAfterLoad = null;
         });
       }
 
@@ -1253,8 +1268,8 @@
           .then(function (r) { return r.json(); }).then(function (d) {
             toast('Scheda creata');
             if (d.sheetId) {
+              pendingOpenInEditAfterLoad = d.sheetId;
               selectedId = d.sheetId;
-              editingEnabled = true;
               loadList(d.sheetId);
             } else {
               loadList();
@@ -1319,7 +1334,7 @@
         var btn = document.getElementById('editToggle');
         var pencilIcon = '<i class="fa-solid fa-edit" aria-hidden="true"></i>';
         var lockIcon = '<i class="fa-solid fa-lock" aria-hidden="true"></i>';
-        var canEdit = currentSheetCanEdit();
+        var canEdit = !!selectedId && currentSheetCanEdit();
         btn.style.display = canEdit ? 'inline-flex' : 'none';
         if (!canEdit && editingEnabled) {
           editingEnabled = false;
