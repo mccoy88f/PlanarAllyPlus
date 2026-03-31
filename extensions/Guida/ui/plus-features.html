@@ -5,164 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Estensioni e Funzioni Plus</title>
-    <style>
-        :root {
-            --fg-color: #222;
-            --bg-color: #fff;
-            --accent-color: #00835c;
-            --accent-hover: #006b4b;
-            --card-bg: #f8f9fa;
-            --card-border: #dee2e6;
-            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-        }
-
-        body.dark-theme {
-            --fg-color: #eee;
-            --bg-color: rgb(9, 26, 40);
-            --accent-color: #00835c;
-            --card-bg: rgba(255, 255, 255, 0.05);
-            --card-border: rgba(255, 255, 255, 0.1);
-        }
-
-        @media (prefers-color-scheme: dark) {
-            body:not(.light-theme) {
-                --fg-color: #eee;
-                --bg-color: rgb(9, 26, 40);
-                --accent-color: #00835c;
-                --card-bg: rgba(255, 255, 255, 0.05);
-                --card-border: rgba(255, 255, 255, 0.1);
-            }
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            padding: 2rem;
-            font-family: var(--font-family);
-            color: var(--fg-color);
-            background-color: var(--bg-color);
-            line-height: 1.6;
-            transition: background-color 0.3s, color 0.3s;
-        }
-
-        h1 {
-            color: var(--accent-color);
-            border-bottom: 2px solid var(--accent-color);
-            padding-bottom: 0.5rem;
-        }
-
-        h2 {
-            margin-top: 2.5rem;
-            color: var(--accent-color);
-            border-left: 5px solid var(--accent-color);
-            padding-left: 1rem;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 1.5rem;
-            margin-top: 1.5rem;
-        }
-
-        .card {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            transition: transform 0.2s, box-shadow 0.2s;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
-        }
-
-        .card h3 {
-            margin-top: 0;
-            color: var(--accent-color);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.5rem;
-            font-size: 1.25rem;
-        }
-
-        .badge {
-            font-size: 0.7rem;
-            background: var(--accent-color);
-            color: white;
-            padding: 2px 10px;
-            border-radius: 20px;
-            text-transform: uppercase;
-            font-weight: bold;
-        }
-
-        .card p {
-            margin-bottom: 0;
-            font-size: 0.95rem;
-        }
-
-        .card ul {
-            margin: 0.5rem 0 1rem 1.2rem;
-            padding: 0;
-            font-size: 0.9rem;
-        }
-
-        section {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .lang-en {
-            display: none;
-        }
-
-        .disclaimer {
-            background: rgba(231, 76, 60, 0.1);
-            border-left: 5px solid #e74c3c;
-            padding: 1rem;
-            margin: 1.5rem 0;
-            border-radius: 4px;
-        }
-
-        .intro {
-            font-size: 1.1rem;
-            margin-bottom: 2rem;
-        }
-
-        .admonition.info {
-            background: rgba(52, 152, 219, 0.1);
-            border-left: 5px solid #3498db;
-            padding: 1rem;
-            margin: 1.5rem 0;
-            border-radius: 4px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1rem;
-            border: 1px solid var(--card-border);
-        }
-
-        th,
-        td {
-            padding: 10px;
-            border: 1px solid var(--card-border);
-            text-align: left;
-        }
-
-        th {
-            background: var(--card-bg);
-            color: var(--accent-color);
-        }
-    </style>
+    <link rel="stylesheet" href="plus-features-common.css" />
 </head>
 
 <body>
@@ -178,6 +21,13 @@
                 document.querySelectorAll('.lang-it').forEach(el => el.style.display = 'none');
                 document.querySelectorAll('.lang-en').forEach(el => el.style.display = 'block');
             }
+            document.querySelectorAll('a.ext-detail').forEach(function (a) {
+                try {
+                    const u = new URL(a.getAttribute('href'), window.location.href);
+                    u.searchParams.set('locale', locale);
+                    a.href = u.pathname + u.search;
+                } catch (e) { /* ignore */ }
+            });
         });
     </script>
 
@@ -207,6 +57,9 @@
                         </li>
                         <li><strong>AI Realistic</strong>: trasforma le mappe schematiche in grafiche realistiche.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/mapsgen.html">Leggi la guida dettagliata</a>
+                    </div>
                 </div>
 
                 <!-- Character Sheet -->
@@ -218,6 +71,9 @@
                         <li>Integrazione con il <strong>Compendium</strong> per aggiungere incantesimi e abilità.</li>
                         <li>Supporto Import/Export in formato JSON.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/character-sheet.html">Leggi la guida dettagliata</a>
+                    </div>
                 </div>
 
                 <!-- Compendium -->
@@ -229,6 +85,9 @@
                         <li>Condividi voci direttamente nella chat per i giocatori.</li>
                         <li>Supporto <strong>Deep Linking</strong>: <code>[testo](qe:...)</code> nelle note.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/compendium.html">Leggi la guida dettagliata</a>
+                    </div>
                 </div>
 
                 <!-- Ambient Music -->
@@ -240,6 +99,9 @@
                         <li>Sincronizzazione in tempo reale del brano e del volume per tutti i giocatori.</li>
                         <li>Modalità Loop e riordino brani tramite drag & drop.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/ambient-music.html">Leggi la guida dettagliata</a>
+                    </div>
                 </div>
 
                 <!-- Documents -->
@@ -251,6 +113,9 @@
                         <li>Estrazione testo per ricerche veloci all'interno dei manuali.</li>
                         <li>Condivisione di link a pagine specifiche nella chat di gioco.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/documents.html">Leggi la guida dettagliata</a>
+                    </div>
                 </div>
 
                 <!-- Watabou -->
@@ -262,6 +127,9 @@
                         <li>Wrapper ottimizzato per l'uso all'interno del VTT.</li>
                         <li>Ideale per improvvisare location durante la sessione.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/watabou.html">Leggi la guida dettagliata</a>
+                    </div>
                 </div>
 
                 <!-- AI Generator -->
@@ -273,6 +141,9 @@
                         <li>Creazione di immagini per nuovi asset e segnalini.</li>
                         <li>Potenzia MapsGen con la trasformazione in mappe realistiche.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/ai-generator.html">Leggi la guida dettagliata</a>
+                    </div>
                 </div>
 
                 <!-- Time Manager -->
@@ -284,6 +155,9 @@
                         <li>Esecuzione in background: continua a scorrere anche se il modale è chiuso.</li>
                         <li>Avviso audio al termine del tempo.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/time-manager.html">Leggi la guida dettagliata</a>
+                    </div>
                 </div>
 
                 <!-- Assets Installer -->
@@ -294,6 +168,9 @@
                         <li>Carica file ZIP per popolare automaticamente la libreria asset.</li>
                         <li>Gestione pacchetti: installa bundle di mostri, mappe o icone.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/assets-installer.html">Leggi la guida dettagliata</a>
+                    </div>
                 </div>
             </div>
 
@@ -421,6 +298,9 @@
                         <li><strong>AI Realistic</strong>: transforms schematic maps into high-quality realistic
                             graphics.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/mapsgen.html">Read the full guide</a>
+                    </div>
                 </div>
 
                 <!-- Character Sheet -->
@@ -432,6 +312,9 @@
                         <li>Integration with the <strong>Compendium</strong> to add spells and abilities.</li>
                         <li>JSON Import/Export support.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/character-sheet.html">Read the full guide</a>
+                    </div>
                 </div>
 
                 <!-- Compendium -->
@@ -443,6 +326,9 @@
                         <li>Share entries directly into the chat for players.</li>
                         <li><strong>Deep Linking</strong> support: <code>[text](qe:...)</code> in notes.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/compendium.html">Read the full guide</a>
+                    </div>
                 </div>
 
                 <!-- Ambient Music -->
@@ -454,6 +340,9 @@
                         <li>Real-time track and volume synchronization for all players.</li>
                         <li>Loop mode and track reordering via drag & drop.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/ambient-music.html">Read the full guide</a>
+                    </div>
                 </div>
 
                 <!-- Documents -->
@@ -465,6 +354,9 @@
                         <li>Text extraction for fast searching within manuals.</li>
                         <li>Share links to specific pages in the game chat.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/documents.html">Read the full guide</a>
+                    </div>
                 </div>
 
                 <!-- Watabou -->
@@ -476,6 +368,9 @@
                         <li>Optimized wrapper for VTT usage.</li>
                         <li>Perfect for improvising locations during sessions.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/watabou.html">Read the full guide</a>
+                    </div>
                 </div>
 
                 <!-- AI Generator -->
@@ -487,6 +382,9 @@
                         <li>Create images for new assets and tokens.</li>
                         <li>Powers MapsGen with realistic map transformations.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/ai-generator.html">Read the full guide</a>
+                    </div>
                 </div>
 
                 <!-- Time Manager -->
@@ -498,6 +396,9 @@
                         <li>Background execution: keeps running even when the modal is closed.</li>
                         <li>Audio alert when time is up.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/time-manager.html">Read the full guide</a>
+                    </div>
                 </div>
 
                 <!-- Assets Installer -->
@@ -508,6 +409,9 @@
                         <li>Upload ZIP files to automatically populate the asset library.</li>
                         <li>Pack management: install bundles of monsters, maps, or icons.</li>
                     </ul>
+                    <div class="card-footer">
+                        <a class="ext-detail" href="plus-features/assets-installer.html">Read the full guide</a>
+                    </div>
                 </div>
             </div>
 
