@@ -11,31 +11,63 @@
         <a class="detail-back" id="backToIndex" href="../plus-features.html"></a>
         <div class="lang-it detail-body">
             <h1>Scheda del personaggio</h1>
-            <p class="detail-lead">Scheda D&amp;D 5e (layout italiano v2) con campi collegati, salvataggio in campagna e collegamento ai segnalini.</p>
-            <h2>Elenco e selezione</h2>
-            <p>Nella barra laterale trovi le schede della campagna. Selezionane una per modificarla; senza selezione la modifica non è disponibile.</p>
+            <p class="detail-lead">Scheda D&amp;D 5e (layout “italiano v2”) con due tab principali: <strong>scheda completa</strong> e <strong>incantesimi / storia</strong>. I dati sono salvati lato server per campagna; il Master ha visione completa, i giocatori lavorano sulle proprie schede (e su quelle rese visibili).</p>
+
+            <h2>Struttura dell’interfaccia</h2>
+            <ul>
+                <li><strong>Barra superiore</strong>: ricerca nell’elenco schede, creazione nuova scheda, esportazione/importazione JSON, stampa PDF, e quando applicabile anteprima “come giocatore”.</li>
+                <li><strong>Sidebar</strong>: elenco schede con nome; clic per caricare. Seleziona una scheda prima di modificarla — il pulsante <strong>Abilita modifiche / Solo lettura</strong> compare solo quando una scheda è caricata e hai permesso di edit.</li>
+                <li><strong>Tab interni</strong>: passa tra scheda principale (statistiche, attacchi, equipaggiamento, tratti) e sezione incantesimi/storia.</li>
+            </ul>
+
+            <h2>Modifica e salvataggio</h2>
+            <p>Attiva la modalità modifica per editare campi. Molti valori si salvano automaticamente dopo le modifiche (debounce). In sola lettura i campi sono disattivati ma i <strong>link al compendio</strong> restano cliccabili per consultazione.</p>
+
             <h2>Collegamento a personaggio e token</h2>
-            <p>Puoi associare una scheda a un personaggio della campagna e, dal menu contestuale del segnalino, aprire rapidamente la scheda collegata.</p>
+            <p>Puoi associare una scheda a un <strong>personaggio</strong> della campagna. Dal <strong>menu contestuale del segnalino</strong> (token) puoi aprire direttamente la scheda collegata senza cercarla nella lista.</p>
+
             <h2>Compendium</h2>
-            <p>Nei campi testo supportati, i collegamenti al compendio (quinta edizione) permettono di inserire riferimenti a incantesimi e regole coerenti con i tuoi contenuti.</p>
+            <p>Nei campi testo supportati, i riferimenti a contenuti del compendio (quinta edizione) permettono di inserire incantesimi e regole coerenti con i database installati. I link si comportano come nel resto del client PlanarAlly.</p>
+
             <h2>Import / Export</h2>
-            <p>Esporta la scheda in JSON per backup o importala da file (utile per migrazioni o creazione rapida di PNG).</p>
-            <h2>Permessi</h2>
-            <p>Il Master vede e modifica tutte le schede secondo le regole della campagna; i giocatori lavorano sulle proprie schede (e su quelle rese visibili).</p>
+            <ul>
+                <li><strong>Esporta JSON</strong>: backup dello stato completo della scheda.</li>
+                <li><strong>Importa JSON</strong>: crea una nuova scheda o aggiorna dati (utile per PG generati dall’AI Generator o migrati da file).</li>
+                <li><strong>Stampa</strong>: apre una finestra di stampa con il layout formattato per carta.</li>
+            </ul>
+
+            <h2>Visibilità e permessi</h2>
+            <p>Il Master può nascondere o mostrare schede ai giocatori (icona visibilità). I giocatori vedono le proprie schede e quelle rese esplicitamente visibili. Le operazioni di eliminazione sono limitate ai permessi previsti dal backend.</p>
         </div>
         <div class="lang-en detail-body" style="display: none">
             <h1>Character Sheet</h1>
-            <p class="detail-lead">D&amp;D 5e-style sheet with linked fields, campaign save, and token integration.</p>
-            <h2>List and selection</h2>
-            <p>Use the sidebar to pick a sheet. Editing actions apply only when a sheet is selected.</p>
+            <p class="detail-lead">D&amp;D 5e-style sheet with two tabs: <strong>main sheet</strong> and <strong>spells &amp; backstory</strong>. Data is stored per campaign on the server; the GM sees everything, players edit their own sheets (and any shared ones).</p>
+
+            <h2>UI layout</h2>
+            <ul>
+                <li><strong>Top bar</strong>: search, new sheet, JSON import/export, print, and (for the GM) a player-preview toggle when available.</li>
+                <li><strong>Sidebar</strong>: sheet list. Load a sheet before editing—the <strong>Enable edits / Read-only</strong> toggle only appears when a sheet is loaded and you have edit rights.</li>
+                <li><strong>Inner tabs</strong>: switch between main stats and spells/story.</li>
+            </ul>
+
+            <h2>Editing and saving</h2>
+            <p>Enable edit mode to change fields. Many values auto-save after debounced changes. In read-only mode inputs are disabled but <strong>compendium links</strong> stay clickable.</p>
+
             <h2>Character and token link</h2>
-            <p>Associate a sheet with a campaign character; open it from the token context menu when linked.</p>
+            <p>Bind a sheet to a campaign <strong>character</strong>. From the token context menu, open the linked sheet without hunting the list.</p>
+
             <h2>Compendium</h2>
-            <p>Supported text fields accept compendium links so spells and rules stay consistent with your installed content.</p>
+            <p>Supported text fields accept compendium links so spells and rules match your installed databases.</p>
+
             <h2>Import / Export</h2>
-            <p>Export to JSON for backup or import from a file for migrations or quick PC creation.</p>
-            <h2>Permissions</h2>
-            <p>The GM manages visibility and edits per campaign rules; players edit their own sheets (and shared ones as allowed).</p>
+            <ul>
+                <li><strong>Export JSON</strong> for backups.</li>
+                <li><strong>Import JSON</strong> to create or hydrate sheets (AI Generator output, migrations).</li>
+                <li><strong>Print</strong> opens a print-friendly layout.</li>
+            </ul>
+
+            <h2>Visibility</h2>
+            <p>The GM can toggle visibility to players per sheet. Deletes respect server-side permissions.</p>
         </div>
     </section>
     <script src="../plus-features-detail.js"></script>

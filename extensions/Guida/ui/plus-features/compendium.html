@@ -11,31 +11,63 @@
         <a class="detail-back" id="backToIndex" href="../plus-features.html"></a>
         <div class="lang-it detail-body">
             <h1>Compendium</h1>
-            <p class="detail-lead">Consulta regole, mostri, incantesimi e contenuti personalizzati senza uscire dal tavolo virtuale.</p>
-            <h2>Installazione contenuti</h2>
-            <p>Da cruscotto o flusso dedicato puoi importare database JSON/ZIP (es. SRD 5e o pacchetti di terze parti). Ogni installazione aggiunge compendi e collezioni navigabili dall’estensione.</p>
-            <h2>Navigazione e ricerca</h2>
-            <p>Browser ad albero, ricerca globale e tag aiutano a trovare una voce durante la sessione.</p>
+            <p class="detail-lead">Pannello per consultare compendi installati (regole, mostri, incantesimi, oggetti, background, ecc.) con navigazione ad albero, ricerca, tag e markdown arricchito. È pensato per il Master e, dove configurato, anche per i giocatori con contenuti visibili.</p>
+
+            <h2>Installazione e aggiornamento contenuti</h2>
+            <p>Dal cruscotto o dai flussi di import puoi caricare <strong>JSON</strong> e/o archivi <strong>ZIP</strong> che contengono uno o più compendi. Ogni installazione aggiunge alberi di <strong>collezioni</strong> e <strong>voci</strong> (slug univoci per voce). Puoi tenere più compendi (es. SRD 5e + homebrew) e passare dall’uno all’altro.</p>
+
+            <h2>Navigazione</h2>
+            <ul>
+                <li><strong>Sidebar</strong>: compendio → collezioni annidate (anche gerarchiche) → voci.</li>
+                <li><strong>Breadcrumb</strong>: salta rapidamente a un livello superiore senza perdere il contesto.</li>
+                <li><strong>Ricerca globale</strong>: filtra per nome tra le voci caricate (utile in sessione quando il nome è noto).</li>
+                <li><strong>Tag</strong> (se presenti nei dati): filtri per categoria, tipo, livello incantesimo, ecc.</li>
+            </ul>
+
+            <h2>Visualizzazione voce</h2>
+            <p>Il testo è solitamente <strong>Markdown</strong>: titoli, liste, tabelle e blocchi codice. I link interni al compendio (sintassi dedicata) si aprono dentro l’estensione. Le immagini remote o interne vengono renderizzate nel viewer.</p>
+
             <h2>Condivisione in chat</h2>
-            <p>Invia un estratto o un riassunto della voce direttamente in chat così tutti i giocatori vedono lo stesso testo.</p>
-            <h2>Deep linking nelle note</h2>
-            <p>Nelle note puoi usare sintassi del tipo <code>[testo](qe:…)</code> per puntare a voci del compendio, creando collegamenti cliccabili.</p>
-            <h2>Immagini e asset</h2>
-            <p>Le illustrazioni nelle voci possono essere aggiunte alla libreria asset della campagna (percorso organizzato sotto <code>extensions/compendium/…</code>) e trascinate sulla mappa come qualsiasi altro file.</p>
+            <p>Puoi inviare un estratto della voce (o un riassunto formattato) nella <strong>chat di gioco</strong> così tutti vedono lo stesso riferimento senza aprire il PDF sul proprio PC.</p>
+
+            <h2>Collegamenti nelle note (deep link)</h2>
+            <p>Nelle note di PlanarAlly puoi usare collegamenti del tipo <code>[testo visibile](qe:compendium/collection/…)</code> (la forma esatta dipende dal formato del tuo database) così, cliccando dalla nota, si apre la voce giusta nel compendio.</p>
+
+            <h2>Immagini e libreria asset</h2>
+            <p>Da una voce, con <strong>tasto destro sull’immagine</strong> puoi aggiungere l’illustrazione agli asset della campagna. Il file viene salvato in una cartella deterministica (percorso <code>extensions/compendium/…</code> con sottocartella per <strong>slug voce</strong> per evitare collisioni tra voci omonime). Dopo il salvataggio puoi <strong>trascinare</strong> l’immagine sulla mappa come qualsiasi altro asset; se la ricarichi in futuro, il client può risolvere l’hash senza duplicare file.</p>
+
+            <h2>Traduzioni e contesto</h2>
+            <p>Se usi database multilingua (es. contenuti IT/EN), l’interfaccia può adattarsi al locale della sessione dove previsto dai metadati del compendio.</p>
         </div>
         <div class="lang-en detail-body" style="display: none">
             <h1>Compendium</h1>
-            <p class="detail-lead">Rules, monsters, spells, and homebrew—available inside the VTT.</p>
+            <p class="detail-lead">Browse installed compendiums (rules, monsters, spells, items, backgrounds, etc.) with a tree, search, tags, and rich Markdown. Built for the GM, and—where configured—for players with visible content.</p>
+
             <h2>Installing content</h2>
-            <p>Import JSON/ZIP packs (SRD 5e or third-party databases). Each install adds compendiums and collections you can browse from the extension.</p>
-            <h2>Browsing and search</h2>
-            <p>Tree navigation, global search, and tags help you find entries mid-session.</p>
+            <p>Import <strong>JSON</strong> and/or <strong>ZIP</strong> packs from the dashboard. Each install adds <strong>collections</strong> and <strong>entries</strong> (per-entry slugs). You can keep multiple compendiums side by side (e.g. SRD 5e + homebrew).</p>
+
+            <h2>Navigation</h2>
+            <ul>
+                <li><strong>Sidebar</strong>: compendium → nested collections → entries.</li>
+                <li><strong>Breadcrumb</strong> for quick jumps up the hierarchy.</li>
+                <li><strong>Global search</strong> filters by name across loaded entries.</li>
+                <li><strong>Tags</strong> (when present in data) for category filters, spell level, etc.</li>
+            </ul>
+
+            <h2>Entry view</h2>
+            <p>Entries render as <strong>Markdown</strong>: headings, lists, tables, code blocks. Internal compendium links open inside the extension. Images render inline.</p>
+
             <h2>Share to chat</h2>
-            <p>Push a snippet or summary to game chat so everyone sees the same text.</p>
-            <h2>Deep linking in notes</h2>
-            <p>Use <code>[label](qe:…)</code> syntax in notes to link to compendium entries.</p>
+            <p>Push a snippet or formatted summary to <strong>game chat</strong> so everyone shares the same reference.</p>
+
+            <h2>Deep links in notes</h2>
+            <p>Use <code>[label](qe:…)</code>-style links in PlanarAlly notes so clicks jump straight into the right entry (exact format depends on your database).</p>
+
             <h2>Images and assets</h2>
-            <p>Art in entries can be sent to the campaign asset library (under <code>extensions/compendium/…</code>) and dragged to the map like any other asset.</p>
+            <p><strong>Right-click an image</strong> in an entry to add it to the campaign library under a deterministic path (<code>extensions/compendium/…</code>, including a per–entry slug folder to avoid name clashes). Then <strong>drag</strong> it to the map like any asset; on reload the client can resolve the same file hash without duplicates.</p>
+
+            <h2>Locales</h2>
+            <p>Multilingual databases can respect session locale when metadata provides it.</p>
         </div>
     </section>
     <script src="../plus-features-detail.js"></script>

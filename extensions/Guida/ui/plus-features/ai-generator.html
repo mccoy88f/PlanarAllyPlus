@@ -10,28 +10,70 @@
     <section class="detail-page">
         <a class="detail-back" id="backToIndex" href="../plus-features.html"></a>
         <div class="lang-it detail-body">
-            <h1>AI Generator (OpenRouter)</h1>
-            <p class="detail-lead">Pannello per testi e immagini tramite modelli collegati a OpenRouter, con attività predefinite per il tavolo (ambientazioni, PNG, mappe, import scheda, ecc.).</p>
-            <h2>Configurazione</h2>
-            <p>Richiede una chiave API valida e i permessi di rete sul server. Senza configurazione le funzioni AI non sono disponibili.</p>
-            <h2>Testi</h2>
-            <p>Genera descrizioni, dialoghi, background e contenuti strutturati; alcune attività producono JSON compatibile con la scheda personaggio o altri flussi.</p>
-            <h2>Immagini</h2>
-            <p>Crea immagini per token o asset e, dove previsto, inviale alla libreria senza riempire cartelle temporanee inutilmente.</p>
-            <h2>MapsGen</h2>
-            <p>La trasformazione “realistica” delle mappe procedurali può appoggiarsi a questo modulo quando configurato.</p>
+            <h1>AI Generator (OpenRouter / Google)</h1>
+            <p class="detail-lead">Modale che invia richieste a modelli remoti (tipicamente tramite <strong>OpenRouter</strong>, con supporto opzionale per modelli Google) configurati sul server. Include attività predefinite per testo e immagini, editor di <strong>task personalizzati</strong> e pannello <strong>impostazioni</strong> per chiave API e elenco modelli.</p>
+
+            <h2>Configurazione obbligatoria</h2>
+            <ul>
+                <li>Il server deve avere una <strong>chiave API</strong> valida e accesso in uscita verso i provider.</li>
+                <li>Dalla scheda <strong>Impostazioni</strong> puoi verificare i modelli disponibili (gratuiti o meno) e salvarli.</li>
+                <li>Senza configurazione le esecuzioni restano disabilitate o falliscono con messaggio esplicito.</li>
+            </ul>
+
+            <h2>Attività (task) predefinite — esempi</h2>
+            <ul>
+                <li><strong>Genera personaggio</strong>: testo descrittivo per PNG o NPC.</li>
+                <li><strong>Genera JSON scheda</strong>: output strutturato compatibile con l’import della scheda personaggio.</li>
+                <li><strong>Genera storia / ambientazione</strong>: narrazione, hook, descrizioni di luogo.</li>
+                <li><strong>Importa scheda da file</strong>: carica un PDF o testo; il modello estrae dati verso il formato scheda.</li>
+                <li><strong>Importa mappa</strong>: analisi di immagine mappa per ricavarne dati utili (secondo il prompt del task).</li>
+            </ul>
+            <p>Puoi duplicare e modificare i prompt di sistema e utente per adattarli alla tua campagna.</p>
+
+            <h2>Task personalizzati</h2>
+            <p>Crea un task vuoto, definisci etichetta, istruzioni di sistema e prompt utente, poi salvalo nell’elenco. Utile per formati ripetitivi (incontri casuali, loot, iniziative narrative).</p>
+
+            <h2>Immagini e multimodale</h2>
+            <p>Alcuni modelli espongono <strong>modalità immagine</strong> o input vision: puoi generare arte per token, location o inviare un’immagine come riferimento. I file generati possono essere inviati alla libreria asset quando il flusso lo supporta.</p>
+
+            <h2>Integrazione MapsGen</h2>
+            <p>La trasformazione “realistica” delle mappe procedurali può chiamare la stessa infrastruttura (prompt + modello immagine) senza riempire cartelle temporanee in modo permanente.</p>
+
+            <h2>Privacy e costi</h2>
+            <p class="detail-note">I contenuti delle richieste transitano verso il provider scelto; controlla termini di servizio e costi per token. Non inserire segreti di campagna sensibili se non ti fidi del canale.</p>
         </div>
         <div class="lang-en detail-body" style="display: none">
-            <h1>AI Generator (OpenRouter)</h1>
-            <p class="detail-lead">Text and image workflows via OpenRouter-backed models, with tasks tailored for play (locations, NPCs, maps, sheet import, etc.).</p>
-            <h2>Setup</h2>
-            <p>Requires a valid API key and server network access. Features stay disabled until configured.</p>
-            <h2>Text</h2>
-            <p>Generate descriptions, dialogue, backgrounds, and structured outputs; some tasks emit JSON compatible with the character sheet or other flows.</p>
-            <h2>Images</h2>
-            <p>Create art for tokens or assets and send results to the library where supported.</p>
-            <h2>MapsGen</h2>
-            <p>“Realistic” map passes can route through this stack when enabled.</p>
+            <h1>AI Generator (OpenRouter / Google)</h1>
+            <p class="detail-lead">Modal that calls remote models (typically <strong>OpenRouter</strong>, optionally Google models) configured on the server. Ships with preset <strong>tasks</strong>, a <strong>custom task</strong> editor, and a <strong>settings</strong> tab for API keys and model lists.</p>
+
+            <h2>Required setup</h2>
+            <ul>
+                <li>Server needs a valid <strong>API key</strong> and outbound network access.</li>
+                <li>The <strong>Settings</strong> tab lists available models (free/paid) for selection.</li>
+                <li>Without setup, runs stay disabled or error clearly.</li>
+            </ul>
+
+            <h2>Preset tasks (examples)</h2>
+            <ul>
+                <li><strong>Generate character</strong>: prose NPC/PC descriptions.</li>
+                <li><strong>Generate character JSON</strong>: structured output for the character sheet importer.</li>
+                <li><strong>Generate story / setting</strong>: hooks, locations, lore blurbs.</li>
+                <li><strong>Import character sheet</strong>: upload PDF/text; model extracts sheet data.</li>
+                <li><strong>Import map</strong>: vision-oriented analysis of a map image (per task prompts).</li>
+            </ul>
+            <p>Duplicate tasks to tweak system/user prompts for your table.</p>
+
+            <h2>Custom tasks</h2>
+            <p>Create blank tasks with your own instructions—great for random encounters, loot tables, or recurring formats.</p>
+
+            <h2>Images and multimodal</h2>
+            <p>Some models expose <strong>image output</strong> or vision inputs—generate token art, scenes, or pass reference images. Outputs can route to the asset library when supported.</p>
+
+            <h2>MapsGen bridge</h2>
+            <p>“Realistic” dungeon/building passes reuse this stack so schematic maps become rendered art without spamming temp folders.</p>
+
+            <h2>Privacy and billing</h2>
+            <p class="detail-note">Prompts leave your server for the selected provider—review their terms and token pricing. Avoid sensitive secrets if you do not trust the channel.</p>
         </div>
     </section>
     <script src="../plus-features-detail.js"></script>

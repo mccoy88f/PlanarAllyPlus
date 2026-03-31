@@ -11,23 +11,57 @@
         <a class="detail-back" id="backToIndex" href="../plus-features.html"></a>
         <div class="lang-it detail-body">
             <h1>Musica d'ambiente</h1>
-            <p class="detail-lead">Playlist audio sincronizzate con tutti i partecipanti: stesso brano, stesso volume, ideale per sottofondo durante la sessione.</p>
-            <h2>Playlist da asset</h2>
-            <p>Costruisci playlist usando file audio presenti negli asset della campagna (cartelle e tracce che già possiedi).</p>
-            <h2>Sincronizzazione</h2>
-            <p>Avvio, pausa, traccia corrente e livello volume possono essere allineati in tempo reale tra Master e giocatori connessi.</p>
-            <h2>Loop e ordine</h2>
-            <p>Modalità loop e riordino trascinando le voci per preparare la colonna sonora della serata.</p>
+            <p class="detail-lead">Lettore di playlist basato su <strong>Howler</strong> integrato nell’estensione: costruisci code da file audio già presenti negli <strong>asset della campagna</strong>, controlli riproduzione e volume, e sincronizzi lo stato con gli altri client connessi alla stessa stanza.</p>
+
+            <h2>Costruire una playlist</h2>
+            <ul>
+                <li>Apri l’<strong>esplora asset</strong> integrato per navigare cartelle e file audio (mp3, ogg, ecc. supportati dal browser).</li>
+                <li>Aggiungi tracce alla coda: puoi selezionare più file e confermare.</li>
+                <li>Rimuovi tracce dalla lista con l’azione dedicata sulla riga.</li>
+                <li><strong>Riordina</strong> trascinando le righe (drag &amp; drop) per definire l’ordine di riproduzione.</li>
+            </ul>
+
+            <h2>Riproduzione e loop</h2>
+            <p>Usa play/pausa e passa al brano successivo o precedente. La modalità <strong>loop</strong> (dove presente) ripete la playlist o il brano corrente secondo l’impostazione dell’UI. Il titolo del brano in riproduzione può mostrarsi in una riga con effetto scorrimento se il nome è lungo.</p>
+
+            <h2>Volume</h2>
+            <p>Un cursore di <strong>volume master</strong> regola l’intensità percepita sul tuo client. In combinazione con la sincronizzazione, questo consente al Master di impostare un livello “di tavolo” condiviso.</p>
+
+            <h2>Sincronizzazione di sessione</h2>
+            <p>Quando la sessione lo prevede, avvio, pausa, traccia attiva e volume possono essere propagati agli altri partecipanti così tutti ascoltano lo stesso punto della colonna sonora — utile per sottofondi durante esplorazione o combattimento.</p>
+
+            <h2>Salvataggio playlist</h2>
+            <p>Puoi salvare una configurazione di coda per riutilizzarla nelle sessioni successive senza ricominciare dall’esplora asset (dettaglio dipende dalla versione salvata sul server).</p>
+
+            <h2>Requisiti</h2>
+            <p class="detail-note">I file devono essere caricati negli asset della campagna; l’estensione non scarica musica protetta da URL esterni senza un asset intermedio.</p>
         </div>
         <div class="lang-en detail-body" style="display: none">
             <h1>Ambient Music</h1>
-            <p class="detail-lead">Synchronized playlists so everyone hears the same track and volume—perfect for session atmosphere.</p>
-            <h2>Playlists from assets</h2>
-            <p>Build playlists from audio files already in your campaign asset library.</p>
-            <h2>Sync</h2>
-            <p>Play/pause, current track, and volume can stay aligned between GM and connected players.</p>
-            <h2>Loop and order</h2>
-            <p>Enable loop and drag tracks to reorder your session soundtrack.</p>
+            <p class="detail-lead"><strong>Howler</strong>-based player inside the extension: build queues from audio already in your <strong>campaign asset library</strong>, control playback and volume, and sync state with other clients in the room.</p>
+
+            <h2>Building a playlist</h2>
+            <ul>
+                <li>Open the built-in <strong>asset explorer</strong> to browse folders and audio files.</li>
+                <li>Add tracks to the queue; multi-select when available.</li>
+                <li>Remove tracks per row.</li>
+                <li><strong>Reorder</strong> via drag &amp; drop.</li>
+            </ul>
+
+            <h2>Playback and loop</h2>
+            <p>Play/pause and skip forward/back. <strong>Loop</strong> modes repeat the list or track depending on the UI. Long titles may marquee in the “now playing” strip.</p>
+
+            <h2>Volume</h2>
+            <p>A master <strong>volume slider</strong> sets your client level; combined with sync this helps the GM set a shared table level.</p>
+
+            <h2>Session sync</h2>
+            <p>When enabled, play/pause, active track, and volume can propagate so everyone hears the same moment of the soundtrack.</p>
+
+            <h2>Saving playlists</h2>
+            <p>Save a queue configuration for reuse (exact persistence depends on the server build).</p>
+
+            <h2>Requirements</h2>
+            <p class="detail-note">Audio must live in campaign assets; the extension does not magically stream DRM-protected URLs without an asset intermediary.</p>
         </div>
     </section>
     <script src="../plus-features-detail.js"></script>

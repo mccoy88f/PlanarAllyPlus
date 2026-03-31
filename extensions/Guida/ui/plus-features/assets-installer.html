@@ -11,23 +11,57 @@
         <a class="detail-back" id="backToIndex" href="../plus-features.html"></a>
         <div class="lang-it detail-body">
             <h1>Assets Installer</h1>
-            <p class="detail-lead">Installa in blocco risorse nella libreria asset della campagna caricando archivi ZIP strutturati (icone, mappe, token, ecc.).</p>
-            <h2>Flusso tipico</h2>
-            <p>Seleziona un pacchetto ZIP compatibile; il server estrae file e cartelle nella libreria rispettando la struttura del pacchetto.</p>
-            <h2>Quando usarlo</h2>
-            <p>Utile dopo aver scaricato bundle di terze parti o per migrare cartelle di asset senza caricare file uno per uno dall’interfaccia standard.</p>
-            <h2>Permessi</h2>
-            <p>L’operazione riguarda gli asset della campagna: servono i permessi adeguati (in genere Master o chi gestisce la libreria).</p>
+            <p class="detail-lead">Strumento del <strong>cruscotto</strong> (dashboard) per caricare un archivio <strong>ZIP</strong> e scompattarlo nella <strong>libreria asset</strong> della campagna, rispettando la struttura di cartelle interna. È pensato per importare pacchetti di mappe, token, PNG e audio in un colpo solo.</p>
+
+            <h2>Selezione della destinazione</h2>
+            <p>Un <strong>albero cartelle</strong> mostra la libreria attuale: espandi i nodi e seleziona la cartella in cui vuoi che finiscano i file dello ZIP (ad esempio <code>tokens/nemici</code> o una cartella dedicata a un modulo). Se non scegli nulla, l’estensione usa una destinazione predefinita secondo il flusso dell’interfaccia.</p>
+
+            <h2>Caricamento del pacchetto</h2>
+            <ul>
+                <li>Prepara un <strong>ZIP</strong> con file e sottocartelle già organizzati come desideri in libreria.</li>
+                <li>Avvia l’upload: compare una <strong>barra di avanzamento</strong> per file grandi.</li>
+                <li>Il server valida, estrae e registra i file nel database asset unificato (anteprime generate in modo asincrono).</li>
+            </ul>
+
+            <h2>Cosa conviene impacchettare</h2>
+            <ul>
+                <li>Collezioni di <strong>token</strong> PNG/WebP con nomi coerenti.</li>
+                <li>Mappe numerate o organizzate per avventura.</li>
+                <li>Strutture di cartelle replicate da bundle scaricati da comunità (rispettando licenze).</li>
+            </ul>
+
+            <h2>Permessi e sicurezza</h2>
+            <p>Solo utenti con diritto di modifica sugli asset della campagna dovrebbero usare l’installer. Non caricare ZIP da fonti non fidate: il contenuto viene scritto nel percorso selezionato.</p>
+
+            <h2>Dopo l’installazione</h2>
+            <p>I nuovi file compaiono nel gestore asset del client di gioco; le anteprime possono comparire con breve ritardo mentre il server elabora le miniature.</p>
         </div>
         <div class="lang-en detail-body" style="display: none">
             <h1>Assets Installer</h1>
-            <p class="detail-lead">Bulk-install resources into the campaign asset library by uploading structured ZIP packs (icons, maps, tokens, etc.).</p>
-            <h2>Typical flow</h2>
-            <p>Pick a compatible ZIP; the server unpacks files and folders into the library following the archive layout.</p>
-            <h2>When to use it</h2>
-            <p>Great after downloading third-party bundles or when migrating asset folders without manual per-file uploads.</p>
-            <h2>Permissions</h2>
-            <p>Campaign asset operations require appropriate rights (typically GM or whoever manages the library).</p>
+            <p class="detail-lead"><strong>Dashboard</strong> tool to upload a <strong>ZIP</strong> and unpack it into the campaign <strong>asset library</strong>, preserving inner folder layout—ideal for bulk maps, tokens, and audio.</p>
+
+            <h2>Pick a destination</h2>
+            <p>A <strong>folder tree</strong> mirrors your library: expand nodes and select the target folder (e.g. <code>tokens/enemies</code>). If none is chosen, the UI falls back to its default target.</p>
+
+            <h2>Upload flow</h2>
+            <ul>
+                <li>Build a <strong>ZIP</strong> with the hierarchy you want in-game.</li>
+                <li>Start upload—watch the <strong>progress bar</strong> for large archives.</li>
+                <li>The server validates, extracts, and registers files in the unified asset DB (thumbnails follow asynchronously).</li>
+            </ul>
+
+            <h2>What to pack</h2>
+            <ul>
+                <li>Token sheets as PNG/WebP with sensible names.</li>
+                <li>Numbered maps or per-adventure folders.</li>
+                <li>Community bundles you are licensed to use.</li>
+            </ul>
+
+            <h2>Permissions and safety</h2>
+            <p>Only users who may edit campaign assets should run installs. Avoid untrusted ZIPs—content lands in the selected tree.</p>
+
+            <h2>After install</h2>
+            <p>New files show up in the in-game asset manager; previews may trail slightly while thumbnails generate.</p>
         </div>
     </section>
     <script src="../plus-features-detail.js"></script>

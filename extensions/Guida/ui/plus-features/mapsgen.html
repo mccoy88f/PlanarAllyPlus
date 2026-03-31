@@ -10,28 +10,88 @@
     <section class="detail-page">
         <a class="detail-back" id="backToIndex" href="../plus-features.html"></a>
         <div class="lang-it detail-body">
-            <h1>MapsGen</h1>
-            <p class="detail-lead">Generatore integrato per creare mappe da usare subito sul piano di gioco: dungeon procedurali, edifici e passaggio opzionale a una versione più realistica tramite AI.</p>
-            <h2>Modalità Dungeon</h2>
-            <p>Scegli un archetipo (cripta, tempio, tana, ecc.), regola simmetria e complessità e genera un layout di stanze e corridoi. La mappa può essere inserita nella sessione come base per muri e porte.</p>
-            <h2>Modalità Edifici</h2>
-            <p>Per interni (case, taverne, locande): stanze, arredi e distribuzione utile per scene sociali o esplorazione urbana.</p>
-            <h2>Esportazione e uso in mappa</h2>
-            <p>Dopo la generazione puoi portare il risultato sulla mappa di PlanarAlly come sfondo o risorsa, in base al flusso dell’estensione (incluso salvataggio temporaneo quando serve una trasformazione).</p>
-            <h2>AI Realistic</h2>
-            <p>Trasforma una mappa schematica in un’immagine più realistica (richiede configurazione del generatore AI / OpenRouter dove previsto). Utile per locandine o mappe “illustrate” da mostrare ai giocatori.</p>
+            <h1>MapsGen (generatore mappe)</h1>
+            <p class="detail-lead">Modale integrata nel client per generare layout dungeon o edifici, visualizzare un’anteprima allineata alla griglia, opzionalmente rigenerare con un <strong>seed</strong>, e infine <strong>aggiungere muri, porte e immagine</strong> sulla mappa attiva. È il cuore procedurale che alimenta anche la trasformazione “realistica” via AI quando OpenRouter è configurato.</p>
+
+            <h2>Due modalità</h2>
+            <h3>Dungeon</h3>
+            <p>Genera reticoli di stanze e corridoi in stile classico dungeon crawler. Parametri principali:</p>
+            <ul>
+                <li><strong>Dimensione</strong> (da molto piccola a molto grande): scala dell’intero complesso.</li>
+                <li><strong>Archetipo</strong>: ad esempio classico, labirinto (warren), tempio, cripta, caverna, fortezza, tana — cambia la “personalità” del layout.</li>
+                <li><strong>Simmetria</strong>: nessuna, bilaterale, radiale a 2 o 4 assi, parziale — utile per architetture più ordinate o rituali.</li>
+                <li><strong>Acqua</strong>: da asciutto a allagato (pozzanghere, laghi) per dungeon umidi o sommersi.</li>
+                <li><strong>Densità / pack</strong>: stanze più sparse, normali o compatte.</li>
+                <li><strong>Dimensione stanze</strong>: accoglienti, miste o sontuose.</li>
+                <li><strong>Corridoi incrociati</strong> e <strong>rottura simmetria</strong>: controllano quanto il layout segue una griglia rigida rispetto a varianti più organiche.</li>
+                <li><strong>Stanze arrotondate</strong>, <strong>corridoi principali</strong>, numeri sulle stanze (opzionale).</li>
+                <li><strong>Seed</strong>: stringa per riprodurre o variare una generazione in modo ripetibile.</li>
+            </ul>
+
+            <h3>Edificio</h3>
+            <p>Per interni “civili” (case, negozi, taverne, locande):</p>
+            <ul>
+                <li><strong>Archetipo</strong>: casa, bottega, taverna, locanda.</li>
+                <li><strong>Impronta</strong>: rettangolo, a L, croce, offset — forma del perimetro.</li>
+                <li><strong>Layout</strong>: open space o con corridoio centrale.</li>
+                <li><strong>Dimensione</strong> rispetto al lotto (piccola … molto grande).</li>
+                <li>Anche qui uno <strong>seed</strong> per iterare finché non trovi il piano giusto.</li>
+            </ul>
+
+            <h2>Anteprima, griglia e metadati</h2>
+            <p>Dopo la generazione vedi l’immagine di anteprima e i dati per allineare la mappa alla griglia del piano (celle, padding, ecc.). Il sistema calcola anche <strong>muri</strong> e <strong>porte</strong> derivati dal layout così, aggiungendo alla mappa, non devi ridisegnare tutto a mano.</p>
+
+            <h2>Aggiunta alla mappa</h2>
+            <p>Il pulsante per inserire il risultato crea l’asset di sfondo e le strutture (muri/porte) coerenti con l’anteprima. Puoi anche <strong>sostituire</strong> una generazione precedente collegata allo stesso flusso quando l’estensione lo consente.</p>
+
+            <h2>Rivedere una mappa già posizionata</h2>
+            <p>Se un asset mappa è stato creato da MapsGen, puoi riaprire il generatore in <strong>modalità modifica</strong> dall’asset: vengono ripristinati parametri, seed, muri e porte salvati nei metadati, così puoi ritoccare e rigenerare senza perdere il collegamento.</p>
+
+            <h2>AI “realistico”</h2>
+            <p>Con OpenRouter disponibile puoi trasformare la mappa schematica in un’immagine più dipinta/fotorealistica. Spesso è previsto un <strong>prompt aggiuntivo</strong> (finestra spostabile) per indicare stile, biomi o dettagli. Le immagini intermedie possono essere gestite come asset temporanei per non intasare la libreria.</p>
+            <p class="detail-note">Se OpenRouter non è configurato sul server, il pulsante realistico resta disabilitato o segnala l’indisponibilità.</p>
         </div>
         <div class="lang-en detail-body" style="display: none">
-            <h1>MapsGen</h1>
-            <p class="detail-lead">Built-in generator for battlemap-ready layouts: procedural dungeons, buildings, and an optional AI pass for a more realistic look.</p>
-            <h2>Dungeon mode</h2>
-            <p>Pick an archetype (crypt, temple, lair, etc.), tune symmetry and complexity, and generate rooms and corridors. Use the result as a base for walls and doors on the game board.</p>
-            <h2>Buildings mode</h2>
-            <p>Interior layouts (homes, taverns, inns) with rooms and props—handy for social scenes or town exploration.</p>
-            <h2>Export and map usage</h2>
-            <p>Send the output to your PlanarAlly map as a background or asset, including temporary assets when a transformation step is involved.</p>
-            <h2>AI Realistic</h2>
-            <p>Turns a schematic map into a more realistic image (requires AI / OpenRouter setup where applicable)—great for handouts or “illustrated” maps.</p>
+            <h1>MapsGen (map generator)</h1>
+            <p class="detail-lead">In-client modal to roll procedural <strong>dungeons</strong> or <strong>buildings</strong>, preview them snapped to the grid, optionally lock behaviour with a <strong>seed</strong>, then drop <strong>walls, doors, and artwork</strong> onto the active map. When OpenRouter is set up, the same flow powers the “realistic” AI pass.</p>
+
+            <h2>Two modes</h2>
+            <h3>Dungeon</h3>
+            <p>Room-and-corridor layouts. Key knobs:</p>
+            <ul>
+                <li><strong>Size</strong> (tiny … xlarge).</li>
+                <li><strong>Archetype</strong>: classic, warren, temple, crypt, cavern, fortress, lair, etc.</li>
+                <li><strong>Symmetry</strong>: none, bilateral, radial (2/4), partial.</li>
+                <li><strong>Water</strong>: dry through flooded.</li>
+                <li><strong>Pack density</strong>: sparse, normal, tight.</li>
+                <li><strong>Room size</strong>: cozy, mixed, grand.</li>
+                <li><strong>Cross-corridors</strong> and <strong>symmetry break</strong> sliders.</li>
+                <li><strong>Round rooms</strong>, <strong>halls</strong>, optional <strong>room numbers</strong>.</li>
+                <li><strong>Seed</strong> string for reproducible rolls.</li>
+            </ul>
+
+            <h3>Building</h3>
+            <p>Interiors for homes and venues:</p>
+            <ul>
+                <li><strong>Archetype</strong>: house, shop, tavern, inn.</li>
+                <li><strong>Footprint</strong>: rectangle, L-shape, cross, offset.</li>
+                <li><strong>Layout</strong>: open plan vs corridor.</li>
+                <li><strong>Size</strong> tier for the floorplate.</li>
+                <li><strong>Seed</strong> for iteration.</li>
+            </ul>
+
+            <h2>Preview, grid, metadata</h2>
+            <p>The preview image ships with grid sync data so the placed map lines up with the board. Derived <strong>wall</strong> and <strong>door</strong> geometry is computed so you are not tracing walls manually.</p>
+
+            <h2>Placing on the map</h2>
+            <p>Confirming pushes the background asset plus structure. Replace flows let you update an earlier MapsGen placement when supported.</p>
+
+            <h2>Editing an existing MapsGen map</h2>
+            <p>Assets created from MapsGen can be reopened in <strong>edit mode</strong>: stored params, seed, walls, and doors reload from metadata so you can tweak and regenerate without losing the link.</p>
+
+            <h2>AI “realistic” pass</h2>
+            <p>With OpenRouter configured, turn the schematic into a richer render; an <strong>extra prompt</strong> (draggable box) nudges style and detail. Temp assets avoid cluttering your library during iteration.</p>
+            <p class="detail-note">Without a valid OpenRouter setup, realistic generation stays unavailable.</p>
         </div>
     </section>
     <script src="../plus-features-detail.js"></script>

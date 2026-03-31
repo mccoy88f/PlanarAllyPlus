@@ -198,6 +198,43 @@ section.detail-page {
     border-radius: 4px;
 }
 
+.detail-body h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 1.35rem 0 0.4rem;
+    color: var(--fg-color);
+}
+
+.detail-body ul {
+    margin: 0.4rem 0 0.85rem 1.15rem;
+    padding: 0;
+}
+
+.detail-body li {
+    margin: 0.25rem 0;
+}
+
+.detail-body p {
+    margin: 0.5rem 0 0.75rem;
+}
+
+.detail-note {
+    font-size: 0.9rem;
+    color: #666;
+    margin-top: 0.35rem;
+}
+
+body.dark-theme .detail-note,
+body:not(.light-theme) .detail-note {
+    color: #aaa;
+}
+
+@media (prefers-color-scheme: dark) {
+    body:not(.light-theme) .detail-note {
+        color: #aaa;
+    }
+}
+
 table {
     width: 100%;
     border-collapse: collapse;

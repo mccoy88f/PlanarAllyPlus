@@ -11,23 +11,57 @@
         <a class="detail-back" id="backToIndex" href="../plus-features.html"></a>
         <div class="lang-it detail-body">
             <h1>Documenti (PDF)</h1>
-            <p class="detail-lead">Apri manuali e PDF di gioco senza lasciare PlanarAlly: sfoglia le pagine e cerca nel testo quando serve.</p>
-            <h2>Lettura in sessione</h2>
-            <p>Anteprima pagine e navigazione utile per consultare regole o avventure mentre sei in mappa.</p>
-            <h2>Ricerca</h2>
-            <p>L’estrazione testo permette ricerche rapide all’interno del documento caricato.</p>
-            <h2>Condivisione</h2>
-            <p>Puoi condividere riferimenti a pagine specifiche tramite la chat di gioco, così il gruppo apre lo stesso punto del manuale.</p>
+            <p class="detail-lead">Estensione che incorpora un visualizzatore PDF (basato su motore compatibile con PDF.js) per leggere manuali, avventure e reference direttamente nel client, senza cambiare finestra.</p>
+
+            <h2>Apertura e navigazione</h2>
+            <ul>
+                <li>Seleziona un PDF dagli <strong>asset</strong> della campagna (o dal percorso previsto dall’estensione).</li>
+                <li><strong>Scorri le pagine</strong> con controlli avanti/indietro; spesso è presente una griglia o elenco di miniature per saltare a una sezione.</li>
+                <li>Zoom e adattamento pagina dipendono dal viewer integrato — utile per testo piccolo o mappe a pagina intera.</li>
+            </ul>
+
+            <h2>Ricerca nel testo</h2>
+            <p>Dopo l’estrazione del testo dal documento (operazione lato client/server secondo il build), puoi usare una <strong>casella di ricerca</strong> per trovare termini all’interno del PDF caricato, senza dover sfogliare manualmente centinaia di pagine.</p>
+
+            <h2>Prestazioni e caricamento</h2>
+            <p>I PDF grandi possono caricarsi in modo progressivo; l’estensione evita richieste duplicate quando apri la stessa anteprima più volte (cache lato server/client dove implementata).</p>
+
+            <h2>Condivisione in chat</h2>
+            <p>Puoi inviare un <strong>link a una pagina specifica</strong> (o un riferimento interpretato dal client) nella chat di gioco: gli altri partecipanti aprono lo stesso punto del manuale.</p>
+
+            <h2>Casi d’uso</h2>
+            <ul>
+                <li>Consultare regole durante il combattimento.</li>
+                <li>Leggere insegne di avventure pubblicate in PDF.</li>
+                <li>Mostrare illustrazioni a pagina intera al gruppo.</li>
+            </ul>
         </div>
         <div class="lang-en detail-body" style="display: none">
             <h1>Documents (PDF)</h1>
-            <p class="detail-lead">Open rulebooks and PDFs inside PlanarAlly—browse pages and search text without alt-tabbing away.</p>
-            <h2>In-session reading</h2>
-            <p>Page preview and navigation for rules or adventures while you stay on the map.</p>
-            <h2>Search</h2>
-            <p>Text extraction enables quick in-document search.</p>
+            <p class="detail-lead">Embeds a PDF viewer (PDF.js–compatible stack) so you can read manuals, adventures, and references inside the client without alt-tabbing.</p>
+
+            <h2>Opening and navigation</h2>
+            <ul>
+                <li>Pick a PDF from <strong>campaign assets</strong> (or the path the extension expects).</li>
+                <li><strong>Page navigation</strong> with next/prev; thumbnails or a page strip when available.</li>
+                <li>Zoom/fit modes depend on the embedded viewer—handy for tiny stat blocks or full-page maps.</li>
+            </ul>
+
+            <h2>Text search</h2>
+            <p>After text extraction, a <strong>search box</strong> can locate terms across the loaded document instead of manual paging.</p>
+
+            <h2>Performance</h2>
+            <p>Large PDFs may load progressively; duplicate fetch avoidance helps when reopening the same preview.</p>
+
             <h2>Sharing</h2>
-            <p>Share links to specific pages via game chat so the group lands on the same manual section.</p>
+            <p>Share a <strong>page-specific link</strong> (or client-resolved reference) to game chat so the table opens the same section.</p>
+
+            <h2>Use cases</h2>
+            <ul>
+                <li>Rule lookups during combat.</li>
+                <li>Reading published adventure PDFs.</li>
+                <li>Full-page art for the table.</li>
+            </ul>
         </div>
     </section>
     <script src="../plus-features-detail.js"></script>
