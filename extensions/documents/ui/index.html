@@ -750,6 +750,9 @@
             var iconPen = '<i class="fa-solid fa-pen" aria-hidden="true"></i>';
             var iconFolderMove = '<i class="fa-solid fa-folder" aria-hidden="true"></i>';
             var iconTrash = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i>';
+            /** Hash per cui abbiamo già richiesto la generazione anteprima: evita POST ripetuti e load() a catena. */
+            var thumbGenRequested = new Set();
+            var thumbReloadTimer = null;
 
             function showMsg(text, isError) {
                 msgEl.textContent = text;
@@ -1083,13 +1086,20 @@
                     items = data.documents || [];
                     rootId = data.rootId;
                     canManageDocuments = data.canManageDocuments !== false;
+                    items.forEach(function (it) {
+                        if (it.type === 'document' && it.fileHash && it.thumbnailUrl) {
+                            thumbGenRequested.delete(it.fileHash);
+                        }
+                    });
                     if (currentFolderId === null || !items.some(function (it) { return it.id === currentFolderId || (it.type === 'folder' && it.folderId === currentFolderId); })) {
                         currentFolderId = rootId;
                     }
                     setLoadingVisible(false);
                     render();
                     var missingThumbs = canManageDocuments
-                        ? items.filter(function (it) { return it.type === 'document' && it.fileHash && !it.thumbnailUrl; }).map(function (it) { return it.fileHash; })
+                        ? items.filter(function (it) {
+                            return it.type === 'document' && it.fileHash && !it.thumbnailUrl && !thumbGenRequested.has(it.fileHash);
+                        }).map(function (it) { return it.fileHash; })
                         : [];
                     if (missingThumbs.length > 0) {
                         try {
@@ -1101,7 +1111,16 @@
                             });
                             if (genR.ok) {
                                 var genData = await genR.json();
-                                if (genData.generated > 0) { load(); }
+                                missingThumbs.forEach(function (h) { thumbGenRequested.add(h); });
+                                if (genData.generated > 0) {
+                                    if (thumbReloadTimer !== null) {
+                                        clearTimeout(thumbReloadTimer);
+                                    }
+                                    thumbReloadTimer = setTimeout(function () {
+                                        thumbReloadTimer = null;
+                                        load();
+                                    }, 3000);
+                                }
                             }
                         } catch (e) { /* ignore */ }
                     }
