@@ -374,4 +374,26 @@ onUnmounted(() => {
     display: block;
     margin: 0.5rem auto;
 }
+.qe-tooltip-body :deep(.qe-md-figure) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: fit-content;
+    max-width: 50%;
+    margin: 0.5rem auto;
+}
+.qe-tooltip-body :deep(.qe-md-figure img) {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+.qe-tooltip-body :deep(.qe-md-caption) {
+    width: 100%;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #666;
+    margin-top: 0.25rem;
+    line-height: 1.3;
+}
 </style>
