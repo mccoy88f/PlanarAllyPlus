@@ -71,44 +71,6 @@ const qeMarkdownRenderer = (() => {
     return md;
 })();
 
-/** Estrae il valore dell'attributo alt da un tag img (stringa HTML). */
-function extractImgAlt(imgTag: string): string {
-    const m = imgTag.match(/\salt\s*=\s*("([^"]*)"|'([^']*)')/i);
-    if (m) return m[2] ?? m[3] ?? "";
-    return "";
-}
-
-function decodeHtmlEntities(s: string): string {
-    if (typeof document === "undefined") return s;
-    const el = document.createElement("textarea");
-    el.innerHTML = s;
-    return el.value;
-}
-
-function escapeHtmlCaption(s: string): string {
-    return s
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-}
-
-/**
- * Paragrafi che contengono solo un'immagine → &lt;figure&gt; con didascalia dall'alt (allineata come l'immagine).
- */
-function wrapStandaloneImagesWithCaption(html: string): string {
-    if (!html.includes("<img")) return html;
-    return html.replace(/<p>\s*(<img\b[^>]*\/?>)\s*<\/p>/gi, (_full, imgTag: string) => {
-        const rawAlt = extractImgAlt(imgTag);
-        const decoded = decodeHtmlEntities(rawAlt).trim();
-        if (!decoded) {
-            return `<figure class="qe-md-figure">${imgTag}</figure>`;
-        }
-        const caption = escapeHtmlCaption(decoded);
-        return `<figure class="qe-md-figure">${imgTag}<figcaption class="qe-md-caption">${caption}</figcaption></figure>`;
-    });
-}
-
 /**
  * Ripara heading spezzati nell'export quintaedizione (es. "Incantesimi del Circolo della" + "Terra"
  * invece di "Incantesimi del Circolo della Terra"). Il bug dell'export spezza titoli con " della ".
@@ -126,8 +88,7 @@ function repairSplitHeadings(md: string): string {
 export function renderQeMarkdown(source: string): string {
     if (!source) return "";
     const repaired = repairSplitHeadings(source);
-    const html = qeMarkdownRenderer.render(preprocessQeLinksToHtml(repaired));
-    return wrapStandaloneImagesWithCaption(html);
+    return qeMarkdownRenderer.render(preprocessQeLinksToHtml(repaired));
 }
 
 /** Converte link markdown [text](qe:path) in HTML prima del rendering. Evita che markdown-it non li riconosca.

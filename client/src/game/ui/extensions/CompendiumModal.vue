@@ -2825,6 +2825,17 @@ onMounted(() => {
         margin: 0.4rem 0;
     }
 
+    :deep(blockquote) {
+        text-align: center;
+        margin: 0.75rem auto;
+        padding: 0.5rem 1rem;
+        max-width: 95%;
+    }
+
+    :deep(blockquote p) {
+        text-align: center;
+    }
+
     :deep(ul),
     :deep(ol) {
         margin: 0.4rem 0;
@@ -2836,31 +2847,6 @@ onMounted(() => {
         height: auto;
         display: block;
         margin: 0.5rem auto;
-    }
-
-    :deep(.qe-md-figure) {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        width: fit-content;
-        max-width: 34%;
-        margin: 0.5rem auto;
-    }
-
-    :deep(.qe-md-figure img) {
-        max-width: 100%;
-        height: auto;
-        display: block;
-        margin: 0 auto;
-    }
-
-    :deep(.qe-md-caption) {
-        width: 100%;
-        text-align: center;
-        font-size: 0.82rem;
-        color: #555;
-        margin-top: 0.35rem;
-        line-height: 1.35;
     }
 
     :deep(a[href^="qe:"], a.qe-internal-link) {
@@ -3115,31 +3101,6 @@ onMounted(() => {
     max-width: 50%;
     display: block;
     margin: 0.5rem auto;
-}
-
-.qe-markdown-content :deep(.qe-md-figure) {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: fit-content;
-    max-width: 50%;
-    margin: 0.5rem auto;
-}
-
-.qe-markdown-content :deep(.qe-md-figure img) {
-    max-width: 100%;
-    height: auto;
-    display: block;
-    margin: 0 auto;
-}
-
-.qe-markdown-content :deep(.qe-md-caption) {
-    width: 100%;
-    text-align: center;
-    font-size: 0.82rem;
-    color: #555;
-    margin-top: 0.35rem;
-    line-height: 1.35;
 }
 
 .qe-img-ctx-backdrop {
