@@ -14,6 +14,17 @@ import { activeTool, getActiveTool, getFeatures, toolMap } from "./tools";
 
 let longPressTimeout: number | undefined;
 let touchStartPoint = { x: 0, y: 0 };
+/** After touch, browsers synthesize mousedown (~300ms later); skip it so tools don't run onDown twice (e.g. Light tool). */
+let ignoreMouseDownFromTouchUntil = 0;
+
+function markRecentTouchForMouseDownSuppression(): void {
+    ignoreMouseDownFromTouchUntil = Date.now() + 800;
+}
+
+function isSyntheticMouseFromTouch(event: MouseEvent): boolean {
+    const sc = (event as MouseEvent & { sourceCapabilities?: { firesTouchEvents?: boolean } }).sourceCapabilities;
+    return sc?.firesTouchEvents === true;
+}
 
 function isPanModeButton(button: number): boolean {
     const mode = playerSettingsState.raw.mousePanMode.value;
@@ -55,6 +66,8 @@ function finalizeLeftButtonToolOperation(event: MouseEvent): void {
 
 export function mouseDown(event: MouseEvent): void {
     if ((event.target as HTMLElement).tagName !== "CANVAS") return;
+
+    if (isSyntheticMouseFromTouch(event) || Date.now() < ignoreMouseDownFromTouchUntil) return;
 
     let targetTool = activeTool.value;
     if (isPanModeButton(event.button)) {
@@ -255,6 +268,8 @@ export async function keyUp(event: KeyboardEvent): Promise<void> {
 export function touchStart(event: TouchEvent): void {
     if ((event.target as HTMLElement).tagName !== "CANVAS") return;
 
+    markRecentTouchForMouseDownSuppression();
+
     const tool = getActiveTool();
 
     if (event.touches.length === 2) {
@@ -376,6 +391,8 @@ export async function touchMove(event: TouchEvent): Promise<void> {
 
 export function touchEnd(event: TouchEvent): void {
     if ((event.target as HTMLElement).tagName !== "CANVAS") return;
+
+    markRecentTouchForMouseDownSuppression();
 
     const tool = getActiveTool();
 

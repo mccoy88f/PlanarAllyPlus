@@ -5,7 +5,7 @@ import { useI18n } from "vue-i18n";
 import { uuidv4 } from "../../core/utils";
 import { chatSystem } from "../systems/chat";
 import { chatState } from "../systems/chat/state";
-import { openDocumentsPdfViewer, openCompendiumModalForItem } from "../systems/extensions/ui";
+import { openDocumentsPdfViewer } from "../systems/extensions/ui";
 import { playerSystem } from "../systems/players";
 
 const { t } = useI18n();
@@ -107,14 +107,9 @@ function handleContainerClick(event: MouseEvent): void {
     );
     if (!(target instanceof HTMLAnchorElement)) return;
 
-    const dataComp = target.getAttribute("data-qe-compendium");
-    const dataColl = target.getAttribute("data-qe-collection");
-    const dataSlug = target.getAttribute("data-qe-slug");
-    if (dataColl && dataSlug) {
-        event.preventDefault();
-        openCompendiumModalForItem(dataColl, dataSlug, dataComp || undefined);
-        return;
-    }
+    /* Link qe: → CompendiumHoverTooltip (capture su document) + stopPropagation; evita doppia apertura con questo handler. */
+    if (target.hasAttribute("data-qe-collection") && target.getAttribute("data-qe-slug")) return;
+    if (target.getAttribute("href")?.startsWith("qe:")) return;
 
     const docHashAttr = target.getAttribute("data-doc-hash");
     if (docHashAttr) {
@@ -137,18 +132,7 @@ function handleContainerClick(event: MouseEvent): void {
     const href = target.getAttribute("href");
     if (!href) return;
     event.preventDefault();
-    if (href.startsWith("qe:")) {
-        const rest = href.slice(3);
-        const parts = rest.split("/");
-        if (parts.length >= 2) {
-            const collectionSlug = parts.length >= 3 ? parts[1] : parts[0];
-            const itemSlug = parts.length >= 3 ? parts[2] : parts[1];
-            const compendiumSlug = parts.length >= 3 ? parts[0] : undefined;
-            if (collectionSlug && itemSlug) {
-                openCompendiumModalForItem(collectionSlug, itemSlug, compendiumSlug);
-            }
-        }
-    } else if (href.startsWith("doc:")) {
+    if (href.startsWith("doc:")) {
         const rest = href.slice(4).trim();
         const hashIdx = rest.indexOf("#");
         const fileHash = (hashIdx >= 0 ? rest.slice(0, hashIdx) : rest).trim();

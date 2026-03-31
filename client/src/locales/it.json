@@ -532,6 +532,8 @@
         "CompendiumModal": {
           "title": "Compendium",
           "continue_reading": "Continua a leggere il prossimo elemento: {name}",
+          "back_to": "Torna a: {name}",
+          "proceed_to": "Procedi verso: {name}",
           "loading": "Caricamento...",
           "search_placeholder": "Cerca nei compendi...",
           "filter_tags_placeholder": "Cerca o seleziona tag...",
@@ -577,7 +579,11 @@
           "clear_translation": "Cancella Traduzione",
           "rerun_translation": "Riesegui Traduzione",
           "expand_sidebar": "Espandi barra laterale",
-          "collapse_sidebar": "Comprimi barra laterale"
+          "collapse_sidebar": "Comprimi barra laterale",
+          "add_to_assets": "Aggiungi ad asset",
+          "asset_upload_success": "Immagine salvata nella libreria asset (extensions/compendium/…)",
+          "asset_upload_error": "Impossibile salvare l'immagine negli asset (rete o permessi).",
+          "asset_upload_no_root": "Libreria asset non pronta. Apri la finestra Asset e riprova."
         },
         "DocumentsModal": {
           "title": "Documenti",

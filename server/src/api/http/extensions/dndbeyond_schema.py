@@ -37,6 +37,7 @@ def empty_character() -> dict:
         "planarally": {
             "armorClass": 10,
             "initiative": 0,
+            "proficiencyBonus": "",
             "hitDiceTotal": "",
             "hitDiceRemaining": "",
             "deathSaveSuccesses": 0,

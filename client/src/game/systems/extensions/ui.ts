@@ -120,11 +120,20 @@ export function openCompendiumModal(): void {
     focusExtension("compendium");
 }
 
+let lastCompendiumOpenKey = "";
+let lastCompendiumOpenAt = 0;
+
 export function openCompendiumModalForItem(
     collectionSlug: string,
     itemSlug: string,
     compendiumSlug?: string,
 ): void {
+    const key = `${compendiumSlug ?? ""}|${collectionSlug}|${itemSlug}`;
+    const now = Date.now();
+    if (key === lastCompendiumOpenKey && now - lastCompendiumOpenAt < 400) return;
+    lastCompendiumOpenKey = key;
+    lastCompendiumOpenAt = now;
+
     extensionsState.mutableReactive.compendiumOpenItem = {
         compendiumSlug,
         collectionSlug,

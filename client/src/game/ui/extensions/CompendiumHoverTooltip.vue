@@ -144,6 +144,8 @@ function cancelHide(): void {
 }
 
 function handleMouseOver(e: MouseEvent): void {
+    /* Su touch, il browser emula spesso mouseover prima del click: evita anteprima + modale insieme. */
+    if (!window.matchMedia("(hover: hover)").matches) return;
     const target = (e.target as HTMLElement).closest("a[href^='qe:'], a[data-qe-collection]");
     if (!(target instanceof HTMLAnchorElement)) return;
     cancelHide();
@@ -245,12 +247,14 @@ function handleDocumentClick(e: MouseEvent): void {
     const dataSlug = target.getAttribute("data-qe-slug");
     if (dataColl && dataSlug) {
         e.preventDefault();
+        e.stopPropagation();
         openCompendiumModalForItem(dataColl, dataSlug, dataComp ?? undefined);
         return;
     }
     const href = target.getAttribute("href");
     if (href?.startsWith("qe:")) {
         e.preventDefault();
+        e.stopPropagation();
         const parsed = parseQeHref(href);
         if (parsed) {
             openCompendiumModalForItem(

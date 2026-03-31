@@ -9,7 +9,7 @@
     <style>
         :root { --am-accent: #5c6bc0; }
         * { box-sizing: border-box; }
-        html, body { height: 100%; margin: 0; padding: 0; font-family: system-ui, sans-serif; font-size: 13px; }
+        html, body { height: 100%; margin: 0; padding: 0; font-family: system-ui, sans-serif; font-size: 13px; background: #fff; }
         .am-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
         .ext-toolbar-bar.am-toolbar { flex-wrap: wrap; }
         .am-toolbar .am-now { flex: 1; min-width: 0; font-size: 0.85rem; color: #666; overflow: hidden; white-space: nowrap; position: relative; }
@@ -36,8 +36,30 @@
         .am-playlist-btn:hover { opacity: 1; background: rgba(0,0,0,0.06); }
         .am-playlist-toggle .chevron { transition: transform 0.2s; }
         .am-playlist-toggle.collapsed .chevron { transform: rotate(-90deg); }
-        .am-playlist-section { overflow: hidden; transition: max-height 0.2s; }
-        .am-playlist-section.collapsed { max-height: 0 !important; padding: 0 !important; border: none !important; }
+        .am-playlist-wrap {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+        }
+        .am-playlist-section {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            transition: flex 0.2s ease, max-height 0.2s ease;
+            border-top: 1px solid #eee;
+            padding: 0 1rem 0.5rem;
+        }
+        .am-playlist-section.collapsed {
+            flex: 0 0 0 !important;
+            max-height: 0 !important;
+            min-height: 0 !important;
+            border: none !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+        }
         .am-audio-icon { color: var(--am-accent); font-size: 1.2rem; }
         .am-explorer-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 1000; }
         .am-explorer-modal.open { display: flex; }
@@ -112,6 +134,20 @@
         <input type="range" class="am-seek" id="seekBar" min="0" max="1000" step="1" value="0" title="" disabled />
         <span class="am-time am-time-total" id="seekTotal">0:00</span>
     </div>
+    <div class="am-playlist-wrap">
+        <div id="playlistToggle" class="am-playlist-toggle" title="">
+            <span id="playlistToggleLabel" class="am-playlist-toggle-label"></span>
+            <div class="am-playlist-actions" onclick="event.stopPropagation()">
+                <button type="button" class="am-playlist-btn" id="openPlaylistBtn" title="">📂</button>
+                <button type="button" class="am-playlist-btn" id="savePlaylistBtn" title="">💾</button>
+            </div>
+            <span class="chevron">▼</span>
+        </div>
+        <div id="playlistSection" class="am-playlist-section">
+            <div class="am-playlist-title" id="playlistTitle"></div>
+            <div id="playlist"></div>
+        </div>
+    </div>
     <div id="explorerModal" class="am-explorer-modal">
         <div class="am-explorer-inner" onclick="event.stopPropagation()">
             <div class="am-explorer-header">
@@ -136,18 +172,6 @@
                 <button type="button" class="ext-ui-btn ext-ui-btn-success" id="addSelectedBtn"></button>
             </div>
         </div>
-    </div>
-    <div id="playlistToggle" class="am-playlist-toggle" title="">
-        <span id="playlistToggleLabel" class="am-playlist-toggle-label"></span>
-        <div class="am-playlist-actions" onclick="event.stopPropagation()">
-            <button type="button" class="am-playlist-btn" id="openPlaylistBtn" title="">📂</button>
-            <button type="button" class="am-playlist-btn" id="savePlaylistBtn" title="">💾</button>
-        </div>
-        <span class="chevron">▼</span>
-    </div>
-    <div id="playlistSection" class="am-playlist-section" style="flex-shrink: 0; border-top: 1px solid #eee; padding: 0 1rem 0.5rem; max-height: 150px; overflow-y: auto;">
-        <div class="am-playlist-title" id="playlistTitle"></div>
-        <div id="playlist"></div>
     </div>
     <script>
 (function() {
