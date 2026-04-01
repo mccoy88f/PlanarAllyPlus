@@ -28,7 +28,12 @@ ENV NPM_CONFIG_LEGACY_PEER_DEPS=true
 # Host con poca RAM (Portainer/NAS): npm ci può uscire con 1 senza messaggio chiaro se OOM.
 ENV NODE_OPTIONS=--max-old-space-size=6144
 
-RUN npm ci --no-audit --no-fund && npm cache clean --force
+# npm 11+: `npm ci` fallisce con EUSAGE se il lockfile non elenca *tutte* le entry opzionali
+# multi-piattaforma (@esbuild/*, @rollup/*, @parcel/watcher-*, …). Un lock generato su macOS/Windows
+# può omettere i tarball Linux. `npm install` rispetta comunque package-lock.json e risolve i
+# binari mancanti per l'immagine Alpine (linux-x64-musl / arm64). Per build 100% riproducibili da CI,
+# rigenera il lock su Linux o con `npm install` dopo aggiornamenti dipendenze, poi preferisci `npm ci`.
+RUN npm install --no-audit --no-fund && npm cache clean --force
 
 COPY --from=CLONER /usr/src /usr/src
 
