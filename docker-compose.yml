@@ -1,3 +1,6 @@
+# Build: clona da GitHub (branch PA_GIT_REF). Se npm ci fallisce: 1) verifica che
+# client/package-lock.json sia committato sul branch remoto; 2) docker compose build --no-cache;
+# 3) controlla RAM host / log completo build (spesso OOM o rete verso registry.npmjs.org).
 services:
   planarally:
     container_name: planarally

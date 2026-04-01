@@ -12,7 +12,9 @@ RUN git clone --depth=1 --branch "${PA_GIT_REF}" https://github.com/mccoy88f/Pla
 # ---------- STAGE 2: BUILD CLIENT ----------
 FROM node:24-alpine AS BUILDER
 
-RUN apk add --no-cache python3 make g++ git
+# python3/make/g++: build moduli nativi (es. bufferutil); git: alcuni pacchetti;
+# libc6-compat: compatibilità binari precompilati (musl vs glibc) su Alpine.
+RUN apk add --no-cache python3 make g++ git libc6-compat
 
 WORKDIR /usr/src/client
 
@@ -23,6 +25,8 @@ COPY --from=CLONER /usr/src/client/patches ./patches
 
 # Evita ERESOLVE su npm 10+ in ambiente CI/Alpine (stesso effetto di npm install --legacy-peer-deps)
 ENV NPM_CONFIG_LEGACY_PEER_DEPS=true
+# Host con poca RAM (Portainer/NAS): npm ci può uscire con 1 senza messaggio chiaro se OOM.
+ENV NODE_OPTIONS=--max-old-space-size=6144
 
 RUN npm ci --no-audit --no-fund && npm cache clean --force
 
