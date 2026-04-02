@@ -11,7 +11,7 @@
         <a class="detail-back" id="backToIndex" href="../plus-features.html"></a>
         <div class="lang-it detail-body">
             <h1>MapsGen (generatore mappe)</h1>
-            <p class="detail-lead">Modale integrata nel client per generare layout dungeon o edifici, visualizzare un’anteprima allineata alla griglia, opzionalmente rigenerare con un <strong>seed</strong>, e infine <strong>aggiungere muri, porte e immagine</strong> sulla mappa attiva. È il cuore procedurale che alimenta anche la trasformazione “realistica” via AI quando OpenRouter è configurato.</p>
+            <p class="detail-lead">Modale integrata nel client per generare layout dungeon o edifici, visualizzare un’anteprima allineata alla griglia, opzionalmente rigenerare con un <strong>seed</strong>, e infine <strong>aggiungere muri, porte e immagine</strong> sulla mappa attiva. È il cuore procedurale che alimenta anche la trasformazione “realistica” via AI quando l’estensione <strong>AI Generator</strong> è configurata sul server.</p>
 
             <h2>Due modalità</h2>
             <h3>Dungeon</h3>
@@ -48,12 +48,12 @@
             <p>Se un asset mappa è stato creato da MapsGen, puoi riaprire il generatore in <strong>modalità modifica</strong> dall’asset: vengono ripristinati parametri, seed, muri e porte salvati nei metadati, così puoi ritoccare e rigenerare senza perdere il collegamento.</p>
 
             <h2>AI “realistico”</h2>
-            <p>Con OpenRouter disponibile puoi trasformare la mappa schematica in un’immagine più dipinta/fotorealistica. Spesso è previsto un <strong>prompt aggiuntivo</strong> (finestra spostabile) per indicare stile, biomi o dettagli. Le immagini intermedie possono essere gestite come asset temporanei per non intasare la libreria.</p>
-            <p class="detail-note">Se OpenRouter non è configurato sul server, il pulsante realistico resta disabilitato o segnala l’indisponibilità.</p>
+            <p>Con <strong>AI Generator</strong> configurato puoi trasformare la mappa schematica in un’immagine più dipinta/fotorealistica. Spesso è previsto un <strong>prompt aggiuntivo</strong> (finestra spostabile) per indicare stile, biomi o dettagli. Le immagini intermedie possono essere gestite come asset temporanei per non intasare la libreria.</p>
+            <p class="detail-note">Se l’integrazione AI non è configurata sul server, il pulsante realistico resta disabilitato o segnala l’indisponibilità.</p>
         </div>
         <div class="lang-en detail-body" style="display: none">
             <h1>MapsGen (map generator)</h1>
-            <p class="detail-lead">In-client modal to roll procedural <strong>dungeons</strong> or <strong>buildings</strong>, preview them snapped to the grid, optionally lock behaviour with a <strong>seed</strong>, then drop <strong>walls, doors, and artwork</strong> onto the active map. When OpenRouter is set up, the same flow powers the “realistic” AI pass.</p>
+            <p class="detail-lead">In-client modal to roll procedural <strong>dungeons</strong> or <strong>buildings</strong>, preview them snapped to the grid, optionally lock behaviour with a <strong>seed</strong>, then drop <strong>walls, doors, and artwork</strong> onto the active map. When the <strong>AI Generator</strong> extension is configured on the server, the same flow powers the “realistic” AI pass.</p>
 
             <h2>Two modes</h2>
             <h3>Dungeon</h3>
@@ -90,8 +90,8 @@
             <p>Assets created from MapsGen can be reopened in <strong>edit mode</strong>: stored params, seed, walls, and doors reload from metadata so you can tweak and regenerate without losing the link.</p>
 
             <h2>AI “realistic” pass</h2>
-            <p>With OpenRouter configured, turn the schematic into a richer render; an <strong>extra prompt</strong> (draggable box) nudges style and detail. Temp assets avoid cluttering your library during iteration.</p>
-            <p class="detail-note">Without a valid OpenRouter setup, realistic generation stays unavailable.</p>
+            <p>With <strong>AI Generator</strong> configured, turn the schematic into a richer render; an <strong>extra prompt</strong> (draggable box) nudges style and detail. Temp assets avoid cluttering your library during iteration.</p>
+            <p class="detail-note">Without a valid AI integration on the server, realistic generation stays unavailable.</p>
         </div>
     </section>
     <script src="../plus-features-detail.js"></script>

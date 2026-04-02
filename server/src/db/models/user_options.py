@@ -49,6 +49,8 @@ class UserOptions(BaseDbModel):
     openrouter_vision_model = cast(str | None, TextField(default=None, null=True))
     openrouter_default_language = cast(str | None, TextField(default="it", null=True))
     openrouter_max_tokens = cast(int | None, IntegerField(default=8192, null=True))
+    openrouter_compendium_translate_source = cast(str | None, TextField(default="auto", null=True))
+    openrouter_compendium_translate_target = cast(str | None, TextField(default=None, null=True))
     ai_provider = cast(str | None, TextField(default="openrouter", null=True))
     google_ai_api_key = cast(str | None, TextField(default=None, null=True))
 
@@ -88,6 +90,8 @@ class UserOptions(BaseDbModel):
             openrouter_vision_model=None,
             openrouter_default_language=None,
             openrouter_max_tokens=None,
+            openrouter_compendium_translate_source=None,
+            openrouter_compendium_translate_target=None,
             ai_provider=None,
             google_ai_api_key=None,
         )
@@ -139,6 +143,8 @@ class UserOptions(BaseDbModel):
             openrouter_vision_model=self.openrouter_vision_model,  # type: ignore
             openrouter_default_language=self.openrouter_default_language,  # type: ignore
             openrouter_max_tokens=self.openrouter_max_tokens,  # type: ignore
+            openrouter_compendium_translate_source=self.openrouter_compendium_translate_source,  # type: ignore
+            openrouter_compendium_translate_target=self.openrouter_compendium_translate_target,  # type: ignore
             ai_provider=self.ai_provider,  # type: ignore
             google_ai_api_key=self.google_ai_api_key,  # type: ignore
         )

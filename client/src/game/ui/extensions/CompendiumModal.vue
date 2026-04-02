@@ -7,6 +7,7 @@ import { uuidv4 } from "../../../core/utils";
 import Modal from "../../../core/components/modals/Modal.vue";
 import { useModal } from "../../../core/plugins/modals/plugin";
 import { http } from "../../../core/http";
+import { localeToEnglishPromptName, normalizeToPaLocale } from "../../../core/paUiLocales";
 import {
     ensureQeLinksCompendiumContext,
     getQeNames,
@@ -146,6 +147,41 @@ function findIndexNodeBySlug(nodes: IndexCollNode[], slug: string): IndexCollNod
     return null;
 }
 
+/** Tutte le voci foglia (slug collezione + slug voce) nell’albero indice mostrato. */
+function collectLeafItemsFromIndexNodes(nodes: IndexCollNode[]): { collectionSlug: string; itemSlug: string; itemName: string }[] {
+    const seen = new Set<string>();
+    const out: { collectionSlug: string; itemSlug: string; itemName: string }[] = [];
+    function walk(nlist: IndexCollNode[]): void {
+        for (const n of nlist) {
+            for (const it of n.items) {
+                const key = `${n.slug}::${it.slug}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                out.push({ collectionSlug: n.slug, itemSlug: it.slug, itemName: it.name });
+            }
+            if (n.collections?.length) walk(n.collections);
+        }
+    }
+    walk(nodes);
+    return out;
+}
+
+function replaceIndexNodeInTree(roots: IndexCollNode[], focusSlug: string, newNode: IndexCollNode): IndexCollNode[] {
+    const clone = JSON.parse(JSON.stringify(roots)) as IndexCollNode[];
+    function walk(arr: IndexCollNode[]): boolean {
+        for (let i = 0; i < arr.length; i++) {
+            if (arr[i].slug === focusSlug) {
+                arr[i] = newNode;
+                return true;
+            }
+            if (arr[i].collections?.length && walk(arr[i].collections!)) return true;
+        }
+        return false;
+    }
+    walk(clone);
+    return clone;
+}
+
 const displayedIndex = computed(() => {
     const full = currentIndex.value as IndexCollNode[];
     if (!indexFocusCollectionSlug.value) return full;
@@ -159,13 +195,30 @@ const indexMetadata = ref<Record<string, string>>({});
 const expandedIndexCollections = ref<Set<string>>(new Set());
 const aiConfigured = ref(false);
 const aiModel = ref("");
+/** Max output tokens (from AI Generator settings) for translation requests. */
+const aiMaxTokens = ref(8192);
 const translateLoading = ref(false);
+/** Progress during recursive index translation: current/total entries. */
+const batchTranslateProgress = ref<{ current: number; total: number } | null>(null);
 const activeTranslationLang = ref<string | null>(null);
 const originalMarkdown = ref<string | null>(null);
 const sidebarCollapsed = ref(false);
 const originalIndex = ref<any[] | null>(null);
 const showTranslationTools = ref(false);
 const translationTagContainer = ref<HTMLElement | null>(null);
+/** AI Generator: compendium translation source (`auto` = detect) and optional target (`null` = same as UI). */
+const compendiumTranslateSource = ref<"auto" | string>("auto");
+const compendiumTranslateTarget = ref<string | null>(null);
+
+function effectiveCompendiumTargetLang(): string {
+    return compendiumTranslateTarget.value ?? normalizeToPaLocale(locale.value);
+}
+
+const translationTargetLabel = computed(() => {
+    const code = activeTranslationLang.value;
+    if (!code) return "";
+    return t(`game.ui.extensions.OpenRouterModal.locale_${code}`);
+});
 
 // Global tag filter state
 interface GlobalTag { id: number; name: string; compendiumId: string; }
@@ -1137,9 +1190,20 @@ async function checkAiConfig(): Promise<void> {
     try {
         const r = await http.get("/api/extensions/openrouter/settings");
         if (r.ok) {
-            const data = await r.json();
-            aiConfigured.value = data.hasApiKey || data.hasGoogleKey;
+            const data = (await r.json()) as {
+                hasApiKey?: boolean;
+                hasGoogleKey?: boolean;
+                model?: string;
+                compendiumTranslateSource?: string;
+                compendiumTranslateTarget?: string | null;
+                maxTokens?: number;
+            };
+            aiConfigured.value = !!(data.hasApiKey || data.hasGoogleKey);
             aiModel.value = data.model || "google/gemini-2.0-flash-001";
+            aiMaxTokens.value = data.maxTokens ?? 8192;
+            const src = (data.compendiumTranslateSource ?? "auto").toLowerCase();
+            compendiumTranslateSource.value = src === "auto" ? "auto" : src;
+            compendiumTranslateTarget.value = data.compendiumTranslateTarget ?? null;
         }
     } catch {
         aiConfigured.value = false;
@@ -1150,7 +1214,7 @@ async function checkTranslation(type: "item" | "index"): Promise<void> {
     const compId = type === "item" ? selectedItem.value?.compendium.id : indexCompendium.value?.id;
     if (!compId) return;
     
-    const lang = locale.value;
+    const lang = effectiveCompendiumTargetLang();
     let url = `/api/extensions/compendium/translations?compendium=${encodeURIComponent(compId)}&lang=${encodeURIComponent(lang)}&type=${type}`;
     if (type === "item" && selectedItem.value) {
         url += `&collection=${encodeURIComponent(selectedItem.value.collection.slug)}&slug=${encodeURIComponent(selectedItem.value.item.slug)}`;
@@ -1184,7 +1248,7 @@ async function saveTranslationToDb(content: string, type: "item" | "index"): Pro
     const payload: any = {
         compendium: compId,
         type,
-        lang: locale.value,
+        lang: effectiveCompendiumTargetLang(),
         content: content
     };
 
@@ -1243,92 +1307,255 @@ async function rerunTranslation(): Promise<void> {
     await translateCurrentView();
 }
 
-async function translateCurrentView(): Promise<void> {
-    if (translateLoading.value) return;
+function buildCompendiumMarkdownSystemPrompt(targetCode: string): string {
+    const targetLangName = localeToEnglishPromptName(targetCode);
+    const sourceHint =
+        compendiumTranslateSource.value === "auto"
+            ? "The source text may be in any language; infer the source language from the text."
+            : `The source text is written in ${localeToEnglishPromptName(compendiumTranslateSource.value)}.`;
+    const dndItHint =
+        targetCode === "it"
+            ? '\nEnsure terminology consistency with D&D 5e standards in Italian (e.g., "Saving Throw" -> "Tiro Salvezza").'
+            : "";
+    return `You are a translator specialized in Dungeons & Dragons 5th Edition.
+${sourceHint}
+Translate the provided content into ${targetLangName}.
+Maintain the original Markdown structure and all special tags like {@b ...}, {@i ...}, {@dice ...}, etc.
+Do NOT translate these tags or their parameters.${dndItHint}`;
+}
 
-    if (activeTranslationLang.value === locale.value) {
-        revertTranslationUI();
-        return;
-    }
-
-    // Check if we have a cached translation first
-    await checkTranslation(selectedItem.value ? "item" : "index");
-    if (activeTranslationLang.value === locale.value) return;
-
-    const targetLang = locale.value.startsWith("it") ? "Italian" : "English";
-    console.log(`[Compendium AI] Starting translation to ${targetLang} using model ${aiModel.value}`);
-    
-    if (activeTranslationLang.value === locale.value) {
-        toast.info("Content already translated to " + targetLang);
-        return;
-    }
-
-    const systemPrompt = `You are a translator specialized in Dungeons & Dragons 5th Edition.
-Translate the provided content into ${targetLang}. 
-Maintain the original Markdown structure and all special tags like {@b ...}, {@i ...}, {@dice ...}, etc. 
-Do NOT translate these tags or their parameters. 
-Ensure terminology consistency with D&D 5e standards (e.g., "Saving Throw" -> "Tiro Salvezza" in Italian).`;
-
-    translateLoading.value = true;
+async function fetchCachedItemTranslation(
+    compId: string,
+    collectionSlug: string,
+    itemSlug: string,
+    lang: string,
+): Promise<string | null> {
+    const url =
+        `/api/extensions/compendium/translations?compendium=${encodeURIComponent(compId)}&lang=${encodeURIComponent(lang)}&type=item` +
+        `&collection=${encodeURIComponent(collectionSlug)}&slug=${encodeURIComponent(itemSlug)}`;
     try {
-        if (selectedItem.value) {
-            const raw = selectedItem.value.item.markdown;
-            const r = await http.postJson("/api/extensions/openrouter/chat", {
+        const r = await http.get(url);
+        if (!r.ok) return null;
+        const data = (await r.json()) as { content?: string | null };
+        return typeof data.content === "string" && data.content.length > 0 ? data.content : null;
+    } catch {
+        return null;
+    }
+}
+
+async function saveItemTranslationDirect(
+    compId: string,
+    collectionSlug: string,
+    itemSlug: string,
+    content: string,
+    lang: string,
+): Promise<void> {
+    await http.postJson("/api/extensions/compendium/translations", {
+        compendium: compId,
+        type: "item",
+        collection: collectionSlug,
+        slug: itemSlug,
+        lang,
+        content,
+    });
+}
+
+async function runTranslateIndexRecursiveBatch(
+    leafItems: { collectionSlug: string; itemSlug: string; itemName: string }[],
+    targetCode: string,
+): Promise<void> {
+    const compId = indexCompendium.value?.id;
+    if (!compId) return;
+    const systemPrompt = buildCompendiumMarkdownSystemPrompt(targetCode);
+    let failed = 0;
+    for (let i = 0; i < leafItems.length; i++) {
+        batchTranslateProgress.value = { current: i + 1, total: leafItems.length };
+        const { collectionSlug, itemSlug } = leafItems[i]!;
+        try {
+            const cached = await fetchCachedItemTranslation(compId, collectionSlug, itemSlug, targetCode);
+            if (cached) continue;
+            const r = await http.get(
+                `/api/extensions/compendium/item?compendium=${encodeURIComponent(compId)}&collection=${encodeURIComponent(collectionSlug)}&slug=${encodeURIComponent(itemSlug)}`,
+            );
+            if (!r.ok) {
+                failed++;
+                continue;
+            }
+            const full = (await r.json()) as ItemFull;
+            const raw = (full.markdown || "").trim();
+            if (!raw) continue;
+            const tr = await http.postJson("/api/extensions/openrouter/chat", {
                 model: aiModel.value,
                 messages: [
                     { role: "system", content: systemPrompt },
-                    { role: "user", content: `Translate this content:\n\n${raw}` }
-                ]
+                    { role: "user", content: `Translate this content:\n\n${raw}` },
+                ],
+                max_tokens: Math.max(256, Math.min(65536, aiMaxTokens.value || 8192)),
+                temperature: 0.7,
             });
-            if (r.ok) {
-                const data = await r.json();
-                const translated = data.choices?.[0]?.message?.content;
-                console.log("[Compendium AI] Translation received", { length: translated?.length });
-                if (translated) {
-                    if (!originalMarkdown.value) originalMarkdown.value = selectedItem.value.item.markdown;
-                    currentMarkdown.value = translated;
-                    activeTranslationLang.value = locale.value;
-                    await saveTranslationToDb(translated, "item");
-                } else {
-                    console.error("[Compendium AI] Empty translation response received");
-                    toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
-                }
+            if (!tr.ok) {
+                failed++;
+                continue;
+            }
+            const data = (await tr.json()) as { choices?: { message?: { content?: string } }[] };
+            const translated = data.choices?.[0]?.message?.content;
+            if (!translated) {
+                failed++;
+                continue;
+            }
+            await saveItemTranslationDirect(compId, collectionSlug, itemSlug, translated, targetCode);
+        } catch {
+            failed++;
+        }
+    }
+    if (failed > 0) {
+        toast.warning(t("game.ui.extensions.CompendiumModal.translate_batch_partial", { count: failed }));
+    }
+}
+
+async function translateIndexJsonOnly(roots: IndexCollNode[], targetCode: string): Promise<boolean> {
+    const targetLangName = localeToEnglishPromptName(targetCode);
+    const systemPrompt = buildCompendiumMarkdownSystemPrompt(targetCode);
+    console.log(`[Compendium AI] Index names translation to ${targetLangName} using model ${aiModel.value}`);
+    const indexJson = JSON.stringify(roots, null, 2);
+    const r = await http.postJson("/api/extensions/openrouter/chat", {
+        model: aiModel.value,
+        messages: [
+            {
+                role: "system",
+                content:
+                    systemPrompt +
+                    "\nOnly translate the 'name' values in the provided JSON. Keep everything else identical.",
+            },
+            { role: "user", content: `Translate this index JSON:\n\n${indexJson}` },
+        ],
+        max_tokens: Math.max(256, Math.min(65536, aiMaxTokens.value || 8192)),
+        temperature: 0.7,
+    });
+    if (!r.ok) {
+        toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
+        return false;
+    }
+    const data = (await r.json()) as { choices?: { message?: { content?: string } }[] };
+    const translated = data.choices?.[0]?.message?.content;
+    if (!translated) {
+        toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
+        return false;
+    }
+    try {
+        const start = translated.indexOf("[");
+        const end = translated.lastIndexOf("]") + 1;
+        if (start === -1 || end === 0) throw new Error("no json array");
+        const parsed = JSON.parse(translated.substring(start, end)) as IndexCollNode[];
+        if (originalIndex.value === null) originalIndex.value = JSON.parse(JSON.stringify(currentIndex.value));
+        if (indexFocusCollectionSlug.value) {
+            if (parsed.length > 0) {
+                currentIndex.value = replaceIndexNodeInTree(
+                    currentIndex.value,
+                    indexFocusCollectionSlug.value,
+                    parsed[0]!,
+                );
+            }
+        } else {
+            currentIndex.value = parsed;
+        }
+        activeTranslationLang.value = targetCode;
+        await saveTranslationToDb(JSON.stringify(currentIndex.value), "index");
+        return true;
+    } catch (e: unknown) {
+        console.error("Failed to parse translated index", e);
+        toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
+        return false;
+    }
+}
+
+async function translateSingleItemMarkdown(targetCode: string): Promise<void> {
+    const si = selectedItem.value;
+    if (!si) return;
+    const targetLangName = localeToEnglishPromptName(targetCode);
+    const systemPrompt = buildCompendiumMarkdownSystemPrompt(targetCode);
+    console.log(`[Compendium AI] Starting translation to ${targetLangName} using model ${aiModel.value}`);
+    translateLoading.value = true;
+    try {
+        const raw = si.item.markdown;
+        const r = await http.postJson("/api/extensions/openrouter/chat", {
+            model: aiModel.value,
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: `Translate this content:\n\n${raw}` },
+            ],
+            max_tokens: Math.max(256, Math.min(65536, aiMaxTokens.value || 8192)),
+            temperature: 0.7,
+        });
+        if (r.ok) {
+            const data = (await r.json()) as { choices?: { message?: { content?: string } }[] };
+            const translated = data.choices?.[0]?.message?.content;
+            console.log("[Compendium AI] Translation received", { length: translated?.length });
+            if (translated) {
+                if (!originalMarkdown.value) originalMarkdown.value = si.item.markdown;
+                currentMarkdown.value = translated;
+                activeTranslationLang.value = targetCode;
+                await saveTranslationToDb(translated, "item");
             } else {
+                console.error("[Compendium AI] Empty translation response received");
                 toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
             }
-        } else if (showIndex.value && currentIndex.value.length > 0) {
-            const indexJson = JSON.stringify(currentIndex.value, null, 2);
-            const r = await http.postJson("/api/extensions/openrouter/chat", {
-                model: aiModel.value,
-                messages: [
-                    { role: "system", content: systemPrompt + "\nOnly translate the 'name' values in the provided JSON. Keep everything else identical." },
-                    { role: "user", content: `Translate this index JSON:\n\n${indexJson}` }
-                ]
-            });
-            if (r.ok) {
-                const data = await r.json();
-                const translated = data.choices?.[0]?.message?.content;
-                if (translated) {
-                    try {
-                        const start = translated.indexOf("[");
-                        const end = translated.lastIndexOf("]") + 1;
-                        if (start !== -1 && end !== 0) {
-                            currentIndex.value = JSON.parse(translated.substring(start, end));
-                        }
-                    } catch (e: unknown) {
-                        console.error("Failed to parse translated index", e);
-                        toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
-                    }
-                }
-            } else {
-                toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
-            }
+        } else {
+            toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
         }
     } catch (e: unknown) {
         console.error(e);
         toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
     } finally {
         translateLoading.value = false;
+    }
+}
+
+async function translateCurrentView(): Promise<void> {
+    if (translateLoading.value) return;
+
+    const targetCode = effectiveCompendiumTargetLang();
+
+    if (activeTranslationLang.value === targetCode) {
+        revertTranslationUI();
+        return;
+    }
+
+    await checkTranslation(selectedItem.value ? "item" : "index");
+    if (activeTranslationLang.value === targetCode) return;
+
+    if (selectedItem.value) {
+        await translateSingleItemMarkdown(targetCode);
+        return;
+    }
+
+    if (showIndex.value && currentIndex.value.length > 0) {
+        const roots = displayedIndex.value as IndexCollNode[];
+        const leafItems = collectLeafItemsFromIndexNodes(roots);
+        if (leafItems.length > 0) {
+            const ok = await modals.confirm(
+                t("game.ui.extensions.CompendiumModal.translate_batch_title"),
+                t("game.ui.extensions.CompendiumModal.translate_batch_body", { count: leafItems.length }),
+            );
+            if (!ok) return;
+        }
+        translateLoading.value = true;
+        batchTranslateProgress.value = leafItems.length > 0 ? { current: 0, total: leafItems.length } : null;
+        try {
+            if (leafItems.length > 0) {
+                await runTranslateIndexRecursiveBatch(leafItems, targetCode);
+            }
+            const indexOk = await translateIndexJsonOnly(roots, targetCode);
+            if (leafItems.length > 0 && indexOk) {
+                toast.success(t("game.ui.extensions.CompendiumModal.translate_batch_done"));
+            }
+        } catch (e: unknown) {
+            console.error(e);
+            toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
+        } finally {
+            translateLoading.value = false;
+            batchTranslateProgress.value = null;
+        }
     }
 }
 
@@ -1655,6 +1882,19 @@ watch(
     },
 );
 
+/** Anteprima link qe: nel modale: fallback API con id compendio (stabile) se il DOM non ha data-qe-compendium. */
+watch(
+    () => [props.visible, selectedItem.value?.compendium.id, indexCompendium.value?.id] as const,
+    ([visible, itemCompId, idxCompId]) => {
+        if (!visible) {
+            extensionsState.mutableReactive.compendiumPreviewContext = undefined;
+            return;
+        }
+        const id = itemCompId ?? idxCompId;
+        extensionsState.mutableReactive.compendiumPreviewContext = id ? { compendiumId: id } : undefined;
+    },
+    { immediate: true },
+);
 
 watch(
     () => [extensionsState.raw.compendiumOpenItem, compendiums.value.length] as const,
@@ -1713,6 +1953,13 @@ watch(searchQuery, (newVal) => {
     }, 300);
 });
 
+watch([locale, compendiumTranslateTarget], () => {
+    if (!activeTranslationLang.value) return;
+    if (effectiveCompendiumTargetLang() !== activeTranslationLang.value) {
+        revertTranslationUI();
+    }
+});
+
 onMounted(() => {
     if (props.visible) loadCompendiums();
 });
@@ -1762,6 +2009,14 @@ onMounted(() => {
         <div class="ext-modal-body-wrapper">
             <div v-if="installLoading || translateLoading || treeLoading" class="ext-progress-top-container">
                 <LoadingBar :progress="100" indeterminate height="6px" />
+                <div v-if="batchTranslateProgress" class="qe-batch-translate-hint">
+                    {{
+                        t("game.ui.extensions.CompendiumModal.translate_batch_progress", {
+                            current: batchTranslateProgress.current,
+                            total: batchTranslateProgress.total,
+                        })
+                    }}
+                </div>
             </div>
             <div class="qe-body">
             <div class="ext-toolbar-bar ext-search-bar">
@@ -2108,7 +2363,11 @@ onMounted(() => {
                         <div v-if="isTranslated" class="translation-tag-container" ref="translationTagContainer">
                             <div class="translation-tag" @click.stop="showTranslationTools = !showTranslationTools">
                                 <font-awesome-icon icon="check-circle" class="me-1" />
-                                {{ t("game.ui.extensions.CompendiumModal.translated_to", { lang: activeTranslationLang === 'it' ? 'Italiano' : 'English' }) }}
+                                {{
+                                    t("game.ui.extensions.CompendiumModal.translated_to", {
+                                        lang: translationTargetLabel,
+                                    })
+                                }}
                                 <font-awesome-icon icon="chevron-down" class="ms-1" />
                             </div>
                             
@@ -2141,7 +2400,11 @@ onMounted(() => {
                                 <div v-if="isTranslated" class="translation-tag-container" ref="translationTagContainer">
                                     <div class="translation-tag" @click.stop="showTranslationTools = !showTranslationTools">
                                         <font-awesome-icon icon="check-circle" class="me-1" />
-                                        {{ t("game.ui.extensions.CompendiumModal.translated_to", { lang: activeTranslationLang === 'it' ? 'Italiano' : 'English' }) }}
+                                        {{
+                                    t("game.ui.extensions.CompendiumModal.translated_to", {
+                                        lang: translationTargetLabel,
+                                    })
+                                }}
                                         <font-awesome-icon icon="chevron-down" class="ms-1" />
                                     </div>
                                     
@@ -2456,6 +2719,14 @@ onMounted(() => {
     flex: 1;
     min-height: 0;
     overflow: hidden;
+}
+
+.qe-batch-translate-hint {
+    padding: 0.35rem 0.75rem 0.25rem;
+    font-size: 0.8rem;
+    color: #555;
+    text-align: center;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .qe-loading {

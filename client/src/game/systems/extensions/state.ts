@@ -33,6 +33,8 @@ interface ReactiveExtensionsState {
     /** PDF viewer: which document is being viewed (fileHash, name, optional page) */
     documentsPdfViewer: { fileHash: string; name: string; page?: number } | undefined;
     compendiumModalOpen: boolean;
+    /** Voce/indice compendio aperti: usato dall’anteprima link qe: quando il markdown non ha data-qe-compendium (legacy). */
+    compendiumPreviewContext: { compendiumId: string } | undefined;
     /** When set, Compendium modal opens and navigates to this item */
     compendiumOpenItem: {
         compendiumSlug?: string;
@@ -58,6 +60,7 @@ const state = buildState<ReactiveExtensionsState>({
     documentsModalOpen: false,
     documentsPdfViewer: undefined,
     compendiumModalOpen: false,
+    compendiumPreviewContext: undefined,
     compendiumOpenItem: undefined,
     openrouterModalOpen: false,
     lastFocusedModal: null,

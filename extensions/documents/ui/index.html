@@ -1025,7 +1025,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: id, name: name.trim() })
                 }).then(function (r) {
-                    if (r.ok) { showMsg(t('renamed')); load(); }
+                    if (r.ok) { showMsg(t('renamed')); load(true); }
                     else r.text().then(function (res) { showMsg(res || t('rename_failed'), true); });
                 }).catch(function () { showMsg(t('rename_failed'), true); });
             }
@@ -1060,17 +1060,24 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: id, parentId: destId })
                 }).then(function (r) {
-                    if (r.ok) { showMsg(t('moved')); load(); }
+                    if (r.ok) { showMsg(t('moved')); load(true); }
                     else r.text().then(function (res) { showMsg(res || t('move_failed'), true); });
                 }).catch(function () { showMsg(t('move_failed'), true); });
             }
 
-            async function load() {
-                setLoadingVisible(true);
-                emptyEl.style.display = 'none';
-                listEl.style.display = 'none';
-                breadcrumbEl.style.display = 'none';
-                topBarEl.style.display = 'none';
+            /**
+             * @param {boolean} [silent] Se true: aggiorna i dati in background senza svuotare la vista
+             *  (liste, breadcrumb, toolbar restano visibili). Usato dopo miniature, upload, ecc.
+             *  Il caricamento a schermo intero resta solo al primo load.
+             */
+            async function load(silent) {
+                if (!silent) {
+                    setLoadingVisible(true);
+                    emptyEl.style.display = 'none';
+                    listEl.style.display = 'none';
+                    breadcrumbEl.style.display = 'none';
+                    topBarEl.style.display = 'none';
+                }
                 try {
                     var listUrl = api('/api/extensions/documents/list');
                     var params = new URLSearchParams(window.location.search);
@@ -1082,6 +1089,13 @@
                         if (pp) listUrl += '&preview_as_player=' + encodeURIComponent(pp);
                     }
                     const r = await fetch(listUrl, { credentials: 'include' });
+                    if (!r.ok) {
+                        setLoadingVisible(false);
+                        if (silent) {
+                            showMsg(t('error_loading'), true);
+                            return;
+                        }
+                    }
                     const data = r.ok ? await r.json() : { documents: [], rootId: null };
                     items = data.documents || [];
                     rootId = data.rootId;
@@ -1118,7 +1132,7 @@
                                     }
                                     thumbReloadTimer = setTimeout(function () {
                                         thumbReloadTimer = null;
-                                        load();
+                                        load(true);
                                     }, 3000);
                                 }
                             }
@@ -1126,8 +1140,12 @@
                     }
                 } catch (e) {
                     setLoadingVisible(false);
-                    setEmptyMessage('error_loading', 'fa-triangle-exclamation');
-                    emptyEl.style.display = 'block';
+                    if (silent) {
+                        showMsg(t('error_loading'), true);
+                    } else {
+                        setEmptyMessage('error_loading', 'fa-triangle-exclamation');
+                        emptyEl.style.display = 'block';
+                    }
                 }
             }
 
@@ -1145,7 +1163,7 @@
                     });
                     if (r.ok) {
                         showMsg(t('deleted'));
-                        load();
+                        load(true);
                     } else {
                         showMsg(await r.text() || t('delete_failed'), true);
                     }
@@ -1164,7 +1182,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: name.trim(), parentId: currentFolderId })
                 }).then(function (r) {
-                    if (r.ok) { showMsg(t('folder_created')); load(); }
+                    if (r.ok) { showMsg(t('folder_created')); load(true); }
                     else r.text().then(function (res) { showMsg(res || t('failed'), true); });
                 }).catch(function () { showMsg(t('failed'), true); });
             });
@@ -1201,7 +1219,7 @@
                     }
                     if (okCount > 0) {
                         showMsg(okCount === 1 ? t('document_uploaded') : (okCount + ' ' + t('documents_uploaded_count')));
-                        load();
+                        load(true);
                     }
                     if (errCount > 0) {
                         showMsg((errCount === pdfs.length ? '' : okCount + ' ok. ') + t('upload_failed'), true);
