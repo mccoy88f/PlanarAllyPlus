@@ -8,6 +8,7 @@ import type { ApiNote, ApiNoteRoom } from "../../../apiTypes";
 import Modal from "../../../core/components/modals/Modal.vue";
 import { uuidv4 } from "../../../core/utils";
 import { http } from "../../../core/http";
+import { PA_UI_LOCALE_CODES, type PaUiLocaleCode } from "../../../core/paUiLocales";
 import { coreStore } from "../../../store/core";
 import { gameState } from "../../systems/game/state";
 import { noteSystem } from "../../systems/notes";
@@ -215,6 +216,9 @@ const basePrompt = ref("");
 const tasks = ref<TaskDef[]>([]);
 const defaultLanguage = ref<"it" | "en">("it");
 const maxTokens = ref(8192);
+const compendiumTranslateSource = ref<"auto" | PaUiLocaleCode>("auto");
+/** Empty string = follow UI language (server stores null). */
+const compendiumTranslateTarget = ref("");
 
 const currentTask = ref<TaskDef | { id: "custom"; label: string; systemPrompt: string; userPrompt: string } | null>(null);
 const taskInput = ref("");
@@ -308,6 +312,8 @@ async function loadSettings(): Promise<void> {
                 imageModel?: string;
                 defaultLanguage?: string;
                 maxTokens?: number;
+                compendiumTranslateSource?: string;
+                compendiumTranslateTarget?: string | null;
             };
             apiKey.value = data.hasApiKey ? "********" : "";
             googleApiKey.value = data.hasGoogleKey ? "********" : "";
@@ -317,6 +323,12 @@ async function loadSettings(): Promise<void> {
             defaultLanguage.value =
                 data.defaultLanguage === "en" ? "en" : "it";
             maxTokens.value = data.maxTokens ?? 8192;
+            const src = (data.compendiumTranslateSource ?? "auto").toLowerCase();
+            compendiumTranslateSource.value =
+                src === "auto" || PA_UI_LOCALE_CODES.includes(src as PaUiLocaleCode)
+                    ? (src === "auto" ? "auto" : (src as PaUiLocaleCode))
+                    : "auto";
+            compendiumTranslateTarget.value = data.compendiumTranslateTarget ?? "";
             const lang = defaultLanguage.value;
             basePrompt.value = (data.basePrompt?.trim() || getDefaultBasePrompt(lang));
             const loadedTasks =
@@ -355,6 +367,8 @@ async function loadSettings(): Promise<void> {
         }
     } catch {
         defaultLanguage.value = "it";
+        compendiumTranslateSource.value = "auto";
+        compendiumTranslateTarget.value = "";
         tasks.value = getDefaultTasks("it");
     }
 }
@@ -372,6 +386,8 @@ async function saveSettings(): Promise<void> {
             imageModel: string;
             defaultLanguage: string;
             maxTokens: number;
+            compendiumTranslateSource: string;
+            compendiumTranslateTarget: string | null;
         } = {
             model: selectedModel.value,
             visionModel: selectedVisionModel.value,
@@ -380,6 +396,9 @@ async function saveSettings(): Promise<void> {
             imageModel: selectedImageModel.value,
             defaultLanguage: defaultLanguage.value,
             maxTokens: maxTokens.value,
+            compendiumTranslateSource: compendiumTranslateSource.value,
+            compendiumTranslateTarget:
+                compendiumTranslateTarget.value.trim() === "" ? null : compendiumTranslateTarget.value.trim(),
         };
         if (apiKey.value && apiKey.value !== "********") {
             body.apiKey = apiKey.value;
@@ -989,6 +1008,30 @@ onMounted(() => {
                         <option value="en">{{ t("game.ui.extensions.OpenRouterModal.language_en") }}</option>
                         </select>
                         <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.default_language_hint") }}</p>
+                    </div>
+                </div>
+                <div class="ext-ui-section openrouter-settings-section">
+                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.compendium_translate_title") }}</h4>
+                    <p class="ext-ui-hint" style="margin-bottom: 0.5rem">
+                        {{ t("game.ui.extensions.OpenRouterModal.compendium_translate_hint") }}
+                    </p>
+                    <div class="ext-ui-field openrouter-field openrouter-field-inline">
+                        <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.compendium_translate_source") }}</label>
+                        <select v-model="compendiumTranslateSource" class="ext-ui-select">
+                            <option value="auto">{{ t("game.ui.extensions.OpenRouterModal.compendium_translate_auto") }}</option>
+                            <option v-for="code in PA_UI_LOCALE_CODES" :key="code" :value="code">
+                                {{ t("game.ui.extensions.OpenRouterModal.locale_" + code) }}
+                            </option>
+                        </select>
+                    </div>
+                    <div class="ext-ui-field openrouter-field openrouter-field-inline">
+                        <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.compendium_translate_target") }}</label>
+                        <select v-model="compendiumTranslateTarget" class="ext-ui-select">
+                            <option value="">{{ t("game.ui.extensions.OpenRouterModal.compendium_translate_follow_ui") }}</option>
+                            <option v-for="code in PA_UI_LOCALE_CODES" :key="'tgt-' + code" :value="code">
+                                {{ t("game.ui.extensions.OpenRouterModal.locale_" + code) }}
+                            </option>
+                        </select>
                     </div>
                 </div>
                 <div class="ext-ui-section openrouter-settings-section">

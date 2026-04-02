@@ -2,8 +2,9 @@
 import { onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
-import { http } from "../../../core/http";
+import { baseAdjust } from "../../../core/http";
 import { getQeNames, renderQeMarkdown } from "../../systems/extensions/compendium";
+import { extensionsState } from "../../systems/extensions/state";
 import { openCompendiumModalForItem } from "../../systems/extensions/ui";
 
 const { t } = useI18n();
@@ -28,9 +29,12 @@ async function fetchItem(comp: string | undefined, coll: string, slug: string): 
 
     try {
         const params = new URLSearchParams({ collection: coll, slug });
-        if (comp) params.set("compendium", comp);
-        const r = await http.get(
-            `/api/extensions/compendium/item?${params.toString()}`,
+        const ctxId = extensionsState.reactive.compendiumPreviewContext?.compendiumId;
+        const compResolved = (comp?.trim() || ctxId || "").trim() || undefined;
+        if (compResolved) params.set("compendium", compResolved);
+        const r = await fetch(
+            baseAdjust(`/api/extensions/compendium/item?${params.toString()}`),
+            { credentials: "include" },
         );
         if (r.ok) {
             const data = (await r.json()) as {

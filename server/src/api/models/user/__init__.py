@@ -42,6 +42,8 @@ class ApiUserOptions(TypeIdModel):
     openrouter_vision_model: str | None = None
     openrouter_default_language: str | None = "it"
     openrouter_max_tokens: int | None = 8192
+    openrouter_compendium_translate_source: str | None = "auto"
+    openrouter_compendium_translate_target: str | None = None
     ai_provider: str | None = "openrouter"
     google_ai_api_key: str | None = None
 
@@ -85,5 +87,7 @@ class ApiOptionalUserOptions(TypeIdModel):
     openrouter_vision_model: str | None = None
     openrouter_default_language: str | None = None
     openrouter_max_tokens: int | None = None
+    openrouter_compendium_translate_source: str | None = None
+    openrouter_compendium_translate_target: str | None = None
     ai_provider: str | None = None
     google_ai_api_key: str | None = None

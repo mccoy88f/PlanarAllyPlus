@@ -33,6 +33,29 @@ GOOGLE_IMAGE_MODELS = [
 ]
 GOOGLE_IMAGE_MODEL_IDS = {m["id"] for m in GOOGLE_IMAGE_MODELS}
 
+# PlanarAlly UI locale codes (same as client/src/locales/*.json)
+PA_UI_LOCALE_CODES = frozenset({"en", "it", "zh", "tw", "ru", "fr", "es", "dk", "de"})
+
+
+def _normalize_compendium_translate_source(raw: object) -> str:
+    v = (str(raw) if raw is not None else "auto").strip().lower()
+    if v == "auto":
+        return "auto"
+    if v in PA_UI_LOCALE_CODES:
+        return v
+    return "auto"
+
+
+def _normalize_compendium_translate_target(raw: object) -> str | None:
+    if raw is None:
+        return None
+    if isinstance(raw, str) and not raw.strip():
+        return None
+    v = str(raw).strip().lower()
+    if v in PA_UI_LOCALE_CODES:
+        return v
+    return None
+
 
 def _resolve_image_model(opts) -> str:
     """Return the image model to use based on saved settings."""
@@ -313,6 +336,8 @@ async def get_settings(request: web.Request) -> web.Response:
         "imageModel": _resolve_image_model(opts),
         "defaultLanguage": opts.openrouter_default_language or "it",
         "maxTokens": opts.openrouter_max_tokens if opts.openrouter_max_tokens is not None else 8192,
+        "compendiumTranslateSource": opts.openrouter_compendium_translate_source or "auto",
+        "compendiumTranslateTarget": opts.openrouter_compendium_translate_target,
     })
 
 
@@ -357,6 +382,15 @@ async def set_settings(request: web.Request) -> web.Response:
                     opts.openrouter_max_tokens = n
             except (TypeError, ValueError):
                 pass
+
+    if "compendiumTranslateSource" in body:
+        opts.openrouter_compendium_translate_source = _normalize_compendium_translate_source(
+            body.get("compendiumTranslateSource")
+        )
+    if "compendiumTranslateTarget" in body:
+        opts.openrouter_compendium_translate_target = _normalize_compendium_translate_target(
+            body.get("compendiumTranslateTarget")
+        )
 
     opts.save()
 
