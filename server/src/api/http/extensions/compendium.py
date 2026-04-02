@@ -1157,6 +1157,23 @@ async def get_item(request: web.Request) -> web.Response:
             if row:
                 resolved_item_slug = row[2]
                 break
+        # Link qe:…/glossario/5.5e senza sottovoce: nel DB gli slug sono 5.5e/abilita, ecc.
+        if not row and "/" not in item_slug:
+            for variant in _item_slug_lookup_variants(item_slug):
+                row = conn.execute(
+                    """
+                    SELECT c.slug, c.name, i.slug, i.name, i.markdown
+                    FROM items i
+                    JOIN collections c ON i.collection_id = c.id
+                    WHERE lower(c.slug) = lower(?) AND i.slug LIKE ? || '/%'
+                    ORDER BY COALESCE(i.display_order, 0), i.slug
+                    LIMIT 1
+                    """,
+                    (coll_slug, variant),
+                ).fetchone()
+                if row:
+                    resolved_item_slug = row[2]
+                    break
         if not row:
             conn.close()
             return web.json_response({"error": "Item not found"}, status=404)
