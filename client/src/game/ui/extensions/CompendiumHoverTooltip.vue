@@ -183,7 +183,8 @@ function handleMessage(e: MessageEvent): void {
 
 function handleDocumentClick(e: MouseEvent): void {
     const target = (e.target as HTMLElement).closest("a[data-qe-collection], a[href^='qe:']");
-    if (target instanceof HTMLAnchorElement && !target.closest(".compendium-modal")) {
+    /* Anche dentro CompendiumModal: stesso comportamento dell’anteprima (non navigare con selectItem). */
+    if (target instanceof HTMLAnchorElement) {
         const qeHref = getQeHrefFromAnchor(target);
         if (qeHref) {
             e.preventDefault();
