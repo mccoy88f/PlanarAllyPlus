@@ -8,6 +8,7 @@ import Modal from "../../../core/components/modals/Modal.vue";
 import { useModal } from "../../../core/plugins/modals/plugin";
 import { http } from "../../../core/http";
 import {
+    ensureQeLinksCompendiumContext,
     getQeNames,
     injectQeLinks,
     invalidateQeNamesCache,
@@ -617,7 +618,8 @@ const selectedMarkdownHtml = computed(() => {
     const withLinks = !qeNames.value.length
         ? raw
         : injectQeLinks(raw, qeNames.value, selectedItem.value ? [selectedItem.value.item.name] : []);
-    return renderQeMarkdown(withLinks);
+    const rendered = renderQeMarkdown(withLinks);
+    return ensureQeLinksCompendiumContext(rendered, selectedItem.value?.compendium.slug);
 });
 
 const isSearchDebouncing = computed(() => {
@@ -671,7 +673,9 @@ function handleMarkdownClick(e: MouseEvent): void {
     e.preventDefault();
     const comp = compSlug
         ? compendiums.value.find((c) => c.slug === compSlug)
-        : compendiums.value.find((c) => c.isDefault) ?? compendiums.value[0];
+        : (selectedItem.value?.compendium ??
+              compendiums.value.find((c) => c.isDefault) ??
+              compendiums.value[0]);
     if (!comp) return;
     const coll: CollectionMeta = { slug: collSlug, name: "", parentSlug: null, count: 0 };
     const item: ItemMeta = { slug: itemSlug, name: "" };

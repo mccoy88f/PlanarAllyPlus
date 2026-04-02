@@ -91,6 +91,30 @@ export function renderQeMarkdown(source: string): string {
     return qeMarkdownRenderer.render(preprocessQeLinksToHtml(repaired));
 }
 
+/**
+ * Imposta `data-qe-compendium` sugli anchor `qe-internal-link` che non hanno un compendio (link legacy `qe:coll/slug`).
+ * L'API anteprima usa il default server se manca; in multi-compendio aprendo una voce non-default si ottiene 404 e il tooltip sparisce subito.
+ */
+export function ensureQeLinksCompendiumContext(html: string, compendiumSlug: string | undefined): string {
+    const slug = compendiumSlug?.trim();
+    if (!html || !slug) return html;
+    if (typeof DOMParser === "undefined") return html;
+    try {
+        const doc = new DOMParser().parseFromString(`<div id="__qe_ctx">${html}</div>`, "text/html");
+        const root = doc.getElementById("__qe_ctx");
+        if (!root) return html;
+        root.querySelectorAll("a.qe-internal-link").forEach((a) => {
+            const cur = a.getAttribute("data-qe-compendium");
+            if (!cur?.trim()) {
+                a.setAttribute("data-qe-compendium", slug);
+            }
+        });
+        return root.innerHTML;
+    } catch {
+        return html;
+    }
+}
+
 /** Converte link markdown [text](qe:path) in HTML prima del rendering. Evita che markdown-it non li riconosca.
  * Processa iterativamente solo link con path "puliti" (slug validi), così i link annidati vengono gestiti
  * dall'interno verso l'esterno. Path malformati (con [, ], () vengono poi sostituiti con il solo testo del link. */
