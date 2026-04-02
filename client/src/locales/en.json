@@ -1173,6 +1173,8 @@
           "translate_error": "Failed to translate content",
           "translate_batch_title": "Translate index and entries",
           "translate_batch_body": "This will translate {count} compendium entries one by one (each save is kept if something fails), then the index names for this view. It may take several minutes.",
+          "translate_batch_confirm_cancel": "Cancel",
+          "translate_batch_confirm_start": "Start translation",
           "translate_batch_progress": "Translating entries: {current} / {total}",
           "translate_batch_done": "Index translation finished (entries and index names).",
           "translate_batch_partial": "{count} entries could not be translated; others were saved.",

@@ -9,6 +9,7 @@ import { useModal } from "../../../core/plugins/modals/plugin";
 import { http } from "../../../core/http";
 import { localeToEnglishPromptName, normalizeToPaLocale } from "../../../core/paUiLocales";
 import {
+    applyCompendiumResolverMap,
     ensureQeLinksCompendiumContext,
     getQeNames,
     injectQeLinks,
@@ -1413,6 +1414,7 @@ async function runTranslateIndexRecursiveBatch(
     }
 }
 
+/** Traduce i soli `name` nel JSON del ramo indice visibile; con nodo focalizzato fa merge in `currentIndex` e salva l’indice intero in DB. */
 async function translateIndexJsonOnly(roots: IndexCollNode[], targetCode: string): Promise<boolean> {
     const targetLangName = localeToEnglishPromptName(targetCode);
     const systemPrompt = buildCompendiumMarkdownSystemPrompt(targetCode);
@@ -1530,31 +1532,22 @@ async function translateCurrentView(): Promise<void> {
     }
 
     if (showIndex.value && currentIndex.value.length > 0) {
+        /** Stesso ramo mostrato dalla pagina indice (root o nodo cliccato); la traduzione nomi usa solo questo JSON, poi merge nell’albero completo. */
         const roots = displayedIndex.value as IndexCollNode[];
         const leafItems = collectLeafItemsFromIndexNodes(roots);
         if (leafItems.length > 0) {
-            const ok = await modals.confirm(
-                t("game.ui.extensions.CompendiumModal.translate_batch_title"),
-                t("game.ui.extensions.CompendiumModal.translate_batch_body", { count: leafItems.length }),
-            );
-            if (!ok) return;
+            openTranslateBatchConfirm(leafItems, targetCode, roots);
+            return;
         }
         translateLoading.value = true;
-        batchTranslateProgress.value = leafItems.length > 0 ? { current: 0, total: leafItems.length } : null;
+        batchTranslateProgress.value = null;
         try {
-            if (leafItems.length > 0) {
-                await runTranslateIndexRecursiveBatch(leafItems, targetCode);
-            }
-            const indexOk = await translateIndexJsonOnly(roots, targetCode);
-            if (leafItems.length > 0 && indexOk) {
-                toast.success(t("game.ui.extensions.CompendiumModal.translate_batch_done"));
-            }
+            await translateIndexJsonOnly(roots, targetCode);
         } catch (e: unknown) {
             console.error(e);
             toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
         } finally {
             translateLoading.value = false;
-            batchTranslateProgress.value = null;
         }
     }
 }
@@ -1661,6 +1654,7 @@ async function loadCompendiums(): Promise<void> {
             };
             compendiums.value = data.compendiums;
             defaultId.value = data.defaultId;
+            applyCompendiumResolverMap(data.compendiums, data.defaultId);
             qeNames.value = await getQeNames();
             const openItem = extensionsState.raw.compendiumOpenItem;
             if (openItem && compendiums.value.length > 0) {
@@ -1735,6 +1729,63 @@ function setSearchCompendiumFilter(id: string | null): void {
 }
 
 const shareModalOpen = ref(false);
+
+/** Conferma traduzione indice ricorsiva (stesso pattern overlay del modale Condividi). */
+const translateBatchConfirmOpen = ref(false);
+const pendingTranslateBatch = ref<{
+    leafItems: { collectionSlug: string; itemSlug: string; itemName: string }[];
+    targetCode: string;
+    roots: IndexCollNode[];
+} | null>(null);
+
+const translateBatchPendingCount = computed(() => pendingTranslateBatch.value?.leafItems.length ?? 0);
+
+function openTranslateBatchConfirm(
+    leafItems: { collectionSlug: string; itemSlug: string; itemName: string }[],
+    targetCode: string,
+    roots: IndexCollNode[],
+): void {
+    pendingTranslateBatch.value = { leafItems, targetCode, roots };
+    translateBatchConfirmOpen.value = true;
+}
+
+function closeTranslateBatchConfirm(): void {
+    translateBatchConfirmOpen.value = false;
+    pendingTranslateBatch.value = null;
+}
+
+async function executeIndexTranslationBatch(p: {
+    leafItems: { collectionSlug: string; itemSlug: string; itemName: string }[];
+    targetCode: string;
+    roots: IndexCollNode[];
+}): Promise<void> {
+    const { leafItems, targetCode, roots } = p;
+    translateLoading.value = true;
+    batchTranslateProgress.value = leafItems.length > 0 ? { current: 0, total: leafItems.length } : null;
+    try {
+        if (leafItems.length > 0) {
+            await runTranslateIndexRecursiveBatch(leafItems, targetCode);
+        }
+        const indexOk = await translateIndexJsonOnly(roots, targetCode);
+        if (leafItems.length > 0 && indexOk) {
+            toast.success(t("game.ui.extensions.CompendiumModal.translate_batch_done"));
+        }
+    } catch (e: unknown) {
+        console.error(e);
+        toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
+    } finally {
+        translateLoading.value = false;
+        batchTranslateProgress.value = null;
+    }
+}
+
+async function confirmTranslateBatch(): Promise<void> {
+    const p = pendingTranslateBatch.value;
+    if (!p) return;
+    translateBatchConfirmOpen.value = false;
+    pendingTranslateBatch.value = null;
+    await executeIndexTranslationBatch(p);
+}
 
 function openShareModal(): void {
     if (!selectedItem.value) return;
@@ -1882,16 +1933,23 @@ watch(
     },
 );
 
-/** Anteprima link qe: nel modale: fallback API con id compendio (stabile) se il DOM non ha data-qe-compendium. */
+/** Anteprima link qe: nel modale: contesto con id UUID + slug per risolvere le richieste con ?compendium=id (evita 404 su slug). */
 watch(
-    () => [props.visible, selectedItem.value?.compendium.id, indexCompendium.value?.id] as const,
-    ([visible, itemCompId, idxCompId]) => {
+    () => [props.visible, selectedItem.value?.compendium, indexCompendium.value] as const,
+    ([visible, itemComp, idxComp]) => {
         if (!visible) {
             extensionsState.mutableReactive.compendiumPreviewContext = undefined;
             return;
         }
-        const id = itemCompId ?? idxCompId;
-        extensionsState.mutableReactive.compendiumPreviewContext = id ? { compendiumId: id } : undefined;
+        const comp = itemComp ?? idxComp;
+        if (comp?.id) {
+            extensionsState.mutableReactive.compendiumPreviewContext = {
+                compendiumId: comp.id,
+                compendiumSlug: comp.slug,
+            };
+        } else {
+            extensionsState.mutableReactive.compendiumPreviewContext = undefined;
+        }
     },
     { immediate: true },
 );
@@ -2552,6 +2610,35 @@ onMounted(() => {
                     </button>
                     <button type="button" class="ext-ui-btn ext-ui-btn-success" @click="addCompendiumToNote">
                         {{ t("game.ui.extensions.CompendiumModal.add_as_note") }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </Teleport>
+
+    <Teleport to="body">
+        <div
+            v-if="translateBatchConfirmOpen"
+            class="ext-ui-overlay open qe-share-overlay"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="t('game.ui.extensions.CompendiumModal.translate_batch_title')"
+            @click.self="closeTranslateBatchConfirm"
+        >
+            <div
+                class="ext-ui-overlay-panel ext-ui-overlay-panel--sm ext-ui-overlay-panel--padded qe-share-modal-panel"
+                @click.stop
+            >
+                <h3 class="qe-share-modal-title">{{ t("game.ui.extensions.CompendiumModal.translate_batch_title") }}</h3>
+                <p class="qe-share-modal-hint">
+                    {{ t("game.ui.extensions.CompendiumModal.translate_batch_body", { count: translateBatchPendingCount }) }}
+                </p>
+                <div class="qe-translate-batch-actions">
+                    <button type="button" class="ext-ui-btn" @click="closeTranslateBatchConfirm">
+                        {{ t("game.ui.extensions.CompendiumModal.translate_batch_confirm_cancel") }}
+                    </button>
+                    <button type="button" class="ext-ui-btn ext-ui-btn-primary" @click="confirmTranslateBatch">
+                        {{ t("game.ui.extensions.CompendiumModal.translate_batch_confirm_start") }}
                     </button>
                 </div>
             </div>
@@ -3373,6 +3460,14 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+}
+
+.qe-translate-batch-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 0.25rem;
 }
 
 .qe-install-overlay {

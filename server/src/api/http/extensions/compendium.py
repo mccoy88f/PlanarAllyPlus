@@ -91,11 +91,18 @@ def _save_config(config: dict) -> None:
 
 
 def _get_compendium(comp_id_or_slug: str) -> dict | None:
-    """Cerca per id o slug."""
+    """Cerca per id o slug (slug case-insensitive come fallback)."""
+    if not comp_id_or_slug:
+        return None
     config = _load_config()
-    for c in config["compendiums"]:
-        if c.get("id") == comp_id_or_slug or c.get("slug") == comp_id_or_slug:
-            return c
+    for comp in config["compendiums"]:
+        if comp.get("id") == comp_id_or_slug or comp.get("slug") == comp_id_or_slug:
+            return comp
+    needle = comp_id_or_slug.lower()
+    for comp in config["compendiums"]:
+        slug = (comp.get("slug") or "").lower()
+        if slug and slug == needle:
+            return comp
     return None
 
 
@@ -1143,7 +1150,7 @@ async def get_item(request: web.Request) -> web.Response:
                 SELECT c.slug, c.name, i.slug, i.name, i.markdown
                 FROM items i
                 JOIN collections c ON i.collection_id = c.id
-                WHERE c.slug = ? AND i.slug = ?
+                WHERE lower(c.slug) = lower(?) AND i.slug = ?
                 """,
                 (coll_slug, variant),
             ).fetchone()
@@ -1163,7 +1170,7 @@ async def get_item(request: web.Request) -> web.Response:
             JOIN tag_categories tc ON tc.id = t.category_id
             JOIN items i ON i.id = it.item_id
             JOIN collections c ON c.id = i.collection_id
-            WHERE c.slug = ? AND i.slug = ?
+            WHERE lower(c.slug) = lower(?) AND i.slug = ?
             """,
             (coll_slug, resolved_item_slug),
         ).fetchall()

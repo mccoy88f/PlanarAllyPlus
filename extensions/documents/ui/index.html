@@ -752,7 +752,52 @@
             var iconTrash = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i>';
             /** Hash per cui abbiamo già richiesto la generazione anteprima: evita POST ripetuti e load() a catena. */
             var thumbGenRequested = new Set();
-            var thumbReloadTimer = null;
+            /** Timer a catena: ripete load(true) finché compaiono le miniature (non un solo refresh dopo 3s). */
+            var thumbPollChainTimer = null;
+            var thumbPollAttempts = 0;
+            var THUMB_POLL_MAX = 160;
+            var THUMB_POLL_MS = 400;
+
+            function stopThumbPoll() {
+                if (thumbPollChainTimer !== null) {
+                    clearTimeout(thumbPollChainTimer);
+                    thumbPollChainTimer = null;
+                }
+                thumbPollAttempts = 0;
+            }
+
+            function hasMissingDocumentThumbnails() {
+                return items.some(function (it) {
+                    return it.type === 'document' && it.fileHash && !it.thumbnailUrl;
+                });
+            }
+
+            /**
+             * Dopo generate-thumbnails il server elabora in background: aggiorniamo la lista
+             * a intervalli così ogni copertina appena pronta si vede subito, senza attendere tutte.
+             */
+            function startThumbPoll() {
+                stopThumbPoll();
+                function tick() {
+                    thumbPollAttempts++;
+                    if (thumbPollAttempts > THUMB_POLL_MAX) {
+                        stopThumbPoll();
+                        return;
+                    }
+                    load(true)
+                        .then(function () {
+                            if (!hasMissingDocumentThumbnails()) {
+                                stopThumbPoll();
+                                return;
+                            }
+                            thumbPollChainTimer = setTimeout(tick, THUMB_POLL_MS);
+                        })
+                        .catch(function () {
+                            thumbPollChainTimer = setTimeout(tick, THUMB_POLL_MS);
+                        });
+                }
+                thumbPollChainTimer = setTimeout(tick, 250);
+            }
 
             function showMsg(text, isError) {
                 msgEl.textContent = text;
@@ -1072,6 +1117,7 @@
              */
             async function load(silent) {
                 if (!silent) {
+                    stopThumbPoll();
                     setLoadingVisible(true);
                     emptyEl.style.display = 'none';
                     listEl.style.display = 'none';
@@ -1126,14 +1172,8 @@
                             if (genR.ok) {
                                 var genData = await genR.json();
                                 missingThumbs.forEach(function (h) { thumbGenRequested.add(h); });
-                                if (genData.generated > 0) {
-                                    if (thumbReloadTimer !== null) {
-                                        clearTimeout(thumbReloadTimer);
-                                    }
-                                    thumbReloadTimer = setTimeout(function () {
-                                        thumbReloadTimer = null;
-                                        load(true);
-                                    }, 3000);
+                                if (genData.generated > 0 || hasMissingDocumentThumbnails()) {
+                                    startThumbPoll();
                                 }
                             }
                         } catch (e) { /* ignore */ }

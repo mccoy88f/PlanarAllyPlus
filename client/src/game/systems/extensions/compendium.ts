@@ -3,6 +3,8 @@ import { ref } from "vue";
 
 import { http } from "../../../core/http";
 
+import { extensionsState } from "./state";
+
 /** Plugin markdown-it: link qe: → href="#" con data attributes (nasconde qe: in barra stato). */
 export function qeLinkPlugin(md: MarkdownIt): void {
     const defaultRender =
@@ -57,6 +59,67 @@ export async function getQeNames(compendiumId?: string): Promise<QeNameEntry[]> 
 /** Invalida la cache dei nomi (es. dopo install/disinstall compendio). */
 export function invalidateQeNamesCache(): void {
     namesCache.value = null;
+    extensionsState.mutableReactive.compendiumSlugToId = {};
+    extensionsState.mutableReactive.compendiumDefaultId = undefined;
+}
+
+let resolverMapLoadPromise: Promise<void> | null = null;
+
+/** Aggiorna slug→UUID dalla risposta GET compendiums (evita doppia richiesta se già caricato dal modale). */
+export function applyCompendiumResolverMap(
+    compendiums: { id: string; slug: string }[],
+    defaultId: string | null | undefined,
+): void {
+    const map: Record<string, string> = {};
+    for (const c of compendiums) {
+        if (c.id && c.slug) {
+            map[c.slug.toLowerCase()] = c.id;
+            map[c.id] = c.id;
+        }
+    }
+    extensionsState.mutableReactive.compendiumSlugToId = map;
+    extensionsState.mutableReactive.compendiumDefaultId = defaultId ?? undefined;
+}
+
+/** Carica mappa slug→id per anteprima tooltip (chat, link qe: con slug server). */
+export async function loadCompendiumResolverMap(): Promise<void> {
+    if (Object.keys(extensionsState.raw.compendiumSlugToId).length > 0) return;
+    if (resolverMapLoadPromise) return resolverMapLoadPromise;
+    resolverMapLoadPromise = (async () => {
+        try {
+            const r = await http.get("/api/extensions/compendium/compendiums");
+            if (!r.ok) return;
+            const data = (await r.json()) as {
+                compendiums: { id: string; slug: string }[];
+                defaultId: string | null;
+            };
+            applyCompendiumResolverMap(data.compendiums ?? [], data.defaultId);
+        } finally {
+            resolverMapLoadPromise = null;
+        }
+    })();
+    return resolverMapLoadPromise;
+}
+
+/** Parametro `compendium` per GET /api/extensions/compendium/item (preferisce UUID da slug→id). */
+export function resolveCompendiumIdForItemQuery(compFromLink: string | undefined): string | undefined {
+    const ctx = extensionsState.reactive.compendiumPreviewContext;
+    const link = compFromLink?.trim();
+    const map = extensionsState.reactive.compendiumSlugToId;
+    const defaultId = extensionsState.reactive.compendiumDefaultId;
+
+    if (ctx?.compendiumId) {
+        if (!link || link === ctx.compendiumSlug || link === ctx.compendiumId) {
+            return ctx.compendiumId;
+        }
+    }
+    if (link) {
+        const m = map[link] ?? map[link.toLowerCase()];
+        if (m) return m;
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(link)) return link;
+        return undefined;
+    }
+    return ctx?.compendiumId ?? defaultId;
 }
 
 const MARKDOWN_LINK = /\[([^\]]*)\]\(([^)]*)\)/g;
