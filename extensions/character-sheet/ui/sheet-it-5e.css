@@ -754,10 +754,6 @@ input[type="checkbox"] {
   cursor: pointer;
   opacity: 1;
 }
-/* Slot incantesimo: in sola lettura nascondi i sottotitoli «Totale» / «Spesi» sotto ogni «Livello N». */
-.cs-sheet-disabled .slots-grid .slot-inputs .field-label {
-  display: none;
-}
 .cs-markdown strong { font-weight: 700 !important; }
 .cs-markdown a.qe-internal-link {
   color: var(--text);

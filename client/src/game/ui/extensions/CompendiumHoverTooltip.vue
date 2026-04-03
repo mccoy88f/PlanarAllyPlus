@@ -3,8 +3,13 @@ import { onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 import { baseAdjust } from "../../../core/http";
-import { getQeNames, renderQeMarkdown } from "../../systems/extensions/compendium";
-import { extensionsState } from "../../systems/extensions/state";
+import {
+    getQeNames,
+    loadCompendiumResolverMap,
+    parseQePathSegments,
+    renderQeMarkdown,
+    resolveCompendiumIdForItemQuery,
+} from "../../systems/extensions/compendium";
 import { openCompendiumModalForItem } from "../../systems/extensions/ui";
 
 const { t } = useI18n();
@@ -28,9 +33,9 @@ async function fetchItem(comp: string | undefined, coll: string, slug: string): 
     }, 150);
 
     try {
+        await loadCompendiumResolverMap();
         const params = new URLSearchParams({ collection: coll, slug });
-        const ctxId = extensionsState.reactive.compendiumPreviewContext?.compendiumId;
-        const compResolved = (comp?.trim() || ctxId || "").trim() || undefined;
+        const compResolved = resolveCompendiumIdForItemQuery(comp);
         if (compResolved) params.set("compendium", compResolved);
         const r = await fetch(
             baseAdjust(`/api/extensions/compendium/item?${params.toString()}`),
@@ -65,14 +70,9 @@ async function fetchItem(comp: string | undefined, coll: string, slug: string): 
 
 function parseQeHref(href: string): { comp?: string; coll: string; slug: string } | null {
     const rest = href.slice(3);
-    const parts = rest.split("/");
-    if (parts.length >= 3) {
-        return { comp: parts[0], coll: parts[1] ?? "", slug: parts[2] ?? "" };
-    }
-    if (parts.length === 2) {
-        return { coll: parts[0] ?? "", slug: parts[1] ?? "" };
-    }
-    return null;
+    const { compSlug, collectionSlug, itemSlug } = parseQePathSegments(rest);
+    if (!collectionSlug || !itemSlug) return null;
+    return { comp: compSlug, coll: collectionSlug, slug: itemSlug };
 }
 
 function showAtCoords(coll: string, slug: string, comp: string | undefined, screenX: number, screenY: number): void {
@@ -210,6 +210,7 @@ function handleEscape(e: KeyboardEvent): void {
 }
 
 onMounted(() => {
+    void loadCompendiumResolverMap();
     getQeNames(); // preload per autolink
     document.addEventListener("click", handleDocumentClick, true);
     window.addEventListener("message", handleMessage);

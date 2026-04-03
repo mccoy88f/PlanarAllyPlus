@@ -1,6 +1,6 @@
 import MarkdownIt from "markdown-it";
 
-import { preprocessQeLinksToHtml } from "../extensions/compendium";
+import { parseQePathSegments, preprocessQeLinksToHtml } from "../extensions/compendium";
 
 export const chatMarkDown = new MarkdownIt({ linkify: true, html: true });
 
@@ -8,25 +8,12 @@ chatMarkDown.renderer.rules.link_open = (tokens, idx, options, env, self) => {
     const href = tokens[idx]?.attrGet("href") ?? "";
     if (href.startsWith("qe:")) {
         const rest = href.slice(3);
-        const parts = rest.split("/");
-
-        let compendium = "";
-        let collection = "";
-        let slug = "";
-
-        if (parts.length >= 3) {
-            compendium = parts[0] ?? "";
-            collection = parts[1] ?? "";
-            slug = parts[2] ?? "";
-        } else {
-            collection = parts[0] ?? "";
-            slug = parts[1] ?? "";
-        }
+        const { compSlug, collectionSlug, itemSlug } = parseQePathSegments(rest);
 
         tokens[idx]?.attrSet("href", "#");
-        if (compendium) tokens[idx]?.attrSet("data-qe-compendium", compendium);
-        tokens[idx]?.attrSet("data-qe-collection", collection);
-        tokens[idx]?.attrSet("data-qe-slug", slug);
+        if (compSlug) tokens[idx]?.attrSet("data-qe-compendium", compSlug);
+        tokens[idx]?.attrSet("data-qe-collection", collectionSlug);
+        tokens[idx]?.attrSet("data-qe-slug", itemSlug);
         tokens[idx]?.attrSet("class", "qe-chat-link qe-internal-link");
     } else if (href.startsWith("doc:")) {
         /* href="#": lo schema doc: non è standard; alcuni browser svuotano o alterano href="doc:…". */
