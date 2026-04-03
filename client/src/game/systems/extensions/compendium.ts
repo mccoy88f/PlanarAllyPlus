@@ -5,6 +5,62 @@ import { http } from "../../../core/http";
 
 import { extensionsState } from "./state";
 
+/** Segmenti path dopo `qe:`: lo slug voce può contenere `/` (es. `5.5e/creatura`). */
+export interface QePathParts {
+    compSlug: string | undefined;
+    collectionSlug: string;
+    itemSlug: string;
+}
+
+/** True se il primo segmento è un compendio noto (mappa API) o id compendio (UUID / id corto). */
+function isCompendiumFirstSegment(seg: string): boolean {
+    const map = extensionsState.raw.compendiumSlugToId;
+    const k = seg.toLowerCase();
+    if (map[k] || map[seg]) return true;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg)) return true;
+    if (/^[0-9a-f]{8}$/i.test(seg)) return true;
+    return false;
+}
+
+/**
+ * Spezza `rest` (path dopo `qe:`) in comp / collezione / slug voce.
+ * - 4+ segmenti: sempre `comp/coll/voce/con/slash/...`.
+ * - 3 segmenti: se il primo è un compendio noto → `comp/coll/voce`; altrimenti `coll/voce` con voce = seg2/seg3.
+ * - 2 segmenti: `coll/voce` (legacy senza compendio nello slug).
+ */
+export function parseQePathSegments(rest: string): QePathParts {
+    const parts = rest.split("/").filter((p) => p.length > 0);
+    if (parts.length === 0) {
+        return { compSlug: undefined, collectionSlug: "", itemSlug: "" };
+    }
+    if (parts.length === 1) {
+        return { compSlug: undefined, collectionSlug: "", itemSlug: parts[0]! };
+    }
+    if (parts.length === 2) {
+        return { compSlug: undefined, collectionSlug: parts[0]!, itemSlug: parts[1]! };
+    }
+    if (parts.length >= 4) {
+        return {
+            compSlug: parts[0]!,
+            collectionSlug: parts[1]!,
+            itemSlug: parts.slice(2).join("/"),
+        };
+    }
+    /* 3 segmenti */
+    if (isCompendiumFirstSegment(parts[0]!)) {
+        return {
+            compSlug: parts[0]!,
+            collectionSlug: parts[1]!,
+            itemSlug: parts[2]!,
+        };
+    }
+    return {
+        compSlug: undefined,
+        collectionSlug: parts[0]!,
+        itemSlug: parts.slice(1).join("/"),
+    };
+}
+
 /** Plugin markdown-it: link qe: → href="#" con data attributes (nasconde qe: in barra stato). */
 export function qeLinkPlugin(md: MarkdownIt): void {
     const defaultRender =
@@ -14,13 +70,10 @@ export function qeLinkPlugin(md: MarkdownIt): void {
         const href = tokens[idx]?.attrGet("href") ?? "";
         if (href.startsWith("qe:")) {
             const rest = href.slice(3);
-            const parts = rest.split("/");
-            const compSlug = parts.length >= 3 ? parts[0] : "";
-            const collSlug = parts.length >= 3 ? parts[1] : parts[0] ?? "";
-            const itemSlug = parts.length >= 3 ? parts[2] ?? "" : parts[1] ?? "";
+            const { compSlug, collectionSlug, itemSlug } = parseQePathSegments(rest);
             tokens[idx]?.attrSet("href", "#");
-            tokens[idx]?.attrSet("data-qe-compendium", compSlug);
-            tokens[idx]?.attrSet("data-qe-collection", collSlug);
+            if (compSlug) tokens[idx]?.attrSet("data-qe-compendium", compSlug);
+            tokens[idx]?.attrSet("data-qe-collection", collectionSlug);
             tokens[idx]?.attrSet("data-qe-slug", itemSlug);
             tokens[idx]?.attrSet("class", "qe-internal-link");
         }
@@ -190,10 +243,10 @@ export function preprocessQeLinksToHtml(text: string): string {
             .replace(/"/g, "&quot;");
     const replaceOne = (str: string) =>
         str.replace(QE_LINK_CLEAN, (_, linkText, path) => {
-            const parts = path.split("/");
-            const comp = parts.length >= 3 ? esc(parts[0]!) : "";
-            const coll = parts.length >= 3 ? esc(parts[1]!) : esc(parts[0] ?? "");
-            const slug = parts.length >= 3 ? esc(parts[2]!) : esc(parts[1] ?? "");
+            const { compSlug, collectionSlug, itemSlug } = parseQePathSegments(path);
+            const comp = compSlug ? esc(compSlug) : "";
+            const coll = esc(collectionSlug);
+            const slug = esc(itemSlug);
             let attrs = `href="#" data-qe-collection="${coll}" data-qe-slug="${slug}" class="qe-internal-link"`;
             if (comp) attrs = `data-qe-compendium="${comp}" ${attrs}`;
             return `<a ${attrs}>${esc(linkText)}</a>`;

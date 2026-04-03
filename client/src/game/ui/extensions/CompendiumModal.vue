@@ -14,6 +14,7 @@ import {
     getQeNames,
     injectQeLinks,
     invalidateQeNamesCache,
+    parseQePathSegments,
     renderQeMarkdown,
 } from "../../systems/extensions/compendium";
 import { chatSystem } from "../../systems/chat";
@@ -713,16 +714,11 @@ function handleMarkdownClick(e: MouseEvent): void {
     } else {
         const href = target.getAttribute("href") ?? "";
         if (!href.startsWith("qe:")) return;
-        const rest = href.slice(3);
-        const parts = rest.split("/");
-        if (parts.length >= 3) {
-            compSlug = parts[0];
-            collSlug = parts[1] ?? "";
-            itemSlug = parts[2] ?? "";
-        } else if (parts.length === 2) {
-            collSlug = parts[0] ?? "";
-            itemSlug = parts[1] ?? "";
-        } else return;
+        const parsed = parseQePathSegments(href.slice(3));
+        if (!parsed.collectionSlug || !parsed.itemSlug) return;
+        compSlug = parsed.compSlug;
+        collSlug = parsed.collectionSlug;
+        itemSlug = parsed.itemSlug;
     }
     e.preventDefault();
     const comp = compSlug

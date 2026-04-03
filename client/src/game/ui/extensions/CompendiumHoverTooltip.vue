@@ -6,6 +6,7 @@ import { baseAdjust } from "../../../core/http";
 import {
     getQeNames,
     loadCompendiumResolverMap,
+    parseQePathSegments,
     renderQeMarkdown,
     resolveCompendiumIdForItemQuery,
 } from "../../systems/extensions/compendium";
@@ -69,14 +70,9 @@ async function fetchItem(comp: string | undefined, coll: string, slug: string): 
 
 function parseQeHref(href: string): { comp?: string; coll: string; slug: string } | null {
     const rest = href.slice(3);
-    const parts = rest.split("/");
-    if (parts.length >= 3) {
-        return { comp: parts[0], coll: parts[1] ?? "", slug: parts[2] ?? "" };
-    }
-    if (parts.length === 2) {
-        return { coll: parts[0] ?? "", slug: parts[1] ?? "" };
-    }
-    return null;
+    const { compSlug, collectionSlug, itemSlug } = parseQePathSegments(rest);
+    if (!collectionSlug || !itemSlug) return null;
+    return { comp: compSlug, coll: collectionSlug, slug: itemSlug };
 }
 
 function showAtCoords(coll: string, slug: string, comp: string | undefined, screenX: number, screenY: number): void {
