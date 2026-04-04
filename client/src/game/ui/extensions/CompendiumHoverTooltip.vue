@@ -10,6 +10,7 @@ import {
     renderQeMarkdown,
     resolveCompendiumIdForItemQuery,
 } from "../../systems/extensions/compendium";
+import { extensionsState } from "../../systems/extensions/state";
 import { openCompendiumModalForItem } from "../../systems/extensions/ui";
 
 const { t } = useI18n();
@@ -185,19 +186,37 @@ function handleMessage(e: MessageEvent): void {
     }
 }
 
+/** Click su testo dentro `<a>` espone spesso un Text node: senza questo `.closest` fallisce. */
+function eventTargetElement(e: MouseEvent): Element | null {
+    const t = e.target;
+    if (t instanceof Element) return t;
+    if (t instanceof Text) return t.parentElement;
+    return null;
+}
+
 function handleDocumentClick(e: MouseEvent): void {
-    const target = (e.target as HTMLElement).closest("a[data-qe-collection], a[href^='qe:']");
-    /* Anche dentro CompendiumModal: stesso comportamento dell’anteprima (non navigare con selectItem). */
+    const fromEl = eventTargetElement(e);
+    const target = fromEl?.closest("a[data-qe-collection], a[href^='qe:']");
+    /* Anche dentro CompendiumModal: anteprima; link nell’anteprima con compendio aperto → apri la voce nel modale. */
     if (target instanceof HTMLAnchorElement) {
         const qeHref = getQeHrefFromAnchor(target);
         if (qeHref) {
             e.preventDefault();
             e.stopPropagation();
-            show(e, qeHref);
+            const insideTooltip = target.closest(".qe-hover-tooltip");
+            if (insideTooltip && extensionsState.raw.compendiumModalOpen) {
+                const parsed = parseQeHref(qeHref);
+                if (parsed?.coll && parsed.slug) {
+                    openCompendiumModalForItem(parsed.coll, parsed.slug, parsed.comp);
+                    closeTooltip();
+                }
+            } else {
+                show(e, qeHref);
+            }
         }
         return;
     }
-    if (visible.value && !(e.target as HTMLElement).closest(".qe-hover-tooltip")) {
+    if (visible.value && !fromEl?.closest(".qe-hover-tooltip")) {
         closeTooltip();
     }
 }
