@@ -1951,7 +1951,8 @@ watch(
 );
 
 watch(
-    () => [extensionsState.raw.compendiumOpenItem, compendiums.value.length] as const,
+    /* reactive (non raw): altrimenti il watch non si riattiva quando il compendio è già aperto */
+    () => [extensionsState.reactive.compendiumOpenItem, compendiums.value.length] as const,
     async ([openItem]) => {
         if (!openItem || !props.visible || !compendiums.value.length) return;
         sidebarCollapsed.value = true;
