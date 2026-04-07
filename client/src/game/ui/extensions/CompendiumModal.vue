@@ -7,7 +7,7 @@ import { uuidv4 } from "../../../core/utils";
 import Modal from "../../../core/components/modals/Modal.vue";
 import { useModal } from "../../../core/plugins/modals/plugin";
 import { http } from "../../../core/http";
-import { localeToEnglishPromptName, normalizeToPaLocale } from "../../../core/paUiLocales";
+import { normalizeToPaLocale } from "../../../core/paUiLocales";
 import {
     applyCompendiumResolverMap,
     ensureQeLinksCompendiumContext,
@@ -35,8 +35,17 @@ import { getFolderByPath } from "../../../assets/emits";
 import { assetState } from "../../../assets/state";
 import { socket } from "../../../assets/socket";
 import type { DropAssetInfo } from "../../dropAsset";
-
-
+import type { IndexCollNode } from "./compendium/indexTree";
+import {
+    collectLeafItemsFromIndexNodes,
+    findIndexNodeBySlug,
+    findItemNameInIndexTree,
+    indexNodeHasVisibleBranchContent as indexBranchHasVisibleContent,
+    isBranchDirectlyTranslated,
+    isGlobalIndexFullyTranslatedRoots,
+    isSubtreeFullyTranslatedForSlug,
+} from "./compendium/indexTree";
+import { useCompendiumTranslation } from "./compendium/useCompendiumTranslation";
 
 const props = defineProps<{
     visible: boolean;
@@ -131,158 +140,23 @@ const currentIndex = ref<{ slug: string; name: string; items: { slug: string; na
 /** Se valorizzato, l’indice mostra solo il ramo di questa collezione (sotto-albero). */
 const indexFocusCollectionSlug = ref<string | null>(null);
 
-interface IndexCollNode {
-    slug: string;
-    name: string;
-    items: { slug: string; name: string }[];
-    collections?: IndexCollNode[];
-}
-
-function findIndexNodeBySlug(nodes: IndexCollNode[], slug: string): IndexCollNode | null {
-    for (const n of nodes) {
-        if (n.slug === slug) return n;
-        if (n.collections?.length) {
-            const f = findIndexNodeBySlug(n.collections, slug);
-            if (f) return f;
-        }
-    }
-    return null;
-}
-
-/** Tutte le voci foglia (slug collezione + slug voce) nell’albero indice mostrato. */
-function collectLeafItemsFromIndexNodes(nodes: IndexCollNode[]): { collectionSlug: string; itemSlug: string; itemName: string }[] {
-    const seen = new Set<string>();
-    const out: { collectionSlug: string; itemSlug: string; itemName: string }[] = [];
-    function walk(nlist: IndexCollNode[]): void {
-        for (const n of nlist) {
-            for (const it of n.items) {
-                const key = `${n.slug}::${it.slug}`;
-                if (seen.has(key)) continue;
-                seen.add(key);
-                out.push({ collectionSlug: n.slug, itemSlug: it.slug, itemName: it.name });
-            }
-            if (n.collections?.length) walk(n.collections);
-        }
-    }
-    walk(nodes);
-    return out;
-}
-
-function replaceIndexNodeInTree(roots: IndexCollNode[], focusSlug: string, newNode: IndexCollNode): IndexCollNode[] {
-    const clone = JSON.parse(JSON.stringify(roots)) as IndexCollNode[];
-    function walk(arr: IndexCollNode[]): boolean {
-        for (let i = 0; i < arr.length; i++) {
-            if (arr[i].slug === focusSlug) {
-                arr[i] = newNode;
-                return true;
-            }
-            if (arr[i].collections?.length && walk(arr[i].collections!)) return true;
-        }
-        return false;
-    }
-    walk(clone);
-    return clone;
-}
-
-/**
- * Mantiene struttura e slug dell’indice canonico (API) e applica solo i `name`
- * presenti nell’overlay (traduzione salvata, anche parziale o ramo singolo).
- */
-function mergeIndexNameOverlay(
-    canonical: IndexCollNode[],
-    overlay: IndexCollNode[] | null | undefined,
-): IndexCollNode[] {
-    if (!overlay?.length) {
-        return JSON.parse(JSON.stringify(canonical)) as IndexCollNode[];
-    }
-    const overlayBySlug = new Map(overlay.map((n) => [n.slug, n]));
-    return canonical.map((node) => {
-        const ov = overlayBySlug.get(node.slug);
-        const items = node.items.map((it) => {
-            const ovi = ov?.items?.find((x) => x.slug === it.slug);
-            return { slug: it.slug, name: ovi ? ovi.name : it.name };
-        });
-        const out: IndexCollNode = {
-            slug: node.slug,
-            name: ov?.name ?? node.name,
-            items,
-        };
-        if (node.collections !== undefined) {
-            if (node.collections.length === 0) {
-                out.collections = [];
-            } else {
-                const ovChildMap = ov?.collections?.length
-                    ? new Map(ov.collections.map((c) => [c.slug, c]))
-                    : null;
-                out.collections = node.collections.map((child) => {
-                    const childOv = ov ? ovChildMap?.get(child.slug) : undefined;
-                    return mergeIndexNameOverlay([child], childOv ? [childOv] : [])[0]!;
-                });
-            }
-        }
-        return out;
-    });
-}
-
-/**
- * True se questo ramo (slug) ha traduzione visibile: titolo collezione o voci dirette (items) diversi dal canonico.
- * Non risale dalle sotto-collezioni annidate: un padre non tradotto non eredita la spunta dal figlio.
- */
 function isIndexBranchTranslated(slug: string): boolean {
     if (!activeTranslationLang.value) return false;
-    const canon = findIndexNodeBySlug(canonicalIndex.value, slug);
-    const cur = findIndexNodeBySlug(currentIndex.value as IndexCollNode[], slug);
-    if (!canon || !cur) return false;
-    if (canon.name.trim() !== cur.name.trim()) return true;
-    for (const cIt of canon.items) {
-        const uIt = cur.items.find((x) => x.slug === cIt.slug);
-        if (uIt && cIt.name.trim() !== uIt.name.trim()) return true;
-    }
-    return false;
-}
-
-/** Tutti i titoli e le voci nel sotto-albero differiscono dal canonico (traduzione completa). */
-function indexSubtreeFullyTranslated(canon: IndexCollNode, cur: IndexCollNode): boolean {
-    if (canon.name.trim() === cur.name.trim()) return false;
-    for (const cIt of canon.items) {
-        const uIt = cur.items.find((x) => x.slug === cIt.slug);
-        if (!uIt || cIt.name.trim() === uIt.name.trim()) return false;
-    }
-    const cc = canon.collections ?? [];
-    const uc = cur.collections ?? [];
-    for (const child of cc) {
-        const uChild = uc.find((x) => x.slug === child.slug);
-        if (!uChild || !indexSubtreeFullyTranslated(child, uChild)) return false;
-    }
-    return true;
+    return isBranchDirectlyTranslated(canonicalIndex.value, currentIndex.value as IndexCollNode[], slug);
 }
 
 function isIndexBranchFullyTranslated(slug: string): boolean {
     if (!activeTranslationLang.value) return false;
-    const canon = findIndexNodeBySlug(canonicalIndex.value, slug);
-    const cur = findIndexNodeBySlug(currentIndex.value as IndexCollNode[], slug);
-    if (!canon || !cur) return false;
-    return indexSubtreeFullyTranslated(canon, cur);
+    return isSubtreeFullyTranslatedForSlug(canonicalIndex.value, currentIndex.value as IndexCollNode[], slug);
 }
 
-/** Indice globale: ogni radice ha sotto-albero completamente tradotto. */
 function isGlobalIndexFullyTranslated(): boolean {
     if (!activeTranslationLang.value) return false;
-    const canon = canonicalIndex.value;
-    const cur = currentIndex.value as IndexCollNode[];
-    if (canon.length === 0 || cur.length === 0) return false;
-    for (const c of canon) {
-        const u = cur.find((x) => x.slug === c.slug);
-        if (!u || !indexSubtreeFullyTranslated(c, u)) return false;
-    }
-    return true;
+    return isGlobalIndexFullyTranslatedRoots(canonicalIndex.value, currentIndex.value as IndexCollNode[]);
 }
 
 function findItemNameInIndex(collectionSlug: string, itemSlug: string): string | null {
-    const coll = findIndexNodeBySlug(currentIndex.value as IndexCollNode[], collectionSlug);
-    if (!coll) return null;
-    const it = coll.items.find((x) => x.slug === itemSlug);
-    return it?.name ?? null;
+    return findItemNameInIndexTree(currentIndex.value as IndexCollNode[], collectionSlug, itemSlug);
 }
 
 function displayAdjacentItemName(entry: {
@@ -309,6 +183,11 @@ async function completeIndexTranslation(): Promise<void> {
     } finally {
         translateLoading.value = false;
     }
+}
+
+/** L’indice JSON può avere voci/sotto-rami anche se l’API collections non li espone come figli. */
+function indexNodeHasVisibleBranchContent(slug: string): boolean {
+    return indexBranchHasVisibleContent(currentIndex.value as IndexCollNode[], slug);
 }
 
 async function openSubcollIndexFromIndex(subSlug: string, subName: string): Promise<void> {
@@ -409,6 +288,35 @@ function toggleTagInFilter(tagId: number): void {
 
 const isTranslated = computed(() => !!activeTranslationLang.value);
 const currentMarkdown = ref<string>("");
+
+const {
+    checkTranslation,
+    revertTranslationUI,
+    clearTranslation,
+    runTranslateIndexRecursiveBatch,
+    translateIndexJsonOnly,
+    translateSingleItemMarkdown,
+} = useCompendiumTranslation({
+    toast,
+    t,
+    getEffectiveTargetLang: effectiveCompendiumTargetLang,
+    compendiumTranslateSource,
+    activeTranslationLang,
+    originalMarkdown,
+    originalIndex,
+    canonicalIndex,
+    currentIndex,
+    currentMarkdown,
+    selectedItem,
+    indexCompendium,
+    showIndex,
+    indexFocusCollectionSlug,
+    showTranslationTools,
+    translateLoading,
+    batchTranslateProgress,
+    aiModel,
+    aiMaxTokens,
+});
 
 
 
@@ -1117,11 +1025,22 @@ async function navigateToPrevItem(): Promise<void> {
 async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
     selectedItem.value = null;
     showIndex.value = true;
-    indexLoading.value = true;
+
+    /** Stesso compendio con indice già caricato (es. si torna dall’indice di un sotto-ramo): non rifare GET /index così non si perde il merge traduzione in memoria se checkTranslation fallisce o è lenta. */
+    const sameCompIndexInMemory =
+        indexCompendium.value?.id === comp.id && currentIndex.value.length > 0;
+
     indexCompendium.value = comp;
     selectedCompendiumId.value = comp.id;
     indexFocusCollectionSlug.value = null;
 
+    if (sameCompIndexInMemory) {
+        indexLoading.value = false;
+        await ensureCompendiumExpanded(comp.id);
+        return;
+    }
+
+    indexLoading.value = true;
     currentIndex.value = [];
     canonicalIndex.value = [];
     expandedIndexCollections.value.clear();
@@ -1149,7 +1068,12 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
 }
 
 async function showCollectionIndex(comp: CompendiumMeta, coll: CollectionMeta): Promise<void> {
-    if (!collectionHasChildren(comp.id, coll)) {
+    const hasApiChildren = collectionHasChildren(comp.id, coll);
+    const indexLoadedForComp =
+        indexCompendium.value?.id === comp.id && currentIndex.value.length > 0;
+    const hasContentInIndexTree = indexLoadedForComp && indexNodeHasVisibleBranchContent(coll.slug);
+
+    if (!hasApiChildren && !hasContentInIndexTree) {
         await ensureCompendiumExpanded(comp.id);
         await expandAncestorsForCollection(comp.id, coll);
         await ensureCollectionExpanded(comp.id, coll.slug);
@@ -1349,310 +1273,9 @@ async function checkAiConfig(): Promise<void> {
     }
 }
 
-async function checkTranslation(type: "item" | "index"): Promise<void> {
-    const compId = type === "item" ? selectedItem.value?.compendium.id : indexCompendium.value?.id;
-    if (!compId) return;
-    
-    const lang = effectiveCompendiumTargetLang();
-    let url = `/api/extensions/compendium/translations?compendium=${encodeURIComponent(compId)}&lang=${encodeURIComponent(lang)}&type=${type}`;
-    if (type === "item" && selectedItem.value) {
-        url += `&collection=${encodeURIComponent(selectedItem.value.collection.slug)}&slug=${encodeURIComponent(selectedItem.value.item.slug)}`;
-    }
-    
-    try {
-        const r = await http.get(url);
-        if (r.ok) {
-            const data = await r.json();
-            if (data.content) {
-                if (type === "item" && selectedItem.value) {
-                    if (originalMarkdown.value === null) originalMarkdown.value = selectedItem.value.item.markdown;
-                    currentMarkdown.value = data.content;
-                    activeTranslationLang.value = lang;
-                } else if (type === "index" && canonicalIndex.value.length > 0) {
-                    const overlay = JSON.parse(data.content) as IndexCollNode[];
-                    currentIndex.value = mergeIndexNameOverlay(canonicalIndex.value, overlay);
-                    activeTranslationLang.value = lang;
-                }
-            }
-        }
-    } catch (e) {
-        console.error("Error checking translation", e);
-    }
-}
-
-async function saveTranslationToDb(content: string, type: "item" | "index"): Promise<void> {
-    const compId = type === "item" ? selectedItem.value?.compendium.id : indexCompendium.value?.id;
-    if (!compId) return;
-
-    const payload: any = {
-        compendium: compId,
-        type,
-        lang: effectiveCompendiumTargetLang(),
-        content: content
-    };
-
-    if (type === "item" && selectedItem.value) {
-        payload.collection = selectedItem.value.collection.slug;
-        payload.slug = selectedItem.value.item.slug;
-    }
-
-    try {
-        await http.postJson("/api/extensions/compendium/translations", payload);
-    } catch (e: unknown) {
-        console.error("Error saving translation", e);
-    }
-}
-
-function revertTranslationUI(): void {
-    if (!activeTranslationLang.value) return;
-
-    const isIndex = showIndex.value;
-    if (isIndex && canonicalIndex.value.length > 0) {
-        currentIndex.value = JSON.parse(JSON.stringify(canonicalIndex.value));
-        originalIndex.value = null;
-    } else if (selectedItem.value && originalMarkdown.value !== null) {
-        currentMarkdown.value = originalMarkdown.value;
-        originalMarkdown.value = null;
-    }
-    activeTranslationLang.value = null;
-    showTranslationTools.value = false;
-}
-
-async function clearTranslation(): Promise<void> {
-    if (!activeTranslationLang.value) return;
-
-    // Delete from DB — only called from the tag menu "Cancella Traduzione"
-    const isIndex = showIndex.value;
-    const compId = isIndex ? indexCompendium.value?.id : selectedItem.value?.compendium.id;
-    if (compId) {
-        const lang = activeTranslationLang.value;
-        const payload: any = { compendium: compId, type: isIndex ? "index" : "item", lang };
-        if (!isIndex && selectedItem.value) {
-            payload.collection = selectedItem.value.collection.slug;
-            payload.slug = selectedItem.value.item.slug;
-        }
-        try {
-            await http.deleteJson("/api/extensions/compendium/translations", payload);
-        } catch (e: unknown) {
-            console.error("Error deleting translation from db", e);
-        }
-    }
-
-    revertTranslationUI();
-}
-
 async function rerunTranslation(): Promise<void> {
     await clearTranslation();
     await translateCurrentView();
-}
-
-function buildCompendiumMarkdownSystemPrompt(targetCode: string): string {
-    const targetLangName = localeToEnglishPromptName(targetCode);
-    const sourceHint =
-        compendiumTranslateSource.value === "auto"
-            ? "The source text may be in any language; infer the source language from the text."
-            : `The source text is written in ${localeToEnglishPromptName(compendiumTranslateSource.value)}.`;
-    const dndItHint =
-        targetCode === "it"
-            ? '\nEnsure terminology consistency with D&D 5e standards in Italian (e.g., "Saving Throw" -> "Tiro Salvezza").'
-            : "";
-    return `You are a translator specialized in Dungeons & Dragons 5th Edition.
-${sourceHint}
-Translate the provided content into ${targetLangName}.
-Maintain the original Markdown structure and all special tags like {@b ...}, {@i ...}, {@dice ...}, etc.
-Do NOT translate these tags or their parameters.${dndItHint}`;
-}
-
-async function fetchCachedItemTranslation(
-    compId: string,
-    collectionSlug: string,
-    itemSlug: string,
-    lang: string,
-): Promise<string | null> {
-    const url =
-        `/api/extensions/compendium/translations?compendium=${encodeURIComponent(compId)}&lang=${encodeURIComponent(lang)}&type=item` +
-        `&collection=${encodeURIComponent(collectionSlug)}&slug=${encodeURIComponent(itemSlug)}`;
-    try {
-        const r = await http.get(url);
-        if (!r.ok) return null;
-        const data = (await r.json()) as { content?: string | null };
-        return typeof data.content === "string" && data.content.length > 0 ? data.content : null;
-    } catch {
-        return null;
-    }
-}
-
-async function saveItemTranslationDirect(
-    compId: string,
-    collectionSlug: string,
-    itemSlug: string,
-    content: string,
-    lang: string,
-): Promise<void> {
-    await http.postJson("/api/extensions/compendium/translations", {
-        compendium: compId,
-        type: "item",
-        collection: collectionSlug,
-        slug: itemSlug,
-        lang,
-        content,
-    });
-}
-
-async function runTranslateIndexRecursiveBatch(
-    leafItems: { collectionSlug: string; itemSlug: string; itemName: string }[],
-    targetCode: string,
-): Promise<void> {
-    const compId = indexCompendium.value?.id;
-    if (!compId) return;
-    const systemPrompt = buildCompendiumMarkdownSystemPrompt(targetCode);
-    let failed = 0;
-    for (let i = 0; i < leafItems.length; i++) {
-        batchTranslateProgress.value = { current: i + 1, total: leafItems.length };
-        const { collectionSlug, itemSlug } = leafItems[i]!;
-        try {
-            const cached = await fetchCachedItemTranslation(compId, collectionSlug, itemSlug, targetCode);
-            if (cached) continue;
-            const r = await http.get(
-                `/api/extensions/compendium/item?compendium=${encodeURIComponent(compId)}&collection=${encodeURIComponent(collectionSlug)}&slug=${encodeURIComponent(itemSlug)}`,
-            );
-            if (!r.ok) {
-                failed++;
-                continue;
-            }
-            const full = (await r.json()) as ItemFull;
-            const raw = (full.markdown || "").trim();
-            if (!raw) continue;
-            const tr = await http.postJson("/api/extensions/openrouter/chat", {
-                model: aiModel.value,
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: `Translate this content:\n\n${raw}` },
-                ],
-                max_tokens: Math.max(256, Math.min(65536, aiMaxTokens.value || 8192)),
-                temperature: 0.7,
-            });
-            if (!tr.ok) {
-                failed++;
-                continue;
-            }
-            const data = (await tr.json()) as { choices?: { message?: { content?: string } }[] };
-            const translated = data.choices?.[0]?.message?.content;
-            if (!translated) {
-                failed++;
-                continue;
-            }
-            await saveItemTranslationDirect(compId, collectionSlug, itemSlug, translated, targetCode);
-        } catch {
-            failed++;
-        }
-    }
-    if (failed > 0) {
-        toast.warning(t("game.ui.extensions.CompendiumModal.translate_batch_partial", { count: failed }));
-    }
-}
-
-/** Traduce i soli `name` nel JSON del ramo indice visibile; con nodo focalizzato fa merge in `currentIndex` e salva l’indice intero in DB. */
-async function translateIndexJsonOnly(roots: IndexCollNode[], targetCode: string): Promise<boolean> {
-    const targetLangName = localeToEnglishPromptName(targetCode);
-    const systemPrompt = buildCompendiumMarkdownSystemPrompt(targetCode);
-    console.log(`[Compendium AI] Index names translation to ${targetLangName} using model ${aiModel.value}`);
-    const indexJson = JSON.stringify(roots, null, 2);
-    const r = await http.postJson("/api/extensions/openrouter/chat", {
-        model: aiModel.value,
-        messages: [
-            {
-                role: "system",
-                content:
-                    systemPrompt +
-                    "\nOnly translate the 'name' values in the provided JSON. Keep everything else identical.",
-            },
-            { role: "user", content: `Translate this index JSON:\n\n${indexJson}` },
-        ],
-        max_tokens: Math.max(256, Math.min(65536, aiMaxTokens.value || 8192)),
-        temperature: 0.7,
-    });
-    if (!r.ok) {
-        toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
-        return false;
-    }
-    const data = (await r.json()) as { choices?: { message?: { content?: string } }[] };
-    const translated = data.choices?.[0]?.message?.content;
-    if (!translated) {
-        toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
-        return false;
-    }
-    try {
-        const start = translated.indexOf("[");
-        const end = translated.lastIndexOf("]") + 1;
-        if (start === -1 || end === 0) throw new Error("no json array");
-        const parsed = JSON.parse(translated.substring(start, end)) as IndexCollNode[];
-        if (originalIndex.value === null) originalIndex.value = JSON.parse(JSON.stringify(canonicalIndex.value));
-        if (indexFocusCollectionSlug.value) {
-            if (parsed.length > 0) {
-                const oldNode = findIndexNodeBySlug(currentIndex.value as IndexCollNode[], indexFocusCollectionSlug.value);
-                const mergedNode = oldNode
-                    ? mergeIndexNameOverlay([oldNode], [parsed[0]!])[0]!
-                    : parsed[0]!;
-                currentIndex.value = replaceIndexNodeInTree(
-                    currentIndex.value as IndexCollNode[],
-                    indexFocusCollectionSlug.value,
-                    mergedNode,
-                );
-            }
-        } else {
-            currentIndex.value = mergeIndexNameOverlay(canonicalIndex.value, parsed);
-        }
-        activeTranslationLang.value = targetCode;
-        await saveTranslationToDb(JSON.stringify(currentIndex.value), "index");
-        return true;
-    } catch (e: unknown) {
-        console.error("Failed to parse translated index", e);
-        toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
-        return false;
-    }
-}
-
-async function translateSingleItemMarkdown(targetCode: string): Promise<void> {
-    const si = selectedItem.value;
-    if (!si) return;
-    const targetLangName = localeToEnglishPromptName(targetCode);
-    const systemPrompt = buildCompendiumMarkdownSystemPrompt(targetCode);
-    console.log(`[Compendium AI] Starting translation to ${targetLangName} using model ${aiModel.value}`);
-    translateLoading.value = true;
-    try {
-        const raw = si.item.markdown;
-        const r = await http.postJson("/api/extensions/openrouter/chat", {
-            model: aiModel.value,
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: `Translate this content:\n\n${raw}` },
-            ],
-            max_tokens: Math.max(256, Math.min(65536, aiMaxTokens.value || 8192)),
-            temperature: 0.7,
-        });
-        if (r.ok) {
-            const data = (await r.json()) as { choices?: { message?: { content?: string } }[] };
-            const translated = data.choices?.[0]?.message?.content;
-            console.log("[Compendium AI] Translation received", { length: translated?.length });
-            if (translated) {
-                if (!originalMarkdown.value) originalMarkdown.value = si.item.markdown;
-                currentMarkdown.value = translated;
-                activeTranslationLang.value = targetCode;
-                await saveTranslationToDb(translated, "item");
-            } else {
-                console.error("[Compendium AI] Empty translation response received");
-                toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
-            }
-        } else {
-            toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
-        }
-    } catch (e: unknown) {
-        console.error(e);
-        toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
-    } finally {
-        translateLoading.value = false;
-    }
 }
 
 async function translateCurrentView(): Promise<void> {
@@ -2660,7 +2283,13 @@ onMounted(() => {
                                                 })
                                             "
                                         />
-                                        {{ formatName(coll.name) }}
+                                        <button
+                                            type="button"
+                                            class="qe-index-coll-title-link"
+                                            @click="openSubcollIndexFromIndex(coll.slug, coll.name)"
+                                        >
+                                            {{ formatName(coll.name) }}
+                                        </button>
                                     </h2>
                                     <div class="qe-index-item-list">
                                         <button 
@@ -2699,7 +2328,7 @@ onMounted(() => {
                                                 />
                                                 <button
                                                     type="button"
-                                                    class="qe-index-subcoll-title-link"
+                                                    class="qe-index-coll-title-link"
                                                     @click="openSubcollIndexFromIndex(subColl.slug, subColl.name)"
                                                 >
                                                     {{ formatName(subColl.name) }}
@@ -3380,7 +3009,7 @@ onMounted(() => {
     color: #e65100;
 }
 
-.qe-index-subcoll-title-link {
+.qe-index-coll-title-link {
     flex: 1;
     min-width: 0;
     border: none;
