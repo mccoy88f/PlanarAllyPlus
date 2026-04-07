@@ -343,6 +343,45 @@ async function loadModels(): Promise<void> {
         await Promise.allSettled([loadOpenRouter(), loadGoogleText(), loadGoogleImage()]);
         syncSelectedTextModel();
         syncSelectedImageModel();
+
+        /** Se tutte e tre le richieste falliscono (401, rete, ecc.), riprova con la risposta unica legacy. */
+        if (models.value.length === 0) {
+            try {
+                const resp = await http.get(modelsListBase);
+                if (resp.ok) {
+                    const data = (await resp.json()) as {
+                        openrouter_models?: AiModelEntry[];
+                        google_models?: AiModelEntry[];
+                    };
+                    openrouterModelsList.value = data.openrouter_models ?? [];
+                    googleModelsList.value = data.google_models ?? [];
+                    syncSelectedTextModel();
+                }
+            } catch {
+                /* ignore */
+            }
+        }
+        if (imageModelsList.value.length === 0) {
+            try {
+                const imgResp = await http.get(`${modelsListBase}?type=image`);
+                if (imgResp.ok) {
+                    const imgData = (await imgResp.json()) as {
+                        google_models: { id: string; name: string }[];
+                    };
+                    imageModelsList.value = (imgData.google_models ?? []).map((m) => ({
+                        ...m,
+                        is_free: false,
+                        output_modalities: ["image"],
+                    }));
+                    syncSelectedImageModel();
+                }
+            } catch {
+                /* ignore */
+            }
+        }
+        if (models.value.length === 0) {
+            toast.warning(t("game.ui.extensions.OpenRouterModal.models_load_failed"));
+        }
     } finally {
         loadingModels.value = false;
     }

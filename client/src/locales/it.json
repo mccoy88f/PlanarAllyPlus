@@ -465,6 +465,7 @@
           "locale_de": "Tedesco",
           "max_tokens": "Token massimi output",
           "max_tokens_hint": "Limite massimo di token nella risposta (default 8192). Aumenta per schede personaggio JSON complete.",
+          "models_load_failed": "Impossibile caricare l’elenco modelli. Verifica di essere loggato e che il server PlanarAlly sia avviato; il server deve poter uscire su internet (OpenRouter e, se usi le chiavi, Google).",
           "provider": "Provider",
           "provider_openrouter": "OpenRouter",
           "provider_google": "Google AI Studio",

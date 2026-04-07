@@ -1040,6 +1040,7 @@
           "locale_de": "German",
           "max_tokens": "Max output tokens",
           "max_tokens_hint": "Maximum token limit in the response (default 8192). Increase for complete character sheet JSON.",
+          "models_load_failed": "Could not load the model list. Make sure you are logged in and the PlanarAlly server is running; the server must reach the internet for OpenRouter and optionally Google.",
           "provider": "Provider",
           "provider_openrouter": "OpenRouter",
           "provider_google": "Google AI Studio",
