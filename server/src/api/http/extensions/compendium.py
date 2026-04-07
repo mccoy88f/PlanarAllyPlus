@@ -17,6 +17,10 @@ from .assets_installer import upload_zip_data
 EXT_ID = "compendium"
 
 
+# Snapshot JSON dell'albero indice in `metadata` (stesso formato della risposta `index` di get_index).
+_META_KEY_INDEX_TREE_SNAPSHOT = "index_tree_snapshot_v1"
+
+
 def _ext_dir() -> Path:
     """Restituisce la cartella dell'estensione."""
     direct = EXTENSIONS_DIR / EXT_ID
@@ -474,6 +478,47 @@ def _create_sqlite_schema(conn) -> None:
     conn.execute("CREATE TABLE IF NOT EXISTS item_tags (item_id INTEGER NOT NULL, tag_id INTEGER NOT NULL, FOREIGN KEY (item_id) REFERENCES items(id), FOREIGN KEY (tag_id) REFERENCES tags(id), UNIQUE(item_id, tag_id))")
 
 
+def _build_index_tree(conn) -> list:
+    """Costruisce l'albero indice (ToC) da collections/items. Stesso formato di get_index."""
+    rows = conn.execute(
+        """
+        SELECT c.slug, c.name, c.parent_slug, i.slug, i.name, c.display_order, i.display_order
+        FROM collections c
+        LEFT JOIN items i ON i.collection_id = c.id
+        ORDER BY c.display_order, i.display_order
+        """
+    ).fetchall()
+    index: list = []
+    coll_map: dict = {}
+    for c_slug, c_name, p_slug, i_slug, i_name, c_order, i_order in rows:
+        if c_slug not in coll_map:
+            coll_map[c_slug] = {
+                "slug": c_slug,
+                "name": c_name,
+                "parentSlug": p_slug,
+                "order": c_order,
+                "items": [],
+                "collections": [],
+            }
+        if i_slug:
+            coll_map[c_slug]["items"].append({"slug": i_slug, "name": i_name, "order": i_order})
+    for c in coll_map.values():
+        if c["parentSlug"] and c["parentSlug"] in coll_map:
+            coll_map[c["parentSlug"]]["collections"].append(c)
+        else:
+            index.append(c)
+    return index
+
+
+def _materialize_index_tree_snapshot(conn) -> None:
+    """Persiste in metadata la copia materializzata dell'albero indice."""
+    idx = _build_index_tree(conn)
+    conn.execute(
+        "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+        (_META_KEY_INDEX_TREE_SNAPSHOT, json.dumps(idx, ensure_ascii=False)),
+    )
+
+
 def _get_or_create_tag(conn, category_name: str, tag_name: str) -> int:
     cat_slug = _slugify(category_name)
     tag_slug = _slugify(tag_name)
@@ -597,6 +642,7 @@ def _convert_generic_5etools_to_sqlite(data: dict, db_path: Path) -> bool:
                             tid = _get_or_create_tag(conn, cat, v)
                             conn.execute("INSERT OR IGNORE INTO item_tags (item_id, tag_id) VALUES (?, ?)", (item_id, tid))
 
+    _materialize_index_tree_snapshot(conn)
     conn.commit()
     conn.close()
     return True
@@ -644,6 +690,7 @@ def _convert_5etools_to_sqlite(data: dict, db_path: Path) -> bool:
                 md = _entries_to_markdown([sub])
                 _insert_item_safe(conn, sub_coll_id, sub_coll_slug, sub_name, md)
 
+    _materialize_index_tree_snapshot(conn)
     conn.commit()
     conn.close()
     return True
@@ -702,6 +749,7 @@ def _convert_json_to_sqlite(json_path: Path, db_path: Path) -> bool:
                     
             insert_recursive(coll)
 
+        _materialize_index_tree_snapshot(conn)
         conn.commit()
         conn.close()
         return True
@@ -744,6 +792,12 @@ def _ensure_sqlite(comp_id: str) -> bool:
                 with open(json_path, encoding="utf-8") as f:
                     data = json.load(f)
                 _extract_and_save_metadata(conn, data)
+            except Exception:
+                pass
+        row = conn.execute("SELECT 1 FROM metadata WHERE key = ?", (_META_KEY_INDEX_TREE_SNAPSHOT,)).fetchone()
+        if not row:
+            try:
+                _materialize_index_tree_snapshot(conn)
             except Exception:
                 pass
         conn.commit()
@@ -1038,35 +1092,25 @@ async def get_index(request: web.Request) -> web.Response:
         return web.json_response({"index": []})
     try:
         conn = _get_conn(comp_id)
-        # Reperiamo tutte le collezioni e i relativi item
-        rows = conn.execute(
-            """
-            SELECT c.slug, c.name, c.parent_slug, i.slug, i.name, c.display_order, i.display_order
-            FROM collections c
-            LEFT JOIN items i ON i.collection_id = c.id
-            ORDER BY c.display_order, i.display_order
-            """
-        ).fetchall()
+        index: list | None = None
+        try:
+            snap_row = conn.execute("SELECT value FROM metadata WHERE key = ?", (_META_KEY_INDEX_TREE_SNAPSHOT,)).fetchone()
+            if snap_row and snap_row[0]:
+                index = json.loads(snap_row[0])
+        except (json.JSONDecodeError, TypeError):
+            index = None
+        if index is None or not isinstance(index, list):
+            index = _build_index_tree(conn)
+            try:
+                _materialize_index_tree_snapshot(conn)
+                conn.commit()
+            except Exception:
+                pass
 
-        index = []
-        coll_map = {}
-        for c_slug, c_name, p_slug, i_slug, i_name, c_order, i_order in rows:
-            if c_slug not in coll_map:
-                coll_map[c_slug] = {"slug": c_slug, "name": c_name, "parentSlug": p_slug, "order": c_order, "items": [], "collections": []}
-            if i_slug:
-                coll_map[c_slug]["items"].append({"slug": i_slug, "name": i_name, "order": i_order})
-
-        # Build tree for index
-        for c in coll_map.values():
-            if c["parentSlug"] and c["parentSlug"] in coll_map:
-                coll_map[c["parentSlug"]]["collections"].append(c)
-            else:
-                index.append(c)
-                
-        # Get metadata
+        # Get metadata (escludi snapshot interno)
         try:
             meta_rows = conn.execute("SELECT key, value FROM metadata").fetchall()
-            metadata = {r[0]: r[1] for r in meta_rows}
+            metadata = {r[0]: r[1] for r in meta_rows if r[0] != _META_KEY_INDEX_TREE_SNAPSHOT}
         except sqlite3.OperationalError:
             metadata = {}
 
