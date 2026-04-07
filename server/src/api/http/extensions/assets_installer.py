@@ -313,6 +313,10 @@ async def uninstall(request: web.Request) -> web.Response:
             for aid in asset_ids:
                 try:
                     entry = AssetEntry.get_by_id(aid)
+                except AssetEntry.DoesNotExist:
+                    # Manifest obsoleto o voce già rimossa a mano: ignora e continua
+                    continue
+                try:
                     asset = entry.asset
                     fh = asset.file_hash if asset else None
                     entry.delete_instance()
