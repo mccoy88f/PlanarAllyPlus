@@ -109,59 +109,87 @@ async def _get_google_models(api_key: str) -> list[dict]:
     return result
 
 
+async def _fetch_openrouter_models() -> list[dict]:
+    """Elenco modelli da OpenRouter (endpoint pubblico /models)."""
+    openrouter_models: list[dict] = []
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{OPENROUTER_API}/models") as resp:
+                if resp.status != 200:
+                    return openrouter_models
+                data = await resp.json()
+                raw = data.get("data", [])
+                for m in raw:
+                    model_id = m.get("id", "")
+                    pricing = m.get("pricing", {}) or {}
+                    prompt_cost = float(pricing.get("prompt", 1) or 1)
+                    completion_cost = float(pricing.get("completion", 1) or 1)
+                    is_free = prompt_cost == 0 and completion_cost == 0
+                    inp_mod, out_mod = _get_modalities(m)
+                    openrouter_models.append({
+                        "id": model_id,
+                        "name": m.get("name", model_id),
+                        "context_length": m.get("context_length"),
+                        "is_free": is_free,
+                        "input_modalities": inp_mod,
+                        "output_modalities": out_mod,
+                    })
+    except Exception:
+        pass
+    return openrouter_models
+
+
+async def _google_models_for_user(opts, model_type: str) -> list[dict]:
+    """Modelli Google (testo o immagine) in base alle opzioni utente."""
+    if model_type == "image":
+        return list(GOOGLE_IMAGE_MODELS)
+    api_key = (opts.google_ai_api_key or "").strip()
+    if api_key:
+        return await _get_google_models(api_key)
+    return [{
+        "id": m["id"],
+        "name": m["name"],
+        "context_length": None,
+        "is_free": m["is_free"],
+        "input_modalities": ["text"],
+        "output_modalities": ["text"],
+    } for m in GOOGLE_DEFAULT_MODELS]
+
+
 async def get_models(request: web.Request) -> web.Response:
-    """Fetch available models from OpenRouter and Google AI Studio simultaneously."""
+    """Modelli disponibili: OpenRouter e/o Google.
+
+    Query:
+    - ``provider=openrouter``: solo elenco OpenRouter (non richiede chiavi API).
+    - ``provider=google``: solo elenco Google (testo o ``type=image`` per modelli immagine).
+    - senza ``provider``: comportamento precedente, entrambi in un'unica risposta.
+    """
     user = await get_authorized_user(request)
     opts = UserOptions.get_by_id(user.default_options)
 
     model_type = (request.query.get("type") or "").strip().lower()
+    provider = (request.query.get("provider") or "").strip().lower()
 
-    google_models = []
-    if model_type == "image":
-        google_models = GOOGLE_IMAGE_MODELS
-    else:
-        api_key = (opts.google_ai_api_key or "").strip()
-        if api_key:
-            google_models = await _get_google_models(api_key)
-        else:
-            google_models = [{
-                "id": m["id"],
-                "name": m["name"],
-                "context_length": None,
-                "is_free": m["is_free"],
-                "input_modalities": ["text"],
-                "output_modalities": ["text"],
-            } for m in GOOGLE_DEFAULT_MODELS]
+    if provider == "openrouter":
+        openrouter_models = await _fetch_openrouter_models()
+        return web.json_response({
+            "google_models": [],
+            "openrouter_models": openrouter_models,
+        })
 
-    # OpenRouter
-    openrouter_models = []
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{OPENROUTER_API}/models") as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    raw = data.get("data", [])
-                    for m in raw:
-                        model_id = m.get("id", "")
-                        pricing = m.get("pricing", {}) or {}
-                        prompt_cost = float(pricing.get("prompt", 1) or 1)
-                        completion_cost = float(pricing.get("completion", 1) or 1)
-                        is_free = prompt_cost == 0 and completion_cost == 0
-                        inp_mod, out_mod = _get_modalities(m)
-                        openrouter_models.append({
-                            "id": model_id,
-                            "name": m.get("name", model_id),
-                            "context_length": m.get("context_length"),
-                            "is_free": is_free,
-                            "input_modalities": inp_mod,
-                            "output_modalities": out_mod,
-                        })
-    except Exception:
-        pass  # Just return what we have (e.g. at least Google models)
+    if provider == "google":
+        google_models = await _google_models_for_user(opts, model_type)
+        return web.json_response({
+            "google_models": google_models,
+            "openrouter_models": [],
+        })
+
+    google_models = await _google_models_for_user(opts, model_type)
+    openrouter_models = await _fetch_openrouter_models()
 
     return web.json_response({
         "google_models": google_models,
-        "openrouter_models": openrouter_models
+        "openrouter_models": openrouter_models,
     })
 
 

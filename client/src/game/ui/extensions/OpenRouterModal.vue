@@ -205,7 +205,13 @@ const googleApiKey = ref("");
 const selectedModel = ref("openrouter/free");
 const selectedVisionModel = ref("gemini-2.0-flash");
 const selectedImageModel = ref("sourceful/riverflow-v2-fast");
-const models = ref<{ id: string; name: string; is_free: boolean; output_modalities?: string[] }[]>([]);
+
+type AiModelEntry = { id: string; name: string; is_free: boolean; output_modalities?: string[] };
+/** Popolate in parallelo: OpenRouter e Google non dipendono l’una dall’altra. */
+const openrouterModelsList = ref<AiModelEntry[]>([]);
+const googleModelsList = ref<AiModelEntry[]>([]);
+const models = computed(() => [...openrouterModelsList.value, ...googleModelsList.value]);
+
 const loadingModels = ref(false);
 const savingSettings = ref(false);
 const runningTask = ref(false);
@@ -248,51 +254,134 @@ const multimodalTasks = computed(() => {
     return tasks.value.filter((t) => !!t.type && (!q || getTaskLabel(t).toLowerCase().includes(q)));
 });
 
+function syncSelectedTextModel(): void {
+    const merged = models.value;
+    if (merged.length === 0) return;
+    if (merged.some((m) => m.id === selectedModel.value)) return;
+    if (googleModelsList.value.length > 0) {
+        selectedModel.value = googleModelsList.value[0]!.id;
+        return;
+    }
+    selectedModel.value = openrouterModelsList.value[0]!.id;
+}
+
+function syncSelectedImageModel(): void {
+    const list = imageModelsList.value;
+    const orImg = openRouterImageModels.value;
+    const ok =
+        orImg.some((m) => m.id === selectedImageModel.value) || list.some((m) => m.id === selectedImageModel.value);
+    if (ok) return;
+    if (list.length > 0) {
+        selectedImageModel.value = list[0]!.id;
+        return;
+    }
+    if (orImg.length > 0) {
+        selectedImageModel.value = orImg[0]!.id;
+        return;
+    }
+    selectedImageModel.value = "";
+}
+
+const modelsListBase = "/api/extensions/openrouter/models";
+
 async function loadModels(): Promise<void> {
     loadingModels.value = true;
-    try {
-        const resp = await http.get("/api/extensions/openrouter/models");
-        if (resp.ok) {
-            const data = (await resp.json()) as {
-                openrouter_models: { id: string; name: string; is_free: boolean; output_modalities?: string[] }[];
-                google_models: { id: string; name: string; is_free: boolean; output_modalities?: string[] }[];
-            };
-            
-            
-            // Merge OpenRouter and Google models into one flat list internally
-            models.value = [...(data.openrouter_models ?? []), ...(data.google_models ?? [])];
-            
-            if (models.value.length > 0) {
-                const currentInBoth = models.value.some((m) => m.id === selectedModel.value);
-                if (!currentInBoth) {
-                    selectedModel.value = data.google_models?.length ? data.google_models[0]!.id : models.value[0]!.id;
-                }
+    openrouterModelsList.value = [];
+    googleModelsList.value = [];
+    imageModelsList.value = [];
+
+    const loadOpenRouter = async (): Promise<void> => {
+        try {
+            const resp = await http.get(`${modelsListBase}?provider=openrouter`);
+            if (resp.ok) {
+                const data = (await resp.json()) as {
+                    openrouter_models: AiModelEntry[];
+                };
+                openrouterModelsList.value = data.openrouter_models ?? [];
             }
+        } catch {
+            /* rete o errore server: resta vuoto */
         }
-        
-        // Fetch google image models
-        const imgResp = await http.get("/api/extensions/openrouter/models?type=image");
-        if (imgResp.ok) {
-            const imgData = (await imgResp.json()) as {
-                google_models: { id: string; name: string }[];
-            };
-            const list = (imgData.google_models ?? []).map((m) => ({
-                ...m,
-                is_free: false,
-                output_modalities: ["image"],
-            }));
-            imageModelsList.value = list;
-            
-            const currentImgInBoth = openRouterImageModels.value.some((m) => m.id === selectedImageModel.value) || list.some((m) => m.id === selectedImageModel.value);
-            if (!currentImgInBoth) {
-                selectedImageModel.value = list.length > 0 ? list[0]!.id : (openRouterImageModels.value.length > 0 ? openRouterImageModels.value[0]!.id : "");
+        syncSelectedTextModel();
+    };
+
+    const loadGoogleText = async (): Promise<void> => {
+        try {
+            const resp = await http.get(`${modelsListBase}?provider=google`);
+            if (resp.ok) {
+                const data = (await resp.json()) as {
+                    google_models: AiModelEntry[];
+                };
+                googleModelsList.value = data.google_models ?? [];
             }
-        } else {
+        } catch {
+            /* idem */
+        }
+        syncSelectedTextModel();
+    };
+
+    const loadGoogleImage = async (): Promise<void> => {
+        try {
+            const imgResp = await http.get(`${modelsListBase}?provider=google&type=image`);
+            if (imgResp.ok) {
+                const imgData = (await imgResp.json()) as {
+                    google_models: { id: string; name: string }[];
+                };
+                imageModelsList.value = (imgData.google_models ?? []).map((m) => ({
+                    ...m,
+                    is_free: false,
+                    output_modalities: ["image"],
+                }));
+            }
+        } catch {
             imageModelsList.value = [];
         }
-    } catch {
-        models.value = [];
-        imageModelsList.value = [];
+        syncSelectedImageModel();
+    };
+
+    try {
+        await Promise.allSettled([loadOpenRouter(), loadGoogleText(), loadGoogleImage()]);
+        syncSelectedTextModel();
+        syncSelectedImageModel();
+
+        /** Se tutte e tre le richieste falliscono (401, rete, ecc.), riprova con la risposta unica legacy. */
+        if (models.value.length === 0) {
+            try {
+                const resp = await http.get(modelsListBase);
+                if (resp.ok) {
+                    const data = (await resp.json()) as {
+                        openrouter_models?: AiModelEntry[];
+                        google_models?: AiModelEntry[];
+                    };
+                    openrouterModelsList.value = data.openrouter_models ?? [];
+                    googleModelsList.value = data.google_models ?? [];
+                    syncSelectedTextModel();
+                }
+            } catch {
+                /* ignore */
+            }
+        }
+        if (imageModelsList.value.length === 0) {
+            try {
+                const imgResp = await http.get(`${modelsListBase}?type=image`);
+                if (imgResp.ok) {
+                    const imgData = (await imgResp.json()) as {
+                        google_models: { id: string; name: string }[];
+                    };
+                    imageModelsList.value = (imgData.google_models ?? []).map((m) => ({
+                        ...m,
+                        is_free: false,
+                        output_modalities: ["image"],
+                    }));
+                    syncSelectedImageModel();
+                }
+            } catch {
+                /* ignore */
+            }
+        }
+        if (models.value.length === 0) {
+            toast.warning(t("game.ui.extensions.OpenRouterModal.models_load_failed"));
+        }
     } finally {
         loadingModels.value = false;
     }
