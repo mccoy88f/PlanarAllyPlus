@@ -11,7 +11,7 @@ for f in "$HOME/.zprofile" "$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.bashrc";
 done
 set -e
 # Common paths for node/npm
-export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$HOME/.local/share/fnm/current/bin:$HOME/.volta/bin:$HOME/.asdf/shims:$PATH"
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.pyenv/shims:$HOME/.pyenv/bin:$HOME/.local/bin:$HOME/.local/share/fnm/current/bin:$HOME/.volta/bin:$HOME/.asdf/shims:$PATH"
 [ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh" 2>/dev/null
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
