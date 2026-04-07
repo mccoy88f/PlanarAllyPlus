@@ -224,28 +224,21 @@ function mergeIndexNameOverlay(
     });
 }
 
-/** True se titolo del ramo, una voce o un sotto-ramo differiscono dal canonico (traduzione applicata nel sotto-albero). */
-function indexSubtreeHasTranslationDiff(canon: IndexCollNode, cur: IndexCollNode): boolean {
-    if (canon.name.trim() !== cur.name.trim()) return true;
-    for (const cIt of canon.items) {
-        const uIt = cur.items.find((x) => x.slug === cIt.slug);
-        if (uIt && cIt.name.trim() !== uIt.name.trim()) return true;
-    }
-    const cc = canon.collections ?? [];
-    const uc = cur.collections ?? [];
-    for (const child of cc) {
-        const uChild = uc.find((x) => x.slug === child.slug);
-        if (uChild && indexSubtreeHasTranslationDiff(child, uChild)) return true;
-    }
-    return false;
-}
-
+/**
+ * True se questo ramo (slug) ha traduzione visibile: titolo collezione o voci dirette (items) diversi dal canonico.
+ * Non risale dalle sotto-collezioni annidate: un padre non tradotto non eredita la spunta dal figlio.
+ */
 function isIndexBranchTranslated(slug: string): boolean {
     if (!activeTranslationLang.value) return false;
     const canon = findIndexNodeBySlug(canonicalIndex.value, slug);
     const cur = findIndexNodeBySlug(currentIndex.value as IndexCollNode[], slug);
     if (!canon || !cur) return false;
-    return indexSubtreeHasTranslationDiff(canon, cur);
+    if (canon.name.trim() !== cur.name.trim()) return true;
+    for (const cIt of canon.items) {
+        const uIt = cur.items.find((x) => x.slug === cIt.slug);
+        if (uIt && cIt.name.trim() !== uIt.name.trim()) return true;
+    }
+    return false;
 }
 
 const displayedIndex = computed(() => {
