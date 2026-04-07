@@ -299,7 +299,7 @@ async def uninstall(request: web.Request) -> web.Response:
                 try:
                     entry = AssetEntry.get_by_id(aid)
                     asset = entry.asset
-                    if asset and asset.shapes.count() > 0:
+                    if asset and asset.characters.count() > 0:
                         in_use.append(entry.name)
                 except AssetEntry.DoesNotExist:
                     pass
