@@ -611,6 +611,8 @@
           "translated_to": "Contenuto tradotto in {lang}",
           "clear_translation": "Cancella Traduzione",
           "rerun_translation": "Riesegui Traduzione",
+          "complete_translation": "Completa traduzione",
+          "complete_translation_hint": "Traduce tutti i nomi ancora mancanti nella vista indice attuale (intero albero o ramo aperto).",
           "expand_sidebar": "Espandi barra laterale",
           "collapse_sidebar": "Comprimi barra laterale",
           "add_to_assets": "Aggiungi ad asset",
