@@ -208,12 +208,29 @@ function mergeIndexNameOverlay(
             items,
         };
         if (node.collections !== undefined) {
-            out.collections = node.collections.length
-                ? mergeIndexNameOverlay(node.collections, ov?.collections)
-                : [];
+            if (node.collections.length === 0) {
+                out.collections = [];
+            } else {
+                const ovChildMap = ov?.collections?.length
+                    ? new Map(ov.collections.map((c) => [c.slug, c]))
+                    : null;
+                out.collections = node.collections.map((child) => {
+                    const childOv = ov ? ovChildMap?.get(child.slug) : undefined;
+                    return mergeIndexNameOverlay([child], childOv ? [childOv] : [])[0]!;
+                });
+            }
         }
         return out;
     });
+}
+
+/** True se il nome del ramo (stesso slug) differisce tra indice canonico e indice mostrato (traduzione applicata). */
+function isIndexBranchTranslated(slug: string): boolean {
+    if (!activeTranslationLang.value) return false;
+    const canon = findIndexNodeBySlug(canonicalIndex.value, slug);
+    const cur = findIndexNodeBySlug(currentIndex.value as IndexCollNode[], slug);
+    if (!canon || !cur) return false;
+    return canon.name.trim() !== cur.name.trim();
 }
 
 const displayedIndex = computed(() => {
@@ -242,6 +259,8 @@ const originalIndex = ref<any[] | null>(null);
 const canonicalIndex = ref<IndexCollNode[]>([]);
 const showTranslationTools = ref(false);
 const translationTagContainer = ref<HTMLElement | null>(null);
+/** Menu annulla/ripeti traduzione indice (toolbar). */
+const indexTranslationToolbarMenu = ref<HTMLElement | null>(null);
 /** AI Generator: compendium translation source (`auto` = detect) and optional target (`null` = same as UI). */
 const compendiumTranslateSource = ref<"auto" | string>("auto");
 const compendiumTranslateTarget = ref<string | null>(null);
@@ -1591,7 +1610,11 @@ async function translateCurrentView(): Promise<void> {
 }
 
 function handleOutsideClick(event: MouseEvent): void {
-    if (showTranslationTools.value && translationTagContainer.value && !translationTagContainer.value.contains(event.target as Node)) {
+    if (!showTranslationTools.value) return;
+    const target = event.target as Node;
+    const inBreadcrumb = translationTagContainer.value?.contains(target) ?? false;
+    const inToolbar = indexTranslationToolbarMenu.value?.contains(target) ?? false;
+    if (!inBreadcrumb && !inToolbar) {
         showTranslationTools.value = false;
     }
 }
@@ -2183,6 +2206,35 @@ onMounted(() => {
                 >
                     <font-awesome-icon icon="language" />
                 </button>
+                <div
+                    v-if="showIndex && isTranslated && !selectedItem"
+                    class="qe-index-translation-toolbar-menu"
+                    ref="indexTranslationToolbarMenu"
+                >
+                    <button
+                        type="button"
+                        class="ext-search-add-btn translate-btn"
+                        :title="
+                            t('game.ui.extensions.CompendiumModal.translated_to', {
+                                lang: translationTargetLabel,
+                            })
+                        "
+                        @click.stop="showTranslationTools = !showTranslationTools"
+                    >
+                        <font-awesome-icon icon="ellipsis-vertical" />
+                    </button>
+                    <div
+                        v-if="showTranslationTools"
+                        class="translation-tools-popover translation-tools-popover--toolbar"
+                    >
+                        <button class="popover-btn" @click.stop="clearTranslation">
+                            <font-awesome-icon icon="undo" /> {{ t("game.ui.extensions.CompendiumModal.clear_translation") }}
+                        </button>
+                        <button class="popover-btn" @click.stop="rerunTranslation">
+                            <font-awesome-icon icon="sync" /> {{ t("game.ui.extensions.CompendiumModal.rerun_translation") }}
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Expandable Grouped Filters Shelf -->
@@ -2494,35 +2546,25 @@ onMounted(() => {
                         <div v-else class="qe-index-container">
                             <div class="qe-index-header">
                                 <h1 class="qe-index-title">{{ indexViewTitle }}</h1>
-                                <div v-if="isTranslated" class="translation-tag-container" ref="translationTagContainer">
-                                    <div
-                                        class="translation-tag translation-tag--index-icon-only"
-                                        :title="
-                                            t('game.ui.extensions.CompendiumModal.translated_to', {
-                                                lang: translationTargetLabel,
-                                            })
-                                        "
-                                        @click.stop="showTranslationTools = !showTranslationTools"
-                                    >
-                                        <font-awesome-icon icon="check-circle" />
-                                    </div>
-
-                                    <div v-if="showTranslationTools" class="translation-tools-popover">
-                                        <button class="popover-btn" @click.stop="clearTranslation">
-                                            <font-awesome-icon icon="undo" /> {{ t("game.ui.extensions.CompendiumModal.clear_translation") }}
-                                        </button>
-                                        <button class="popover-btn" @click.stop="rerunTranslation">
-                                            <font-awesome-icon icon="sync" /> {{ t("game.ui.extensions.CompendiumModal.rerun_translation") }}
-                                        </button>
-                                    </div>
-                                </div>
                             </div>
                             <!-- Tag Filters moved to search bar -->
 
                             <div class="qe-index-grid">
 
                                 <div v-for="coll in displayedIndex" :key="coll.slug" class="qe-index-coll">
-                                    <h2 class="qe-index-coll-title">{{ formatName(coll.name) }}</h2>
+                                    <h2 class="qe-index-coll-title">
+                                        <font-awesome-icon
+                                            v-if="isIndexBranchTranslated(coll.slug)"
+                                            icon="check-circle"
+                                            class="qe-index-branch-translated-icon"
+                                            :title="
+                                                t('game.ui.extensions.CompendiumModal.translated_to', {
+                                                    lang: translationTargetLabel,
+                                                })
+                                            "
+                                        />
+                                        {{ formatName(coll.name) }}
+                                    </h2>
                                     <div class="qe-index-item-list">
                                         <button 
                                             v-for="item in (expandedIndexCollections.has(coll.slug) ? coll.items : coll.items.slice(0, 10))" 
@@ -2542,7 +2584,19 @@ onMounted(() => {
                                     </div>
                                     <div v-if="coll.collections && coll.collections.length > 0" class="qe-index-subcolls">
                                         <div v-for="subColl in coll.collections" :key="subColl.slug" class="qe-index-subcoll">
-                                            <h3 class="qe-index-subcoll-title">{{ formatName(subColl.name) }}</h3>
+                                            <h3 class="qe-index-subcoll-title">
+                                                <font-awesome-icon
+                                                    v-if="isIndexBranchTranslated(subColl.slug)"
+                                                    icon="check-circle"
+                                                    class="qe-index-branch-translated-icon"
+                                                    :title="
+                                                        t('game.ui.extensions.CompendiumModal.translated_to', {
+                                                            lang: translationTargetLabel,
+                                                        })
+                                                    "
+                                                />
+                                                {{ formatName(subColl.name) }}
+                                            </h3>
                                             <div class="qe-index-item-list">
                                                 <button
                                                     v-for="item in (expandedIndexCollections.has(subColl.slug) ? subColl.items : subColl.items.slice(0, 10))"
@@ -3165,6 +3219,9 @@ onMounted(() => {
 }
 
 .qe-index-coll-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     font-size: 1.1rem;
     font-weight: 700;
     color: #2d3748;
@@ -3183,12 +3240,27 @@ onMounted(() => {
 }
 
 .qe-index-subcoll-title {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
     font-size: 0.95rem;
     font-weight: 600;
     color: #4a5568;
     margin-bottom: 0.5rem;
     padding-bottom: 0.3rem;
     border-bottom: 1px dashed #e2e8f0;
+}
+
+.qe-index-branch-translated-icon {
+    flex-shrink: 0;
+    color: #1976d2;
+    font-size: 0.95em;
+}
+
+.qe-index-translation-toolbar-menu {
+    position: relative;
+    display: flex;
+    align-items: center;
 }
 
 .qe-index-metadata {
@@ -3684,6 +3756,11 @@ onMounted(() => {
     flex-direction: column;
     padding: 4px;
     min-width: 150px;
+
+    &.translation-tools-popover--toolbar {
+        left: auto;
+        right: 0;
+    }
 }
 
 .popover-btn {
