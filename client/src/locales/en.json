@@ -1186,6 +1186,8 @@
           "license": "License",
           "clear_translation": "Clear Translation",
           "rerun_translation": "Rerun Translation",
+          "complete_translation": "Complete translation",
+          "complete_translation_hint": "Translate all remaining names in the current index view (whole tree or focused branch).",
           "expand_sidebar": "Expand sidebar",
           "collapse_sidebar": "Collapse sidebar",
           "add_to_assets": "Add to assets",

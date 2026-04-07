@@ -241,6 +241,83 @@ function isIndexBranchTranslated(slug: string): boolean {
     return false;
 }
 
+/** Tutti i titoli e le voci nel sotto-albero differiscono dal canonico (traduzione completa). */
+function indexSubtreeFullyTranslated(canon: IndexCollNode, cur: IndexCollNode): boolean {
+    if (canon.name.trim() === cur.name.trim()) return false;
+    for (const cIt of canon.items) {
+        const uIt = cur.items.find((x) => x.slug === cIt.slug);
+        if (!uIt || cIt.name.trim() === uIt.name.trim()) return false;
+    }
+    const cc = canon.collections ?? [];
+    const uc = cur.collections ?? [];
+    for (const child of cc) {
+        const uChild = uc.find((x) => x.slug === child.slug);
+        if (!uChild || !indexSubtreeFullyTranslated(child, uChild)) return false;
+    }
+    return true;
+}
+
+function isIndexBranchFullyTranslated(slug: string): boolean {
+    if (!activeTranslationLang.value) return false;
+    const canon = findIndexNodeBySlug(canonicalIndex.value, slug);
+    const cur = findIndexNodeBySlug(currentIndex.value as IndexCollNode[], slug);
+    if (!canon || !cur) return false;
+    return indexSubtreeFullyTranslated(canon, cur);
+}
+
+/** Indice globale: ogni radice ha sotto-albero completamente tradotto. */
+function isGlobalIndexFullyTranslated(): boolean {
+    if (!activeTranslationLang.value) return false;
+    const canon = canonicalIndex.value;
+    const cur = currentIndex.value as IndexCollNode[];
+    if (canon.length === 0 || cur.length === 0) return false;
+    for (const c of canon) {
+        const u = cur.find((x) => x.slug === c.slug);
+        if (!u || !indexSubtreeFullyTranslated(c, u)) return false;
+    }
+    return true;
+}
+
+function findItemNameInIndex(collectionSlug: string, itemSlug: string): string | null {
+    const coll = findIndexNodeBySlug(currentIndex.value as IndexCollNode[], collectionSlug);
+    if (!coll) return null;
+    const it = coll.items.find((x) => x.slug === itemSlug);
+    return it?.name ?? null;
+}
+
+function displayAdjacentItemName(entry: {
+    itemSlug: string;
+    collectionSlug: string;
+    itemName: string;
+} | null): string {
+    if (!entry) return "";
+    if (!activeTranslationLang.value) return entry.itemName;
+    const fromIndex = findItemNameInIndex(entry.collectionSlug, entry.itemSlug);
+    return fromIndex ?? entry.itemName;
+}
+
+async function completeIndexTranslation(): Promise<void> {
+    if (translateLoading.value || !aiConfigured.value || !indexCompendium.value) return;
+    showTranslationTools.value = false;
+    const targetCode = effectiveCompendiumTargetLang();
+    await checkTranslation("index");
+    const roots = displayedIndex.value as IndexCollNode[];
+    if (roots.length === 0) return;
+    translateLoading.value = true;
+    try {
+        await translateIndexJsonOnly(roots, targetCode);
+    } finally {
+        translateLoading.value = false;
+    }
+}
+
+async function openSubcollIndexFromIndex(subSlug: string, subName: string): Promise<void> {
+    const comp = indexCompendium.value;
+    if (!comp) return;
+    const coll: CollectionMeta = { slug: subSlug, name: subName, parentSlug: null, count: 0 };
+    await showCollectionIndex(comp, coll);
+}
+
 const displayedIndex = computed(() => {
     const full = currentIndex.value as IndexCollNode[];
     if (!indexFocusCollectionSlug.value) return full;
@@ -1014,7 +1091,8 @@ async function navigateToNextItem(): Promise<void> {
         parentSlug: null,
         count: 0,
     };
-    const itemMeta: ItemMeta = { slug: itemSlug, name: itemName };
+    const displayName = displayAdjacentItemName(nextItem.value);
+    const itemMeta: ItemMeta = { slug: itemSlug, name: displayName || itemName };
     await selectItem(comp, coll, itemMeta);
 }
 
@@ -1031,7 +1109,8 @@ async function navigateToPrevItem(): Promise<void> {
         parentSlug: null,
         count: 0,
     };
-    const itemMeta: ItemMeta = { slug: itemSlug, name: itemName };
+    const displayName = displayAdjacentItemName(prevItem.value);
+    const itemMeta: ItemMeta = { slug: itemSlug, name: displayName || itemName };
     await selectItem(comp, coll, itemMeta);
 }
 
@@ -2526,6 +2605,10 @@ onMounted(() => {
                                 >
                                     <div
                                         class="translation-tag translation-tag--index-icon-only"
+                                        :class="{
+                                            'translation-tag--index-partial': !isGlobalIndexFullyTranslated(),
+                                            'translation-tag--index-complete': isGlobalIndexFullyTranslated(),
+                                        }"
                                         :title="
                                             t('game.ui.extensions.CompendiumModal.translated_to', {
                                                 lang: translationTargetLabel,
@@ -2542,6 +2625,17 @@ onMounted(() => {
                                         <button class="popover-btn" @click.stop="rerunTranslation">
                                             <font-awesome-icon icon="sync" /> {{ t("game.ui.extensions.CompendiumModal.rerun_translation") }}
                                         </button>
+                                        <button
+                                            v-if="aiConfigured"
+                                            class="popover-btn"
+                                            type="button"
+                                            :disabled="translateLoading"
+                                            :title="t('game.ui.extensions.CompendiumModal.complete_translation_hint')"
+                                            @click.stop="completeIndexTranslation"
+                                        >
+                                            <font-awesome-icon icon="wand-magic-sparkles" />
+                                            {{ t("game.ui.extensions.CompendiumModal.complete_translation") }}
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -2554,7 +2648,12 @@ onMounted(() => {
                                         <font-awesome-icon
                                             v-if="isIndexBranchTranslated(coll.slug)"
                                             icon="check-circle"
-                                            class="qe-index-branch-translated-icon"
+                                            :class="[
+                                                'qe-index-branch-translated-icon',
+                                                isIndexBranchFullyTranslated(coll.slug)
+                                                    ? 'qe-index-branch-translated-icon--complete'
+                                                    : 'qe-index-branch-translated-icon--partial',
+                                            ]"
                                             :title="
                                                 t('game.ui.extensions.CompendiumModal.translated_to', {
                                                     lang: translationTargetLabel,
@@ -2586,14 +2685,25 @@ onMounted(() => {
                                                 <font-awesome-icon
                                                     v-if="isIndexBranchTranslated(subColl.slug)"
                                                     icon="check-circle"
-                                                    class="qe-index-branch-translated-icon"
+                                                    :class="[
+                                                        'qe-index-branch-translated-icon',
+                                                        isIndexBranchFullyTranslated(subColl.slug)
+                                                            ? 'qe-index-branch-translated-icon--complete'
+                                                            : 'qe-index-branch-translated-icon--partial',
+                                                    ]"
                                                     :title="
                                                         t('game.ui.extensions.CompendiumModal.translated_to', {
                                                             lang: translationTargetLabel,
                                                         })
                                                     "
                                                 />
-                                                {{ formatName(subColl.name) }}
+                                                <button
+                                                    type="button"
+                                                    class="qe-index-subcoll-title-link"
+                                                    @click="openSubcollIndexFromIndex(subColl.slug, subColl.name)"
+                                                >
+                                                    {{ formatName(subColl.name) }}
+                                                </button>
                                             </h3>
                                             <div class="qe-index-item-list">
                                                 <button
@@ -2660,7 +2770,11 @@ onMounted(() => {
                                             class="qe-nav-link qe-nav-link--prev"
                                             @click="navigateToPrevItem"
                                         >
-                                            {{ t("game.ui.extensions.CompendiumModal.back_to", { name: prevItem.itemName }) }}
+                                            {{
+                                                t("game.ui.extensions.CompendiumModal.back_to", {
+                                                    name: displayAdjacentItemName(prevItem),
+                                                })
+                                            }}
                                         </button>
                                     </div>
                                     <div class="qe-nav-col qe-nav-col--right">
@@ -2670,7 +2784,11 @@ onMounted(() => {
                                             class="qe-nav-link qe-nav-link--next"
                                             @click="navigateToNextItem"
                                         >
-                                            {{ t("game.ui.extensions.CompendiumModal.proceed_to", { name: nextItem.itemName }) }}
+                                            {{
+                                                t("game.ui.extensions.CompendiumModal.proceed_to", {
+                                                    name: displayAdjacentItemName(nextItem),
+                                                })
+                                            }}
                                         </button>
                                     </div>
                                 </div>
@@ -3251,8 +3369,35 @@ onMounted(() => {
 
 .qe-index-branch-translated-icon {
     flex-shrink: 0;
-    color: #1976d2;
     font-size: 0.95em;
+}
+
+.qe-index-branch-translated-icon--complete {
+    color: #1976d2;
+}
+
+.qe-index-branch-translated-icon--partial {
+    color: #e65100;
+}
+
+.qe-index-subcoll-title-link {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    font-weight: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    text-decoration: none;
+
+    &:hover {
+        color: #2b6cb0;
+        text-decoration: underline;
+    }
 }
 
 .qe-index-metadata {
@@ -3731,6 +3876,26 @@ onMounted(() => {
         font-size: 1rem;
         line-height: 1;
         border-radius: 50%;
+
+        &.translation-tag--index-complete {
+            background: #e3f2fd;
+            color: #1976d2;
+            border-color: #bbdefb;
+
+            &:hover {
+                background: #bbdefb;
+            }
+        }
+
+        &.translation-tag--index-partial {
+            background: #fff3e0;
+            color: #e65100;
+            border-color: #ffcc80;
+
+            &:hover {
+                background: #ffe0b2;
+            }
+        }
     }
 }
 
