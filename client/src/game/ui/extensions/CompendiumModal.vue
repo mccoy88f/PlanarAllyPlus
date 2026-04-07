@@ -184,6 +184,38 @@ function replaceIndexNodeInTree(roots: IndexCollNode[], focusSlug: string, newNo
     return clone;
 }
 
+/**
+ * Mantiene struttura e slug dell’indice canonico (API) e applica solo i `name`
+ * presenti nell’overlay (traduzione salvata, anche parziale o ramo singolo).
+ */
+function mergeIndexNameOverlay(
+    canonical: IndexCollNode[],
+    overlay: IndexCollNode[] | null | undefined,
+): IndexCollNode[] {
+    if (!overlay?.length) {
+        return JSON.parse(JSON.stringify(canonical)) as IndexCollNode[];
+    }
+    const overlayBySlug = new Map(overlay.map((n) => [n.slug, n]));
+    return canonical.map((node) => {
+        const ov = overlayBySlug.get(node.slug);
+        const items = node.items.map((it) => {
+            const ovi = ov?.items?.find((x) => x.slug === it.slug);
+            return { slug: it.slug, name: ovi ? ovi.name : it.name };
+        });
+        const out: IndexCollNode = {
+            slug: node.slug,
+            name: ov?.name ?? node.name,
+            items,
+        };
+        if (node.collections !== undefined) {
+            out.collections = node.collections.length
+                ? mergeIndexNameOverlay(node.collections, ov?.collections)
+                : [];
+        }
+        return out;
+    });
+}
+
 const displayedIndex = computed(() => {
     const full = currentIndex.value as IndexCollNode[];
     if (!indexFocusCollectionSlug.value) return full;
@@ -206,6 +238,8 @@ const activeTranslationLang = ref<string | null>(null);
 const originalMarkdown = ref<string | null>(null);
 const sidebarCollapsed = ref(false);
 const originalIndex = ref<any[] | null>(null);
+/** Indice completo dall’API (senza traduzione); base per merge con traduzione e per ripristino. */
+const canonicalIndex = ref<IndexCollNode[]>([]);
 const showTranslationTools = ref(false);
 const translationTagContainer = ref<HTMLElement | null>(null);
 /** AI Generator: compendium translation source (`auto` = detect) and optional target (`null` = same as UI). */
@@ -985,6 +1019,7 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
     indexFocusCollectionSlug.value = null;
 
     currentIndex.value = [];
+    canonicalIndex.value = [];
     expandedIndexCollections.value.clear();
 
     try {
@@ -996,6 +1031,7 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
             originalIndex.value = null;
             activeTranslationLang.value = null;
             currentMarkdown.value = "";
+            canonicalIndex.value = JSON.parse(JSON.stringify(data.index)) as IndexCollNode[];
             currentIndex.value = data.index;
             indexMetadata.value = data.metadata || {};
             await checkTranslation("index");
@@ -1026,6 +1062,7 @@ async function showCollectionIndex(comp: CompendiumMeta, coll: CollectionMeta): 
     if (!indexAlreadyLoaded) {
         indexLoading.value = true;
         currentIndex.value = [];
+        canonicalIndex.value = [];
         expandedIndexCollections.value.clear();
         try {
             const r = await http.get(
@@ -1036,6 +1073,7 @@ async function showCollectionIndex(comp: CompendiumMeta, coll: CollectionMeta): 
                 originalIndex.value = null;
                 activeTranslationLang.value = null;
                 currentMarkdown.value = "";
+                canonicalIndex.value = JSON.parse(JSON.stringify(data.index)) as IndexCollNode[];
                 currentIndex.value = data.index;
                 indexMetadata.value = data.metadata || {};
                 await checkTranslation("index");
@@ -1226,9 +1264,9 @@ async function checkTranslation(type: "item" | "index"): Promise<void> {
                     if (originalMarkdown.value === null) originalMarkdown.value = selectedItem.value.item.markdown;
                     currentMarkdown.value = data.content;
                     activeTranslationLang.value = lang;
-                } else if (type === "index" && currentIndex.value.length > 0) {
-                    if (originalIndex.value === null) originalIndex.value = JSON.parse(JSON.stringify(currentIndex.value));
-                    currentIndex.value = JSON.parse(data.content);
+                } else if (type === "index" && canonicalIndex.value.length > 0) {
+                    const overlay = JSON.parse(data.content) as IndexCollNode[];
+                    currentIndex.value = mergeIndexNameOverlay(canonicalIndex.value, overlay);
                     activeTranslationLang.value = lang;
                 }
             }
@@ -1265,8 +1303,8 @@ function revertTranslationUI(): void {
     if (!activeTranslationLang.value) return;
 
     const isIndex = showIndex.value;
-    if (isIndex && originalIndex.value) {
-        currentIndex.value = JSON.parse(JSON.stringify(originalIndex.value));
+    if (isIndex && canonicalIndex.value.length > 0) {
+        currentIndex.value = JSON.parse(JSON.stringify(canonicalIndex.value));
         originalIndex.value = null;
     } else if (selectedItem.value && originalMarkdown.value !== null) {
         currentMarkdown.value = originalMarkdown.value;
@@ -1445,17 +1483,21 @@ async function translateIndexJsonOnly(roots: IndexCollNode[], targetCode: string
         const end = translated.lastIndexOf("]") + 1;
         if (start === -1 || end === 0) throw new Error("no json array");
         const parsed = JSON.parse(translated.substring(start, end)) as IndexCollNode[];
-        if (originalIndex.value === null) originalIndex.value = JSON.parse(JSON.stringify(currentIndex.value));
+        if (originalIndex.value === null) originalIndex.value = JSON.parse(JSON.stringify(canonicalIndex.value));
         if (indexFocusCollectionSlug.value) {
             if (parsed.length > 0) {
+                const oldNode = findIndexNodeBySlug(currentIndex.value as IndexCollNode[], indexFocusCollectionSlug.value);
+                const mergedNode = oldNode
+                    ? mergeIndexNameOverlay([oldNode], [parsed[0]!])[0]!
+                    : parsed[0]!;
                 currentIndex.value = replaceIndexNodeInTree(
-                    currentIndex.value,
+                    currentIndex.value as IndexCollNode[],
                     indexFocusCollectionSlug.value,
-                    parsed[0]!,
+                    mergedNode,
                 );
             }
         } else {
-            currentIndex.value = parsed;
+            currentIndex.value = mergeIndexNameOverlay(canonicalIndex.value, parsed);
         }
         activeTranslationLang.value = targetCode;
         await saveTranslationToDb(JSON.stringify(currentIndex.value), "index");
@@ -2453,16 +2495,18 @@ onMounted(() => {
                             <div class="qe-index-header">
                                 <h1 class="qe-index-title">{{ indexViewTitle }}</h1>
                                 <div v-if="isTranslated" class="translation-tag-container" ref="translationTagContainer">
-                                    <div class="translation-tag" @click.stop="showTranslationTools = !showTranslationTools">
-                                        <font-awesome-icon icon="check-circle" class="me-1" />
-                                        {{
-                                    t("game.ui.extensions.CompendiumModal.translated_to", {
-                                        lang: translationTargetLabel,
-                                    })
-                                }}
-                                        <font-awesome-icon icon="chevron-down" class="ms-1" />
+                                    <div
+                                        class="translation-tag translation-tag--index-icon-only"
+                                        :title="
+                                            t('game.ui.extensions.CompendiumModal.translated_to', {
+                                                lang: translationTargetLabel,
+                                            })
+                                        "
+                                        @click.stop="showTranslationTools = !showTranslationTools"
+                                    >
+                                        <font-awesome-icon icon="check-circle" />
                                     </div>
-                                    
+
                                     <div v-if="showTranslationTools" class="translation-tools-popover">
                                         <button class="popover-btn" @click.stop="clearTranslation">
                                             <font-awesome-icon icon="undo" /> {{ t("game.ui.extensions.CompendiumModal.clear_translation") }}
@@ -3615,6 +3659,14 @@ onMounted(() => {
 
     &:hover {
         background: #bbdefb;
+    }
+
+    &.translation-tag--index-icon-only {
+        padding: 0.2rem;
+        margin: 0;
+        font-size: 1rem;
+        line-height: 1;
+        border-radius: 50%;
     }
 }
 
