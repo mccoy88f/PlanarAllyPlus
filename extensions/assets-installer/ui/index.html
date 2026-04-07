@@ -454,7 +454,17 @@
                     });
             }
 
+            var uploadProgressContainer = document.getElementById('uploadProgressContainer');
+            var uploadProgressBar = document.getElementById('uploadProgressBar');
+
+            function setOperationProgress(visible) {
+                if (!uploadProgressContainer || !uploadProgressBar) return;
+                uploadProgressContainer.style.display = visible ? 'flex' : 'none';
+                if (visible) uploadProgressBar.style.width = '100%';
+            }
+
             function uninstall(id) {
+                setOperationProgress(true);
                 fetch(api('/api/extensions/assets-installer/uninstall'), {
                     method: 'POST',
                     credentials: 'include',
@@ -472,11 +482,11 @@
                     })
                     .catch(function (e) {
                         showMsg(e.message || t('uninstall_failed'), true);
+                    })
+                    .finally(function () {
+                        setOperationProgress(false);
                     });
             }
-
-            var uploadProgressContainer = document.getElementById('uploadProgressContainer');
-            var uploadProgressBar = document.getElementById('uploadProgressBar');
 
             uploadBtn.addEventListener('click', function () {
                 isStaticUpload = false;
@@ -500,8 +510,7 @@
 
                 uploadBtn.disabled = true;
                 uploadStaticBtn.disabled = true;
-                uploadProgressContainer.style.display = 'flex';
-                uploadProgressBar.style.width = '100%';
+                setOperationProgress(true);
 
                 var xhr = new XMLHttpRequest();
                 xhr.open('POST', api('/api/extensions/assets-installer/upload'), true);
@@ -530,7 +539,7 @@
                 };
 
                 function finalizeUpload() {
-                    uploadProgressContainer.style.display = 'none';
+                    setOperationProgress(false);
                     uploadBtn.disabled = false;
                     uploadStaticBtn.disabled = false;
                     fileInput.value = '';
