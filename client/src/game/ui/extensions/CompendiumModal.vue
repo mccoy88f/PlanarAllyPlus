@@ -35,8 +35,12 @@ import { getFolderByPath } from "../../../assets/emits";
 import { assetState } from "../../../assets/state";
 import { socket } from "../../../assets/socket";
 import type { DropAssetInfo } from "../../dropAsset";
-
-
+import type { IndexCollNode } from "./compendium/indexMerge";
+import {
+    mergeIndexNameOverlay,
+    mergeIndexPreservePriorRoots,
+    mergeIndexPreservePriorSubtree,
+} from "./compendium/indexMerge";
 
 const props = defineProps<{
     visible: boolean;
@@ -131,13 +135,6 @@ const currentIndex = ref<{ slug: string; name: string; items: { slug: string; na
 /** Se valorizzato, l’indice mostra solo il ramo di questa collezione (sotto-albero). */
 const indexFocusCollectionSlug = ref<string | null>(null);
 
-interface IndexCollNode {
-    slug: string;
-    name: string;
-    items: { slug: string; name: string }[];
-    collections?: IndexCollNode[];
-}
-
 function findIndexNodeBySlug(nodes: IndexCollNode[], slug: string): IndexCollNode | null {
     for (const n of nodes) {
         if (n.slug === slug) return n;
@@ -182,52 +179,6 @@ function replaceIndexNodeInTree(roots: IndexCollNode[], focusSlug: string, newNo
     }
     walk(clone);
     return clone;
-}
-
-/**
- * Mantiene struttura e slug dell’indice canonico (API) e applica solo i `name`
- * presenti nell’overlay (traduzione salvata, anche parziale o ramo singolo).
- * L’overlay viene indicizzato per slug su tutto l’albero così le traduzioni non
- * si perdono se la nidificazione di `collections` non coincide con il canonico.
- */
-function mergeIndexNameOverlay(
-    canonical: IndexCollNode[],
-    overlay: IndexCollNode[] | null | undefined,
-): IndexCollNode[] {
-    if (!overlay?.length) {
-        return JSON.parse(JSON.stringify(canonical)) as IndexCollNode[];
-    }
-    const overlayBySlug = new Map<string, IndexCollNode>();
-    function collectOverlay(nodes: IndexCollNode[]): void {
-        for (const n of nodes) {
-            overlayBySlug.set(n.slug, n);
-            if (n.collections?.length) collectOverlay(n.collections);
-        }
-    }
-    collectOverlay(overlay);
-
-    function mergeNode(node: IndexCollNode): IndexCollNode {
-        const ov = overlayBySlug.get(node.slug);
-        const items = node.items.map((it) => {
-            const ovi = ov?.items?.find((x) => x.slug === it.slug);
-            return { slug: it.slug, name: ovi ? ovi.name : it.name };
-        });
-        const out: IndexCollNode = {
-            slug: node.slug,
-            name: ov?.name ?? node.name,
-            items,
-        };
-        if (node.collections !== undefined) {
-            if (node.collections.length === 0) {
-                out.collections = [];
-            } else {
-                out.collections = node.collections.map((child) => mergeNode(child));
-            }
-        }
-        return out;
-    }
-
-    return canonical.map((node) => mergeNode(node));
 }
 
 /**
@@ -302,6 +253,7 @@ function displayAdjacentItemName(entry: {
     return fromIndex ?? entry.itemName;
 }
 
+/** Stesso flusso di executeIndexTranslationBatch: prima voci foglia (n/tot, salta cache), poi nomi indice. */
 async function completeIndexTranslation(): Promise<void> {
     if (translateLoading.value || !aiConfigured.value || !indexCompendium.value) return;
     showTranslationTools.value = false;
@@ -309,12 +261,8 @@ async function completeIndexTranslation(): Promise<void> {
     await checkTranslation("index");
     const roots = displayedIndex.value as IndexCollNode[];
     if (roots.length === 0) return;
-    translateLoading.value = true;
-    try {
-        await translateIndexJsonOnly(roots, targetCode);
-    } finally {
-        translateLoading.value = false;
-    }
+    const leafItems = collectLeafItemsFromIndexNodes(roots);
+    await executeIndexTranslationBatch({ leafItems, targetCode, roots });
 }
 
 async function openSubcollIndexFromIndex(subColl: IndexCollNode): Promise<void> {
@@ -1607,18 +1555,29 @@ async function translateIndexJsonOnly(roots: IndexCollNode[], targetCode: string
         if (originalIndex.value === null) originalIndex.value = JSON.parse(JSON.stringify(canonicalIndex.value));
         if (indexFocusCollectionSlug.value) {
             if (parsed.length > 0) {
-                const oldNode = findIndexNodeBySlug(currentIndex.value as IndexCollNode[], indexFocusCollectionSlug.value);
-                const mergedNode = oldNode
-                    ? mergeIndexNameOverlay([oldNode], [parsed[0]!])[0]!
-                    : parsed[0]!;
-                currentIndex.value = replaceIndexNodeInTree(
-                    currentIndex.value as IndexCollNode[],
-                    indexFocusCollectionSlug.value,
-                    mergedNode,
-                );
+                const focus = indexFocusCollectionSlug.value;
+                const canonNode = findIndexNodeBySlug(canonicalIndex.value as IndexCollNode[], focus);
+                const oldNode = findIndexNodeBySlug(currentIndex.value as IndexCollNode[], focus);
+                if (canonNode && oldNode) {
+                    const mergedFromAi = mergeIndexNameOverlay([canonNode], [parsed[0]!])[0]!;
+                    const mergedNode = mergeIndexPreservePriorSubtree(canonNode, mergedFromAi, oldNode);
+                    currentIndex.value = replaceIndexNodeInTree(
+                        currentIndex.value as IndexCollNode[],
+                        focus,
+                        mergedNode,
+                    );
+                } else {
+                    currentIndex.value = mergeIndexNameOverlay(canonicalIndex.value, parsed);
+                }
             }
         } else {
-            currentIndex.value = mergeIndexNameOverlay(canonicalIndex.value, parsed);
+            const prior = currentIndex.value as IndexCollNode[];
+            const mergedFromAi = mergeIndexNameOverlay(canonicalIndex.value, parsed);
+            currentIndex.value = mergeIndexPreservePriorRoots(
+                canonicalIndex.value as IndexCollNode[],
+                mergedFromAi,
+                prior,
+            );
         }
         activeTranslationLang.value = targetCode;
         await saveTranslationToDb(JSON.stringify(currentIndex.value), "index");
