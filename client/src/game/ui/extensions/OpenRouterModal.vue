@@ -302,7 +302,9 @@ async function loadModels(): Promise<void> {
         } catch {
             /* rete o errore server: resta vuoto */
         }
-        syncSelectedTextModel();
+        /** Non chiamare syncSelectedTextModel qui: i caricamenti sono paralleli; se solo un provider
+         *  ha risposto, merged non contiene ancora il modello salvato (es. OpenRouter) e la sync
+         *  sovrascrive la scelta persistita. La sync avviene solo a fine loadModels. */
     };
 
     const loadGoogleText = async (): Promise<void> => {
@@ -317,7 +319,6 @@ async function loadModels(): Promise<void> {
         } catch {
             /* idem */
         }
-        syncSelectedTextModel();
     };
 
     const loadGoogleImage = async (): Promise<void> => {
@@ -336,7 +337,7 @@ async function loadModels(): Promise<void> {
         } catch {
             imageModelsList.value = [];
         }
-        syncSelectedImageModel();
+        /** Stesso motivo: niente syncSelectedImageModel finché OR + Google image non sono entrambi noti. */
     };
 
     try {
@@ -936,7 +937,7 @@ function close(): void {
 watch(visible, async (v) => {
     if (v) {
         await loadSettings();
-        loadModels();
+        await loadModels();
         activeTab.value = "tasks";
         result.value = "";
         currentTask.value = null;
@@ -950,10 +951,10 @@ watch(visible, async (v) => {
 });
 
 
-onMounted(() => {
+onMounted(async () => {
     if (visible.value) {
-        loadModels();
-        loadSettings();
+        await loadSettings();
+        await loadModels();
     }
 });
 </script>
