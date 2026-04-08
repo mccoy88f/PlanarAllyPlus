@@ -1623,6 +1623,11 @@ onMounted(async () => {
     height: min(85vh, 600px);
     overflow: hidden;
 
+    .ext-modal-body-wrapper {
+        min-width: 0;
+        width: 100%;
+    }
+
     .ext-modal-header {
         width: 100%;
         flex-shrink: 0;
@@ -1649,6 +1654,9 @@ onMounted(async () => {
 .openrouter-settings {
     flex: 1;
     min-height: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
@@ -1669,6 +1677,9 @@ onMounted(async () => {
 }
 
 .openrouter-settings-section {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     padding: 1rem;
     background: #fafafa;
     border: 1px solid #eee;
@@ -1683,6 +1694,19 @@ onMounted(async () => {
 
     .openrouter-field-inline {
         margin-top: 0.75rem;
+    }
+
+    .openrouter-field {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+
+        .ext-ui-textarea {
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            display: block;
+        }
     }
 }
 
