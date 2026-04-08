@@ -175,13 +175,20 @@ const indexOpenTranslationState = computed((): IndexSubtreeTranslationState => {
     return indexRootsTranslationState(canonicalDisplayedRoots(), overlayDisplayedRoots());
 });
 
+function trStatusIconClass(s: IndexSubtreeTranslationState): string {
+    if (s === "full") return "qe-tr-lang-icon--full";
+    if (s === "partial") return "qe-tr-lang-icon--partial";
+    return "qe-tr-lang-icon--none";
+}
+
+/** Pallino compatto nei titoli capitolo dell’indice (migliore leggibilità con testi lunghi). */
 function trStatusDotClass(s: IndexSubtreeTranslationState): string {
     if (s === "full") return "qe-tr-status-dot--full";
     if (s === "partial") return "qe-tr-status-dot--partial";
     return "qe-tr-status-dot--none";
 }
 
-const indexOpenDotClass = computed(() => trStatusDotClass(indexOpenTranslationState.value));
+const indexOpenIconClass = computed(() => trStatusIconClass(indexOpenTranslationState.value));
 
 function branchTranslationDotClass(slug: string): string {
     const canon = findIndexNodeBySlug(canonicalIndex.value, slug);
@@ -190,9 +197,9 @@ function branchTranslationDotClass(slug: string): string {
     return trStatusDotClass(indexSubtreeTranslationState(canon, cur));
 }
 
-const itemTranslationDotClass = computed(() => {
-    if (!showTranslatedContent.value || !selectedItem.value || showIndex.value) return "qe-tr-status-dot--none";
-    return hasSavedTranslation.value ? "qe-tr-status-dot--full" : "qe-tr-status-dot--none";
+const itemTranslationIconClass = computed(() => {
+    if (!showTranslatedContent.value || !selectedItem.value || showIndex.value) return "qe-tr-lang-icon--none";
+    return hasSavedTranslation.value ? "qe-tr-lang-icon--full" : "qe-tr-lang-icon--none";
 });
 
 const indexOpenTranslationTooltip = computed(() => {
@@ -2423,11 +2430,27 @@ onMounted(() => {
                                 <span v-else class="qe-breadcrumb-item">{{ crumb.label }}</span>
                             </template>
                         </div>
-                        <div v-if="showTranslatedContent" class="qe-tr-toolbar-group">
+                        <button
+                            type="button"
+                            class="qe-share-btn"
+                            :title="t('game.ui.extensions.CompendiumModal.share_menu_hint')"
+                            @click="openShareModal"
+                        >
+                            <font-awesome-icon icon="share-alt" />
+                            {{ t("game.ui.extensions.CompendiumModal.share") }}
+                        </button>
+                    </div>
+                    <div
+                        v-if="selectedItem"
+                        class="qe-item-title-bar"
+                        :class="{ 'qe-item-title-bar--index-context': showIndex }"
+                    >
+                        <h2 class="qe-item-view-heading">{{ displayedItemTitle }}</h2>
+                        <div v-if="showTranslatedContent && !showIndex" class="qe-tr-toolbar-group">
                             <font-awesome-icon
-                                icon="circle"
-                                class="qe-tr-status-dot"
-                                :class="itemTranslationDotClass"
+                                icon="language"
+                                class="qe-tr-lang-icon"
+                                :class="itemTranslationIconClass"
                                 :title="
                                     hasSavedTranslation
                                         ? t('game.ui.extensions.CompendiumModal.translated_to', {
@@ -2463,17 +2486,7 @@ onMounted(() => {
                                 </div>
                             </div>
                         </div>
-                        <button
-                            type="button"
-                            class="qe-share-btn"
-                            :title="t('game.ui.extensions.CompendiumModal.share_menu_hint')"
-                            @click="openShareModal"
-                        >
-                            <font-awesome-icon icon="share-alt" />
-                            {{ t("game.ui.extensions.CompendiumModal.share") }}
-                        </button>
                     </div>
-                    <h2 v-if="selectedItem" class="qe-item-view-heading">{{ displayedItemTitle }}</h2>
                     <div v-if="showIndex" class="qe-index-view">
                         <div v-if="indexLoading" class="qe-loading-inline">
                             {{ t("game.ui.extensions.CompendiumModal.loading") }}
@@ -2483,9 +2496,9 @@ onMounted(() => {
                                 <h1 class="qe-index-title">{{ indexViewTitle }}</h1>
                                 <div v-if="showTranslatedContent" class="qe-tr-toolbar-group">
                                     <font-awesome-icon
-                                        icon="circle"
-                                        class="qe-tr-status-dot"
-                                        :class="indexOpenDotClass"
+                                        icon="language"
+                                        class="qe-tr-lang-icon"
+                                        :class="indexOpenIconClass"
                                         :title="indexOpenTranslationTooltip"
                                     />
                                     <div
@@ -2525,7 +2538,7 @@ onMounted(() => {
                                         <font-awesome-icon
                                             v-if="showTranslatedContent"
                                             icon="circle"
-                                            class="qe-tr-status-dot"
+                                            class="qe-tr-status-dot qe-tr-status-dot--chapter"
                                             :class="branchTranslationDotClass(coll.slug)"
                                             :title="branchTranslationTooltip(coll.slug)"
                                         />
@@ -2560,7 +2573,7 @@ onMounted(() => {
                                                 <font-awesome-icon
                                                     v-if="showTranslatedContent"
                                                     icon="circle"
-                                                    class="qe-tr-status-dot"
+                                                    class="qe-tr-status-dot qe-tr-status-dot--chapter"
                                                     :class="branchTranslationDotClass(subColl.slug)"
                                                     :title="branchTranslationTooltip(subColl.slug)"
                                                 />
@@ -3216,10 +3229,12 @@ onMounted(() => {
 }
 
 .qe-index-title {
+    flex: 1;
+    min-width: 0;
     font-size: 2.2rem;
     font-weight: 800;
     color: #1a2a3a;
-    margin-bottom: 2rem;
+    margin: 0;
     border-bottom: 3px solid #3498db;
     padding-bottom: 0.5rem;
     background: linear-gradient(to right, #1a2a3a, #3498db);
@@ -3280,12 +3295,17 @@ onMounted(() => {
     border-bottom: 1px dashed #e2e8f0;
 }
 
-/** Pallino stato traduzione: rosso = nessuna, arancione = parziale, verde = completa */
+/** Pallino stato traduzione (solo titoli capitolo indice): compatto, non invade il testo lungo */
 .qe-tr-status-dot {
     flex-shrink: 0;
     font-size: 0.55rem;
     vertical-align: middle;
     opacity: 0.95;
+
+    &.qe-tr-status-dot--chapter {
+        align-self: flex-start;
+        margin-top: 0.35em;
+    }
 }
 
 .qe-tr-status-dot--none {
@@ -3297,6 +3317,26 @@ onMounted(() => {
 }
 
 .qe-tr-status-dot--full {
+    color: #2e7d32;
+}
+
+/** Icona lingua (come il pulsante in toolbar): rosso = nessuna, arancione = parziale, verde = completa */
+.qe-tr-lang-icon {
+    flex-shrink: 0;
+    font-size: 0.95em;
+    vertical-align: middle;
+    opacity: 0.95;
+}
+
+.qe-tr-lang-icon--none {
+    color: #c62828;
+}
+
+.qe-tr-lang-icon--partial {
+    color: #ef6c00;
+}
+
+.qe-tr-lang-icon--full {
     color: #2e7d32;
 }
 
@@ -3516,16 +3556,38 @@ onMounted(() => {
     }
 }
 
-.qe-item-view-heading {
+.qe-item-title-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
     flex-shrink: 0;
-    margin: 0;
     padding: 0.75rem 1.5rem 0.65rem;
+    border-bottom: 1px solid #eee;
+    background: #fafafa;
+
+    &.qe-item-title-bar--index-context {
+        .qe-item-view-heading {
+            flex: 1;
+        }
+    }
+
+    .qe-tr-toolbar-group {
+        margin-left: auto;
+    }
+}
+
+.qe-item-view-heading {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
     font-size: 1.35rem;
     font-weight: 600;
     line-height: 1.3;
     color: #1a1a1a;
-    border-bottom: 1px solid #eee;
-    background: #fafafa;
+    border: none;
+    background: transparent;
 }
 
 .qe-markdown {
@@ -3872,9 +3934,16 @@ onMounted(() => {
 
 .qe-index-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
+    justify-content: space-between;
     gap: 1rem;
-    margin-bottom: 1rem;
+    margin-bottom: 2rem;
+    width: 100%;
+
+    .qe-tr-toolbar-group {
+        flex-shrink: 0;
+        margin-top: 0.35rem;
+    }
 }
 
 .qe-markdown-content :deep(img) {
