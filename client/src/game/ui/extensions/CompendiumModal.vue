@@ -190,10 +190,21 @@ function indexNodeHasVisibleBranchContent(slug: string): boolean {
     return indexBranchHasVisibleContent(currentIndex.value as IndexCollNode[], slug);
 }
 
-async function openSubcollIndexFromIndex(subSlug: string, subName: string): Promise<void> {
+async function openSubcollIndexFromIndex(subColl: IndexCollNode): Promise<void> {
     const comp = indexCompendium.value;
     if (!comp) return;
-    const coll: CollectionMeta = { slug: subSlug, name: subName, parentSlug: null, count: 0 };
+    const real = collectionsFor(comp.id).find((c: CollectionMeta) => c.slug === subColl.slug);
+    const itemCount = subColl.items?.length ?? 0;
+    const subColCount = subColl.collections?.length ?? 0;
+    const fromIndex = itemCount + subColCount;
+    const coll: CollectionMeta = real
+        ? { ...real, count: Math.max(real.count ?? 0, fromIndex) }
+        : {
+              slug: subColl.slug,
+              name: subColl.name,
+              parentSlug: null,
+              count: fromIndex,
+          };
     await showCollectionIndex(comp, coll);
 }
 
@@ -2328,8 +2339,8 @@ onMounted(() => {
                                                 />
                                                 <button
                                                     type="button"
-                                                    class="qe-index-coll-title-link"
-                                                    @click="openSubcollIndexFromIndex(subColl.slug, subColl.name)"
+                                                    class="qe-index-subcoll-title-link"
+                                                    @click.stop="openSubcollIndexFromIndex(subColl)"
                                                 >
                                                     {{ formatName(subColl.name) }}
                                                 </button>

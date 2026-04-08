@@ -65,6 +65,8 @@ export function replaceIndexNodeInTree(roots: IndexCollNode[], focusSlug: string
 /**
  * Mantiene struttura e slug dell’indice canonico (API) e applica solo i `name`
  * presenti nell’overlay (traduzione salvata, anche parziale o ramo singolo).
+ * L’overlay viene indicizzato per slug su tutto l’albero così le traduzioni non
+ * si perdono se la nidificazione di `collections` non coincide con il canonico.
  */
 export function mergeIndexNameOverlay(
     canonical: IndexCollNode[],
@@ -73,8 +75,17 @@ export function mergeIndexNameOverlay(
     if (overlay == null || overlay.length === 0) {
         return JSON.parse(JSON.stringify(canonical)) as IndexCollNode[];
     }
-    const overlayBySlug = new Map(overlay.map((n) => [n.slug, n]));
-    return canonical.map((node) => {
+    const overlayBySlug = new Map<string, IndexCollNode>();
+    function collectOverlay(nodes: IndexCollNode[]): void {
+        for (const n of nodes) {
+            overlayBySlug.set(n.slug, n);
+            const colls = n.collections;
+            if (colls != null && colls.length > 0) collectOverlay(colls);
+        }
+    }
+    collectOverlay(overlay);
+
+    function mergeNode(node: IndexCollNode): IndexCollNode {
         const ov = overlayBySlug.get(node.slug);
         const items = node.items.map((it) => {
             const ovi = ov?.items?.find((x) => x.slug === it.slug);
@@ -89,17 +100,13 @@ export function mergeIndexNameOverlay(
             if (node.collections.length === 0) {
                 out.collections = [];
             } else {
-                const ovCols = ov?.collections;
-                const ovChildMap =
-                    ovCols != null && ovCols.length > 0 ? new Map(ovCols.map((c) => [c.slug, c])) : null;
-                out.collections = node.collections.map((child) => {
-                    const childOv = ov ? ovChildMap?.get(child.slug) : undefined;
-                    return mergeIndexNameOverlay([child], childOv ? [childOv] : [])[0]!;
-                });
+                out.collections = node.collections.map((child) => mergeNode(child));
             }
         }
         return out;
-    });
+    }
+
+    return canonical.map((node) => mergeNode(node));
 }
 
 /**
