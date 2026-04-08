@@ -490,24 +490,19 @@ async function saveSettings(): Promise<void> {
             compendiumTranslateTarget:
                 compendiumTranslateTarget.value.trim() === "" ? null : compendiumTranslateTarget.value.trim(),
         };
-        if (apiKey.value && apiKey.value !== "********") {
+        /** Invia sempre quando il valore non è il placeholder mascherato: così una stringa vuota
+         *  propaga al server e cancella la chiave salvata (prima non si mandava il campo e la chiave restava). */
+        if (apiKey.value !== "********") {
             body.apiKey = apiKey.value;
         }
-        if (googleApiKey.value && googleApiKey.value !== "********") {
+        if (googleApiKey.value !== "********") {
             body.googleApiKey = googleApiKey.value;
         }
         const resp = await http.postJson("/api/extensions/openrouter/settings", body);
         if (resp.ok) {
             toast.success(t("game.ui.extensions.OpenRouterModal.settings_saved"));
-            if (apiKey.value && apiKey.value !== "********") {
-                apiKey.value = "********";
-            }
-            if (googleApiKey.value && googleApiKey.value !== "********") {
-                googleApiKey.value = "********";
-            }
-            // Add reloading models on save
             await loadModels();
-            activeTab.value = "tasks";
+            await loadSettings();
         } else {
             const err = await resp.json().catch(() => ({}));
             toast.error((err as { error?: string }).error || t("game.ui.extensions.OpenRouterModal.save_error"));
