@@ -1127,6 +1127,7 @@
           "continue_reading": "Continue reading the next item: {name}",
           "back_to": "Return to: {name}",
           "proceed_to": "Proceed to: {name}",
+          "keyboard_nav_hint": "Shortcut: ← previous item, → next item (same as the links above).",
           "loading": "Loading...",
           "search_placeholder": "Search in compendiums...",
           "filter_tags_placeholder": "Search or select tags...",

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import type { CSSProperties } from "vue";
+import { useEventListener } from "@vueuse/core";
 import { useI18n } from "vue-i18n";
 import { useToast } from "vue-toastification";
 
@@ -294,6 +296,8 @@ const originalIndex = ref<any[] | null>(null);
 const canonicalIndex = ref<IndexCollNode[]>([]);
 const showTranslationTools = ref(false);
 const translationTagContainer = ref<HTMLElement | null>(null);
+const translationToolsPopoverEl = ref<HTMLElement | null>(null);
+const translationToolsPopoverStyle = ref<CSSProperties>({});
 /** AI Generator: compendium translation source (`auto` = detect) and optional target (`null` = same as UI). */
 const compendiumTranslateSource = ref<"auto" | string>("auto");
 const compendiumTranslateTarget = ref<string | null>(null);
@@ -1430,10 +1434,107 @@ async function runTranslateCurrentView(): Promise<void> {
 }
 
 function handleOutsideClick(event: MouseEvent): void {
-    if (showTranslationTools.value && translationTagContainer.value && !translationTagContainer.value.contains(event.target as Node)) {
-        showTranslationTools.value = false;
-    }
+    const t = event.target as Node;
+    if (!showTranslationTools.value || !translationTagContainer.value) return;
+    if (translationTagContainer.value.contains(t)) return;
+    if (translationToolsPopoverEl.value?.contains(t)) return;
+    showTranslationTools.value = false;
 }
+
+function isArrowNavSuppressedTarget(target: EventTarget | null): boolean {
+    if (target == null || !(target instanceof HTMLElement)) return false;
+    const field = target.closest("input, textarea, select");
+    if (
+        field instanceof HTMLInputElement ||
+        field instanceof HTMLTextAreaElement ||
+        field instanceof HTMLSelectElement
+    ) {
+        return true;
+    }
+    const ce = target.closest("[contenteditable]");
+    if (ce instanceof HTMLElement && ce.isContentEditable) return true;
+    return false;
+}
+
+function isTargetInsideCompendiumTree(target: EventTarget | null): boolean {
+    if (target == null || !(target instanceof HTMLElement)) return false;
+    return Boolean(target.closest(".qe-tree"));
+}
+
+function handleCompendiumArrowNav(e: KeyboardEvent): void {
+    if (!props.visible) return;
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (isArrowNavSuppressedTarget(e.target)) return;
+    if (isTargetInsideCompendiumTree(e.target)) return;
+    if (installDialogOpen.value || shareModalOpen.value || translateBatchConfirmOpen.value) return;
+    if (imgContextMenu.value) return;
+    if (itemLoading.value || translateLoading.value) return;
+    if (!selectedItem.value || showIndex.value) return;
+
+    if (e.key === "ArrowRight") {
+        if (!nextItem.value) return;
+        e.preventDefault();
+        e.stopPropagation();
+        void navigateToNextItem();
+        return;
+    }
+    if (!prevItem.value) return;
+    e.preventDefault();
+    e.stopPropagation();
+    void navigateToPrevItem();
+}
+
+async function updateTranslationToolsPopoverPosition(): Promise<void> {
+    if (!showTranslationTools.value || !translationTagContainer.value) return;
+    const anchor = translationTagContainer.value;
+    const pop = translationToolsPopoverEl.value;
+    const rect = anchor.getBoundingClientRect();
+    const margin = 8;
+    const gap = 4;
+    const minW = 320;
+    let popW = pop?.offsetWidth ?? minW;
+    if (popW < 40) popW = minW;
+    let left = rect.right - popW;
+    left = Math.max(margin, Math.min(left, window.innerWidth - popW - margin));
+    let top = rect.bottom + gap;
+    const popH = pop?.offsetHeight ?? 0;
+    if (popH > 0) {
+        if (top + popH > window.innerHeight - margin) {
+            const above = rect.top - gap - popH;
+            top = above >= margin ? above : Math.max(margin, window.innerHeight - popH - margin);
+        }
+    }
+    translationToolsPopoverStyle.value = {
+        position: "fixed",
+        left: `${left}px`,
+        top: `${top}px`,
+        zIndex: 10051,
+    };
+}
+
+watch(showTranslationTools, async (open) => {
+    if (!open) {
+        translationToolsPopoverStyle.value = {};
+        return;
+    }
+    await nextTick();
+    await updateTranslationToolsPopoverPosition();
+    await nextTick();
+    await updateTranslationToolsPopoverPosition();
+});
+
+useEventListener(window, "resize", () => {
+    if (showTranslationTools.value) void updateTranslationToolsPopoverPosition();
+});
+useEventListener(
+    document,
+    "scroll",
+    () => {
+        if (showTranslationTools.value) void updateTranslationToolsPopoverPosition();
+    },
+    { capture: true },
+);
 
 onMounted(async () => {
     try {
@@ -1446,10 +1547,12 @@ onMounted(async () => {
     await loadCompendiums();
     await checkAiConfig();
     window.addEventListener("mousedown", handleOutsideClick);
+    window.addEventListener("keydown", handleCompendiumArrowNav);
 });
 
 onUnmounted(() => {
     window.removeEventListener("mousedown", handleOutsideClick);
+    window.removeEventListener("keydown", handleCompendiumArrowNav);
     stopResize();
 });
 
@@ -2323,15 +2426,6 @@ onMounted(() => {
                                     }}
                                     <font-awesome-icon icon="chevron-down" class="ms-1" />
                                 </div>
-
-                                <div v-if="showTranslationTools" class="translation-tools-popover">
-                                    <button class="popover-btn" @click.stop="clearTranslation">
-                                        <font-awesome-icon icon="undo" /> {{ t("game.ui.extensions.CompendiumModal.clear_translation") }}
-                                    </button>
-                                    <button class="popover-btn" @click.stop="rerunTranslation">
-                                        <font-awesome-icon icon="sync" /> {{ t("game.ui.extensions.CompendiumModal.rerun_translation") }}
-                                    </button>
-                                </div>
                             </div>
                             <button
                                 v-else-if="aiConfigured"
@@ -2384,24 +2478,6 @@ onMounted(() => {
                                             @click.stop="showTranslationTools = !showTranslationTools"
                                         >
                                             <font-awesome-icon icon="chevron-down" />
-                                        </div>
-                                        <div v-if="showTranslationTools" class="translation-tools-popover">
-                                            <button class="popover-btn" @click.stop="clearTranslation">
-                                                <font-awesome-icon icon="undo" /> {{ t("game.ui.extensions.CompendiumModal.clear_translation") }}
-                                            </button>
-                                            <button class="popover-btn" @click.stop="rerunTranslation">
-                                                <font-awesome-icon icon="sync" /> {{ t("game.ui.extensions.CompendiumModal.rerun_translation") }}
-                                            </button>
-                                            <button
-                                                v-if="aiConfigured"
-                                                class="popover-btn"
-                                                type="button"
-                                                :disabled="translateLoading"
-                                                :title="t('game.ui.extensions.CompendiumModal.complete_translation_hint')"
-                                                @click.stop="completeIndexTranslation"
-                                            >
-                                                {{ t("game.ui.extensions.CompendiumModal.complete_translation") }}
-                                            </button>
                                         </div>
                                     </div>
                                     <button
@@ -2528,7 +2604,11 @@ onMounted(() => {
 
                                  </div>
                              </div>
-                <div v-if="nextItem || prevItem" class="qe-continue-reading">
+                <div
+                                v-if="nextItem || prevItem"
+                                class="qe-continue-reading"
+                                :title="t('game.ui.extensions.CompendiumModal.keyboard_nav_hint')"
+                            >
                                 <div class="qe-nav-adjacent">
                                     <div class="qe-nav-col qe-nav-col--left">
                                         <button
@@ -2591,6 +2671,35 @@ onMounted(() => {
                     </button>
                 </div>
             </div>
+        </div>
+    </Teleport>
+
+    <Teleport to="body">
+        <div
+            v-if="showTranslationTools && hasSavedTranslation"
+            ref="translationToolsPopoverEl"
+            class="translation-tools-popover translation-tools-popover--fixed"
+            :style="translationToolsPopoverStyle"
+            role="menu"
+            @mousedown.stop
+        >
+            <button class="popover-btn" type="button" role="menuitem" @click.stop="clearTranslation">
+                <font-awesome-icon icon="undo" /> {{ t("game.ui.extensions.CompendiumModal.clear_translation") }}
+            </button>
+            <button class="popover-btn" type="button" role="menuitem" @click.stop="rerunTranslation">
+                <font-awesome-icon icon="sync" /> {{ t("game.ui.extensions.CompendiumModal.rerun_translation") }}
+            </button>
+            <button
+                v-if="showIndex && aiConfigured"
+                class="popover-btn"
+                type="button"
+                role="menuitem"
+                :disabled="translateLoading"
+                :title="t('game.ui.extensions.CompendiumModal.complete_translation_hint')"
+                @click.stop="completeIndexTranslation"
+            >
+                {{ t("game.ui.extensions.CompendiumModal.complete_translation") }}
+            </button>
         </div>
     </Teleport>
 
@@ -3703,26 +3812,29 @@ onMounted(() => {
     }
 }
 
+/** Menu traduzione: teletrasportato su body con posizione fissa (resta nel viewport). */
 .translation-tools-popover {
-    position: absolute;
-    top: 100%;
-    left: 0.5rem;
-    background: white;
+    background: #fff;
     border: 1px solid #ccc;
     border-radius: 4px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    z-index: 100;
-    margin-top: 0.25rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.14);
     display: flex;
     flex-direction: column;
     padding: 4px;
-    min-width: 150px;
+    min-width: 20rem;
+    max-width: min(100vw - 16px, 28rem);
+    width: max-content;
+    box-sizing: border-box;
+}
+
+.translation-tools-popover--fixed {
+    margin: 0;
 }
 
 .popover-btn {
     border: none;
     background: transparent;
-    padding: 0.5rem;
+    padding: 0.5rem 0.65rem;
     text-align: left;
     cursor: pointer;
     font-size: 0.85rem;
@@ -3730,13 +3842,20 @@ onMounted(() => {
     align-items: center;
     gap: 0.5rem;
     border-radius: 2px;
+    white-space: nowrap;
 
     &:hover {
         background: #f5f5f5;
     }
 
+    &:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+    }
+
     svg {
         width: 14px;
+        flex-shrink: 0;
     }
 }
 

@@ -552,6 +552,7 @@
           "continue_reading": "Continua a leggere il prossimo elemento: {name}",
           "back_to": "Torna a: {name}",
           "proceed_to": "Procedi verso: {name}",
+          "keyboard_nav_hint": "Scorciatoia: ← voce precedente, → voce successiva (come i link sopra).",
           "loading": "Caricamento...",
           "search_placeholder": "Cerca nei compendi...",
           "filter_tags_placeholder": "Cerca o seleziona tag...",
