@@ -187,6 +187,8 @@ function replaceIndexNodeInTree(roots: IndexCollNode[], focusSlug: string, newNo
 /**
  * Mantiene struttura e slug dell’indice canonico (API) e applica solo i `name`
  * presenti nell’overlay (traduzione salvata, anche parziale o ramo singolo).
+ * L’overlay viene indicizzato per slug su tutto l’albero così le traduzioni non
+ * si perdono se la nidificazione di `collections` non coincide con il canonico.
  */
 function mergeIndexNameOverlay(
     canonical: IndexCollNode[],
@@ -195,8 +197,16 @@ function mergeIndexNameOverlay(
     if (!overlay?.length) {
         return JSON.parse(JSON.stringify(canonical)) as IndexCollNode[];
     }
-    const overlayBySlug = new Map(overlay.map((n) => [n.slug, n]));
-    return canonical.map((node) => {
+    const overlayBySlug = new Map<string, IndexCollNode>();
+    function collectOverlay(nodes: IndexCollNode[]): void {
+        for (const n of nodes) {
+            overlayBySlug.set(n.slug, n);
+            if (n.collections?.length) collectOverlay(n.collections);
+        }
+    }
+    collectOverlay(overlay);
+
+    function mergeNode(node: IndexCollNode): IndexCollNode {
         const ov = overlayBySlug.get(node.slug);
         const items = node.items.map((it) => {
             const ovi = ov?.items?.find((x) => x.slug === it.slug);
@@ -211,17 +221,13 @@ function mergeIndexNameOverlay(
             if (node.collections.length === 0) {
                 out.collections = [];
             } else {
-                const ovChildMap = ov?.collections?.length
-                    ? new Map(ov.collections.map((c) => [c.slug, c]))
-                    : null;
-                out.collections = node.collections.map((child) => {
-                    const childOv = ov ? ovChildMap?.get(child.slug) : undefined;
-                    return mergeIndexNameOverlay([child], childOv ? [childOv] : [])[0]!;
-                });
+                out.collections = node.collections.map((child) => mergeNode(child));
             }
         }
         return out;
-    });
+    }
+
+    return canonical.map((node) => mergeNode(node));
 }
 
 /**
@@ -311,10 +317,21 @@ async function completeIndexTranslation(): Promise<void> {
     }
 }
 
-async function openSubcollIndexFromIndex(subSlug: string, subName: string): Promise<void> {
+async function openSubcollIndexFromIndex(subColl: IndexCollNode): Promise<void> {
     const comp = indexCompendium.value;
     if (!comp) return;
-    const coll: CollectionMeta = { slug: subSlug, name: subName, parentSlug: null, count: 0 };
+    const real = collectionsFor(comp.id).find((c: CollectionMeta) => c.slug === subColl.slug);
+    const itemCount = subColl.items?.length ?? 0;
+    const subColCount = subColl.collections?.length ?? 0;
+    const fromIndex = itemCount + subColCount;
+    const coll: CollectionMeta = real
+        ? { ...real, count: Math.max(real.count ?? 0, fromIndex) }
+        : {
+              slug: subColl.slug,
+              name: subColl.name,
+              parentSlug: null,
+              count: fromIndex,
+          };
     await showCollectionIndex(comp, coll);
 }
 
@@ -2700,7 +2717,7 @@ onMounted(() => {
                                                 <button
                                                     type="button"
                                                     class="qe-index-subcoll-title-link"
-                                                    @click="openSubcollIndexFromIndex(subColl.slug, subColl.name)"
+                                                    @click.stop="openSubcollIndexFromIndex(subColl)"
                                                 >
                                                     {{ formatName(subColl.name) }}
                                                 </button>
