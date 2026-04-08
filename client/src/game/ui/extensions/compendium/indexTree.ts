@@ -221,6 +221,45 @@ export function isGlobalIndexFullyTranslatedRoots(
     return true;
 }
 
+/** Almeno un nome (titolo, voce o sotto-ramo) differisce dal canonico. */
+export function indexSubtreeHasAnyTranslation(canon: IndexCollNode, cur: IndexCollNode): boolean {
+    if (canon.name.trim() !== cur.name.trim()) return true;
+    for (const cIt of canon.items) {
+        const uIt = cur.items.find((x) => x.slug === cIt.slug);
+        if (uIt && cIt.name.trim() !== uIt.name.trim()) return true;
+    }
+    const cc = canon.collections ?? [];
+    const uc = cur.collections ?? [];
+    for (const child of cc) {
+        const uChild = uc.find((x) => x.slug === child.slug);
+        if (uChild && indexSubtreeHasAnyTranslation(child, uChild)) return true;
+    }
+    return false;
+}
+
+export type IndexSubtreeTranslationState = "none" | "partial" | "full";
+
+export function indexSubtreeTranslationState(canon: IndexCollNode, cur: IndexCollNode): IndexSubtreeTranslationState {
+    if (indexSubtreeFullyTranslated(canon, cur)) return "full";
+    if (indexSubtreeHasAnyTranslation(canon, cur)) return "partial";
+    return "none";
+}
+
+/** Stato dell’indice mostrato (una o più radici): nessuna / parziale / tutto tradotto. */
+export function indexRootsTranslationState(
+    canonicalRoots: IndexCollNode[],
+    currentRoots: IndexCollNode[],
+): IndexSubtreeTranslationState {
+    if (canonicalRoots.length === 0) return "none";
+    if (isGlobalIndexFullyTranslatedRoots(canonicalRoots, currentRoots)) return "full";
+    for (const c of canonicalRoots) {
+        const u = currentRoots.find((x) => x.slug === c.slug);
+        if (!u) continue;
+        if (indexSubtreeTranslationState(c, u) !== "none") return "partial";
+    }
+    return "none";
+}
+
 export function findItemNameInIndexTree(
     roots: IndexCollNode[],
     collectionSlug: string,

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
     findIndexNodeBySlug,
+    indexRootsTranslationState,
     indexSubtreeFullyTranslated,
+    indexSubtreeHasAnyTranslation,
     isBranchDirectlyTranslated,
     isGlobalIndexFullyTranslatedRoots,
     mergeIndexNameOverlay,
@@ -70,5 +72,26 @@ describe("indexTree", () => {
             },
         ]);
         expect(isGlobalIndexFullyTranslatedRoots(canon, cur)).toBe(true);
+    });
+
+    it("indexSubtreeHasAnyTranslation e indexRootsTranslationState", () => {
+        const canon = sample[0]!;
+        const curPartial = mergeIndexNameOverlay(sample, [
+            { slug: "a", name: "A'", items: [{ slug: "i1", name: "Item" }] },
+        ])[0]!;
+        expect(indexSubtreeHasAnyTranslation(canon, curPartial)).toBe(true);
+        expect(indexRootsTranslationState(sample, [curPartial])).toBe("partial");
+
+        const curFull = mergeIndexNameOverlay(sample, [
+            {
+                slug: "a",
+                name: "A'",
+                items: [{ slug: "i1", name: "Item'" }],
+                collections: [{ slug: "b", name: "B'", items: [] }],
+            },
+        ]);
+        expect(indexRootsTranslationState(sample, curFull)).toBe("full");
+
+        expect(indexRootsTranslationState(sample, sample)).toBe("none");
     });
 });

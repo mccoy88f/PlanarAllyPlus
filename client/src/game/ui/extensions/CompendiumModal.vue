@@ -41,9 +41,9 @@ import {
     findIndexNodeBySlug,
     findItemNameInIndexTree,
     indexNodeHasVisibleBranchContent as indexBranchHasVisibleContent,
-    isBranchDirectlyTranslated,
-    isGlobalIndexFullyTranslatedRoots,
-    isSubtreeFullyTranslatedForSlug,
+    indexRootsTranslationState,
+    indexSubtreeTranslationState,
+    type IndexSubtreeTranslationState,
 } from "./compendium/indexTree";
 import { useCompendiumTranslation } from "./compendium/useCompendiumTranslation";
 
@@ -156,16 +156,58 @@ const indexTreeForDisplay = computed((): IndexCollNode[] => {
     return canon;
 });
 
-function isIndexBranchTranslated(slug: string): boolean {
-    return isBranchDirectlyTranslated(canonicalIndex.value, indexOverlayForStatus(), slug);
+function canonicalDisplayedRoots(): IndexCollNode[] {
+    if (!indexFocusCollectionSlug.value) return canonicalIndex.value;
+    const n = findIndexNodeBySlug(canonicalIndex.value, indexFocusCollectionSlug.value);
+    return n ? [n] : canonicalIndex.value;
 }
 
-function isIndexBranchFullyTranslated(slug: string): boolean {
-    return isSubtreeFullyTranslatedForSlug(canonicalIndex.value, indexOverlayForStatus(), slug);
+function overlayDisplayedRoots(): IndexCollNode[] {
+    const overlay = indexOverlayForStatus();
+    if (!indexFocusCollectionSlug.value) return overlay;
+    const n = findIndexNodeBySlug(overlay, indexFocusCollectionSlug.value);
+    return n ? [n] : overlay;
 }
 
-function isGlobalIndexFullyTranslated(): boolean {
-    return isGlobalIndexFullyTranslatedRoots(canonicalIndex.value, indexOverlayForStatus());
+const indexOpenTranslationState = computed((): IndexSubtreeTranslationState => {
+    return indexRootsTranslationState(canonicalDisplayedRoots(), overlayDisplayedRoots());
+});
+
+function trStatusDotClass(s: IndexSubtreeTranslationState): string {
+    if (s === "full") return "qe-tr-status-dot--full";
+    if (s === "partial") return "qe-tr-status-dot--partial";
+    return "qe-tr-status-dot--none";
+}
+
+const indexOpenDotClass = computed(() => trStatusDotClass(indexOpenTranslationState.value));
+
+function branchTranslationDotClass(slug: string): string {
+    const canon = findIndexNodeBySlug(canonicalIndex.value, slug);
+    const cur = findIndexNodeBySlug(indexOverlayForStatus(), slug);
+    if (!canon || !cur) return "qe-tr-status-dot--none";
+    return trStatusDotClass(indexSubtreeTranslationState(canon, cur));
+}
+
+const itemTranslationDotClass = computed(() => {
+    if (!showTranslatedContent.value || !selectedItem.value || showIndex.value) return "qe-tr-status-dot--none";
+    return hasSavedTranslation.value ? "qe-tr-status-dot--full" : "qe-tr-status-dot--none";
+});
+
+const indexOpenTranslationTooltip = computed(() => {
+    const s = indexOpenTranslationState.value;
+    if (s === "full") return t("game.ui.extensions.CompendiumModal.translation_status_full");
+    if (s === "partial") return t("game.ui.extensions.CompendiumModal.translation_status_partial");
+    return t("game.ui.extensions.CompendiumModal.translation_status_none");
+});
+
+function branchTranslationTooltip(slug: string): string {
+    const canon = findIndexNodeBySlug(canonicalIndex.value, slug);
+    const cur = findIndexNodeBySlug(indexOverlayForStatus(), slug);
+    if (!canon || !cur) return t("game.ui.extensions.CompendiumModal.translation_status_none");
+    const s = indexSubtreeTranslationState(canon, cur);
+    if (s === "full") return t("game.ui.extensions.CompendiumModal.translation_status_full");
+    if (s === "partial") return t("game.ui.extensions.CompendiumModal.translation_status_partial");
+    return t("game.ui.extensions.CompendiumModal.translation_status_none");
 }
 
 function findItemNameInIndex(collectionSlug: string, itemSlug: string): string | null {
@@ -2256,10 +2298,21 @@ onMounted(() => {
                                 <span v-else class="qe-breadcrumb-item">{{ crumb.label }}</span>
                             </template>
                         </div>
-                        <template v-if="showTranslatedContent">
+                        <div v-if="showTranslatedContent" class="qe-tr-toolbar-group">
+                            <font-awesome-icon
+                                icon="circle"
+                                class="qe-tr-status-dot"
+                                :class="itemTranslationDotClass"
+                                :title="
+                                    hasSavedTranslation
+                                        ? t('game.ui.extensions.CompendiumModal.translated_to', {
+                                              lang: translationTargetLabel,
+                                          })
+                                        : t('game.ui.extensions.CompendiumModal.translation_status_item_none')
+                                "
+                            />
                             <div v-if="hasSavedTranslation" class="translation-tag-container" ref="translationTagContainer">
                                 <div class="translation-tag" @click.stop="showTranslationTools = !showTranslationTools">
-                                    <font-awesome-icon icon="check-circle" class="me-1" />
                                     {{
                                         t("game.ui.extensions.CompendiumModal.translated_to", {
                                             lang: translationTargetLabel,
@@ -2287,7 +2340,7 @@ onMounted(() => {
                             >
                                 <font-awesome-icon icon="circle" />
                             </button>
-                        </template>
+                        </div>
                         <button
                             type="button"
                             class="qe-share-btn"
@@ -2306,7 +2359,13 @@ onMounted(() => {
                         <div v-else class="qe-index-container">
                             <div class="qe-index-header">
                                 <h1 class="qe-index-title">{{ indexViewTitle }}</h1>
-                                <template v-if="showTranslatedContent">
+                                <div v-if="showTranslatedContent" class="qe-tr-toolbar-group">
+                                    <font-awesome-icon
+                                        icon="circle"
+                                        class="qe-tr-status-dot"
+                                        :class="indexOpenDotClass"
+                                        :title="indexOpenTranslationTooltip"
+                                    />
                                     <div
                                         v-if="hasSavedTranslation"
                                         class="translation-tag-container"
@@ -2314,10 +2373,6 @@ onMounted(() => {
                                     >
                                         <div
                                             class="translation-tag translation-tag--index-icon-only"
-                                            :class="{
-                                                'translation-tag--index-partial': !isGlobalIndexFullyTranslated(),
-                                                'translation-tag--index-complete': isGlobalIndexFullyTranslated(),
-                                            }"
                                             :title="
                                                 t('game.ui.extensions.CompendiumModal.translated_to', {
                                                     lang: translationTargetLabel,
@@ -2325,7 +2380,7 @@ onMounted(() => {
                                             "
                                             @click.stop="showTranslationTools = !showTranslationTools"
                                         >
-                                            <font-awesome-icon icon="check-circle" />
+                                            <font-awesome-icon icon="chevron-down" />
                                         </div>
                                         <div v-if="showTranslationTools" class="translation-tools-popover">
                                             <button class="popover-btn" @click.stop="clearTranslation">
@@ -2357,7 +2412,7 @@ onMounted(() => {
                                     >
                                         <font-awesome-icon icon="circle" />
                                     </button>
-                                </template>
+                                </div>
                             </div>
                             <!-- Tag Filters moved to search bar -->
 
@@ -2366,19 +2421,11 @@ onMounted(() => {
                                 <div v-for="coll in displayedIndex" :key="coll.slug" class="qe-index-coll">
                                     <h2 class="qe-index-coll-title">
                                         <font-awesome-icon
-                                            v-if="showTranslatedContent && isIndexBranchTranslated(coll.slug)"
-                                            icon="check-circle"
-                                            :class="[
-                                                'qe-index-branch-translated-icon',
-                                                isIndexBranchFullyTranslated(coll.slug)
-                                                    ? 'qe-index-branch-translated-icon--complete'
-                                                    : 'qe-index-branch-translated-icon--partial',
-                                            ]"
-                                            :title="
-                                                t('game.ui.extensions.CompendiumModal.translated_to', {
-                                                    lang: translationTargetLabel,
-                                                })
-                                            "
+                                            v-if="showTranslatedContent"
+                                            icon="circle"
+                                            class="qe-tr-status-dot"
+                                            :class="branchTranslationDotClass(coll.slug)"
+                                            :title="branchTranslationTooltip(coll.slug)"
                                         />
                                         <button
                                             type="button"
@@ -2409,19 +2456,11 @@ onMounted(() => {
                                         <div v-for="subColl in coll.collections" :key="subColl.slug" class="qe-index-subcoll">
                                             <h3 class="qe-index-subcoll-title">
                                                 <font-awesome-icon
-                                                    v-if="showTranslatedContent && isIndexBranchTranslated(subColl.slug)"
-                                                    icon="check-circle"
-                                                    :class="[
-                                                        'qe-index-branch-translated-icon',
-                                                        isIndexBranchFullyTranslated(subColl.slug)
-                                                            ? 'qe-index-branch-translated-icon--complete'
-                                                            : 'qe-index-branch-translated-icon--partial',
-                                                    ]"
-                                                    :title="
-                                                        t('game.ui.extensions.CompendiumModal.translated_to', {
-                                                            lang: translationTargetLabel,
-                                                        })
-                                                    "
+                                                    v-if="showTranslatedContent"
+                                                    icon="circle"
+                                                    class="qe-tr-status-dot"
+                                                    :class="branchTranslationDotClass(subColl.slug)"
+                                                    :title="branchTranslationTooltip(subColl.slug)"
                                                 />
                                                 <button
                                                     type="button"
@@ -3093,17 +3132,31 @@ onMounted(() => {
     border-bottom: 1px dashed #e2e8f0;
 }
 
-.qe-index-branch-translated-icon {
+/** Pallino stato traduzione: rosso = nessuna, arancione = parziale, verde = completa */
+.qe-tr-status-dot {
     flex-shrink: 0;
-    font-size: 0.95em;
+    font-size: 0.55rem;
+    vertical-align: middle;
+    opacity: 0.95;
 }
 
-.qe-index-branch-translated-icon--complete {
-    color: #1976d2;
+.qe-tr-status-dot--none {
+    color: #c62828;
 }
 
-.qe-index-branch-translated-icon--partial {
-    color: #e65100;
+.qe-tr-status-dot--partial {
+    color: #ef6c00;
+}
+
+.qe-tr-status-dot--full {
+    color: #2e7d32;
+}
+
+.qe-tr-toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
 }
 
 .qe-index-coll-title-link {
@@ -3562,13 +3615,14 @@ onMounted(() => {
     }
 }
 
+/** Toggle “mostra traduzioni” sulla barra: blu */
 .translate-btn {
-    border-color: #e65100 !important;
-    color: #e65100 !important;
+    border-color: #1976d2 !important;
+    color: #1976d2 !important;
     background: #fff !important;
 
     &.is-active {
-        background: #e65100 !important;
+        background: #1976d2 !important;
         color: #fff !important;
     }
 }
@@ -3603,9 +3657,9 @@ onMounted(() => {
 }
 
 .translate-btn:hover:not(:disabled) {
-    background: #fff3e0 !important;
+    background: #e3f2fd !important;
     &.is-active {
-        background: #e65100 !important;
+        background: #1565c0 !important;
         color: #fff !important;
     }
 }
@@ -3639,31 +3693,11 @@ onMounted(() => {
     }
 
     &.translation-tag--index-icon-only {
-        padding: 0.2rem;
+        padding: 0.25rem 0.4rem;
         margin: 0;
-        font-size: 1rem;
+        font-size: 0.75rem;
         line-height: 1;
-        border-radius: 50%;
-
-        &.translation-tag--index-complete {
-            background: #e3f2fd;
-            color: #1976d2;
-            border-color: #bbdefb;
-
-            &:hover {
-                background: #bbdefb;
-            }
-        }
-
-        &.translation-tag--index-partial {
-            background: #fff3e0;
-            color: #e65100;
-            border-color: #ffcc80;
-
-            &:hover {
-                background: #ffe0b2;
-            }
-        }
+        border-radius: 0.35rem;
     }
 }
 
