@@ -324,6 +324,19 @@ const hasSavedTranslation = computed(() => {
     }
     return false;
 });
+
+/** Titolo sotto il breadcrumb: con modalità tradotta attiva usa il nome dall’indice se presente, altrimenti il nome API. */
+const displayedItemTitle = computed(() => {
+    const si = selectedItem.value;
+    if (!si) return "";
+    const { collection, item } = si;
+    if (!showTranslatedContent.value) {
+        return item.name?.trim() || item.slug || "—";
+    }
+    const fromIdx = findItemNameInIndex(collection.slug, item.slug);
+    return fromIdx?.trim() || item.name?.trim() || item.slug || "—";
+});
+
 const currentMarkdown = ref<string>("");
 
 const {
@@ -1374,28 +1387,6 @@ async function runTranslateCurrentView(): Promise<void> {
     }
 }
 
-/** Traduci solo il ramo indice (capitolo/sotto-capitolo) dall’icona arancione. */
-function translateIndexBranchFromNode(node: IndexCollNode): void {
-    if (!aiConfigured.value || translateLoading.value) return;
-    const targetCode = effectiveCompendiumTargetLang();
-    const roots = [node];
-    const leafItems = collectLeafItemsFromIndexNodes(roots);
-    if (leafItems.length > 0) {
-        openTranslateBatchConfirm(leafItems, targetCode, roots);
-        return;
-    }
-    translateLoading.value = true;
-    batchTranslateProgress.value = null;
-    void translateIndexJsonOnly(roots, targetCode)
-        .catch((e: unknown) => {
-            console.error(e);
-            toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
-        })
-        .finally(() => {
-            translateLoading.value = false;
-        });
-}
-
 function handleOutsideClick(event: MouseEvent): void {
     if (showTranslationTools.value && translationTagContainer.value && !translationTagContainer.value.contains(event.target as Node)) {
         showTranslationTools.value = false;
@@ -1991,16 +1982,6 @@ onMounted(() => {
                 >
                     <font-awesome-icon icon="language" />
                 </button>
-                <button
-                    v-if="aiConfigured && (selectedItem || (showIndex && canonicalIndex.length > 0))"
-                    type="button"
-                    class="ext-search-add-btn qe-translate-ai-btn"
-                    :title="t('game.ui.extensions.CompendiumModal.translate_with_ai_tooltip')"
-                    :disabled="translateLoading"
-                    @click="runTranslateCurrentView"
-                >
-                    <font-awesome-icon icon="wand-magic-sparkles" />
-                </button>
             </div>
 
             <!-- Expandable Grouped Filters Shelf -->
@@ -2275,36 +2256,38 @@ onMounted(() => {
                                 <span v-else class="qe-breadcrumb-item">{{ crumb.label }}</span>
                             </template>
                         </div>
-                        <div v-if="hasSavedTranslation" class="translation-tag-container" ref="translationTagContainer">
-                            <div class="translation-tag" @click.stop="showTranslationTools = !showTranslationTools">
-                                <font-awesome-icon icon="check-circle" class="me-1" />
-                                {{
-                                    t("game.ui.extensions.CompendiumModal.translated_to", {
-                                        lang: translationTargetLabel,
-                                    })
-                                }}
-                                <font-awesome-icon icon="chevron-down" class="ms-1" />
+                        <template v-if="showTranslatedContent">
+                            <div v-if="hasSavedTranslation" class="translation-tag-container" ref="translationTagContainer">
+                                <div class="translation-tag" @click.stop="showTranslationTools = !showTranslationTools">
+                                    <font-awesome-icon icon="check-circle" class="me-1" />
+                                    {{
+                                        t("game.ui.extensions.CompendiumModal.translated_to", {
+                                            lang: translationTargetLabel,
+                                        })
+                                    }}
+                                    <font-awesome-icon icon="chevron-down" class="ms-1" />
+                                </div>
+
+                                <div v-if="showTranslationTools" class="translation-tools-popover">
+                                    <button class="popover-btn" @click.stop="clearTranslation">
+                                        <font-awesome-icon icon="undo" /> {{ t("game.ui.extensions.CompendiumModal.clear_translation") }}
+                                    </button>
+                                    <button class="popover-btn" @click.stop="rerunTranslation">
+                                        <font-awesome-icon icon="sync" /> {{ t("game.ui.extensions.CompendiumModal.rerun_translation") }}
+                                    </button>
+                                </div>
                             </div>
-                            
-                            <div v-if="showTranslationTools" class="translation-tools-popover">
-                                <button class="popover-btn" @click.stop="clearTranslation">
-                                    <font-awesome-icon icon="undo" /> {{ t("game.ui.extensions.CompendiumModal.clear_translation") }}
-                                </button>
-                                <button class="popover-btn" @click.stop="rerunTranslation">
-                                    <font-awesome-icon icon="sync" /> {{ t("game.ui.extensions.CompendiumModal.rerun_translation") }}
-                                </button>
-                            </div>
-                        </div>
-                        <button
-                            v-if="aiConfigured"
-                            type="button"
-                            class="qe-translate-inline-btn"
-                            :title="t('game.ui.extensions.CompendiumModal.translate_with_ai_tooltip')"
-                            :disabled="translateLoading"
-                            @click.stop="runTranslateCurrentView"
-                        >
-                            <font-awesome-icon icon="wand-magic-sparkles" />
-                        </button>
+                            <button
+                                v-else-if="aiConfigured"
+                                type="button"
+                                class="qe-translate-inline-btn"
+                                :title="t('game.ui.extensions.CompendiumModal.translate_with_ai_tooltip')"
+                                :disabled="translateLoading"
+                                @click.stop="runTranslateCurrentView"
+                            >
+                                <font-awesome-icon icon="circle" />
+                            </button>
+                        </template>
                         <button
                             type="button"
                             class="qe-share-btn"
@@ -2315,6 +2298,7 @@ onMounted(() => {
                             {{ t("game.ui.extensions.CompendiumModal.share") }}
                         </button>
                     </div>
+                    <h2 v-if="selectedItem" class="qe-item-view-heading">{{ displayedItemTitle }}</h2>
                     <div v-if="showIndex" class="qe-index-view">
                         <div v-if="indexLoading" class="qe-loading-inline">
                             {{ t("game.ui.extensions.CompendiumModal.loading") }}
@@ -2322,56 +2306,58 @@ onMounted(() => {
                         <div v-else class="qe-index-container">
                             <div class="qe-index-header">
                                 <h1 class="qe-index-title">{{ indexViewTitle }}</h1>
-                                <div
-                                    v-if="hasSavedTranslation"
-                                    class="translation-tag-container"
-                                    ref="translationTagContainer"
-                                >
+                                <template v-if="showTranslatedContent">
                                     <div
-                                        class="translation-tag translation-tag--index-icon-only"
-                                        :class="{
-                                            'translation-tag--index-partial': !isGlobalIndexFullyTranslated(),
-                                            'translation-tag--index-complete': isGlobalIndexFullyTranslated(),
-                                        }"
-                                        :title="
-                                            t('game.ui.extensions.CompendiumModal.translated_to', {
-                                                lang: translationTargetLabel,
-                                            })
-                                        "
-                                        @click.stop="showTranslationTools = !showTranslationTools"
+                                        v-if="hasSavedTranslation"
+                                        class="translation-tag-container"
+                                        ref="translationTagContainer"
                                     >
-                                        <font-awesome-icon icon="check-circle" />
-                                    </div>
-                                    <div v-if="showTranslationTools" class="translation-tools-popover">
-                                        <button class="popover-btn" @click.stop="clearTranslation">
-                                            <font-awesome-icon icon="undo" /> {{ t("game.ui.extensions.CompendiumModal.clear_translation") }}
-                                        </button>
-                                        <button class="popover-btn" @click.stop="rerunTranslation">
-                                            <font-awesome-icon icon="sync" /> {{ t("game.ui.extensions.CompendiumModal.rerun_translation") }}
-                                        </button>
-                                        <button
-                                            v-if="aiConfigured"
-                                            class="popover-btn"
-                                            type="button"
-                                            :disabled="translateLoading"
-                                            :title="t('game.ui.extensions.CompendiumModal.complete_translation_hint')"
-                                            @click.stop="completeIndexTranslation"
+                                        <div
+                                            class="translation-tag translation-tag--index-icon-only"
+                                            :class="{
+                                                'translation-tag--index-partial': !isGlobalIndexFullyTranslated(),
+                                                'translation-tag--index-complete': isGlobalIndexFullyTranslated(),
+                                            }"
+                                            :title="
+                                                t('game.ui.extensions.CompendiumModal.translated_to', {
+                                                    lang: translationTargetLabel,
+                                                })
+                                            "
+                                            @click.stop="showTranslationTools = !showTranslationTools"
                                         >
-                                            <font-awesome-icon icon="wand-magic-sparkles" />
-                                            {{ t("game.ui.extensions.CompendiumModal.complete_translation") }}
-                                        </button>
+                                            <font-awesome-icon icon="check-circle" />
+                                        </div>
+                                        <div v-if="showTranslationTools" class="translation-tools-popover">
+                                            <button class="popover-btn" @click.stop="clearTranslation">
+                                                <font-awesome-icon icon="undo" /> {{ t("game.ui.extensions.CompendiumModal.clear_translation") }}
+                                            </button>
+                                            <button class="popover-btn" @click.stop="rerunTranslation">
+                                                <font-awesome-icon icon="sync" /> {{ t("game.ui.extensions.CompendiumModal.rerun_translation") }}
+                                            </button>
+                                            <button
+                                                v-if="aiConfigured"
+                                                class="popover-btn"
+                                                type="button"
+                                                :disabled="translateLoading"
+                                                :title="t('game.ui.extensions.CompendiumModal.complete_translation_hint')"
+                                                @click.stop="completeIndexTranslation"
+                                            >
+                                                <font-awesome-icon icon="wand-magic-sparkles" />
+                                                {{ t("game.ui.extensions.CompendiumModal.complete_translation") }}
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                                <button
-                                    v-if="aiConfigured"
-                                    type="button"
-                                    class="qe-translate-inline-btn qe-translate-inline-btn--index-header"
-                                    :title="t('game.ui.extensions.CompendiumModal.translate_with_ai_tooltip')"
-                                    :disabled="translateLoading"
-                                    @click.stop="runTranslateCurrentView"
-                                >
-                                    <font-awesome-icon icon="wand-magic-sparkles" />
-                                </button>
+                                    <button
+                                        v-else-if="aiConfigured"
+                                        type="button"
+                                        class="qe-translate-inline-btn qe-translate-inline-btn--index-header"
+                                        :title="t('game.ui.extensions.CompendiumModal.translate_with_ai_tooltip')"
+                                        :disabled="translateLoading"
+                                        @click.stop="runTranslateCurrentView"
+                                    >
+                                        <font-awesome-icon icon="circle" />
+                                    </button>
+                                </template>
                             </div>
                             <!-- Tag Filters moved to search bar -->
 
@@ -2380,7 +2366,7 @@ onMounted(() => {
                                 <div v-for="coll in displayedIndex" :key="coll.slug" class="qe-index-coll">
                                     <h2 class="qe-index-coll-title">
                                         <font-awesome-icon
-                                            v-if="isIndexBranchTranslated(coll.slug)"
+                                            v-if="showTranslatedContent && isIndexBranchTranslated(coll.slug)"
                                             icon="check-circle"
                                             :class="[
                                                 'qe-index-branch-translated-icon',
@@ -2394,15 +2380,6 @@ onMounted(() => {
                                                 })
                                             "
                                         />
-                                        <button
-                                            v-else-if="aiConfigured"
-                                            type="button"
-                                            class="qe-index-branch-translate-btn"
-                                            :title="t('game.ui.extensions.CompendiumModal.translate_branch_hint')"
-                                            @click.stop="translateIndexBranchFromNode(coll)"
-                                        >
-                                            <font-awesome-icon icon="circle" />
-                                        </button>
                                         <button
                                             type="button"
                                             class="qe-index-coll-title-link"
@@ -2432,7 +2409,7 @@ onMounted(() => {
                                         <div v-for="subColl in coll.collections" :key="subColl.slug" class="qe-index-subcoll">
                                             <h3 class="qe-index-subcoll-title">
                                                 <font-awesome-icon
-                                                    v-if="isIndexBranchTranslated(subColl.slug)"
+                                                    v-if="showTranslatedContent && isIndexBranchTranslated(subColl.slug)"
                                                     icon="check-circle"
                                                     :class="[
                                                         'qe-index-branch-translated-icon',
@@ -2446,15 +2423,6 @@ onMounted(() => {
                                                         })
                                                     "
                                                 />
-                                                <button
-                                                    v-else-if="aiConfigured"
-                                                    type="button"
-                                                    class="qe-index-branch-translate-btn"
-                                                    :title="t('game.ui.extensions.CompendiumModal.translate_branch_hint')"
-                                                    @click.stop="translateIndexBranchFromNode(subColl)"
-                                                >
-                                                    <font-awesome-icon icon="circle" />
-                                                </button>
                                                 <button
                                                     type="button"
                                                     class="qe-index-coll-title-link"
@@ -3347,6 +3315,18 @@ onMounted(() => {
     }
 }
 
+.qe-item-view-heading {
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0.75rem 1.5rem 0.65rem;
+    font-size: 1.35rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: #1a1a1a;
+    border-bottom: 1px solid #eee;
+    background: #fafafa;
+}
+
 .qe-markdown {
     flex: 1;
     min-height: 0;
@@ -3593,16 +3573,6 @@ onMounted(() => {
     }
 }
 
-.qe-translate-ai-btn {
-    border-color: #e65100 !important;
-    color: #e65100 !important;
-    background: #fff !important;
-
-    &:hover:not(:disabled) {
-        background: #fff3e0 !important;
-    }
-}
-
 .qe-translate-inline-btn {
     flex-shrink: 0;
     display: inline-flex;
@@ -3632,37 +3602,11 @@ onMounted(() => {
     height: 2.25rem;
 }
 
-.qe-index-branch-translate-btn {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.35rem;
-    height: 1.35rem;
-    margin-right: 0.25rem;
-    padding: 0;
-    border: none;
-    border-radius: 50%;
-    background: transparent;
-    color: #e65100;
-    cursor: pointer;
-    vertical-align: middle;
-
-    &:hover {
-        color: #bf360c;
-        background: rgba(230, 81, 0, 0.12);
-    }
-
-    svg {
-        width: 1.1rem;
-        height: 1.1rem;
-    }
-}
-
 .translate-btn:hover:not(:disabled) {
     background: #fff3e0 !important;
     &.is-active {
-        background: #1976d2 !important;
+        background: #e65100 !important;
+        color: #fff !important;
     }
 }
 
