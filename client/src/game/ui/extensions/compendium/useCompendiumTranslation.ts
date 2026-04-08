@@ -35,7 +35,8 @@ export interface CompendiumTranslationDeps {
     originalMarkdown: Ref<string | null>;
     originalIndex: Ref<unknown[] | null>;
     canonicalIndex: Ref<IndexCollNode[]>;
-    currentIndex: Ref<unknown[]>;
+    /** Merge nomi tradotti da DB/AI; null = nessuna traduzione salvata per l’indice corrente. */
+    translatedIndexOverlay: Ref<IndexCollNode[] | null>;
     currentMarkdown: Ref<string>;
     selectedItem: Ref<CompendiumTranslationSelectedItem | null>;
     indexCompendium: Ref<CompendiumTranslationMeta | null>;
@@ -123,16 +124,20 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
                     d.activeTranslationLang.value = lang;
                 } else if (type === "index" && d.canonicalIndex.value.length > 0) {
                     const overlay = JSON.parse(data.content) as IndexCollNode[];
-                    const prior = d.currentIndex.value as IndexCollNode[];
+                    const prior = d.translatedIndexOverlay.value;
                     const mergedFromDb = mergeIndexNameOverlay(d.canonicalIndex.value, overlay);
                     const canonRoots = d.canonicalIndex.value;
-                    if (prior.length === canonRoots.length && prior.length > 0) {
-                        d.currentIndex.value = mergeIndexPreservePriorRoots(canonRoots, mergedFromDb, prior);
+                    if (prior != null && prior.length === canonRoots.length && prior.length > 0) {
+                        d.translatedIndexOverlay.value = mergeIndexPreservePriorRoots(canonRoots, mergedFromDb, prior);
                     } else {
-                        d.currentIndex.value = mergedFromDb;
+                        d.translatedIndexOverlay.value = mergedFromDb;
                     }
                     d.activeTranslationLang.value = lang;
                 }
+            } else if (type === "item" && d.selectedItem.value) {
+                d.currentMarkdown.value = "";
+                d.originalMarkdown.value = null;
+                d.activeTranslationLang.value = null;
             }
         } catch (e: unknown) {
             console.error("Error checking translation", e);
@@ -168,11 +173,9 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
     }
 
     function revertTranslationUI(): void {
-        if (d.activeTranslationLang.value == null) return;
-
         const isIndex = d.showIndex.value;
         if (isIndex && d.canonicalIndex.value.length > 0) {
-            d.currentIndex.value = JSON.parse(JSON.stringify(d.canonicalIndex.value)) as unknown[];
+            d.translatedIndexOverlay.value = null;
             d.originalIndex.value = null;
         } else if (d.selectedItem.value && d.originalMarkdown.value !== null) {
             d.currentMarkdown.value = d.originalMarkdown.value;
@@ -183,12 +186,16 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
     }
 
     async function clearTranslation(): Promise<void> {
-        if (d.activeTranslationLang.value == null) return;
-
         const isIndex = d.showIndex.value;
+        const hasIndexTr =
+            isIndex && d.canonicalIndex.value.length > 0 && d.translatedIndexOverlay.value != null;
+        const hasItemTr =
+            !isIndex && d.selectedItem.value != null && d.originalMarkdown.value != null;
+        if (!hasIndexTr && !hasItemTr) return;
+
         const compId = isIndex ? d.indexCompendium.value?.id : d.selectedItem.value?.compendium.id;
         if (compId != null && compId.length > 0) {
-            const lang = d.activeTranslationLang.value;
+            const lang = d.getEffectiveTargetLang();
             const payload: Record<string, unknown> = { compendium: compId, type: isIndex ? "index" : "item", lang };
             if (!isIndex && d.selectedItem.value) {
                 payload.collection = d.selectedItem.value.collection.slug;
@@ -339,32 +346,34 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
             if (start === -1 || end === 0) throw new Error("no json array");
             const parsed = JSON.parse(translated.substring(start, end)) as IndexCollNode[];
             if (d.originalIndex.value === null) d.originalIndex.value = JSON.parse(JSON.stringify(d.canonicalIndex.value)) as unknown[];
+            const canonRoots = d.canonicalIndex.value;
+            const baseTree = (): IndexCollNode[] =>
+                d.translatedIndexOverlay.value != null
+                    ? d.translatedIndexOverlay.value
+                    : (JSON.parse(JSON.stringify(canonRoots)) as IndexCollNode[]);
             const focus = d.indexFocusCollectionSlug.value;
             if (focus != null && focus.length > 0) {
                 if (parsed.length > 0) {
-                    const canonNode = findIndexNodeBySlug(d.canonicalIndex.value, focus);
-                    const oldNode = findIndexNodeBySlug(d.currentIndex.value as IndexCollNode[], focus);
+                    const canonNode = findIndexNodeBySlug(canonRoots, focus);
+                    const tree = baseTree();
+                    const oldNode = findIndexNodeBySlug(tree, focus);
                     if (canonNode != null && oldNode != null) {
                         const mergedFromAi = mergeIndexNameOverlay([canonNode], [parsed[0]!])[0]!;
                         const mergedNode = mergeIndexPreservePriorSubtree(canonNode, mergedFromAi, oldNode);
-                        d.currentIndex.value = replaceIndexNodeInTree(
-                            d.currentIndex.value as IndexCollNode[],
-                            focus,
-                            mergedNode,
-                        );
+                        d.translatedIndexOverlay.value = replaceIndexNodeInTree(tree, focus, mergedNode);
                     } else {
-                        const prior = d.currentIndex.value as IndexCollNode[];
-                        const mergedFromAi = mergeIndexNameOverlay(d.canonicalIndex.value, parsed);
-                        d.currentIndex.value = mergeIndexPreservePriorRoots(d.canonicalIndex.value, mergedFromAi, prior);
+                        const prior = baseTree();
+                        const mergedFromAi = mergeIndexNameOverlay(canonRoots, parsed);
+                        d.translatedIndexOverlay.value = mergeIndexPreservePriorRoots(canonRoots, mergedFromAi, prior);
                     }
                 }
             } else {
-                const prior = d.currentIndex.value as IndexCollNode[];
-                const mergedFromAi = mergeIndexNameOverlay(d.canonicalIndex.value, parsed);
-                d.currentIndex.value = mergeIndexPreservePriorRoots(d.canonicalIndex.value, mergedFromAi, prior);
+                const prior = baseTree();
+                const mergedFromAi = mergeIndexNameOverlay(canonRoots, parsed);
+                d.translatedIndexOverlay.value = mergeIndexPreservePriorRoots(canonRoots, mergedFromAi, prior);
             }
             d.activeTranslationLang.value = targetCode;
-            await saveTranslationToDb(JSON.stringify(d.currentIndex.value), "index");
+            await saveTranslationToDb(JSON.stringify(d.translatedIndexOverlay.value), "index");
             return true;
         } catch (e: unknown) {
             console.error("Failed to parse translated index", e);

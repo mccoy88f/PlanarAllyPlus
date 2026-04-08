@@ -136,27 +136,48 @@ const prevItem = ref<{
 } | null>(null);
 const itemLoading = ref(false);
 const showIndex = ref(false);
-const currentIndex = ref<{ slug: string; name: string; items: { slug: string; name: string }[] }[]>([]);
+/** Merge traduzione indice (DB/AI); null = nessuna traduzione salvata per questo compendio. */
+const translatedIndexOverlay = ref<IndexCollNode[] | null>(null);
+const SHOW_TRANSLATED_STORAGE_KEY = "pa-compendium-show-translated";
+/** Preferenza utente: mostrare nomi/testi tradotti ove presenti (non si disattiva da sola). */
+const showTranslatedContent = ref(true);
 /** Se valorizzato, l’indice mostra solo il ramo di questa collezione (sotto-albero). */
 const indexFocusCollectionSlug = ref<string | null>(null);
 
+function indexOverlayForStatus(): IndexCollNode[] {
+    return translatedIndexOverlay.value ?? (canonicalIndex.value as IndexCollNode[]);
+}
+
+const indexTreeForDisplay = computed((): IndexCollNode[] => {
+    const canon = canonicalIndex.value as IndexCollNode[];
+    if (showTranslatedContent.value && translatedIndexOverlay.value != null) {
+        return translatedIndexOverlay.value;
+    }
+    return canon;
+});
+
 function isIndexBranchTranslated(slug: string): boolean {
-    if (!activeTranslationLang.value) return false;
-    return isBranchDirectlyTranslated(canonicalIndex.value, currentIndex.value as IndexCollNode[], slug);
+    return isBranchDirectlyTranslated(canonicalIndex.value, indexOverlayForStatus(), slug);
 }
 
 function isIndexBranchFullyTranslated(slug: string): boolean {
-    if (!activeTranslationLang.value) return false;
-    return isSubtreeFullyTranslatedForSlug(canonicalIndex.value, currentIndex.value as IndexCollNode[], slug);
+    return isSubtreeFullyTranslatedForSlug(canonicalIndex.value, indexOverlayForStatus(), slug);
 }
 
 function isGlobalIndexFullyTranslated(): boolean {
-    if (!activeTranslationLang.value) return false;
-    return isGlobalIndexFullyTranslatedRoots(canonicalIndex.value, currentIndex.value as IndexCollNode[]);
+    return isGlobalIndexFullyTranslatedRoots(canonicalIndex.value, indexOverlayForStatus());
 }
 
 function findItemNameInIndex(collectionSlug: string, itemSlug: string): string | null {
-    return findItemNameInIndexTree(currentIndex.value as IndexCollNode[], collectionSlug, itemSlug);
+    return findItemNameInIndexTree(indexTreeForDisplay.value, collectionSlug, itemSlug);
+}
+
+/** Nome collezione come nell’indice mostrato (canonico o tradotto secondo il toggle). */
+function collectionLabelFromIndexTree(slug: string, apiName: string): string {
+    const node = findIndexNodeBySlug(indexTreeForDisplay.value, slug);
+    if (node?.name?.trim()) return formatName(node.name);
+    const a = apiName?.trim();
+    return a ? a : slug || "—";
 }
 
 function displayAdjacentItemName(entry: {
@@ -165,7 +186,7 @@ function displayAdjacentItemName(entry: {
     itemName: string;
 } | null): string {
     if (!entry) return "";
-    if (!activeTranslationLang.value) return entry.itemName;
+    if (!showTranslatedContent.value) return entry.itemName;
     const fromIndex = findItemNameInIndex(entry.collectionSlug, entry.itemSlug);
     return fromIndex ?? entry.itemName;
 }
@@ -184,7 +205,7 @@ async function completeIndexTranslation(): Promise<void> {
 
 /** L’indice JSON può avere voci/sotto-rami anche se l’API collections non li espone come figli. */
 function indexNodeHasVisibleBranchContent(slug: string): boolean {
-    return indexBranchHasVisibleContent(currentIndex.value as IndexCollNode[], slug);
+    return indexBranchHasVisibleContent(canonicalIndex.value as IndexCollNode[], slug);
 }
 
 async function openSubcollIndexFromIndex(subColl: IndexCollNode): Promise<void> {
@@ -206,7 +227,7 @@ async function openSubcollIndexFromIndex(subColl: IndexCollNode): Promise<void> 
 }
 
 const displayedIndex = computed(() => {
-    const full = currentIndex.value as IndexCollNode[];
+    const full = indexTreeForDisplay.value;
     if (!indexFocusCollectionSlug.value) return full;
     const node = findIndexNodeBySlug(full, indexFocusCollectionSlug.value);
     return node ? [node] : full;
@@ -240,8 +261,7 @@ function effectiveCompendiumTargetLang(): string {
 }
 
 const translationTargetLabel = computed(() => {
-    const code = activeTranslationLang.value;
-    if (!code) return "";
+    const code = effectiveCompendiumTargetLang();
     return t(`game.ui.extensions.OpenRouterModal.locale_${code}`);
 });
 
@@ -294,12 +314,20 @@ function toggleTagInFilter(tagId: number): void {
     }
 }
 
-const isTranslated = computed(() => !!activeTranslationLang.value);
+/** Traduzione salvata in DB per la vista corrente (indice o voce). */
+const hasSavedTranslation = computed(() => {
+    if (showIndex.value && canonicalIndex.value.length > 0) {
+        return translatedIndexOverlay.value != null;
+    }
+    if (selectedItem.value) {
+        return currentMarkdown.value.trim().length > 0;
+    }
+    return false;
+});
 const currentMarkdown = ref<string>("");
 
 const {
     checkTranslation,
-    revertTranslationUI,
     clearTranslation,
     runTranslateIndexRecursiveBatch,
     translateIndexJsonOnly,
@@ -313,7 +341,7 @@ const {
     originalMarkdown,
     originalIndex,
     canonicalIndex,
-    currentIndex,
+    translatedIndexOverlay,
     currentMarkdown,
     selectedItem,
     indexCompendium,
@@ -434,11 +462,24 @@ const breadcrumb = computed(() => {
         p = col.parentSlug;
     }
     for (const col of ancestorChain) {
-        crumbs.push({ label: fallback(col.name, col.slug), slug: col.slug, type: "collection" });
+        crumbs.push({
+            label: collectionLabelFromIndexTree(col.slug, col.name),
+            slug: col.slug,
+            type: "collection",
+        });
     }
 
-    crumbs.push({ label: fallback(collection.name, collection.slug), slug: collection.slug, type: "collection" });
-    crumbs.push({ label: fallback(item.name, item.slug), slug: item.slug, type: "item" });
+    crumbs.push({
+        label: collectionLabelFromIndexTree(collection.slug, collection.name),
+        slug: collection.slug,
+        type: "collection",
+    });
+    const itemNameFromIndex = findItemNameInIndex(collection.slug, item.slug);
+    crumbs.push({
+        label: itemNameFromIndex?.trim() ? itemNameFromIndex : fallback(item.name, item.slug),
+        slug: item.slug,
+        type: "item",
+    });
     return crumbs;
 });
 
@@ -721,7 +762,9 @@ async function navigateBreadcrumb(index: number): Promise<void> {
 const qeNames = ref<{ name: string; compendiumSlug?: string; collectionSlug: string; itemSlug: string }[]>([]);
 
 const selectedMarkdownHtml = computed(() => {
-    const raw = currentMarkdown.value || selectedItem.value?.item.markdown || "";
+    const orig = selectedItem.value?.item.markdown ?? "";
+    const raw =
+        showTranslatedContent.value && currentMarkdown.value.trim().length > 0 ? currentMarkdown.value : orig;
     const withLinks = !qeNames.value.length
         ? raw
         : injectQeLinks(raw, qeNames.value, selectedItem.value ? [selectedItem.value.item.name] : []);
@@ -745,7 +788,7 @@ const indexViewTitle = computed(() => {
     if (!indexFocusCollectionSlug.value) {
         return metaTitle || indexCompendium.value?.name || "";
     }
-    const node = findIndexNodeBySlug(currentIndex.value as IndexCollNode[], indexFocusCollectionSlug.value);
+    const node = findIndexNodeBySlug(indexTreeForDisplay.value, indexFocusCollectionSlug.value);
     if (node?.name) return formatName(node.name);
     return metaTitle || indexCompendium.value?.name || "";
 });
@@ -923,7 +966,6 @@ async function selectItem(
         if (r.ok) {
             const full = (await r.json()) as ItemFull;
             originalMarkdown.value = null;
-            activeTranslationLang.value = null;
             currentMarkdown.value = "";
             selectedItem.value = { compendium, collection, item: full };
             await checkTranslation("item");
@@ -1036,7 +1078,7 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
 
     /** Stesso compendio con indice già caricato (es. si torna dall’indice di un sotto-ramo): non rifare GET /index così non si perde il merge traduzione in memoria se checkTranslation fallisce o è lenta. */
     const sameCompIndexInMemory =
-        indexCompendium.value?.id === comp.id && currentIndex.value.length > 0;
+        indexCompendium.value?.id === comp.id && canonicalIndex.value.length > 0;
 
     indexCompendium.value = comp;
     selectedCompendiumId.value = comp.id;
@@ -1049,7 +1091,7 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
     }
 
     indexLoading.value = true;
-    currentIndex.value = [];
+    translatedIndexOverlay.value = null;
     canonicalIndex.value = [];
     expandedIndexCollections.value.clear();
 
@@ -1063,7 +1105,6 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
             activeTranslationLang.value = null;
             currentMarkdown.value = "";
             canonicalIndex.value = JSON.parse(JSON.stringify(data.index)) as IndexCollNode[];
-            currentIndex.value = data.index;
             indexMetadata.value = data.metadata || {};
             await checkTranslation("index");
         }
@@ -1078,12 +1119,12 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
 async function showCollectionIndex(comp: CompendiumMeta, coll: CollectionMeta): Promise<void> {
     const hasApiChildren = collectionHasChildren(comp.id, coll);
     const indexLoadedForComp =
-        indexCompendium.value?.id === comp.id && currentIndex.value.length > 0;
+        indexCompendium.value?.id === comp.id && canonicalIndex.value.length > 0;
     const hasContentInIndexTree = indexLoadedForComp && indexNodeHasVisibleBranchContent(coll.slug);
     /** Se il nodo è nell’indice JSON (anche ramo “vuoto” per items/collections), apri la vista ramo come dal titolo in griglia. */
     const nodeExistsInIndexTree =
         indexLoadedForComp &&
-        findIndexNodeBySlug(currentIndex.value as IndexCollNode[], coll.slug) !== null;
+        findIndexNodeBySlug(canonicalIndex.value as IndexCollNode[], coll.slug) !== null;
 
     if (!hasApiChildren && !hasContentInIndexTree && !nodeExistsInIndexTree) {
         await ensureCompendiumExpanded(comp.id);
@@ -1094,14 +1135,14 @@ async function showCollectionIndex(comp: CompendiumMeta, coll: CollectionMeta): 
     selectedItem.value = null;
     showIndex.value = true;
     const indexAlreadyLoaded =
-        currentIndex.value.length > 0 && indexCompendium.value?.id === comp.id;
+        canonicalIndex.value.length > 0 && indexCompendium.value?.id === comp.id;
     indexCompendium.value = comp;
     selectedCompendiumId.value = comp.id;
     indexFocusCollectionSlug.value = coll.slug;
 
     if (!indexAlreadyLoaded) {
         indexLoading.value = true;
-        currentIndex.value = [];
+        translatedIndexOverlay.value = null;
         canonicalIndex.value = [];
         expandedIndexCollections.value.clear();
         try {
@@ -1114,7 +1155,6 @@ async function showCollectionIndex(comp: CompendiumMeta, coll: CollectionMeta): 
                 activeTranslationLang.value = null;
                 currentMarkdown.value = "";
                 canonicalIndex.value = JSON.parse(JSON.stringify(data.index)) as IndexCollNode[];
-                currentIndex.value = data.index;
                 indexMetadata.value = data.metadata || {};
                 await checkTranslation("index");
             }
@@ -1287,18 +1327,23 @@ async function checkAiConfig(): Promise<void> {
 
 async function rerunTranslation(): Promise<void> {
     await clearTranslation();
-    await translateCurrentView();
+    await runTranslateCurrentView();
 }
 
-async function translateCurrentView(): Promise<void> {
+function toggleShowTranslatedContent(): void {
+    showTranslatedContent.value = !showTranslatedContent.value;
+    try {
+        localStorage.setItem(SHOW_TRANSLATED_STORAGE_KEY, showTranslatedContent.value ? "1" : "0");
+    } catch {
+        /* ignore */
+    }
+}
+
+/** Avvia traduzione AI per la vista corrente (voce o indice); non modifica la preferenza mostra traduzioni. */
+async function runTranslateCurrentView(): Promise<void> {
     if (translateLoading.value) return;
 
     const targetCode = effectiveCompendiumTargetLang();
-
-    if (activeTranslationLang.value === targetCode) {
-        revertTranslationUI();
-        return;
-    }
 
     await checkTranslation(selectedItem.value ? "item" : "index");
     if (activeTranslationLang.value === targetCode) return;
@@ -1308,7 +1353,7 @@ async function translateCurrentView(): Promise<void> {
         return;
     }
 
-    if (showIndex.value && currentIndex.value.length > 0) {
+    if (showIndex.value && canonicalIndex.value.length > 0) {
         /** Stesso ramo mostrato dalla pagina indice (root o nodo cliccato); la traduzione nomi usa solo questo JSON, poi merge nell’albero completo. */
         const roots = displayedIndex.value as IndexCollNode[];
         const leafItems = collectLeafItemsFromIndexNodes(roots);
@@ -1329,6 +1374,28 @@ async function translateCurrentView(): Promise<void> {
     }
 }
 
+/** Traduci solo il ramo indice (capitolo/sotto-capitolo) dall’icona arancione. */
+function translateIndexBranchFromNode(node: IndexCollNode): void {
+    if (!aiConfigured.value || translateLoading.value) return;
+    const targetCode = effectiveCompendiumTargetLang();
+    const roots = [node];
+    const leafItems = collectLeafItemsFromIndexNodes(roots);
+    if (leafItems.length > 0) {
+        openTranslateBatchConfirm(leafItems, targetCode, roots);
+        return;
+    }
+    translateLoading.value = true;
+    batchTranslateProgress.value = null;
+    void translateIndexJsonOnly(roots, targetCode)
+        .catch((e: unknown) => {
+            console.error(e);
+            toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
+        })
+        .finally(() => {
+            translateLoading.value = false;
+        });
+}
+
 function handleOutsideClick(event: MouseEvent): void {
     if (showTranslationTools.value && translationTagContainer.value && !translationTagContainer.value.contains(event.target as Node)) {
         showTranslationTools.value = false;
@@ -1336,6 +1403,13 @@ function handleOutsideClick(event: MouseEvent): void {
 }
 
 onMounted(async () => {
+    try {
+        const s = localStorage.getItem(SHOW_TRANSLATED_STORAGE_KEY);
+        if (s === "0") showTranslatedContent.value = false;
+        if (s === "1") showTranslatedContent.value = true;
+    } catch {
+        /* ignore */
+    }
     await loadCompendiums();
     await checkAiConfig();
     window.addEventListener("mousedown", handleOutsideClick);
@@ -1597,7 +1671,9 @@ function shareToChatAndClose(): void {
 async function addCompendiumToNote(): Promise<void> {
     if (!selectedItem.value) return;
     const { item } = selectedItem.value;
-    const text = (currentMarkdown.value || item.markdown || "").trim();
+    const text = (
+        showTranslatedContent.value && currentMarkdown.value.trim().length > 0 ? currentMarkdown.value : item.markdown
+    ).trim();
     const title = (item.name || "").trim() || t("game.ui.extensions.CompendiumModal.note_title_fallback");
 
     const fullRoom = gameState.fullRoomName.value || "";
@@ -1789,12 +1865,6 @@ watch(searchQuery, (newVal) => {
     }, 300);
 });
 
-watch([locale, compendiumTranslateTarget], () => {
-    if (!activeTranslationLang.value) return;
-    if (effectiveCompendiumTargetLang() !== activeTranslationLang.value) {
-        revertTranslationUI();
-    }
-});
 
 onMounted(() => {
     if (props.visible) loadCompendiums();
@@ -1912,15 +1982,24 @@ onMounted(() => {
                     <font-awesome-icon icon="plus" />
                 </button>
                 <button
-                    v-if="aiConfigured && (selectedItem || (showIndex && currentIndex.length > 0))"
+                    v-if="selectedItem || (showIndex && canonicalIndex.length > 0)"
                     type="button"
                     class="ext-search-add-btn translate-btn"
-                    :class="{ 'is-active': isTranslated }"
-                    :title="t('game.ui.extensions.CompendiumModal.translate')"
-                    :disabled="translateLoading"
-                    @click="translateCurrentView"
+                    :class="{ 'is-active': showTranslatedContent }"
+                    :title="t('game.ui.extensions.CompendiumModal.toggle_translated_display_tooltip')"
+                    @click="toggleShowTranslatedContent"
                 >
                     <font-awesome-icon icon="language" />
+                </button>
+                <button
+                    v-if="aiConfigured && (selectedItem || (showIndex && canonicalIndex.length > 0))"
+                    type="button"
+                    class="ext-search-add-btn qe-translate-ai-btn"
+                    :title="t('game.ui.extensions.CompendiumModal.translate_with_ai_tooltip')"
+                    :disabled="translateLoading"
+                    @click="runTranslateCurrentView"
+                >
+                    <font-awesome-icon icon="wand-magic-sparkles" />
                 </button>
             </div>
 
@@ -2196,7 +2275,7 @@ onMounted(() => {
                                 <span v-else class="qe-breadcrumb-item">{{ crumb.label }}</span>
                             </template>
                         </div>
-                        <div v-if="isTranslated" class="translation-tag-container" ref="translationTagContainer">
+                        <div v-if="hasSavedTranslation" class="translation-tag-container" ref="translationTagContainer">
                             <div class="translation-tag" @click.stop="showTranslationTools = !showTranslationTools">
                                 <font-awesome-icon icon="check-circle" class="me-1" />
                                 {{
@@ -2217,6 +2296,16 @@ onMounted(() => {
                             </div>
                         </div>
                         <button
+                            v-if="aiConfigured"
+                            type="button"
+                            class="qe-translate-inline-btn"
+                            :title="t('game.ui.extensions.CompendiumModal.translate_with_ai_tooltip')"
+                            :disabled="translateLoading"
+                            @click.stop="runTranslateCurrentView"
+                        >
+                            <font-awesome-icon icon="wand-magic-sparkles" />
+                        </button>
+                        <button
                             type="button"
                             class="qe-share-btn"
                             :title="t('game.ui.extensions.CompendiumModal.share_menu_hint')"
@@ -2234,7 +2323,7 @@ onMounted(() => {
                             <div class="qe-index-header">
                                 <h1 class="qe-index-title">{{ indexViewTitle }}</h1>
                                 <div
-                                    v-if="isTranslated"
+                                    v-if="hasSavedTranslation"
                                     class="translation-tag-container"
                                     ref="translationTagContainer"
                                 >
@@ -2273,6 +2362,16 @@ onMounted(() => {
                                         </button>
                                     </div>
                                 </div>
+                                <button
+                                    v-if="aiConfigured"
+                                    type="button"
+                                    class="qe-translate-inline-btn qe-translate-inline-btn--index-header"
+                                    :title="t('game.ui.extensions.CompendiumModal.translate_with_ai_tooltip')"
+                                    :disabled="translateLoading"
+                                    @click.stop="runTranslateCurrentView"
+                                >
+                                    <font-awesome-icon icon="wand-magic-sparkles" />
+                                </button>
                             </div>
                             <!-- Tag Filters moved to search bar -->
 
@@ -2295,6 +2394,15 @@ onMounted(() => {
                                                 })
                                             "
                                         />
+                                        <button
+                                            v-else-if="aiConfigured"
+                                            type="button"
+                                            class="qe-index-branch-translate-btn"
+                                            :title="t('game.ui.extensions.CompendiumModal.translate_branch_hint')"
+                                            @click.stop="translateIndexBranchFromNode(coll)"
+                                        >
+                                            <font-awesome-icon icon="circle" />
+                                        </button>
                                         <button
                                             type="button"
                                             class="qe-index-coll-title-link"
@@ -2338,6 +2446,15 @@ onMounted(() => {
                                                         })
                                                     "
                                                 />
+                                                <button
+                                                    v-else-if="aiConfigured"
+                                                    type="button"
+                                                    class="qe-index-branch-translate-btn"
+                                                    :title="t('game.ui.extensions.CompendiumModal.translate_branch_hint')"
+                                                    @click.stop="translateIndexBranchFromNode(subColl)"
+                                                >
+                                                    <font-awesome-icon icon="circle" />
+                                                </button>
                                                 <button
                                                     type="button"
                                                     class="qe-index-coll-title-link"
@@ -3466,18 +3583,84 @@ onMounted(() => {
 }
 
 .translate-btn {
-    border-color: #2196f3 !important;
-    color: #2196f3 !important;
+    border-color: #e65100 !important;
+    color: #e65100 !important;
     background: #fff !important;
 
     &.is-active {
-        background: #2196f3 !important;
+        background: #e65100 !important;
         color: #fff !important;
     }
 }
 
+.qe-translate-ai-btn {
+    border-color: #e65100 !important;
+    color: #e65100 !important;
+    background: #fff !important;
+
+    &:hover:not(:disabled) {
+        background: #fff3e0 !important;
+    }
+}
+
+.qe-translate-inline-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid #e65100;
+    border-radius: 50%;
+    background: #fff8e1;
+    color: #e65100;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+        background: #ffecb3;
+    }
+
+    &:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+    }
+}
+
+.qe-translate-inline-btn--index-header {
+    width: 2.25rem;
+    height: 2.25rem;
+}
+
+.qe-index-branch-translate-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    margin-right: 0.25rem;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #e65100;
+    cursor: pointer;
+    vertical-align: middle;
+
+    &:hover {
+        color: #bf360c;
+        background: rgba(230, 81, 0, 0.12);
+    }
+
+    svg {
+        width: 1.1rem;
+        height: 1.1rem;
+    }
+}
+
 .translate-btn:hover:not(:disabled) {
-    background: #e3f2fd !important;
+    background: #fff3e0 !important;
     &.is-active {
         background: #1976d2 !important;
     }
