@@ -3,7 +3,14 @@ import type { Composer } from "vue-i18n";
 
 import { http } from "../../../../core/http";
 import { localeToEnglishPromptName } from "../../../../core/paUiLocales";
-import { findIndexNodeBySlug, mergeIndexNameOverlay, replaceIndexNodeInTree, type IndexCollNode } from "./indexTree";
+import {
+    findIndexNodeBySlug,
+    mergeIndexNameOverlay,
+    mergeIndexPreservePriorRoots,
+    mergeIndexPreservePriorSubtree,
+    replaceIndexNodeInTree,
+    type IndexCollNode,
+} from "./indexTree";
 
 /** Stato voce selezionata necessario alle API di traduzione. */
 export interface CompendiumTranslationSelectedItem {
@@ -328,14 +335,24 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
             const focus = d.indexFocusCollectionSlug.value;
             if (focus != null && focus.length > 0) {
                 if (parsed.length > 0) {
+                    const canonNode = findIndexNodeBySlug(d.canonicalIndex.value, focus);
                     const oldNode = findIndexNodeBySlug(d.currentIndex.value as IndexCollNode[], focus);
-                    const mergedNode = oldNode
-                        ? mergeIndexNameOverlay([oldNode], [parsed[0]!])[0]!
-                        : parsed[0]!;
-                    d.currentIndex.value = replaceIndexNodeInTree(d.currentIndex.value as IndexCollNode[], focus, mergedNode);
+                    if (canonNode != null && oldNode != null) {
+                        const mergedFromAi = mergeIndexNameOverlay([canonNode], [parsed[0]!])[0]!;
+                        const mergedNode = mergeIndexPreservePriorSubtree(canonNode, mergedFromAi, oldNode);
+                        d.currentIndex.value = replaceIndexNodeInTree(
+                            d.currentIndex.value as IndexCollNode[],
+                            focus,
+                            mergedNode,
+                        );
+                    } else {
+                        d.currentIndex.value = mergeIndexNameOverlay(d.canonicalIndex.value, parsed);
+                    }
                 }
             } else {
-                d.currentIndex.value = mergeIndexNameOverlay(d.canonicalIndex.value, parsed);
+                const prior = d.currentIndex.value as IndexCollNode[];
+                const mergedFromAi = mergeIndexNameOverlay(d.canonicalIndex.value, parsed);
+                d.currentIndex.value = mergeIndexPreservePriorRoots(d.canonicalIndex.value, mergedFromAi, prior);
             }
             d.activeTranslationLang.value = targetCode;
             await saveTranslationToDb(JSON.stringify(d.currentIndex.value), "index");

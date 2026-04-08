@@ -170,6 +170,7 @@ function displayAdjacentItemName(entry: {
     return fromIndex ?? entry.itemName;
 }
 
+/** Stesso flusso di executeIndexTranslationBatch: prima voci foglia (n/tot, salta cache), poi nomi indice. */
 async function completeIndexTranslation(): Promise<void> {
     if (translateLoading.value || !aiConfigured.value || !indexCompendium.value) return;
     showTranslationTools.value = false;
@@ -177,12 +178,8 @@ async function completeIndexTranslation(): Promise<void> {
     await checkTranslation("index");
     const roots = displayedIndex.value as IndexCollNode[];
     if (roots.length === 0) return;
-    translateLoading.value = true;
-    try {
-        await translateIndexJsonOnly(roots, targetCode);
-    } finally {
-        translateLoading.value = false;
-    }
+    const leafItems = collectLeafItemsFromIndexNodes(roots);
+    await executeIndexTranslationBatch({ leafItems, targetCode, roots });
 }
 
 /** L’indice JSON può avere voci/sotto-rami anche se l’API collections non li espone come figli. */

@@ -109,6 +109,58 @@ export function mergeIndexNameOverlay(
     return canonical.map((node) => mergeNode(node));
 }
 
+function pickTranslatedName(canonName: string, afterAiName: string, priorName: string): string {
+    const c = canonName.trim();
+    const a = afterAiName.trim();
+    const p = priorName.trim();
+    if (a !== c) return afterAiName;
+    if (p !== c) return priorName;
+    return afterAiName;
+}
+
+/**
+ * Dopo mergeIndexNameOverlay(canonical, aiParsed), ripristina i nomi già tradotti in `prior`
+ * quando il merge AI coincide col canonico, così una seconda passata non azzera i fratelli.
+ */
+export function mergeIndexPreservePriorSubtree(
+    canon: IndexCollNode,
+    afterAi: IndexCollNode,
+    prior: IndexCollNode,
+): IndexCollNode {
+    const name = pickTranslatedName(canon.name, afterAi.name, prior.name);
+    const items = canon.items.map((cit) => {
+        const ait = afterAi.items.find((x) => x.slug === cit.slug);
+        const pit = prior.items.find((x) => x.slug === cit.slug);
+        const aName = ait?.name ?? cit.name;
+        const pName = pit?.name ?? cit.name;
+        return { slug: cit.slug, name: pickTranslatedName(cit.name, aName, pName) };
+    });
+    const out: IndexCollNode = { slug: canon.slug, name, items };
+
+    const cc = canon.collections;
+    if (cc === undefined) return out;
+
+    if (cc.length === 0) {
+        out.collections = [];
+        return out;
+    }
+
+    out.collections = cc.map((child) => {
+        const aChild = afterAi.collections?.find((x) => x.slug === child.slug) ?? child;
+        const pChild = prior.collections?.find((x) => x.slug === child.slug) ?? child;
+        return mergeIndexPreservePriorSubtree(child, aChild, pChild);
+    });
+    return out;
+}
+
+export function mergeIndexPreservePriorRoots(
+    canon: IndexCollNode[],
+    afterAi: IndexCollNode[],
+    prior: IndexCollNode[],
+): IndexCollNode[] {
+    return canon.map((c, i) => mergeIndexPreservePriorSubtree(c, afterAi[i]!, prior[i]!));
+}
+
 /**
  * True se questo ramo (slug) ha traduzione visibile sul titolo o sulle voci dirette (items) rispetto al canonico.
  * Non risale dalle sotto-collezioni annidate: un padre non tradotto non eredita la spunta dal figlio.
