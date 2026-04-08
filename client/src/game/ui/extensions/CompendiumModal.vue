@@ -1080,8 +1080,12 @@ async function showCollectionIndex(comp: CompendiumMeta, coll: CollectionMeta): 
     const indexLoadedForComp =
         indexCompendium.value?.id === comp.id && currentIndex.value.length > 0;
     const hasContentInIndexTree = indexLoadedForComp && indexNodeHasVisibleBranchContent(coll.slug);
+    /** Se il nodo è nell’indice JSON (anche ramo “vuoto” per items/collections), apri la vista ramo come dal titolo in griglia. */
+    const nodeExistsInIndexTree =
+        indexLoadedForComp &&
+        findIndexNodeBySlug(currentIndex.value as IndexCollNode[], coll.slug) !== null;
 
-    if (!hasApiChildren && !hasContentInIndexTree) {
+    if (!hasApiChildren && !hasContentInIndexTree && !nodeExistsInIndexTree) {
         await ensureCompendiumExpanded(comp.id);
         await expandAncestorsForCollection(comp.id, coll);
         await ensureCollectionExpanded(comp.id, coll.slug);
@@ -2294,7 +2298,7 @@ onMounted(() => {
                                         <button
                                             type="button"
                                             class="qe-index-coll-title-link"
-                                            @click="openSubcollIndexFromIndex(coll.slug, coll.name)"
+                                            @click.stop="openSubcollIndexFromIndex(coll)"
                                         >
                                             {{ formatName(coll.name) }}
                                         </button>
@@ -2336,7 +2340,7 @@ onMounted(() => {
                                                 />
                                                 <button
                                                     type="button"
-                                                    class="qe-index-subcoll-title-link"
+                                                    class="qe-index-coll-title-link"
                                                     @click.stop="openSubcollIndexFromIndex(subColl)"
                                                 >
                                                     {{ formatName(subColl.name) }}

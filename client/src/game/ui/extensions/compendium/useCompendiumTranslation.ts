@@ -123,7 +123,14 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
                     d.activeTranslationLang.value = lang;
                 } else if (type === "index" && d.canonicalIndex.value.length > 0) {
                     const overlay = JSON.parse(data.content) as IndexCollNode[];
-                    d.currentIndex.value = mergeIndexNameOverlay(d.canonicalIndex.value, overlay);
+                    const prior = d.currentIndex.value as IndexCollNode[];
+                    const mergedFromDb = mergeIndexNameOverlay(d.canonicalIndex.value, overlay);
+                    const canonRoots = d.canonicalIndex.value;
+                    if (prior.length === canonRoots.length && prior.length > 0) {
+                        d.currentIndex.value = mergeIndexPreservePriorRoots(canonRoots, mergedFromDb, prior);
+                    } else {
+                        d.currentIndex.value = mergedFromDb;
+                    }
                     d.activeTranslationLang.value = lang;
                 }
             }
@@ -346,7 +353,9 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
                             mergedNode,
                         );
                     } else {
-                        d.currentIndex.value = mergeIndexNameOverlay(d.canonicalIndex.value, parsed);
+                        const prior = d.currentIndex.value as IndexCollNode[];
+                        const mergedFromAi = mergeIndexNameOverlay(d.canonicalIndex.value, parsed);
+                        d.currentIndex.value = mergeIndexPreservePriorRoots(d.canonicalIndex.value, mergedFromAi, prior);
                     }
                 }
             } else {
