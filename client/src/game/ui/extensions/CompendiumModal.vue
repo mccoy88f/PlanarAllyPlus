@@ -1958,7 +1958,10 @@ onMounted(() => {
                 </div>
             </div>
             <div class="qe-body">
-            <div class="ext-toolbar-bar ext-search-bar">
+            <div
+                class="ext-toolbar-bar ext-search-bar"
+                :class="{ 'ext-search-bar--single-compendium': compendiums.length <= 1 }"
+            >
                 <font-awesome-icon icon="search" class="ext-search-icon" />
                 <select
                     v-if="compendiums.length > 1"
@@ -2397,7 +2400,6 @@ onMounted(() => {
                                                 :title="t('game.ui.extensions.CompendiumModal.complete_translation_hint')"
                                                 @click.stop="completeIndexTranslation"
                                             >
-                                                <font-awesome-icon icon="wand-magic-sparkles" />
                                                 {{ t("game.ui.extensions.CompendiumModal.complete_translation") }}
                                             </button>
                                         </div>
@@ -3830,6 +3832,16 @@ onMounted(() => {
     padding: 0.625rem 1.5rem;
     border-radius: 0;
     border-bottom: 1px solid #eee;
+
+    /** Senza il select compendio, l’input deve occupare la colonna 1fr (altrimenti resta su una colonna auto stretta). */
+    &.ext-search-bar--single-compendium {
+        grid-template-columns: auto 1fr auto auto auto auto;
+
+        .ext-search-input {
+            min-width: 0;
+            width: 100%;
+        }
+    }
 
     &.qe-tag-filter-shelf {
         border-top: none;
