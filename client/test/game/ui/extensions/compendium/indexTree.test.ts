@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    extractFirstMarkdownHeading,
     findIndexNodeBySlug,
     indexRootsTranslationState,
     indexSubtreeFullyTranslated,
@@ -8,6 +9,8 @@ import {
     isBranchDirectlyTranslated,
     isGlobalIndexFullyTranslatedRoots,
     mergeIndexNameOverlay,
+    mergeIndexPreservePriorRoots,
+    patchItemDisplayNameInIndexTree,
     replaceIndexNodeInTree,
 } from "../../../../../src/game/ui/extensions/compendium/indexTree";
 
@@ -93,5 +96,35 @@ describe("indexTree", () => {
         expect(indexRootsTranslationState(sample, curFull)).toBe("full");
 
         expect(indexRootsTranslationState(sample, sample)).toBe("none");
+    });
+
+    it("mergeIndexPreservePriorRoots abbina per slug se l’ordine delle radici differisce", () => {
+        const canon = sample;
+        const afterAi = [
+            {
+                slug: "a",
+                name: "A-ai",
+                items: [{ slug: "i1", name: "Item-ai" }],
+                collections: [{ slug: "b", name: "B-ai", items: [] }],
+            },
+        ];
+        const prior = mergeIndexNameOverlay(sample, null);
+        const reordered = [afterAi[0]!];
+        const merged = mergeIndexPreservePriorRoots(canon, reordered, prior);
+        expect(merged[0]?.name).toBe("A-ai");
+        expect(merged[0]?.items[0]?.name).toBe("Item-ai");
+    });
+
+    it("patchItemDisplayNameInIndexTree aggiorna il nome voce", () => {
+        const tree = mergeIndexNameOverlay(sample, null);
+        const next = patchItemDisplayNameInIndexTree(tree, "a", "i1", "Patched");
+        expect(findIndexNodeBySlug(next, "a")?.items.find((x) => x.slug === "i1")?.name).toBe("Patched");
+    });
+
+    it("extractFirstMarkdownHeading preferisce # livello 1; altrimenti primo ##", () => {
+        expect(extractFirstMarkdownHeading("# Fireball\n\n## Sotto\n")).toBe("Fireball");
+        expect(extractFirstMarkdownHeading("## Solo secondo\n")).toBe("Solo secondo");
+        expect(extractFirstMarkdownHeading("## In cima\n\n# Dopo\n")).toBe("Dopo");
+        expect(extractFirstMarkdownHeading("no heading")).toBeNull();
     });
 });

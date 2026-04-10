@@ -125,4 +125,23 @@ describe("mergeIndexPreservePriorRoots", () => {
         expect(out[0]!.name).toBe("R1 IT");
         expect(out[1]!.name).toBe("R2 IT");
     });
+
+    it("allinea per slug se le radici in afterAi hanno ordine diverso dal canonico", () => {
+        const canon: IndexCollNode[] = [
+            { slug: "r1", name: "R1 EN", items: [], collections: [] },
+            { slug: "r2", name: "R2 EN", items: [], collections: [] },
+        ];
+        const prior: IndexCollNode[] = [
+            { slug: "r1", name: "R1 EN", items: [], collections: [] },
+            { slug: "r2", name: "R2 EN", items: [], collections: [] },
+        ];
+        const afterAiSwapped: IndexCollNode[] = [
+            { slug: "r2", name: "R2 IT", items: [], collections: [] },
+            { slug: "r1", name: "R1 IT", items: [], collections: [] },
+        ];
+        const out = mergeIndexPreservePriorRoots(canon, afterAiSwapped, prior);
+        expect(out[0]!.slug).toBe("r1");
+        expect(out[0]!.name).toBe("R1 IT");
+        expect(out[1]!.name).toBe("R2 IT");
+    });
 });

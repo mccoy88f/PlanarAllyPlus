@@ -1,13 +1,15 @@
-import type { Ref } from "vue";
+import type { ComputedRef, Ref } from "vue";
 import type { Composer } from "vue-i18n";
 
 import { http } from "../../../../core/http";
 import { localeToEnglishPromptName } from "../../../../core/paUiLocales";
 import {
+    extractFirstMarkdownHeading,
     findIndexNodeBySlug,
     mergeIndexNameOverlay,
     mergeIndexPreservePriorRoots,
     mergeIndexPreservePriorSubtree,
+    patchItemDisplayNameInIndexTree,
     replaceIndexNodeInTree,
     type IndexCollNode,
 } from "./indexTree";
@@ -47,6 +49,15 @@ export interface CompendiumTranslationDeps {
     batchTranslateProgress: Ref<{ current: number; total: number } | null>;
     aiModel: Ref<string>;
     aiMaxTokens: Ref<number>;
+    /** Modale compendio aperto: false ferma la traduzione tra un passo e l’altro. */
+    compendiumModalVisible: Ref<boolean> | ComputedRef<boolean>;
+    /** Segnale collegato all’abort alla chiusura del modale (richieste fetch annullate). */
+    getTranslationAbortSignal: () => AbortSignal | undefined;
+}
+
+export interface TranslateIndexJsonOnlyOptions {
+    /** Se true, non mostrare toast di errore (es. batch: il chiamante gestisce). */
+    suppressErrorToast?: boolean;
 }
 
 function buildCompendiumMarkdownSystemPrompt(targetCode: string, compendiumTranslateSource: Ref<string>): string {
@@ -64,6 +75,16 @@ ${sourceHint}
 Translate the provided content into ${targetLangName}.
 Maintain the original Markdown structure and all special tags like {@b ...}, {@i ...}, {@dice ...}, etc.
 Do NOT translate these tags or their parameters.${dndItHint}`;
+}
+
+/** Estrae il primo array JSON dall’output LLM (blocco fenced o substring tra [ e ]). */
+function parseIndexJsonArrayFromAiResponse(text: string): IndexCollNode[] {
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const candidate = (fenced?.[1] ?? text).trim();
+    const start = candidate.indexOf("[");
+    const end = candidate.lastIndexOf("]") + 1;
+    if (start === -1 || end <= start) throw new Error("no json array");
+    return JSON.parse(candidate.slice(start, end)) as IndexCollNode[];
 }
 
 export interface CompendiumTranslationApi {
@@ -87,8 +108,12 @@ export interface CompendiumTranslationApi {
     runTranslateIndexRecursiveBatch: (
         leafItems: { collectionSlug: string; itemSlug: string; itemName: string }[],
         targetCode: string,
-    ) => Promise<void>;
-    translateIndexJsonOnly: (roots: IndexCollNode[], targetCode: string) => Promise<boolean>;
+    ) => Promise<{ failed: number; cancelled: boolean }>;
+    translateIndexJsonOnly: (
+        roots: IndexCollNode[],
+        targetCode: string,
+        options?: TranslateIndexJsonOnlyOptions,
+    ) => Promise<boolean>;
     translateSingleItemMarkdown: (targetCode: string) => Promise<void>;
 }
 
@@ -98,7 +123,38 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
         saveFailed: () => d.t("game.ui.extensions.CompendiumModal.translation_save_failed"),
         deleteFailed: () => d.t("game.ui.extensions.CompendiumModal.translation_delete_failed"),
         translateError: () => d.t("game.ui.extensions.CompendiumModal.translate_error"),
+        indexJsonInvalid: () => d.t("game.ui.extensions.CompendiumModal.translation_index_load_invalid"),
     };
+
+    function trAbort(): AbortSignal | undefined {
+        return d.getTranslationAbortSignal();
+    }
+    function trClosed(): boolean {
+        return !d.compendiumModalVisible.value;
+    }
+    function isAbortError(e: unknown): boolean {
+        return e instanceof DOMException && e.name === "AbortError";
+    }
+
+    let itemTranslationFetchSeq = 0;
+    let indexTranslationFetchSeq = 0;
+
+    function applyPatchAfterItemSave(
+        collectionSlug: string,
+        itemSlug: string,
+        translatedMarkdown: string,
+        targetCode: string,
+    ): void {
+        const title = extractFirstMarkdownHeading(translatedMarkdown) ?? itemSlug;
+        const canon = d.canonicalIndex.value;
+        if (canon.length === 0) return;
+        let next = d.translatedIndexOverlay.value;
+        if (next == null) {
+            next = mergeIndexNameOverlay(canon, null);
+        }
+        d.translatedIndexOverlay.value = patchItemDisplayNameInIndexTree(next, collectionSlug, itemSlug, title);
+        d.activeTranslationLang.value = targetCode;
+    }
 
     async function checkTranslation(type: "item" | "index"): Promise<void> {
         const compId = type === "item" ? d.selectedItem.value?.compendium.id : d.indexCompendium.value?.id;
@@ -110,19 +166,54 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
             url += `&collection=${encodeURIComponent(d.selectedItem.value.collection.slug)}&slug=${encodeURIComponent(d.selectedItem.value.item.slug)}`;
         }
 
+        const itemKey =
+            type === "item" && d.selectedItem.value
+                ? `${d.selectedItem.value.collection.slug}::${d.selectedItem.value.item.slug}`
+                : "";
+
         try {
+            if (type === "item") {
+                itemTranslationFetchSeq += 1;
+                const mySeq = itemTranslationFetchSeq;
+                const r = await http.get(url);
+                if (mySeq !== itemTranslationFetchSeq) return;
+                if (
+                    !d.selectedItem.value ||
+                    `${d.selectedItem.value.collection.slug}::${d.selectedItem.value.item.slug}` !== itemKey
+                ) {
+                    return;
+                }
+                if (!r.ok) {
+                    d.toast.error(msg.loadFailed());
+                    return;
+                }
+                const data = (await r.json()) as { content?: string | null };
+                if (typeof data.content === "string" && data.content.length > 0) {
+                    if (d.originalMarkdown.value === null) d.originalMarkdown.value = d.selectedItem.value.item.markdown;
+                    d.currentMarkdown.value = data.content;
+                    d.activeTranslationLang.value = lang;
+                } else {
+                    d.currentMarkdown.value = "";
+                    d.originalMarkdown.value = null;
+                    d.activeTranslationLang.value = null;
+                }
+                return;
+            }
+
+            // index
+            indexTranslationFetchSeq += 1;
+            const mySeq = indexTranslationFetchSeq;
             const r = await http.get(url);
+            if (mySeq !== indexTranslationFetchSeq) return;
+            if (d.indexCompendium.value?.id !== compId) return;
             if (!r.ok) {
                 d.toast.error(msg.loadFailed());
                 return;
             }
             const data = (await r.json()) as { content?: string | null };
             if (typeof data.content === "string" && data.content.length > 0) {
-                if (type === "item" && d.selectedItem.value) {
-                    if (d.originalMarkdown.value === null) d.originalMarkdown.value = d.selectedItem.value.item.markdown;
-                    d.currentMarkdown.value = data.content;
-                    d.activeTranslationLang.value = lang;
-                } else if (type === "index" && d.canonicalIndex.value.length > 0) {
+                if (d.canonicalIndex.value.length === 0) return;
+                try {
                     const overlay = JSON.parse(data.content) as IndexCollNode[];
                     const prior = d.translatedIndexOverlay.value;
                     const mergedFromDb = mergeIndexNameOverlay(d.canonicalIndex.value, overlay);
@@ -133,10 +224,12 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
                         d.translatedIndexOverlay.value = mergedFromDb;
                     }
                     d.activeTranslationLang.value = lang;
+                } catch (e: unknown) {
+                    console.error("Invalid index translation JSON from DB", e);
+                    d.toast.error(msg.indexJsonInvalid());
                 }
-            } else if (type === "item" && d.selectedItem.value) {
-                d.currentMarkdown.value = "";
-                d.originalMarkdown.value = null;
+            } else {
+                d.translatedIndexOverlay.value = null;
                 d.activeTranslationLang.value = null;
             }
         } catch (e: unknown) {
@@ -225,11 +318,12 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
             `/api/extensions/compendium/translations?compendium=${encodeURIComponent(compId)}&lang=${encodeURIComponent(lang)}&type=item` +
             `&collection=${encodeURIComponent(collectionSlug)}&slug=${encodeURIComponent(itemSlug)}`;
         try {
-            const r = await http.get(url);
+            const r = await http.get(url, { signal: trAbort() });
             if (!r.ok) return null;
             const data = (await r.json()) as { content?: string | null };
             return typeof data.content === "string" && data.content.length > 0 ? data.content : null;
-        } catch {
+        } catch (e: unknown) {
+            if (isAbortError(e)) throw e;
             return null;
         }
     }
@@ -241,35 +335,50 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
         content: string,
         lang: string,
     ): Promise<void> {
-        await http.postJson("/api/extensions/compendium/translations", {
-            compendium: compId,
-            type: "item",
-            collection: collectionSlug,
-            slug: itemSlug,
-            lang,
-            content,
-        });
+        if (trClosed()) return;
+        await http.postJson(
+            "/api/extensions/compendium/translations",
+            {
+                compendium: compId,
+                type: "item",
+                collection: collectionSlug,
+                slug: itemSlug,
+                lang,
+                content,
+            },
+            { signal: trAbort() },
+        );
     }
 
-    /** Traduzione sequenziale delle voci (evita saturare l’API). */
+    /** Traduzione sequenziale delle voci (evita saturare l’API). Aggiorna l’overlay indice dopo ogni salvataggio. */
     async function runTranslateIndexRecursiveBatch(
         leafItems: { collectionSlug: string; itemSlug: string; itemName: string }[],
         targetCode: string,
-    ): Promise<void> {
+    ): Promise<{ failed: number; cancelled: boolean }> {
         const compId = d.indexCompendium.value?.id;
-        if (compId == null || compId.length === 0) return;
+        if (compId == null || compId.length === 0) return { failed: 0, cancelled: false };
         const systemPrompt = buildCompendiumMarkdownSystemPrompt(targetCode, d.compendiumTranslateSource);
         let failed = 0;
         for (let i = 0; i < leafItems.length; i++) {
+            if (trClosed()) {
+                return { failed, cancelled: true };
+            }
             d.batchTranslateProgress.value = { current: i + 1, total: leafItems.length };
             const { collectionSlug, itemSlug } = leafItems[i]!;
             try {
                 // oxlint-disable-next-line no-await-in-loop -- batch sequenziale
                 const cached = await fetchCachedItemTranslation(compId, collectionSlug, itemSlug, targetCode);
-                if (cached != null && cached.length > 0) continue;
+                if (trClosed()) {
+                    return { failed, cancelled: true };
+                }
+                if (cached != null && cached.length > 0) {
+                    applyPatchAfterItemSave(collectionSlug, itemSlug, cached, targetCode);
+                    continue;
+                }
                 // oxlint-disable-next-line no-await-in-loop -- batch sequenziale
                 const r = await http.get(
                     `/api/extensions/compendium/item?compendium=${encodeURIComponent(compId)}&collection=${encodeURIComponent(collectionSlug)}&slug=${encodeURIComponent(itemSlug)}`,
+                    { signal: trAbort() },
                 );
                 if (!r.ok) {
                     failed++;
@@ -278,17 +387,27 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
                 // oxlint-disable-next-line no-await-in-loop -- batch sequenziale
                 const full = (await r.json()) as { markdown?: string };
                 const raw = (full.markdown ?? "").trim();
+                if (trClosed()) {
+                    return { failed, cancelled: true };
+                }
                 if (raw.length === 0) continue;
                 // oxlint-disable-next-line no-await-in-loop -- batch sequenziale
-                const tr = await http.postJson("/api/extensions/openrouter/chat", {
-                    model: d.aiModel.value,
-                    messages: [
-                        { role: "system", content: systemPrompt },
-                        { role: "user", content: `Translate this content:\n\n${raw}` },
-                    ],
-                    max_tokens: Math.max(256, Math.min(65536, d.aiMaxTokens.value || 8192)),
-                    temperature: 0.7,
-                });
+                const tr = await http.postJson(
+                    "/api/extensions/openrouter/chat",
+                    {
+                        model: d.aiModel.value,
+                        messages: [
+                            { role: "system", content: systemPrompt },
+                            { role: "user", content: `Translate this content:\n\n${raw}` },
+                        ],
+                        max_tokens: Math.max(256, Math.min(65536, d.aiMaxTokens.value || 8192)),
+                        temperature: 0.7,
+                    },
+                    { signal: trAbort() },
+                );
+                if (trClosed()) {
+                    return { failed, cancelled: true };
+                }
                 if (!tr.ok) {
                     failed++;
                     continue;
@@ -300,51 +419,83 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
                     failed++;
                     continue;
                 }
+                if (trClosed()) {
+                    return { failed, cancelled: true };
+                }
                 // oxlint-disable-next-line no-await-in-loop -- batch sequenziale
                 await saveItemTranslationDirect(compId, collectionSlug, itemSlug, translated, targetCode);
-            } catch {
+                applyPatchAfterItemSave(collectionSlug, itemSlug, translated, targetCode);
+            } catch (e: unknown) {
+                if (isAbortError(e) || trClosed()) {
+                    return { failed, cancelled: true };
+                }
                 failed++;
             }
         }
-        if (failed > 0) {
-            d.toast.warning(d.t("game.ui.extensions.CompendiumModal.translate_batch_partial", { count: failed }));
-        }
+        return { failed, cancelled: false };
     }
 
-    async function translateIndexJsonOnly(roots: IndexCollNode[], targetCode: string): Promise<boolean> {
+    async function translateIndexJsonOnly(
+        roots: IndexCollNode[],
+        targetCode: string,
+        options?: TranslateIndexJsonOnlyOptions,
+    ): Promise<boolean> {
+        const suppress = options?.suppressErrorToast === true;
+        const err = (): void => {
+            if (!suppress) d.toast.error(msg.translateError());
+        };
+
+        if (trClosed()) {
+            return false;
+        }
         const targetLangName = localeToEnglishPromptName(targetCode);
         const systemPrompt = buildCompendiumMarkdownSystemPrompt(targetCode, d.compendiumTranslateSource);
         console.log(`[Compendium AI] Index names translation to ${targetLangName} using model ${d.aiModel.value}`);
         const indexJson = JSON.stringify(roots, null, 2);
-        const r = await http.postJson("/api/extensions/openrouter/chat", {
-            model: d.aiModel.value,
-            messages: [
+        let r: Response;
+        try {
+            r = await http.postJson(
+                "/api/extensions/openrouter/chat",
                 {
-                    role: "system",
-                    content:
-                        systemPrompt +
-                        "\nOnly translate the 'name' values in the provided JSON. Keep everything else identical.",
+                    model: d.aiModel.value,
+                    messages: [
+                        {
+                            role: "system",
+                            content:
+                                systemPrompt +
+                                "\nOnly translate the 'name' values in the provided JSON. Keep everything else identical.",
+                        },
+                        { role: "user", content: `Translate this index JSON:\n\n${indexJson}` },
+                    ],
+                    max_tokens: Math.max(256, Math.min(65536, d.aiMaxTokens.value || 8192)),
+                    temperature: 0.7,
                 },
-                { role: "user", content: `Translate this index JSON:\n\n${indexJson}` },
-            ],
-            max_tokens: Math.max(256, Math.min(65536, d.aiMaxTokens.value || 8192)),
-            temperature: 0.7,
-        });
+                { signal: trAbort() },
+            );
+        } catch (e: unknown) {
+            if (isAbortError(e) || trClosed()) {
+                return false;
+            }
+            throw e;
+        }
+        if (trClosed()) {
+            return false;
+        }
         if (!r.ok) {
-            d.toast.error(msg.translateError());
+            err();
             return false;
         }
         const data = (await r.json()) as { choices?: { message?: { content?: string } }[] };
         const translated = data.choices?.[0]?.message?.content;
         if (translated == null || translated.length === 0) {
-            d.toast.error(msg.translateError());
+            err();
+            return false;
+        }
+        if (trClosed()) {
             return false;
         }
         try {
-            const start = translated.indexOf("[");
-            const end = translated.lastIndexOf("]") + 1;
-            if (start === -1 || end === 0) throw new Error("no json array");
-            const parsed = JSON.parse(translated.substring(start, end)) as IndexCollNode[];
+            const parsed = parseIndexJsonArrayFromAiResponse(translated);
             if (d.originalIndex.value === null) d.originalIndex.value = JSON.parse(JSON.stringify(d.canonicalIndex.value)) as unknown[];
             const canonRoots = d.canonicalIndex.value;
             const baseTree = (): IndexCollNode[] =>
@@ -373,11 +524,14 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
                 d.translatedIndexOverlay.value = mergeIndexPreservePriorRoots(canonRoots, mergedFromAi, prior);
             }
             d.activeTranslationLang.value = targetCode;
+            if (trClosed()) {
+                return false;
+            }
             await saveTranslationToDb(JSON.stringify(d.translatedIndexOverlay.value), "index");
             return true;
         } catch (e: unknown) {
             console.error("Failed to parse translated index", e);
-            d.toast.error(msg.translateError());
+            err();
             return false;
         }
     }
@@ -390,25 +544,49 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
         console.log(`[Compendium AI] Starting translation to ${targetLangName} using model ${d.aiModel.value}`);
         d.translateLoading.value = true;
         try {
+            if (trClosed()) {
+                return;
+            }
             const raw = si.item.markdown;
-            const r = await http.postJson("/api/extensions/openrouter/chat", {
-                model: d.aiModel.value,
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: `Translate this content:\n\n${raw}` },
-                ],
-                max_tokens: Math.max(256, Math.min(65536, d.aiMaxTokens.value || 8192)),
-                temperature: 0.7,
-            });
+            let r: Response;
+            try {
+                r = await http.postJson(
+                    "/api/extensions/openrouter/chat",
+                    {
+                        model: d.aiModel.value,
+                        messages: [
+                            { role: "system", content: systemPrompt },
+                            { role: "user", content: `Translate this content:\n\n${raw}` },
+                        ],
+                        max_tokens: Math.max(256, Math.min(65536, d.aiMaxTokens.value || 8192)),
+                        temperature: 0.7,
+                    },
+                    { signal: trAbort() },
+                );
+            } catch (e: unknown) {
+                if (isAbortError(e) || trClosed()) {
+                    return;
+                }
+                throw e;
+            }
+            if (trClosed()) {
+                return;
+            }
             if (r.ok) {
                 const data = (await r.json()) as { choices?: { message?: { content?: string } }[] };
                 const translated = data.choices?.[0]?.message?.content;
                 console.log("[Compendium AI] Translation received", { length: translated?.length });
+                if (trClosed()) {
+                    return;
+                }
                 if (translated != null && translated.length > 0) {
                     if (d.originalMarkdown.value == null) d.originalMarkdown.value = si.item.markdown;
                     d.currentMarkdown.value = translated;
                     d.activeTranslationLang.value = targetCode;
                     await saveTranslationToDb(translated, "item");
+                    const coll = si.collection.slug;
+                    const slug = si.item.slug;
+                    applyPatchAfterItemSave(coll, slug, translated, targetCode);
                 } else {
                     console.error("[Compendium AI] Empty translation response received");
                     d.toast.error(msg.translateError());
@@ -417,6 +595,9 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
                 d.toast.error(msg.translateError());
             }
         } catch (e: unknown) {
+            if (isAbortError(e) || trClosed()) {
+                return;
+            }
             console.error(e);
             d.toast.error(msg.translateError());
         } finally {

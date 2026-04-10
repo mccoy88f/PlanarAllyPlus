@@ -19,9 +19,9 @@ export const http = {
     put,
 };
 
-async function get(url: string): Promise<Response> {
+async function get(url: string, init?: RequestInit): Promise<Response> {
     if (url.startsWith("/")) url = url.slice(1);
-    return fetch(import.meta.env.BASE_URL + url);
+    return fetch(import.meta.env.BASE_URL + url, init);
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
@@ -35,12 +35,13 @@ async function post(url: string, body?: any): Promise<Response> {
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-async function postJson(url: string, data?: any): Promise<Response> {
+async function postJson(url: string, data?: any, init?: RequestInit): Promise<Response> {
     if (url.startsWith("/")) url = url.slice(1);
     return fetch(import.meta.env.BASE_URL + url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data ?? {}),
+        signal: init?.signal,
     });
 }
 

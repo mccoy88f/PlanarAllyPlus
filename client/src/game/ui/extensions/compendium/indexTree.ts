@@ -153,12 +153,63 @@ export function mergeIndexPreservePriorSubtree(
     return out;
 }
 
+/**
+ * Come mergeIndexPreservePriorSubtree sulle radici, ma abbina per `slug` invece che per indice:
+ * l’ordine delle radici in `afterAi` / `prior` può differire da `canon` (es. risposta AI incompleta).
+ */
 export function mergeIndexPreservePriorRoots(
     canon: IndexCollNode[],
     afterAi: IndexCollNode[],
     prior: IndexCollNode[],
 ): IndexCollNode[] {
-    return canon.map((c, i) => mergeIndexPreservePriorSubtree(c, afterAi[i]!, prior[i]!));
+    const afterBySlug = new Map(afterAi.map((n) => [n.slug, n] as const));
+    const priorBySlug = new Map(prior.map((n) => [n.slug, n] as const));
+    return canon.map((c) => {
+        const a = afterBySlug.get(c.slug) ?? c;
+        const p = priorBySlug.get(c.slug) ?? c;
+        return mergeIndexPreservePriorSubtree(c, a, p);
+    });
+}
+
+/** Aggiorna il `name` di una voce nell’albero (clone profondo). */
+export function patchItemDisplayNameInIndexTree(
+    roots: IndexCollNode[],
+    collectionSlug: string,
+    itemSlug: string,
+    displayName: string,
+): IndexCollNode[] {
+    const clone = JSON.parse(JSON.stringify(roots)) as IndexCollNode[];
+    const coll = findIndexNodeBySlug(clone, collectionSlug);
+    if (!coll) return clone;
+    const idx = coll.items.findIndex((x) => x.slug === itemSlug);
+    if (idx === -1) return clone;
+    coll.items[idx] = { slug: itemSlug, name: displayName };
+    return clone;
+}
+
+function cleanMarkdownHeadingContent(raw: string): string {
+    let line = raw.trim();
+    line = line.replace(/\s*\{#[^}]+\}\s*$/, "").trim();
+    line = line.replace(/^\*\*|\*\*$/g, "").trim();
+    return line;
+}
+
+/**
+ * Titolo da usare come nome voce: preferisce un titolo di **livello 1** (`# Titolo`, non `##`).
+ * Se manca, usa il primo `##` … `######`. Utile quando l’indice non ha ancora il nome tradotto.
+ */
+export function extractFirstMarkdownHeading(markdown: string): string | null {
+    const h1 = markdown.match(/^#\s+(.+)$/m);
+    if (h1?.[1]) {
+        const t = cleanMarkdownHeadingContent(h1[1]);
+        if (t.length > 0) return t;
+    }
+    const sub = markdown.match(/^#{2,6}\s+(.+)$/m);
+    if (sub?.[1]) {
+        const t = cleanMarkdownHeadingContent(sub[1]);
+        if (t.length > 0) return t;
+    }
+    return null;
 }
 
 /**

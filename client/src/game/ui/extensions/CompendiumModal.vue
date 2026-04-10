@@ -40,6 +40,7 @@ import type { DropAssetInfo } from "../../dropAsset";
 import type { IndexCollNode } from "./compendium/indexTree";
 import {
     collectLeafItemsFromIndexNodes,
+    extractFirstMarkdownHeading,
     findIndexNodeBySlug,
     findItemNameInIndexTree,
     indexNodeHasVisibleBranchContent as indexBranchHasVisibleContent,
@@ -53,6 +54,30 @@ const props = defineProps<{
     visible: boolean;
     onClose: () => void;
 }>();
+
+const compendiumModalVisible = computed(() => props.visible);
+/** Abort delle richieste fetch quando il modale si chiude durante una traduzione AI. */
+const translationAbortController = ref<AbortController | null>(null);
+
+function beginTranslationAbortScope(): void {
+    translationAbortController.value?.abort();
+    translationAbortController.value = new AbortController();
+}
+
+function getTranslationAbortSignal(): AbortSignal | undefined {
+    return translationAbortController.value?.signal;
+}
+
+watch(
+    () => props.visible,
+    (v) => {
+        if (!v) translationAbortController.value?.abort();
+    },
+);
+
+function isDomAbortError(e: unknown): boolean {
+    return e instanceof DOMException && e.name === "AbortError";
+}
 
 const { t, locale } = useI18n();
 const toast = useToast();
@@ -378,16 +403,23 @@ const hasSavedTranslation = computed(() => {
     return false;
 });
 
-/** Titolo sotto il breadcrumb: con modalità tradotta attiva usa il nome dall’indice se presente, altrimenti il nome API. */
+/** Titolo sotto il breadcrumb: indice tradotto, altrimenti primo `#` dal markdown tradotto, altrimenti API. */
 const displayedItemTitle = computed(() => {
     const si = selectedItem.value;
     if (!si) return "";
     const { collection, item } = si;
+    const fallback = item.name?.trim() || item.slug || "—";
     if (!showTranslatedContent.value) {
-        return item.name?.trim() || item.slug || "—";
+        return fallback;
     }
     const fromIdx = findItemNameInIndex(collection.slug, item.slug);
-    return fromIdx?.trim() || item.name?.trim() || item.slug || "—";
+    if (fromIdx?.trim()) return fromIdx.trim();
+    const md = currentMarkdown.value.trim();
+    if (md.length > 0) {
+        const h = extractFirstMarkdownHeading(md);
+        if (h) return h;
+    }
+    return fallback;
 });
 
 const currentMarkdown = ref<string>("");
@@ -418,12 +450,21 @@ const {
     batchTranslateProgress,
     aiModel,
     aiMaxTokens,
+    compendiumModalVisible,
+    getTranslationAbortSignal,
 });
 
-
-
-
-
+watch(
+    () => [locale.value, compendiumTranslateTarget.value] as const,
+    async () => {
+        if (!props.visible) return;
+        if (showIndex.value && canonicalIndex.value.length > 0 && indexCompendium.value) {
+            await checkTranslation("index");
+        } else if (selectedItem.value && !showIndex.value) {
+            await checkTranslation("item");
+        }
+    },
+);
 
 const installDialogOpen = ref(false);
 const installName = ref("");
@@ -540,9 +581,8 @@ const breadcrumb = computed(() => {
         slug: collection.slug,
         type: "collection",
     });
-    const itemNameFromIndex = findItemNameInIndex(collection.slug, item.slug);
     crumbs.push({
-        label: itemNameFromIndex?.trim() ? itemNameFromIndex : fallback(item.name, item.slug),
+        label: displayedItemTitle.value.trim() ? displayedItemTitle.value : fallback(item.name, item.slug),
         slug: item.slug,
         type: "item",
     });
@@ -831,9 +871,13 @@ const selectedMarkdownHtml = computed(() => {
     const orig = selectedItem.value?.item.markdown ?? "";
     const raw =
         showTranslatedContent.value && currentMarkdown.value.trim().length > 0 ? currentMarkdown.value : orig;
+    const linkName =
+        selectedItem.value != null
+            ? displayedItemTitle.value.trim() || selectedItem.value.item.name
+            : "";
     const withLinks = !qeNames.value.length
         ? raw
-        : injectQeLinks(raw, qeNames.value, selectedItem.value ? [selectedItem.value.item.name] : []);
+        : injectQeLinks(raw, qeNames.value, selectedItem.value ? [linkName] : []);
     const rendered = renderQeMarkdown(withLinks);
     return ensureQeLinksCompendiumContext(rendered, selectedItem.value?.compendium.slug);
 });
@@ -1163,6 +1207,7 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
     if (sameCompIndexInMemory) {
         indexLoading.value = false;
         await ensureCompendiumExpanded(comp.id);
+        await checkTranslation("index");
         return;
     }
 
@@ -1239,6 +1284,8 @@ async function showCollectionIndex(comp: CompendiumMeta, coll: CollectionMeta): 
         } finally {
             indexLoading.value = false;
         }
+    } else {
+        await checkTranslation("index");
     }
 
     await ensureCompendiumExpanded(comp.id);
@@ -1422,9 +1469,11 @@ async function runTranslateCurrentView(): Promise<void> {
     const targetCode = effectiveCompendiumTargetLang();
 
     await checkTranslation(selectedItem.value ? "item" : "index");
+    if (!props.visible) return;
     if (activeTranslationLang.value === targetCode) return;
 
     if (selectedItem.value) {
+        beginTranslationAbortScope();
         await translateSingleItemMarkdown(targetCode);
         return;
     }
@@ -1437,11 +1486,13 @@ async function runTranslateCurrentView(): Promise<void> {
             openTranslateBatchConfirm(leafItems, targetCode, roots);
             return;
         }
+        beginTranslationAbortScope();
         translateLoading.value = true;
         batchTranslateProgress.value = null;
         try {
             await translateIndexJsonOnly(roots, targetCode);
         } catch (e: unknown) {
+            if (isDomAbortError(e)) return;
             console.error(e);
             toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
         } finally {
@@ -1773,17 +1824,48 @@ async function executeIndexTranslationBatch(p: {
     roots: IndexCollNode[];
 }): Promise<void> {
     const { leafItems, targetCode, roots } = p;
+    beginTranslationAbortScope();
     translateLoading.value = true;
     batchTranslateProgress.value = leafItems.length > 0 ? { current: 0, total: leafItems.length } : null;
     try {
+        let failed = 0;
+        let batchCancelled = false;
         if (leafItems.length > 0) {
-            await runTranslateIndexRecursiveBatch(leafItems, targetCode);
+            const batch = await runTranslateIndexRecursiveBatch(leafItems, targetCode);
+            failed = batch.failed;
+            batchCancelled = batch.cancelled;
         }
-        const indexOk = await translateIndexJsonOnly(roots, targetCode);
-        if (leafItems.length > 0 && indexOk) {
+        if (!props.visible || batchCancelled) {
+            return;
+        }
+        const indexOk = await translateIndexJsonOnly(roots, targetCode, {
+            suppressErrorToast: leafItems.length > 0,
+        });
+        if (!props.visible) {
+            return;
+        }
+        if (leafItems.length > 0) {
+            if (indexOk) {
+                if (failed > 0) {
+                    toast.success(
+                        t("game.ui.extensions.CompendiumModal.translate_batch_done_with_entry_failures", {
+                            count: failed,
+                        }),
+                    );
+                } else {
+                    toast.success(t("game.ui.extensions.CompendiumModal.translate_batch_done"));
+                }
+            } else if (failed > 0) {
+                toast.warning(t("game.ui.extensions.CompendiumModal.translate_batch_partial", { count: failed }));
+                toast.warning(t("game.ui.extensions.CompendiumModal.translate_batch_index_failed"));
+            } else {
+                toast.warning(t("game.ui.extensions.CompendiumModal.translate_batch_index_failed"));
+            }
+        } else if (indexOk) {
             toast.success(t("game.ui.extensions.CompendiumModal.translate_batch_done"));
         }
     } catch (e: unknown) {
+        if (isDomAbortError(e)) return;
         console.error(e);
         toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
     } finally {
@@ -1812,7 +1894,9 @@ function closeShareModal(): void {
 function shareToChat(): void {
     if (!selectedItem.value) return;
     const { compendium, collection, item } = selectedItem.value;
-    const label = `${item.name} (${formatName(collection.name)})`;
+    const title = displayedItemTitle.value.trim() || item.name;
+    const collLabel = collectionLabelFromIndexTree(collection.slug, collection.name);
+    const label = `${title} (${formatName(collLabel)})`;
     const link = compendiums.value.length > 1
         ? `[📖 ${label}](qe:${compendium.slug}/${collection.slug}/${item.slug})`
         : `[📖 ${label}](qe:${collection.slug}/${item.slug})`;
@@ -1836,7 +1920,9 @@ async function addCompendiumToNote(): Promise<void> {
     const text = (
         showTranslatedContent.value && currentMarkdown.value.trim().length > 0 ? currentMarkdown.value : item.markdown
     ).trim();
-    const title = (item.name || "").trim() || t("game.ui.extensions.CompendiumModal.note_title_fallback");
+    const title =
+        (displayedItemTitle.value.trim() || item.name || "").trim() ||
+        t("game.ui.extensions.CompendiumModal.note_title_fallback");
 
     const fullRoom = gameState.fullRoomName.value || "";
     const slash = fullRoom.indexOf("/");
