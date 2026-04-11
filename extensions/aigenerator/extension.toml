@@ -1,0 +1,8 @@
+[extension]
+id = "aigenerator"
+name = "AI Generator"
+version = "1.0.0"
+icon = "star"
+description_en = "Connect to AI models (OpenRouter, Google AI Studio, Cerebras) for characters, stories, maps and more."
+description_it = "Connettiti a modelli AI (OpenRouter, Google AI Studio, Cerebras). Genera personaggi, storie, migliora mappe e altro."
+author = "mccoy88f"

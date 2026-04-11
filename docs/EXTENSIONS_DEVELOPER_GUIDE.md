@@ -87,7 +87,7 @@ extensions/
 | **Character Sheet** | `character-sheet` | Schede personaggio D&D 5e per token. Master vede tutto, giocatori vedono le proprie |
 | **Documents** | `documents` | Upload e visualizzazione PDF in una cartella dedicata. Condivisione con i giocatori |
 | **Assets Installer** | `assets-installer` | Carica file ZIP per estrarre asset nella cartella assets. Installa e disinstalla asset pack |
-| **AI Generator** | `openrouter` | Connetti modelli AI via OpenRouter o Google AI Studio. Genera personaggi, storie, migliora mappe |
+| **AI Generator** | `aigenerator` | Connetti modelli AI (OpenRouter, Google AI Studio, Cerebras). Genera personaggi, storie, migliora mappe |
 | **MapsGen** | `dungeongen` | Generazione procedurale di dungeon e **edifici** per mappe da tavolo. Supporta muri automatici, porte, modalità AI realistica |
 
 ### 4.2 Framework tecnico
@@ -753,7 +753,7 @@ MapsGen è l'estensione di riferimento per la generazione procedurale di mappe. 
 
 ### AI realistica
 
-L'endpoint `POST /api/extensions/openrouter/transform-image` riceve l'URL dell'immagine generata e la trasforma con un modello AI (Google Gemini Image o OpenRouter). La risposta contiene `imageUrl` (URL asset permanente) e `assetId`, così il client può sostituire correttamente la forma sulla mappa.
+L'endpoint `POST /api/extensions/aigenerator/transform-image` riceve l'URL dell'immagine generata e la trasforma con un modello AI (Google Gemini Image o OpenRouter). La risposta contiene `imageUrl` (URL asset permanente) e `assetId`, così il client può sostituire correttamente la forma sulla mappa.
 
 ### Integrazione mappa
 

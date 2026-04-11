@@ -12,7 +12,7 @@ import { extensionsState } from "../systems/extensions/state";
 import {
     closeDocumentsPdfViewer,
     closeDungeongenModal,
-    closeOpenRouterModal,
+    closeAiGeneratorModal,
     closeCompendiumModal,
     openCompendiumModalForItem,
     requestCloseExtensionModal,
@@ -114,9 +114,9 @@ function checkEscape(event: KeyboardEvent): void {
                     closeCompendiumModal();
                     event.stopImmediatePropagation();
                 }
-            } else if (extId === "openrouter") {
-                if (extensionsState.raw.openrouterModalOpen) {
-                    closeOpenRouterModal();
+            } else if (extId === "aigenerator") {
+                if (extensionsState.raw.aigeneratorModalOpen) {
+                    closeAiGeneratorModal();
                     event.stopImmediatePropagation();
                 }
             } else if (extId === "documents-pdf") {
@@ -335,13 +335,13 @@ function setTempZoomDisplay(value: number): void {
             />
         </div>
         <div
-            v-if="extensionsState.reactive.openrouterModalOpen"
+            v-if="extensionsState.reactive.aigeneratorModalOpen"
             class="extension-modal-layer"
-            :style="{ zIndex: extensionModalZIndex('openrouter') }"
+            :style="{ zIndex: extensionModalZIndex('aigenerator') }"
         >
             <OpenRouterModal
-                :visible="extensionsState.reactive.openrouterModalOpen"
-                :on-close="closeOpenRouterModal"
+                :visible="extensionsState.reactive.aigeneratorModalOpen"
+                :on-close="closeAiGeneratorModal"
             />
         </div>
         <div

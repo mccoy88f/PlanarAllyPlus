@@ -543,7 +543,7 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
                 const userPrompt = buildCompendiumItemTranslationUserPrompt(raw, itemName, targetCode);
                 // oxlint-disable-next-line no-await-in-loop -- batch sequenziale
                 const tr = await http.postJson(
-                    "/api/extensions/openrouter/chat",
+                    "/api/extensions/aigenerator/chat",
                     {
                         model: d.aiModel.value,
                         messages: [
@@ -611,7 +611,7 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
         let r: Response;
         try {
             r = await http.postJson(
-                "/api/extensions/openrouter/chat",
+                "/api/extensions/aigenerator/chat",
                 {
                     model: d.aiModel.value,
                     messages: [
@@ -709,7 +709,7 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
             let r: Response;
             try {
                 r = await http.postJson(
-                    "/api/extensions/openrouter/chat",
+                    "/api/extensions/aigenerator/chat",
                     {
                         model: d.aiModel.value,
                         messages: [

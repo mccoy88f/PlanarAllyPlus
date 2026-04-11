@@ -16,12 +16,13 @@ import { noteState } from "../../systems/notes/state";
 import type { NoteId } from "../../systems/notes/types";
 import { extensionsState } from "../../systems/extensions/state";
 import LoadingBar from "../../../core/components/LoadingBar.vue";
-import { closeOpenRouterModal, focusExtension, openExtensionModal } from "../../systems/extensions/ui";
+import { closeAiGeneratorModal, focusExtension, openExtensionModal } from "../../systems/extensions/ui";
 import { addDungeonToMap, type WallData, type DoorData } from "../../dungeongen";
 import { toGP } from "../../../core/geometry";
 import type { AssetId } from "../../../assets/models";
 
 import characterSheetTemplateForAi from "./characterSheetTemplateForAi.json";
+import GroupedSingleSelect from "./components/GroupedSingleSelect.vue";
 
 /** JSON compatibile con Character Sheet (scheda IT 5e v2): stesso schema di extensions/character-sheet/ui/character-template.json */
 const CHARACTER_SHEET_TEMPLATE = JSON.stringify(characterSheetTemplateForAi);
@@ -42,7 +43,7 @@ const props = defineProps<{
     onClose: () => void;
 }>();
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const toast = useToast();
 
 const DEFAULT_BASE_PROMPT_IT =
@@ -200,17 +201,114 @@ function getDefaultTasks(lang: "it" | "en"): TaskDef[] {
 }
 
 const activeTab = ref<"settings" | "tasks">("tasks");
-const apiKey = ref("");
-const googleApiKey = ref("");
+
+type ApiProviderId = "openrouter" | "google" | "cerebras";
+const providerRows = ref<{ provider: ApiProviderId; key: string }[]>([]);
+const providerToAdd = ref<ApiProviderId | "">("");
+
+const providersAvailableToAdd = computed(() => {
+    const present = new Set(providerRows.value.map((r) => r.provider));
+    return (["openrouter", "google", "cerebras"] as const).filter((p) => !present.has(p));
+});
+
+function providerLabel(id: ApiProviderId): string {
+    if (id === "openrouter") return t("game.ui.extensions.OpenRouterModal.provider_openrouter");
+    if (id === "google") return t("game.ui.extensions.OpenRouterModal.provider_google");
+    return t("game.ui.extensions.OpenRouterModal.provider_cerebras");
+}
+
+function providerKeyDocsUrl(id: ApiProviderId): string {
+    if (id === "openrouter") return "https://openrouter.ai/keys";
+    if (id === "google") return "https://aistudio.google.com/apikey";
+    return "https://inference-docs.cerebras.ai/api-reference";
+}
+
+function addProviderFromDropdown(): void {
+    const p = providerToAdd.value;
+    if (!p || providerRows.value.some((r) => r.provider === p)) return;
+    providerRows.value.push({ provider: p, key: "" });
+    providerToAdd.value = "";
+}
+
+function removeProviderRow(index: number): void {
+    providerRows.value.splice(index, 1);
+}
+
 const selectedModel = ref("openrouter/free");
 const selectedVisionModel = ref("gemini-2.0-flash");
 const selectedImageModel = ref("sourceful/riverflow-v2-fast");
 
 type AiModelEntry = { id: string; name: string; is_free: boolean; output_modalities?: string[] };
+type AiModelProvider = "openrouter" | "google" | "cerebras";
+type AiModelTagged = AiModelEntry & { provider: AiModelProvider };
+type ModelProviderFilter = "all" | "openrouter" | "google" | "cerebras";
+type ModelTierFilter = "all" | "free" | "paid";
+
 /** Popolate in parallelo: OpenRouter e Google non dipendono l’una dall’altra. */
 const openrouterModelsList = ref<AiModelEntry[]>([]);
 const googleModelsList = ref<AiModelEntry[]>([]);
-const models = computed(() => [...openrouterModelsList.value, ...googleModelsList.value]);
+const cerebrasModelsList = ref<AiModelEntry[]>([]);
+const models = computed(() => [
+    ...openrouterModelsList.value,
+    ...googleModelsList.value,
+    ...cerebrasModelsList.value,
+]);
+
+const modelsListProviderFilter = ref<ModelProviderFilter>("all");
+const modelsListTierFilter = ref<ModelTierFilter>("all");
+
+const textModelsTagged = computed((): AiModelTagged[] => [
+    ...openrouterModelsList.value.map((m) => ({ ...m, provider: "openrouter" as const })),
+    ...googleModelsList.value.map((m) => ({ ...m, provider: "google" as const })),
+    ...cerebrasModelsList.value.map((m) => ({ ...m, provider: "cerebras" as const })),
+]);
+
+function filterTaggedModels(
+    entries: AiModelTagged[],
+    provider: ModelProviderFilter,
+    tier: ModelTierFilter,
+): AiModelTagged[] {
+    return entries.filter((m) => {
+        if (provider !== "all" && m.provider !== provider) return false;
+        if (tier === "free" && !m.is_free) return false;
+        if (tier === "paid" && m.is_free) return false;
+        return true;
+    });
+}
+
+function withSelectedIfMissing(
+    list: AiModelTagged[],
+    full: AiModelTagged[],
+    selectedId: string,
+): AiModelTagged[] {
+    if (!selectedId || list.some((m) => m.id === selectedId)) return list;
+    const found = full.find((m) => m.id === selectedId);
+    return found ? [...list, found] : list;
+}
+
+const filteredTextModelsTagged = computed(() =>
+    withSelectedIfMissing(
+        filterTaggedModels(
+            textModelsTagged.value,
+            modelsListProviderFilter.value,
+            modelsListTierFilter.value,
+        ),
+        textModelsTagged.value,
+        selectedModel.value,
+    ),
+);
+
+const filteredVisionModelsTagged = computed(() =>
+    withSelectedIfMissing(
+        filterTaggedModels(
+            textModelsTagged.value,
+            modelsListProviderFilter.value,
+            modelsListTierFilter.value,
+        ),
+        textModelsTagged.value,
+        selectedVisionModel.value,
+    ),
+);
 
 const loadingModels = ref(false);
 const savingSettings = ref(false);
@@ -226,6 +324,11 @@ const compendiumTranslateSource = ref<"auto" | PaUiLocaleCode>("auto");
 /** Empty string = follow UI language (server stores null). */
 const compendiumTranslateTarget = ref("");
 
+/** Chiavi già persistite sul server (per messaggi errore elenco modelli e stato dropdown). */
+const hasStoredOpenRouterKey = ref(false);
+const hasStoredGoogleKey = ref(false);
+const hasStoredCerebrasKey = ref(false);
+
 const currentTask = ref<TaskDef | { id: "custom"; label: string; systemPrompt: string; userPrompt: string } | null>(null);
 const taskInput = ref("");
 const editingTask = ref<TaskDef | null>(null);
@@ -239,11 +342,104 @@ const visible = computed(() => props.visible);
 const imageModelsList = ref<
     { id: string; name: string; is_free: boolean; output_modalities?: string[] }[]
 >([]);
-const freeModels = computed(() => models.value.filter((m) => m.is_free && !m.id.startsWith("gemini")));
-const paidModels = computed(() => models.value.filter((m) => !m.is_free && !m.id.startsWith("gemini")));
-
 const openRouterImageModels = computed(() => models.value.filter((m) => (m.output_modalities ?? []).includes("image") && !m.id.startsWith("gemini")));
 const googleImageModels = computed(() => imageModelsList.value.filter((m) => (m.output_modalities ?? []).includes("image")));
+
+const imageModelsTagged = computed((): AiModelTagged[] => [
+    ...openRouterImageModels.value.map((m) => ({ ...m, provider: "openrouter" as const })),
+    ...googleImageModels.value.map((m) => ({ ...m, provider: "google" as const })),
+]);
+
+const filteredImageModelsTagged = computed(() =>
+    withSelectedIfMissing(
+        filterTaggedModels(
+            imageModelsTagged.value,
+            modelsListProviderFilter.value,
+            modelsListTierFilter.value,
+        ),
+        imageModelsTagged.value,
+        selectedImageModel.value || "",
+    ),
+);
+
+function categoryForTextVisionModel(m: AiModelTagged): string {
+    if (m.provider === "cerebras") return t("game.ui.extensions.OpenRouterModal.model_cerebras");
+    if (m.provider === "openrouter" && m.is_free) return t("game.ui.extensions.OpenRouterModal.model_free");
+    if (m.provider === "openrouter" && !m.is_free) return t("game.ui.extensions.OpenRouterModal.model_paid");
+    if (m.provider === "google" && m.is_free) return t("game.ui.extensions.OpenRouterModal.model_google_free");
+    return t("game.ui.extensions.OpenRouterModal.model_google_paid");
+}
+
+function categoryForImageModel(m: AiModelTagged): string {
+    if (m.provider === "openrouter") return t("game.ui.extensions.OpenRouterModal.provider_openrouter");
+    return m.is_free
+        ? t("game.ui.extensions.OpenRouterModal.model_google_free")
+        : t("game.ui.extensions.OpenRouterModal.model_google_paid");
+}
+
+const textModelSelectOptions = computed(() => {
+    void locale.value;
+    return filteredTextModelsTagged.value.map((m) => ({
+        id: m.id,
+        title: m.name,
+        category: categoryForTextVisionModel(m),
+    }));
+});
+
+const visionModelSelectOptions = computed(() => {
+    void locale.value;
+    return filteredVisionModelsTagged.value.map((m) => ({
+        id: m.id,
+        title: m.name,
+        category: categoryForTextVisionModel(m),
+    }));
+});
+
+const imageModelSelectOptions = computed(() => {
+    void locale.value;
+    return filteredImageModelsTagged.value.map((m) => ({
+        id: m.id,
+        title: m.name,
+        category: categoryForImageModel(m),
+    }));
+});
+
+const hasAnyStoredApiKey = computed(
+    () => hasStoredOpenRouterKey.value || hasStoredGoogleKey.value || hasStoredCerebrasKey.value,
+);
+
+/** Dropdown testo/vision: “Caricamento…” solo con chiavi salvate; altrimenti “Nessuna API key…”. */
+const textModelsDropdownPlaceholder = computed(() => {
+    if (loadingModels.value) {
+        return hasAnyStoredApiKey.value
+            ? t("game.ui.extensions.OpenRouterModal.models_loading")
+            : t("game.ui.extensions.OpenRouterModal.models_no_api_keys");
+    }
+    if (models.value.length === 0) {
+        return hasAnyStoredApiKey.value
+            ? t("game.ui.extensions.OpenRouterModal.models_list_unavailable")
+            : t("game.ui.extensions.OpenRouterModal.models_no_api_keys");
+    }
+    return "";
+});
+
+const imageModelsDropdownEmpty = computed(
+    () => openRouterImageModels.value.length === 0 && googleImageModels.value.length === 0,
+);
+
+const imageModelsDropdownPlaceholder = computed(() => {
+    if (loadingModels.value) {
+        return hasAnyStoredApiKey.value
+            ? t("game.ui.extensions.OpenRouterModal.models_loading")
+            : t("game.ui.extensions.OpenRouterModal.models_no_api_keys");
+    }
+    if (imageModelsDropdownEmpty.value) {
+        return hasAnyStoredApiKey.value
+            ? t("game.ui.extensions.OpenRouterModal.models_list_unavailable")
+            : t("game.ui.extensions.OpenRouterModal.models_no_api_keys");
+    }
+    return "";
+});
 
 const textTasks = computed(() => {
     const q = taskSearch.value.trim().toLowerCase();
@@ -260,6 +456,10 @@ function syncSelectedTextModel(): void {
     if (merged.some((m) => m.id === selectedModel.value)) return;
     if (googleModelsList.value.length > 0) {
         selectedModel.value = googleModelsList.value[0]!.id;
+        return;
+    }
+    if (cerebrasModelsList.value.length > 0) {
+        selectedModel.value = cerebrasModelsList.value[0]!.id;
         return;
     }
     selectedModel.value = openrouterModelsList.value[0]!.id;
@@ -282,17 +482,21 @@ function syncSelectedImageModel(): void {
     selectedImageModel.value = "";
 }
 
-const modelsListBase = "/api/extensions/openrouter/models";
+const modelsListBase = "/api/extensions/aigenerator/models";
+
+/** Evita risposte GET servite dalla cache del browser (elenco modelli diverso da chiavi attuali sul server). */
+const MODELS_FETCH: RequestInit = { cache: "no-store" };
 
 async function loadModels(): Promise<void> {
     loadingModels.value = true;
     openrouterModelsList.value = [];
     googleModelsList.value = [];
+    cerebrasModelsList.value = [];
     imageModelsList.value = [];
 
     const loadOpenRouter = async (): Promise<void> => {
         try {
-            const resp = await http.get(`${modelsListBase}?provider=openrouter`);
+            const resp = await http.get(`${modelsListBase}?provider=openrouter`, MODELS_FETCH);
             if (resp.ok) {
                 const data = (await resp.json()) as {
                     openrouter_models: AiModelEntry[];
@@ -309,7 +513,7 @@ async function loadModels(): Promise<void> {
 
     const loadGoogleText = async (): Promise<void> => {
         try {
-            const resp = await http.get(`${modelsListBase}?provider=google`);
+            const resp = await http.get(`${modelsListBase}?provider=google`, MODELS_FETCH);
             if (resp.ok) {
                 const data = (await resp.json()) as {
                     google_models: AiModelEntry[];
@@ -321,9 +525,23 @@ async function loadModels(): Promise<void> {
         }
     };
 
+    const loadCerebras = async (): Promise<void> => {
+        try {
+            const resp = await http.get(`${modelsListBase}?provider=cerebras`, MODELS_FETCH);
+            if (resp.ok) {
+                const data = (await resp.json()) as {
+                    cerebras_models: AiModelEntry[];
+                };
+                cerebrasModelsList.value = data.cerebras_models ?? [];
+            }
+        } catch {
+            /* idem */
+        }
+    };
+
     const loadGoogleImage = async (): Promise<void> => {
         try {
-            const imgResp = await http.get(`${modelsListBase}?provider=google&type=image`);
+            const imgResp = await http.get(`${modelsListBase}?provider=google&type=image`, MODELS_FETCH);
             if (imgResp.ok) {
                 const imgData = (await imgResp.json()) as {
                     google_models: { id: string; name: string }[];
@@ -341,21 +559,23 @@ async function loadModels(): Promise<void> {
     };
 
     try {
-        await Promise.allSettled([loadOpenRouter(), loadGoogleText(), loadGoogleImage()]);
+        await Promise.allSettled([loadOpenRouter(), loadGoogleText(), loadCerebras(), loadGoogleImage()]);
         syncSelectedTextModel();
         syncSelectedImageModel();
 
         /** Se tutte e tre le richieste falliscono (401, rete, ecc.), riprova con la risposta unica legacy. */
         if (models.value.length === 0) {
             try {
-                const resp = await http.get(modelsListBase);
+                const resp = await http.get(modelsListBase, MODELS_FETCH);
                 if (resp.ok) {
                     const data = (await resp.json()) as {
                         openrouter_models?: AiModelEntry[];
                         google_models?: AiModelEntry[];
+                        cerebras_models?: AiModelEntry[];
                     };
                     openrouterModelsList.value = data.openrouter_models ?? [];
                     googleModelsList.value = data.google_models ?? [];
+                    cerebrasModelsList.value = data.cerebras_models ?? [];
                     syncSelectedTextModel();
                 }
             } catch {
@@ -364,7 +584,7 @@ async function loadModels(): Promise<void> {
         }
         if (imageModelsList.value.length === 0) {
             try {
-                const imgResp = await http.get(`${modelsListBase}?type=image`);
+                const imgResp = await http.get(`${modelsListBase}?type=image`, MODELS_FETCH);
                 if (imgResp.ok) {
                     const imgData = (await imgResp.json()) as {
                         google_models: { id: string; name: string }[];
@@ -380,8 +600,20 @@ async function loadModels(): Promise<void> {
                 /* ignore */
             }
         }
-        if (models.value.length === 0) {
+        if (
+            models.value.length === 0 &&
+            (hasStoredOpenRouterKey.value || hasStoredGoogleKey.value || hasStoredCerebrasKey.value)
+        ) {
             toast.warning(t("game.ui.extensions.OpenRouterModal.models_load_failed"));
+        }
+        /** Senza chiavi salvate sul server non devono restare elenchi (es. risposta GET in cache). */
+        if (!hasStoredOpenRouterKey.value && !hasStoredGoogleKey.value && !hasStoredCerebrasKey.value) {
+            openrouterModelsList.value = [];
+            googleModelsList.value = [];
+            cerebrasModelsList.value = [];
+            imageModelsList.value = [];
+            syncSelectedTextModel();
+            syncSelectedImageModel();
         }
     } finally {
         loadingModels.value = false;
@@ -390,11 +622,12 @@ async function loadModels(): Promise<void> {
 
 async function loadSettings(): Promise<void> {
     try {
-        const resp = await http.get("/api/extensions/openrouter/settings");
+        const resp = await http.get("/api/extensions/aigenerator/settings");
         if (resp.ok) {
             const data = (await resp.json()) as {
                 hasApiKey: boolean;
                 hasGoogleKey: boolean;
+                hasCerebrasKey?: boolean;
                 model: string;
                 visionModel?: string;
                 basePrompt?: string;
@@ -405,8 +638,13 @@ async function loadSettings(): Promise<void> {
                 compendiumTranslateSource?: string;
                 compendiumTranslateTarget?: string | null;
             };
-            apiKey.value = data.hasApiKey ? "********" : "";
-            googleApiKey.value = data.hasGoogleKey ? "********" : "";
+            providerRows.value = [];
+            if (data.hasApiKey) providerRows.value.push({ provider: "openrouter", key: "********" });
+            if (data.hasGoogleKey) providerRows.value.push({ provider: "google", key: "********" });
+            if (data.hasCerebrasKey) providerRows.value.push({ provider: "cerebras", key: "********" });
+            hasStoredOpenRouterKey.value = data.hasApiKey;
+            hasStoredGoogleKey.value = data.hasGoogleKey;
+            hasStoredCerebrasKey.value = !!data.hasCerebrasKey;
             selectedModel.value = data.model || "gemini-2.0-flash";
             selectedVisionModel.value = data.visionModel || data.model || "gemini-2.0-flash";
             selectedImageModel.value = data.imageModel || "gemini-2.5-flash-image";
@@ -456,6 +694,10 @@ async function loadSettings(): Promise<void> {
             tasks.value = finalTasks;
         }
     } catch {
+        hasStoredOpenRouterKey.value = false;
+        hasStoredGoogleKey.value = false;
+        hasStoredCerebrasKey.value = false;
+        providerRows.value = [];
         defaultLanguage.value = "it";
         compendiumTranslateSource.value = "auto";
         compendiumTranslateTarget.value = "";
@@ -469,6 +711,7 @@ async function saveSettings(): Promise<void> {
         const body: {
             apiKey?: string;
             googleApiKey?: string;
+            cerebrasApiKey?: string;
             model: string;
             visionModel: string;
             basePrompt: string;
@@ -490,19 +733,30 @@ async function saveSettings(): Promise<void> {
             compendiumTranslateTarget:
                 compendiumTranslateTarget.value.trim() === "" ? null : compendiumTranslateTarget.value.trim(),
         };
-        /** Invia sempre quando il valore non è il placeholder mascherato: così una stringa vuota
-         *  propaga al server e cancella la chiave salvata (prima non si mandava il campo e la chiave restava). */
-        if (apiKey.value !== "********") {
-            body.apiKey = apiKey.value;
+        const orRow = providerRows.value.find((r) => r.provider === "openrouter");
+        const gRow = providerRows.value.find((r) => r.provider === "google");
+        const cRow = providerRows.value.find((r) => r.provider === "cerebras");
+        /** Riga assente → invia stringa vuota per cancellare la chiave sul server. */
+        if (!orRow) {
+            body.apiKey = "";
+        } else if (orRow.key !== "********") {
+            body.apiKey = orRow.key;
         }
-        if (googleApiKey.value !== "********") {
-            body.googleApiKey = googleApiKey.value;
+        if (!gRow) {
+            body.googleApiKey = "";
+        } else if (gRow.key !== "********") {
+            body.googleApiKey = gRow.key;
         }
-        const resp = await http.postJson("/api/extensions/openrouter/settings", body);
+        if (!cRow) {
+            body.cerebrasApiKey = "";
+        } else if (cRow.key !== "********") {
+            body.cerebrasApiKey = cRow.key;
+        }
+        const resp = await http.postJson("/api/extensions/aigenerator/settings", body);
         if (resp.ok) {
             toast.success(t("game.ui.extensions.OpenRouterModal.settings_saved"));
-            await loadModels();
             await loadSettings();
+            await loadModels();
         } else {
             const err = await resp.json().catch(() => ({}));
             toast.error((err as { error?: string }).error || t("game.ui.extensions.OpenRouterModal.save_error"));
@@ -539,7 +793,7 @@ async function runTask(
     result.value = "";
     try {
         const messages = buildMessages(task, input);
-        const resp = await http.postJson("/api/extensions/openrouter/chat", {
+        const resp = await http.postJson("/api/extensions/aigenerator/chat", {
             model: selectedModel.value,
             messages,
             max_tokens: Math.max(256, Math.min(65536, maxTokens.value || 8192)),
@@ -583,7 +837,7 @@ async function runCustomTask(): Promise<void> {
     if (systemContent) messages.push({ role: "system", content: systemContent });
     messages.push({ role: "user", content: prompt });
 
-        const resp = await http.postJson("/api/extensions/openrouter/chat", {
+        const resp = await http.postJson("/api/extensions/aigenerator/chat", {
             model: selectedModel.value,
             messages,
             max_tokens: Math.max(256, Math.min(65536, maxTokens.value || 8192)),
@@ -821,7 +1075,7 @@ async function runImportTask(): Promise<void> {
             formData.append("systemPrompt", task.systemPrompt || "");
             formData.append("userPrompt", task.userPrompt || "");
 
-            const resp = await fetch("/api/extensions/openrouter/import-character", {
+            const resp = await fetch("/api/extensions/aigenerator/import-character", {
                 method: "POST",
                 body: formData,
                 credentials: "include",
@@ -834,7 +1088,7 @@ async function runImportTask(): Promise<void> {
                 toast.error(err.error || t("game.ui.extensions.OpenRouterModal.request_error"));
             }
         } else if (task.type === "import_map") {
-            const resp = await fetch("/api/extensions/openrouter/import-map", {
+            const resp = await fetch("/api/extensions/aigenerator/import-map", {
                 method: "POST",
                 body: formData,
                 credentials: "include",
@@ -925,7 +1179,7 @@ async function createNoteFromResult(): Promise<void> {
 }
 
 function close(): void {
-    closeOpenRouterModal();
+    closeAiGeneratorModal();
     props.onClose();
 }
 
@@ -962,7 +1216,7 @@ onMounted(async () => {
         :close-on-mask-click="false"
         extra-class="openrouter-modal"
         @close="close"
-        @focus="focusExtension('openrouter')"
+        @focus="focusExtension('aigenerator')"
     >
         <template #header="{ dragStart, dragEnd, toggleMinimize, minimized, toggleFullscreen, fullscreen }">
             <div
@@ -1002,98 +1256,203 @@ onMounted(async () => {
             </div>
             <div v-show="activeTab === 'settings'" class="ext-body openrouter-settings">
                 <div class="ext-ui-section openrouter-settings-section">
-
-                    <h4 class="ext-ui-section-title">OpenRouter API Key</h4>
+                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.general_settings_section") }}</h4>
+                    <div class="ext-ui-field openrouter-field openrouter-default-language-block">
+                        <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.default_language") }}</label>
+                        <select v-model="defaultLanguage" class="ext-ui-select openrouter-default-language-select">
+                            <option value="it">{{ t("game.ui.extensions.OpenRouterModal.language_it") }}</option>
+                            <option value="en">{{ t("game.ui.extensions.OpenRouterModal.language_en") }}</option>
+                        </select>
+                        <p class="ext-ui-hint openrouter-default-language-hint">
+                            {{ t("game.ui.extensions.OpenRouterModal.default_language_hint") }}
+                        </p>
+                    </div>
+                    <h5 class="openrouter-api-keys-subtitle">{{ t("game.ui.extensions.OpenRouterModal.api_keys_section") }}</h5>
+                    <p class="ext-ui-hint openrouter-api-keys-intro">
+                        {{ t("game.ui.extensions.OpenRouterModal.api_keys_table_hint") }}
+                    </p>
+                    <table class="openrouter-provider-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">{{ t("game.ui.extensions.OpenRouterModal.provider") }}</th>
+                                <th scope="col">{{ t("game.ui.extensions.OpenRouterModal.provider_key_column") }}</th>
+                                <th scope="col" class="openrouter-provider-table-tools-col">
+                                    {{ t("game.ui.extensions.OpenRouterModal.provider_row_actions") }}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(row, idx) in providerRows" :key="row.provider + '-' + idx">
+                                <td class="openrouter-provider-name">{{ providerLabel(row.provider) }}</td>
+                                <td>
+                                    <input
+                                        v-model="row.key"
+                                        type="password"
+                                        class="ext-ui-input"
+                                        :placeholder="t('game.ui.extensions.OpenRouterModal.api_key_placeholder')"
+                                        autocomplete="off"
+                                    />
+                                </td>
+                                <td class="openrouter-provider-table-tools-col">
+                                    <div class="openrouter-provider-row-tools">
+                                        <a
+                                            class="openrouter-provider-link"
+                                            :href="providerKeyDocsUrl(row.provider)"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            :title="t('game.ui.extensions.OpenRouterModal.provider_api_key_link_title')"
+                                        >
+                                            <font-awesome-icon icon="link" />
+                                        </a>
+                                        <button
+                                            type="button"
+                                            class="openrouter-provider-remove-x"
+                                            :title="t('common.remove')"
+                                            @click="removeProviderRow(idx)"
+                                        >
+                                            <font-awesome-icon icon="times" />
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div v-if="providersAvailableToAdd.length > 0" class="openrouter-add-provider-row">
+                        <select v-model="providerToAdd" class="ext-ui-select">
+                            <option value="">{{ t("game.ui.extensions.OpenRouterModal.add_provider_placeholder") }}</option>
+                            <option
+                                v-for="p in providersAvailableToAdd"
+                                :key="p"
+                                :value="p"
+                            >
+                                {{ providerLabel(p) }}
+                            </option>
+                        </select>
+                        <button
+                            type="button"
+                            class="ext-ui-btn"
+                            :disabled="!providerToAdd"
+                            @click="addProviderFromDropdown"
+                        >
+                            {{ t("game.ui.extensions.OpenRouterModal.add_provider") }}
+                        </button>
+                    </div>
+                </div>
+                <div class="ext-ui-section openrouter-settings-section openrouter-models-section">
+                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.ai_models_section") }}</h4>
+                    <p class="ext-ui-hint openrouter-models-section-hint">
+                        {{ t("game.ui.extensions.OpenRouterModal.ai_models_section_hint") }}
+                    </p>
+                    <div class="openrouter-model-filters">
+                        <div class="openrouter-model-filter">
+                            <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.models_filter_provider") }}</label>
+                            <select v-model="modelsListProviderFilter" class="ext-ui-select">
+                                <option value="all">{{ t("game.ui.extensions.OpenRouterModal.filter_provider_all") }}</option>
+                                <option value="openrouter">{{ t("game.ui.extensions.OpenRouterModal.filter_provider_openrouter") }}</option>
+                                <option value="google">{{ t("game.ui.extensions.OpenRouterModal.filter_provider_google") }}</option>
+                                <option value="cerebras">{{ t("game.ui.extensions.OpenRouterModal.filter_provider_cerebras") }}</option>
+                            </select>
+                        </div>
+                        <div class="openrouter-model-filter">
+                            <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.models_filter_price") }}</label>
+                            <select v-model="modelsListTierFilter" class="ext-ui-select">
+                                <option value="all">{{ t("game.ui.extensions.OpenRouterModal.filter_price_all") }}</option>
+                                <option value="free">{{ t("game.ui.extensions.OpenRouterModal.filter_price_free") }}</option>
+                                <option value="paid">{{ t("game.ui.extensions.OpenRouterModal.filter_price_paid") }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="openrouter-models-subsection">
+                        <h5 class="openrouter-models-subtitle">{{ t("game.ui.extensions.OpenRouterModal.model_text") }}</h5>
+                        <div class="ext-ui-field openrouter-field">
+                            <GroupedSingleSelect
+                                v-model="selectedModel"
+                                :options="textModelSelectOptions"
+                                :disabled="loadingModels || models.length === 0"
+                                :empty-label="textModelsDropdownPlaceholder"
+                                :placeholder="t('game.ui.extensions.OpenRouterModal.models_search_placeholder')"
+                                :no-results-text="t('game.ui.extensions.OpenRouterModal.models_search_no_results')"
+                                :group-by="(o) => o.category"
+                                :clearable="false"
+                            />
+                        </div>
+                    </div>
+                    <div class="openrouter-models-subsection">
+                        <h5 class="openrouter-models-subtitle">{{ t("game.ui.extensions.OpenRouterModal.model_vision") }}</h5>
+                        <p class="ext-ui-hint" style="margin-bottom: 0.5rem;">{{ t("game.ui.extensions.OpenRouterModal.model_vision_hint") }}</p>
+                        <div class="ext-ui-field openrouter-field">
+                            <GroupedSingleSelect
+                                v-model="selectedVisionModel"
+                                :options="visionModelSelectOptions"
+                                :disabled="loadingModels || models.length === 0"
+                                :empty-label="textModelsDropdownPlaceholder"
+                                :placeholder="t('game.ui.extensions.OpenRouterModal.models_search_placeholder')"
+                                :no-results-text="t('game.ui.extensions.OpenRouterModal.models_search_no_results')"
+                                :group-by="(o) => o.category"
+                                :clearable="false"
+                            />
+                        </div>
+                    </div>
+                    <div class="openrouter-models-subsection">
+                        <h5 class="openrouter-models-subtitle">{{ t("game.ui.extensions.OpenRouterModal.image_model") }}</h5>
+                        <div class="ext-ui-field openrouter-field">
+                            <GroupedSingleSelect
+                                :model-value="selectedImageModel || null"
+                                :options="imageModelSelectOptions"
+                                :disabled="loadingModels || imageModelsDropdownEmpty"
+                                :empty-label="imageModelsDropdownPlaceholder"
+                                :placeholder="t('game.ui.extensions.OpenRouterModal.models_search_placeholder')"
+                                :no-results-text="t('game.ui.extensions.OpenRouterModal.models_search_no_results')"
+                                :group-by="(o) => o.category"
+                                :clearable="false"
+                                @update:model-value="(v) => { selectedImageModel = v != null ? String(v) : ''; }"
+                            />
+                        </div>
+                        <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.image_model_hint") }}</p>
+                    </div>
+                </div>
+                <div class="ext-ui-section openrouter-settings-section openrouter-base-prompt-section">
+                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.base_prompt") }}</h4>
                     <div class="ext-ui-field openrouter-field">
-                        <input
-                            v-model="apiKey"
-                            type="password"
-                            class="ext-ui-input"
-                            :placeholder="t('game.ui.extensions.OpenRouterModal.api_key_placeholder')"
-                            autocomplete="off"
+                        <textarea
+                            v-model="basePrompt"
+                            class="ext-ui-textarea"
+                            :placeholder="t('game.ui.extensions.OpenRouterModal.base_prompt_placeholder')"
+                            rows="6"
                         />
                     </div>
-                    
-                    <h4 class="ext-ui-section-title" style="margin-top: 15px;">Google AI Studio API Key</h4>
-                    <div class="ext-ui-field openrouter-field">
-                        <input
-                            v-model="googleApiKey"
-                            type="password"
-                            class="ext-ui-input"
-                            :placeholder="t('game.ui.extensions.OpenRouterModal.api_key_placeholder')"
-                            autocomplete="off"
-                        />
-                        <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.api_key_hint") }}</p>
+                    <div class="openrouter-base-prompt-footer">
+                        <div class="openrouter-max-tokens-field">
+                            <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.max_tokens") }}</label>
+                            <input
+                                v-model.number="maxTokens"
+                                type="number"
+                                class="ext-ui-input"
+                                min="256"
+                                max="65536"
+                                step="256"
+                            />
+                            <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.max_tokens_hint") }}</p>
+                        </div>
+                        <button
+                            type="button"
+                            class="openrouter-restore-default"
+                            @click="basePrompt = getDefaultBasePrompt(defaultLanguage)"
+                        >
+                            {{ t("game.ui.extensions.OpenRouterModal.restore_default") }}
+                        </button>
                     </div>
                 </div>
                 <div class="ext-ui-section openrouter-settings-section">
-                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.model_text") }}</h4>
-                    <div class="ext-ui-field openrouter-field">
-                        <select v-model="selectedModel" class="ext-ui-select" :disabled="loadingModels">
-                        <optgroup
-                            v-if="freeModels.length > 0"
-                            :label="t('game.ui.extensions.OpenRouterModal.model_free')"
-                        >
-                            <option
-                                v-for="m in freeModels"
-                                :key="m.id"
-                                :value="m.id"
-                            >
-                                {{ m.name }}
-                            </option>
-                        </optgroup>
-                        <optgroup
-                            v-if="paidModels.length > 0"
-                            :label="t('game.ui.extensions.OpenRouterModal.model_paid')"
-                        >
-                            <option
-                                v-for="m in paidModels"
-                                :key="m.id"
-                                :value="m.id"
-                            >
-                                {{ m.name }}
-                            </option>
-                        </optgroup>
-                        <optgroup
-                            v-if="models.filter(x => x.id.startsWith('gemini') && x.is_free).length > 0"
-                            :label="t('game.ui.extensions.OpenRouterModal.model_google_free')"
-                        >
-                            <option
-                                v-for="m in models.filter(x => x.id.startsWith('gemini') && x.is_free)"
-                                :key="m.id"
-                                :value="m.id"
-                            >
-                                {{ m.name }}
-                            </option>
-                        </optgroup>
-                        <optgroup
-                            v-if="models.filter(x => x.id.startsWith('gemini') && !x.is_free).length > 0"
-                            :label="t('game.ui.extensions.OpenRouterModal.model_google_paid')"
-                        >
-                            <option
-                                v-for="m in models.filter(x => x.id.startsWith('gemini') && !x.is_free)"
-                                :key="m.id"
-                                :value="m.id"
-                            >
-                                {{ m.name }}
-                            </option>
-                        </optgroup>
-                        <option
-                            v-if="models.length === 0 && !loadingModels"
-                            value="openrouter/free"
-                        >
-                            openrouter/free (default)
-                        </option>
-                        </select>
-                    </div>
-                    <div class="ext-ui-field openrouter-field openrouter-field-inline">
-                        <label class="ext-ui-label">{{ t("game.ui.extensions.OpenRouterModal.default_language") }}</label>
-                        <select v-model="defaultLanguage" class="ext-ui-select">
-                        <option value="it">{{ t("game.ui.extensions.OpenRouterModal.language_it") }}</option>
-                        <option value="en">{{ t("game.ui.extensions.OpenRouterModal.language_en") }}</option>
-                        </select>
-                        <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.default_language_hint") }}</p>
-                    </div>
+                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.tasks") }}</h4>
+                    <p class="ext-ui-hint" style="margin-bottom: 0.5rem;">{{ t("game.ui.extensions.OpenRouterModal.save_tasks_hint") }}</p>
+                    <button
+                        type="button"
+                        class="ext-ui-btn"
+                        @click="restoreDefaultTasks"
+                    >
+                        {{ t("game.ui.extensions.OpenRouterModal.restore_default_tasks") }}
+                    </button>
                 </div>
                 <div class="ext-ui-section openrouter-settings-section">
                     <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.compendium_translate_title") }}</h4>
@@ -1118,163 +1477,6 @@ onMounted(async () => {
                             </option>
                         </select>
                     </div>
-                </div>
-                <div class="ext-ui-section openrouter-settings-section">
-                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.model_vision") }}</h4>
-                    <p class="ext-ui-hint" style="margin-bottom: 0.5rem;">{{ t("game.ui.extensions.OpenRouterModal.model_vision_hint") }}</p>
-                    <div class="ext-ui-field openrouter-field">
-                        <select v-model="selectedVisionModel" class="ext-ui-select" :disabled="loadingModels">
-                        <optgroup
-                            v-if="freeModels.length > 0"
-                            :label="t('game.ui.extensions.OpenRouterModal.model_free')"
-                        >
-                            <option
-                                v-for="m in freeModels"
-                                :key="m.id"
-                                :value="m.id"
-                            >
-                                {{ m.name }}
-                            </option>
-                        </optgroup>
-                        <optgroup
-                            v-if="paidModels.length > 0"
-                            :label="t('game.ui.extensions.OpenRouterModal.model_paid')"
-                        >
-                            <option
-                                v-for="m in paidModels"
-                                :key="m.id"
-                                :value="m.id"
-                            >
-                                {{ m.name }}
-                            </option>
-                        </optgroup>
-                        <optgroup
-                            v-if="models.filter(x => x.id.startsWith('gemini') && x.is_free).length > 0"
-                            :label="t('game.ui.extensions.OpenRouterModal.model_google_free')"
-                        >
-                            <option
-                                v-for="m in models.filter(x => x.id.startsWith('gemini') && x.is_free)"
-                                :key="m.id"
-                                :value="m.id"
-                            >
-                                {{ m.name }}
-                            </option>
-                        </optgroup>
-                        <optgroup
-                            v-if="models.filter(x => x.id.startsWith('gemini') && !x.is_free).length > 0"
-                            :label="t('game.ui.extensions.OpenRouterModal.model_google_paid')"
-                        >
-                            <option
-                                v-for="m in models.filter(x => x.id.startsWith('gemini') && !x.is_free)"
-                                :key="m.id"
-                                :value="m.id"
-                            >
-                                {{ m.name }}
-                            </option>
-                        </optgroup>
-                        <option
-                            v-if="models.length === 0 && !loadingModels"
-                            value="gemini-2.0-flash"
-                        >
-                            gemini-2.0-flash (default)
-                        </option>
-                        </select>
-                    </div>
-                </div>
-                <div class="ext-ui-section openrouter-settings-section">
-                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.image_model") }}</h4>
-                    <div class="ext-ui-field openrouter-field">
-                        <select v-model="selectedImageModel" class="ext-ui-select" :disabled="loadingModels">
-                            <optgroup
-                                v-if="openRouterImageModels.length > 0"
-                                label="OpenRouter"
-                            >
-                                <option
-                                    v-for="m in openRouterImageModels"
-                                    :key="m.id"
-                                    :value="m.id"
-                                >
-                                    {{ m.name }}
-                                </option>
-                            </optgroup>
-                            <optgroup
-                                v-if="googleImageModels.filter(m => m.is_free).length > 0"
-                                :label="t('game.ui.extensions.OpenRouterModal.model_google_free')"
-                            >
-                                <option
-                                    v-for="m in googleImageModels.filter(m => m.is_free)"
-                                    :key="m.id"
-                                    :value="m.id"
-                                >
-                                    {{ m.name }}
-                                </option>
-                            </optgroup>
-                            <optgroup
-                                v-if="googleImageModels.filter(m => !m.is_free).length > 0"
-                                :label="t('game.ui.extensions.OpenRouterModal.model_google_paid')"
-                            >
-                                <option
-                                    v-for="m in googleImageModels.filter(m => !m.is_free)"
-                                    :key="m.id"
-                                    :value="m.id"
-                                >
-                                    {{ m.name }}
-                                </option>
-                            </optgroup>
-                            <option
-                                v-if="googleImageModels.length === 0 && openRouterImageModels.length === 0 && !loadingModels"
-                                value="sourceful/riverflow-v2-fast"
-                            >
-                                sourceful/riverflow-v2-fast (default)
-                            </option>
-                        </select>
-                        <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.image_model_hint") }}</p>
-                    </div>
-                </div>
-                <div class="ext-ui-section openrouter-settings-section">
-                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.base_prompt") }}</h4>
-                    <div class="ext-ui-field openrouter-field">
-                        <textarea
-                            v-model="basePrompt"
-                            class="ext-ui-textarea"
-                            :placeholder="t('game.ui.extensions.OpenRouterModal.base_prompt_placeholder')"
-                            rows="6"
-                        />
-                    </div>
-                    <div class="openrouter-restore-default-row">
-                        <button
-                            type="button"
-                            class="openrouter-restore-default"
-                            @click="basePrompt = getDefaultBasePrompt(defaultLanguage)"
-                        >
-                            {{ t("game.ui.extensions.OpenRouterModal.restore_default") }}
-                        </button>
-                    </div>
-                </div>
-                <div class="ext-ui-section openrouter-settings-section">
-                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.max_tokens") }}</h4>
-                    <div class="ext-ui-field openrouter-field openrouter-field-inline">
-                        <input
-                            v-model.number="maxTokens"
-                            type="number"
-                            class="ext-ui-input"
-                            min="256"
-                            max="65536"
-                            step="256"
-                        />
-                        <p class="ext-ui-hint">{{ t("game.ui.extensions.OpenRouterModal.max_tokens_hint") }}</p>
-                    </div>
-                </div>
-                <div class="ext-ui-section openrouter-settings-section">
-                    <h4 class="ext-ui-section-title">{{ t("game.ui.extensions.OpenRouterModal.tasks") }}</h4>
-                    <p class="ext-ui-hint" style="margin-bottom: 0.5rem;">{{ t("game.ui.extensions.OpenRouterModal.save_tasks_hint") }}</p>
-                    <button
-                        type="button"
-                        class="ext-ui-btn"
-                        @click="restoreDefaultTasks"
-                    >
-                        {{ t("game.ui.extensions.OpenRouterModal.restore_default_tasks") }}
-                    </button>
                 </div>
             </div>
 
@@ -1692,6 +1894,31 @@ onMounted(async () => {
         margin-top: 0;
     }
 
+    > .ext-ui-section-title {
+        margin: 0 0 0.65rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #333;
+        line-height: 1.35;
+    }
+
+    .ext-ui-label {
+        display: block;
+        margin: 0 0 0.35rem;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #888;
+    }
+
+    .ext-ui-hint {
+        margin: 0.35rem 0 0;
+        font-size: 0.8125rem;
+        line-height: 1.45;
+        color: #666;
+    }
+
     .openrouter-field-inline {
         margin-top: 0.75rem;
     }
@@ -1710,8 +1937,191 @@ onMounted(async () => {
     }
 }
 
+.openrouter-default-language-block {
+    margin-top: 0;
+    margin-bottom: 0.25rem;
+}
+
+.openrouter-default-language-select {
+    max-width: 16rem;
+}
+
+.openrouter-default-language-hint {
+    max-width: 36rem;
+}
+
+.openrouter-api-keys-intro {
+    margin-bottom: 0.75rem !important;
+}
+
+.openrouter-api-keys-subtitle {
+    margin: 1rem 0 0.35rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #444;
+}
+
+.openrouter-provider-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+
+    th,
+    td {
+        padding: 0.45rem 0.5rem 0.45rem 0;
+        text-align: left;
+        vertical-align: middle;
+    }
+
+    th {
+        font-weight: 600;
+        color: #555;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    tbody tr td {
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .ext-ui-input {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+}
+
+.openrouter-provider-name {
+    white-space: nowrap;
+    padding-right: 1rem;
+    color: #333;
+    font-weight: 500;
+}
+
+.openrouter-provider-table-tools-col {
+    width: 5.5rem;
+    text-align: right;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.openrouter-provider-row-tools {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.15rem;
+}
+
+.openrouter-provider-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #1976d2;
+    padding: 0.35rem 0.45rem;
+    border-radius: 4px;
+    text-decoration: none;
+
+    &:hover {
+        background: #e3f2fd;
+        color: #0d47a1;
+    }
+}
+
+.openrouter-provider-remove-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: #c62828;
+    cursor: pointer;
+    padding: 0.35rem 0.45rem;
+    border-radius: 4px;
+    font-size: 1rem;
+    line-height: 1;
+
+    &:hover {
+        color: #b71c1c;
+        background: rgba(198, 40, 40, 0.08);
+    }
+}
+
+.openrouter-add-provider-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.35rem;
+
+    .ext-ui-select {
+        flex: 1;
+        min-width: 12rem;
+        max-width: 22rem;
+    }
+}
+
+.openrouter-models-section-hint {
+    margin-top: 0;
+}
+
+.openrouter-model-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 0.25rem;
+}
+
+.openrouter-model-filter {
+    flex: 1;
+    min-width: 10rem;
+    max-width: 22rem;
+}
+
+.openrouter-models-subsection {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e8e8e8;
+}
+
+.openrouter-model-filters + .openrouter-models-subsection {
+    margin-top: 0.75rem;
+    padding-top: 0;
+    border-top: none;
+}
+
+.openrouter-models-subtitle {
+    margin: 0 0 0.5rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #444;
+}
+
+.openrouter-base-prompt-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-top: 0.75rem;
+}
+
+.openrouter-max-tokens-field {
+    flex: 1;
+    min-width: 12rem;
+
+    .ext-ui-label {
+        display: block;
+        margin-bottom: 0.25rem;
+    }
+
+    .ext-ui-input {
+        max-width: 12rem;
+    }
+}
+
 .openrouter-restore-default {
-    align-self: flex-start;
+    flex-shrink: 0;
+    align-self: flex-end;
     font-size: 0.85em;
     padding: 0.25rem 0.5rem;
     background: transparent;
@@ -1967,12 +2377,6 @@ onMounted(async () => {
         color: #5a9fd4;
         border-bottom-color: #c8dff0;
     }
-}
-
-.openrouter-restore-default-row {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 0.5rem;
 }
 
 .openrouter-add-task-picker {

@@ -53,6 +53,7 @@ class UserOptions(BaseDbModel):
     openrouter_compendium_translate_target = cast(str | None, TextField(default=None, null=True))
     ai_provider = cast(str | None, TextField(default="openrouter", null=True))
     google_ai_api_key = cast(str | None, TextField(default=None, null=True))
+    cerebras_api_key = cast(str | None, TextField(default=None, null=True))
 
     @classmethod
     def create_empty(cls):
@@ -94,6 +95,7 @@ class UserOptions(BaseDbModel):
             openrouter_compendium_translate_target=None,
             ai_provider=None,
             google_ai_api_key=None,
+            cerebras_api_key=None,
         )
 
     @overload
@@ -147,4 +149,5 @@ class UserOptions(BaseDbModel):
             openrouter_compendium_translate_target=self.openrouter_compendium_translate_target,  # type: ignore
             ai_provider=self.ai_provider,  # type: ignore
             google_ai_api_key=self.google_ai_api_key,  # type: ignore
+            cerebras_api_key=self.cerebras_api_key,  # type: ignore
         )

@@ -61,7 +61,7 @@ The server scans `extensions/`, loads each `extension.toml`, and registers its A
 | **Character Sheet** | `character-sheet` | D&D 5e character sheets for tokens (DM sees all, players see their own) |
 | **Documents** | `documents` | Upload and view PDFs, share with players |
 | **Assets Installer** | `assets-installer` | Install asset pack ZIPs, organized folder tree, automatic naming |
-| **AI Generator** | `openrouter` | Connect to AI models (OpenRouter, Google AI Studio) for characters, stories, maps |
+| **AI Generator** | `aigenerator` | Connect to AI models (OpenRouter, Google AI Studio, Cerebras) for characters, stories, maps |
 | **DungeonGen** | `dungeongen` | Procedural dungeon generation for tabletop maps |
 
 ---

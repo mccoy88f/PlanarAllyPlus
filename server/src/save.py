@@ -15,7 +15,7 @@ When writing migrations make sure that these things are respected:
 - It's often a good idea to start the server with a clean save and use `.schema <table_name>` in sqlite to get the exact schema output that a clean save creates
 """
 
-SAVE_VERSION = 129
+SAVE_VERSION = 130
 
 import asyncio
 import json
@@ -1008,6 +1008,17 @@ def upgrade(
                 db.execute_sql(
                     "ALTER TABLE user_options ADD COLUMN openrouter_compendium_translate_target TEXT DEFAULT NULL"
                 )
+    elif version == 129:
+        # AI Generator: Cerebras Inference API key
+        with db.atomic():
+            column_exists = False
+            cursor = db.execute_sql("PRAGMA table_info(user_options)")
+            for row in cursor.fetchall():
+                if row[1] == "cerebras_api_key":
+                    column_exists = True
+                    break
+            if not column_exists:
+                db.execute_sql("ALTER TABLE user_options ADD COLUMN cerebras_api_key TEXT DEFAULT NULL")
     else:
         raise UnknownVersionException(f"No upgrade code for save format {version} was found.")
     inc_save_version(db)

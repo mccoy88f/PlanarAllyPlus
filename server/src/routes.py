@@ -251,13 +251,13 @@ main_app.router.add_get(
     extensions.ambient_music.serve_playlist,
 )
 main_app.router.add_post(f"{subpath}/api/extensions/ambient-music/playlists/upload", extensions.ambient_music.upload_playlist)
-main_app.router.add_get(f"{subpath}/api/extensions/openrouter/models", extensions.openrouter.get_models)
-main_app.router.add_post(f"{subpath}/api/extensions/openrouter/chat", extensions.openrouter.chat)
-main_app.router.add_get(f"{subpath}/api/extensions/openrouter/settings", extensions.openrouter.get_settings)
-main_app.router.add_post(f"{subpath}/api/extensions/openrouter/settings", extensions.openrouter.set_settings)
-main_app.router.add_post(f"{subpath}/api/extensions/openrouter/transform-image", extensions.openrouter.transform_image)
-main_app.router.add_post(f"{subpath}/api/extensions/openrouter/import-character", extensions.openrouter.import_character)
-main_app.router.add_post(f"{subpath}/api/extensions/openrouter/import-map", extensions.openrouter.import_map)
+main_app.router.add_get(f"{subpath}/api/extensions/aigenerator/models", extensions.aigenerator.get_models)
+main_app.router.add_post(f"{subpath}/api/extensions/aigenerator/chat", extensions.aigenerator.chat)
+main_app.router.add_get(f"{subpath}/api/extensions/aigenerator/settings", extensions.aigenerator.get_settings)
+main_app.router.add_post(f"{subpath}/api/extensions/aigenerator/settings", extensions.aigenerator.set_settings)
+main_app.router.add_post(f"{subpath}/api/extensions/aigenerator/transform-image", extensions.aigenerator.transform_image)
+main_app.router.add_post(f"{subpath}/api/extensions/aigenerator/import-character", extensions.aigenerator.import_character)
+main_app.router.add_post(f"{subpath}/api/extensions/aigenerator/import-map", extensions.aigenerator.import_map)
 main_app.router.add_get(
     f"{subpath}/api/extensions/{{folder}}/ui/{{path:.+}}",
     extensions.serve_extension_ui,

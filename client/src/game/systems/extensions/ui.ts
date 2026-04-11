@@ -10,7 +10,7 @@ export function isExtensionOpen(ext: { id: string; uiUrl?: string }): boolean {
     }
     if (ext.id === "dungeongen") return extensionsState.raw.dungeongenModalOpen;
     if (ext.id === "compendium") return extensionsState.raw.compendiumModalOpen;
-    if (ext.id === "openrouter") return extensionsState.raw.openrouterModalOpen;
+    if (ext.id === "aigenerator") return extensionsState.raw.aigeneratorModalOpen;
     return false;
 }
 
@@ -34,7 +34,7 @@ export function closeExtension(ext: { id: string; uiUrl?: string }): void {
     }
     if (ext.id === "dungeongen") closeDungeongenModal();
     else if (ext.id === "compendium") closeCompendiumModal();
-    else if (ext.id === "openrouter") closeOpenRouterModal();
+    else if (ext.id === "aigenerator") closeAiGeneratorModal();
 }
 
 /** Focus extension modal (bring to front) */
@@ -148,13 +148,13 @@ export function closeCompendiumModal(): void {
     extensionsState.mutableReactive.compendiumOpenItem = undefined;
 }
 
-export function openOpenRouterModal(): void {
-    extensionsState.mutableReactive.openrouterModalOpen = true;
-    focusExtension("openrouter");
+export function openAiGeneratorModal(): void {
+    extensionsState.mutableReactive.aigeneratorModalOpen = true;
+    focusExtension("aigenerator");
 }
 
-export function closeOpenRouterModal(): void {
-    extensionsState.mutableReactive.openrouterModalOpen = false;
+export function closeAiGeneratorModal(): void {
+    extensionsState.mutableReactive.aigeneratorModalOpen = false;
 }
 
 export function openExtensionModal(ext: {

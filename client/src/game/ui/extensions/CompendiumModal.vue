@@ -342,6 +342,14 @@ function effectiveCompendiumTargetLang(): string {
 
 const translationTargetBadge = computed(() => localeToCompendiumTranslationBadge(effectiveCompendiumTargetLang()));
 
+/** Nome lingua di destinazione (tooltip / accessibilità menu traduzione). */
+const translationTargetLangLabel = computed(() => {
+    const code = effectiveCompendiumTargetLang();
+    const key = `game.ui.extensions.OpenRouterModal.locale_${code}`;
+    const label = t(key);
+    return label === key ? code.toUpperCase() : label;
+});
+
 // Global tag filter state
 interface GlobalTag { id: number; name: string; compendiumId: string; }
 interface GlobalTagCategory { name: string; tags: GlobalTag[]; }
@@ -1431,7 +1439,7 @@ function onAssetZipFileChange(e: Event): void {
 
 async function checkAiConfig(): Promise<void> {
     try {
-        const r = await http.get("/api/extensions/openrouter/settings");
+        const r = await http.get("/api/extensions/aigenerator/settings");
         if (r.ok) {
             const data = (await r.json()) as {
                 hasApiKey?: boolean;
@@ -1475,7 +1483,14 @@ async function runTranslateCurrentView(): Promise<void> {
 
     await checkTranslation(selectedItem.value ? "item" : "index");
     if (!props.visible) return;
-    if (activeTranslationLang.value === targetCode) return;
+    /**
+     * Solo in vista voce: se la traduzione per questa lingua è già caricata, non rilanciare l’AI
+     * (evita doppio lavoro). In vista indice `activeTranslationLang` è vero se c’è *qualunque*
+     * traduzione nel compendio (altri capitoli / manifest voci), quindi non va usato come blocco.
+     */
+    if (selectedItem.value && activeTranslationLang.value === targetCode) {
+        return;
+    }
 
     if (selectedItem.value) {
         beginTranslationAbortScope();
@@ -2643,7 +2658,11 @@ onMounted(() => {
                             <div class="qe-index-grid">
 
                                 <div v-for="coll in displayedIndex" :key="coll.slug" class="qe-index-coll">
-                                    <h2 class="qe-index-coll-title">
+                                    <!-- Vista ramo: il titolo è già nell’H1 dell’header, evitare di ripetere il nome qui -->
+                                    <h2
+                                        v-if="!indexFocusCollectionSlug"
+                                        class="qe-index-coll-title"
+                                    >
                                         <font-awesome-icon
                                             v-if="showTranslatedContent"
                                             icon="circle"
@@ -2826,9 +2845,20 @@ onMounted(() => {
             ref="translationToolsPopoverEl"
             class="translation-tools-popover translation-tools-popover--fixed"
             :style="translationToolsPopoverStyle"
-            role="menu"
+            role="group"
+            :aria-label="translationTargetLangLabel"
             @mousedown.stop
         >
+            <div class="translation-tools-popover__header">
+                <span
+                    class="translation-tools-popover__flag"
+                    :title="translationTargetLangLabel"
+                    aria-hidden="true"
+                >
+                    {{ translationTargetBadge }}
+                </span>
+            </div>
+            <div class="translation-tools-popover__menu" role="menu">
             <template v-if="hasSavedTranslation">
                 <button class="popover-btn" type="button" role="menuitem" @click.stop="clearTranslation">
                     <font-awesome-icon icon="undo" /> {{ t("game.ui.extensions.CompendiumModal.clear_translation") }}
@@ -2859,6 +2889,7 @@ onMounted(() => {
             >
                 {{ t("game.ui.extensions.CompendiumModal.execute_translation") }}
             </button>
+            </div>
         </div>
     </Teleport>
 
@@ -3055,11 +3086,11 @@ onMounted(() => {
 }
 
 .qe-batch-translate-hint {
-    padding: 0.35rem 0.75rem 0.25rem;
+    padding: 0.25rem 0.75rem 0.35rem;
     font-size: 0.8rem;
     color: #555;
     text-align: center;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    /* Nessun border-bottom: la toolbar sotto ha già #fafafa e bordo; evita una “riga grigia” doppia */
 }
 
 .qe-loading {
@@ -3999,11 +4030,34 @@ onMounted(() => {
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.14);
     display: flex;
     flex-direction: column;
-    padding: 4px;
+    padding: 0;
     min-width: 14rem;
     max-width: min(100vw - 16px, 22rem);
     width: max-content;
     box-sizing: border-box;
+    overflow: hidden;
+}
+
+.translation-tools-popover__header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0.65rem 0.4rem;
+    border-bottom: 1px solid #e8e8e8;
+    background: linear-gradient(180deg, #fafafa 0%, #fff 100%);
+}
+
+.translation-tools-popover__flag {
+    font-size: 1.5rem;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    user-select: none;
+}
+
+.translation-tools-popover__menu {
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
 }
 
 .translation-tools-popover--fixed {

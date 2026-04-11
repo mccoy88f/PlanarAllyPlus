@@ -45,7 +45,7 @@ interface ReactiveExtensionsState {
         collectionSlug: string;
         itemSlug: string;
     } | undefined;
-    openrouterModalOpen: boolean;
+    aigeneratorModalOpen: boolean;
     /** Last focused modal: extension id or 'stack' (stack uses modalOrder for which one) */
     lastFocusedModal: { type: "extension"; id: string } | { type: "stack" } | null;
     /** Generic extension modals: multiple can be open at once (guida, time-manager, ambient-music, etc.) */
@@ -68,7 +68,7 @@ const state = buildState<ReactiveExtensionsState>({
     compendiumSlugToId: {},
     compendiumDefaultId: undefined,
     compendiumOpenItem: undefined,
-    openrouterModalOpen: false,
+    aigeneratorModalOpen: false,
     lastFocusedModal: null,
     extensionModalsOpen: [],
     ambientMusicPlaying: false,

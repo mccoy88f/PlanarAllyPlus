@@ -46,6 +46,7 @@ class ApiUserOptions(TypeIdModel):
     openrouter_compendium_translate_target: str | None = None
     ai_provider: str | None = "openrouter"
     google_ai_api_key: str | None = None
+    cerebras_api_key: str | None = None
 
 
 class ApiOptionalUserOptions(TypeIdModel):
@@ -91,3 +92,4 @@ class ApiOptionalUserOptions(TypeIdModel):
     openrouter_compendium_translate_target: str | None = None
     ai_provider: str | None = None
     google_ai_api_key: str | None = None
+    cerebras_api_key: str | None = None

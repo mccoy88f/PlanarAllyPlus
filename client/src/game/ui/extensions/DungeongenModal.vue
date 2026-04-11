@@ -224,14 +224,14 @@ const layoutOptions = [
 ];
 
 onMounted(() => {
-    checkOpenRouter();
+    checkAiGenerator();
 });
 
 watch(
     () => [props.visible, editShapeId.value] as const,
     ([visible, shapeId]) => {
         if (visible) {
-            checkOpenRouter();
+            checkAiGenerator();
         }
         if (visible && shapeId) {
             const stored = getDungeonStoredData(shapeId);
@@ -479,11 +479,11 @@ function close(): void {
     props.onClose();
 }
 
-async function checkOpenRouter(): Promise<void> {
+async function checkAiGenerator(): Promise<void> {
     try {
         const [extResp, settingsResp] = await Promise.all([
             http.get("/api/extensions"),
-            http.get("/api/extensions/openrouter/settings"),
+            http.get("/api/extensions/aigenerator/settings"),
         ]);
         if (!extResp.ok || !settingsResp.ok) {
             openRouterAvailable.value = false;
@@ -491,7 +491,7 @@ async function checkOpenRouter(): Promise<void> {
         }
         const extData = (await extResp.json()) as { extensions?: { id: string }[] };
         const settingsData = (await settingsResp.json()) as { hasApiKey?: boolean; imageModel?: string };
-        const hasExt = (extData.extensions ?? []).some((e) => e.id === "openrouter");
+        const hasExt = (extData.extensions ?? []).some((e) => e.id === "aigenerator");
         const hasConfig = settingsData.hasApiKey && settingsData.imageModel;
         openRouterAvailable.value = !!hasExt && !!hasConfig;
     } catch {
@@ -509,7 +509,7 @@ async function makeRealisticWithAI(): Promise<void> {
     makingRealistic.value = true;
     showPromptModal.value = false;
     try {
-        const resp = await http.postJson("/api/extensions/openrouter/transform-image", {
+        const resp = await http.postJson("/api/extensions/aigenerator/transform-image", {
             imageUrl: previewUrl.value,
             archetype: params.value.archetype,
             extraPrompt: extraAiPrompt.value,

@@ -12,7 +12,7 @@ import {
     isExtensionOpen,
     openDungeongenModal,
     openExtensionModal,
-    openOpenRouterModal,
+    openAiGeneratorModal,
     openCompendiumModal,
     toggleExtensionsManager,
 } from "../../systems/extensions/ui";
@@ -94,8 +94,8 @@ function onExtensionClick(ext: {
         openDungeongenModal();
     } else if (ext.id === "compendium") {
         openCompendiumModal();
-    } else if (ext.id === "openrouter") {
-        openOpenRouterModal();
+    } else if (ext.id === "aigenerator") {
+        openAiGeneratorModal();
     }
 }
 

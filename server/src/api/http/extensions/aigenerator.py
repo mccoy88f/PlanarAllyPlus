@@ -1,4 +1,4 @@
-"""AI Generator extension - OpenRouter and Google AI Studio."""
+"""AI Generator extension - OpenRouter, Google AI Studio, and Cerebras Inference API."""
 
 import base64
 import hashlib
@@ -19,8 +19,13 @@ from ....utils import ASSETS_DIR, STATIC_DIR
 from ....utils import get_asset_hash_subpath
 
 OPENROUTER_API = "https://openrouter.ai/api/v1"
+CEREBRAS_API = "https://api.cerebras.ai/v1"
 GOOGLE_AI_API = "https://generativelanguage.googleapis.com/v1beta"
+CEREBRAS_MODEL_PREFIX = "cerebras:"
 DEFAULT_FREE_MODEL = "openrouter/free"
+
+# Elenco modelli dipende dalle API key dell’utente: non cacheare sul client.
+_JSON_NO_STORE = {"Cache-Control": "no-store"}
 DEFAULT_GOOGLE_MODEL = "gemini-2.0-flash"
 # Models that support image-to-image (input image + output image)
 DEFAULT_IMAGE_MODEL = "sourceful/riverflow-v2-fast"
@@ -63,16 +68,6 @@ def _resolve_image_model(opts) -> str:
     if not saved:
         return DEFAULT_IMAGE_MODEL
     return saved
-
-
-# Well-known Gemini models (used when API key not set for Google)
-# gemini-1.5-flash deprecato; usare gemini-2.0-flash o gemini-1.5-flash-8b
-GOOGLE_DEFAULT_MODELS = [
-    {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "is_free": True},
-    {"id": "gemini-2.0-flash-lite-001", "name": "Gemini 2.0 Flash Lite", "is_free": True},
-    {"id": "gemini-1.5-flash-8b", "name": "Gemini 1.5 Flash 8B", "is_free": True},
-    {"id": "gemini-1.5-pro", "name": "Gemini 1.5 Pro", "is_free": False},
-]
 
 
 def _get_modalities(m: dict) -> tuple[list[str], list[str]]:
@@ -139,58 +134,122 @@ async def _fetch_openrouter_models() -> list[dict]:
     return openrouter_models
 
 
+def _is_cerebras_model(model: str) -> bool:
+    return (model or "").strip().startswith(CEREBRAS_MODEL_PREFIX)
+
+
+def _cerebras_upstream_model_id(model: str) -> str:
+    m = (model or "").strip()
+    if m.startswith(CEREBRAS_MODEL_PREFIX):
+        return m[len(CEREBRAS_MODEL_PREFIX) :].lstrip()
+    return m
+
+
+async def _fetch_cerebras_models(api_key: str) -> list[dict]:
+    """Elenco modelli da Cerebras Inference API (OpenAI-compat /v1/models)."""
+    if not (api_key or "").strip():
+        return []
+    cerebras_models: list[dict] = []
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{CEREBRAS_API}/models",
+                headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"},
+            ) as resp:
+                if resp.status != 200:
+                    return cerebras_models
+                data = await resp.json()
+                raw = data.get("data", [])
+                for m in raw:
+                    model_id = m.get("id", "")
+                    if not model_id:
+                        continue
+                    prefixed = f"{CEREBRAS_MODEL_PREFIX}{model_id}"
+                    cerebras_models.append({
+                        "id": prefixed,
+                        "name": m.get("name", model_id),
+                        "context_length": m.get("context_length"),
+                        "is_free": False,
+                        "input_modalities": ["text", "image"],
+                        "output_modalities": ["text"],
+                    })
+    except Exception:
+        pass
+    return cerebras_models
+
+
 async def _google_models_for_user(opts, model_type: str) -> list[dict]:
-    """Modelli Google (testo o immagine) in base alle opzioni utente."""
+    """Modelli Google (testo o immagine): solo se è salvata una API key Google."""
+    api_key = (opts.google_ai_api_key or "").strip()
+    if not api_key:
+        return []
     if model_type == "image":
         return list(GOOGLE_IMAGE_MODELS)
-    api_key = (opts.google_ai_api_key or "").strip()
-    if api_key:
-        return await _get_google_models(api_key)
-    return [{
-        "id": m["id"],
-        "name": m["name"],
-        "context_length": None,
-        "is_free": m["is_free"],
-        "input_modalities": ["text"],
-        "output_modalities": ["text"],
-    } for m in GOOGLE_DEFAULT_MODELS]
+    return await _get_google_models(api_key)
 
 
 async def get_models(request: web.Request) -> web.Response:
-    """Modelli disponibili: OpenRouter e/o Google.
+    """Modelli disponibili: OpenRouter, Google e/o Cerebras solo se salvata la rispettiva API key.
 
     Query:
-    - ``provider=openrouter``: solo elenco OpenRouter (non richiede chiavi API).
-    - ``provider=google``: solo elenco Google (testo o ``type=image`` per modelli immagine).
-    - senza ``provider``: comportamento precedente, entrambi in un'unica risposta.
+    - ``provider=openrouter``: elenco OpenRouter (richiede chiave OpenRouter salvata).
+    - ``provider=google``: elenco Google (testo o ``type=image``; richiede chiave Google salvata).
+    - ``provider=cerebras``: elenco Cerebras (richiede chiave Cerebras salvata).
+    - senza ``provider``: tutti in un'unica risposta (solo provider con chiave).
     """
     user = await get_authorized_user(request)
     opts = UserOptions.get_by_id(user.default_options)
 
     model_type = (request.query.get("type") or "").strip().lower()
     provider = (request.query.get("provider") or "").strip().lower()
+    or_key = (opts.openrouter_api_key or "").strip()
+    cb_key = (opts.cerebras_api_key or "").strip()
 
     if provider == "openrouter":
-        openrouter_models = await _fetch_openrouter_models()
-        return web.json_response({
-            "google_models": [],
-            "openrouter_models": openrouter_models,
-        })
+        openrouter_models = await _fetch_openrouter_models() if or_key else []
+        return web.json_response(
+            {
+                "google_models": [],
+                "openrouter_models": openrouter_models,
+                "cerebras_models": [],
+            },
+            headers=_JSON_NO_STORE,
+        )
 
     if provider == "google":
         google_models = await _google_models_for_user(opts, model_type)
-        return web.json_response({
-            "google_models": google_models,
-            "openrouter_models": [],
-        })
+        return web.json_response(
+            {
+                "google_models": google_models,
+                "openrouter_models": [],
+                "cerebras_models": [],
+            },
+            headers=_JSON_NO_STORE,
+        )
+
+    if provider == "cerebras":
+        cerebras_models = await _fetch_cerebras_models(cb_key) if cb_key else []
+        return web.json_response(
+            {
+                "google_models": [],
+                "openrouter_models": [],
+                "cerebras_models": cerebras_models,
+            },
+            headers=_JSON_NO_STORE,
+        )
 
     google_models = await _google_models_for_user(opts, model_type)
-    openrouter_models = await _fetch_openrouter_models()
+    openrouter_models = await _fetch_openrouter_models() if or_key else []
+    cerebras_models = await _fetch_cerebras_models(cb_key) if cb_key else []
 
-    return web.json_response({
-        "google_models": google_models,
-        "openrouter_models": openrouter_models,
-    })
+    return web.json_response(
+        {
+            "google_models": google_models,
+            "openrouter_models": openrouter_models,
+            "cerebras_models": cerebras_models,
+        },
+        headers=_JSON_NO_STORE,
+    )
 
 
 def _messages_to_gemini(messages: list) -> tuple[str | None, list]:
@@ -281,6 +340,7 @@ async def chat(request: web.Request) -> web.Response:
     # Infer provider from model name rather than global toggle
     model = body.get("model", DEFAULT_FREE_MODEL)
     is_google = model.startswith("gemini")
+    is_cerebras = _is_cerebras_model(model)
 
     if is_google:
         api_key = (opts.google_ai_api_key or "").strip()
@@ -301,9 +361,69 @@ async def chat(request: web.Request) -> web.Response:
             return web.json_response(payload, status=int(result.get("_status", 502)))
         return web.json_response(result)
 
-    # OpenRouter
     max_tokens = body.get("max_tokens") if "max_tokens" in body else (opts.openrouter_max_tokens or 8192)
     temperature = body.get("temperature", 0.7)
+    referer = str(request.url.origin()) if request.url.absolute else "https://planarally.io"
+
+    if is_cerebras:
+        api_key = (opts.cerebras_api_key or "").strip()
+        if not api_key:
+            return web.json_response(
+                {"error": "Cerebras API key not configured. Set it in the AI Generator settings."},
+                status=400,
+            )
+        upstream_model = _cerebras_upstream_model_id(model)
+        payload = {
+            "model": upstream_model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{CEREBRAS_API}/chat/completions",
+                    json=payload,
+                    headers=headers,
+                ) as resp:
+                    text = await resp.text()
+                    if resp.status != 200:
+                        try:
+                            err_data = json.loads(text)
+                            err = err_data.get("error")
+                            err_msg = text
+                            upstream_code = None
+                            upstream_status = None
+                            if isinstance(err, dict):
+                                err_msg = err.get("message") or text
+                                c = err.get("code")
+                                if isinstance(c, int):
+                                    upstream_code = c
+                                t = err.get("type") or err.get("status")
+                                if isinstance(t, str) and t:
+                                    upstream_status = t
+                            elif isinstance(err, str):
+                                err_msg = err
+                            body_err: dict = {"error": err_msg}
+                            if upstream_code is not None:
+                                body_err["upstreamCode"] = upstream_code
+                            if upstream_status:
+                                body_err["upstreamStatus"] = upstream_status
+                            return web.json_response(body_err, status=resp.status)
+                        except Exception:
+                            return web.json_response(
+                                {"error": (text[:2000] if text else "Unknown error")},
+                                status=resp.status,
+                            )
+                    return web.json_response(json.loads(text))
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=502)
+
+    # OpenRouter
     api_key = (opts.openrouter_api_key or "").strip()
     if not api_key:
         return web.json_response(
@@ -317,7 +437,6 @@ async def chat(request: web.Request) -> web.Response:
         "max_tokens": max_tokens,
         "temperature": temperature,
     }
-    referer = str(request.url.origin()) if request.url.absolute else "https://planarally.io"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -372,6 +491,7 @@ async def get_settings(request: web.Request) -> web.Response:
 
     has_openrouter = bool((opts.openrouter_api_key or "").strip())
     has_google = bool((opts.google_ai_api_key or "").strip())
+    has_cerebras = bool((opts.cerebras_api_key or "").strip())
 
     tasks = []
     if opts.openrouter_tasks:
@@ -391,6 +511,7 @@ async def get_settings(request: web.Request) -> web.Response:
     return web.json_response({
         "hasApiKey": has_openrouter,
         "hasGoogleKey": has_google,
+        "hasCerebrasKey": has_cerebras,
         "model": model,
         "visionModel": vision_model,
         "basePrompt": opts.openrouter_base_prompt or "",
@@ -421,6 +542,10 @@ async def set_settings(request: web.Request) -> web.Response:
     if "googleApiKey" in body:
         gkey = (body.get("googleApiKey") or "").strip()
         opts.google_ai_api_key = gkey or None
+
+    if "cerebrasApiKey" in body:
+        ckey = (body.get("cerebrasApiKey") or "").strip()
+        opts.cerebras_api_key = ckey or None
 
     if "model" in body:
         opts.openrouter_model = (body.get("model") or "").strip() or None
@@ -687,11 +812,14 @@ async def _vision_call(
     base64_data: str,
     mime_type: str,
     max_tokens: int,
-    is_google: bool,
+    vision_backend: str,
     referer: str = "https://planarally.io",
 ) -> dict:
-    """Call a vision-capable AI model with an image/document attachment."""
-    if is_google:
+    """Call a vision-capable AI model with an image/document attachment.
+
+    vision_backend: ``google`` | ``openrouter`` | ``cerebras``
+    """
+    if vision_backend == "google":
         payload: dict = {
             "contents": [{
                 "parts": [
@@ -722,7 +850,9 @@ async def _vision_call(
         out_text = " ".join(p.get("text", "") for p in parts).strip()
         return {"text": out_text}
     else:
-        # OpenRouter
+        # OpenRouter or Cerebras (OpenAI-compatible chat completions + vision)
+        upstream_model = _cerebras_upstream_model_id(model) if vision_backend == "cerebras" else model
+        base_url = CEREBRAS_API if vision_backend == "cerebras" else OPENROUTER_API
         data_url = f"data:{mime_type};base64,{base64_data}"
         messages: list = []
         if system_prompt:
@@ -734,19 +864,24 @@ async def _vision_call(
                 {"type": "text", "text": user_text},
             ],
         })
-        payload = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.3}
-        headers = {
+        payload = {"model": upstream_model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.3}
+        headers: dict[str, str] = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": referer,
         }
+        if vision_backend == "openrouter":
+            headers["HTTP-Referer"] = referer
         async with aiohttp.ClientSession() as session:
-            async with session.post(f"{OPENROUTER_API}/chat/completions", json=payload, headers=headers) as resp:
+            async with session.post(f"{base_url}/chat/completions", json=payload, headers=headers) as resp:
                 text = await resp.text()
                 if resp.status != 200:
                     try:
                         err_data = json.loads(text)
-                        err_msg = err_data.get("error", {}).get("message", text)
+                        err_raw = err_data.get("error")
+                        if isinstance(err_raw, dict):
+                            err_msg = err_raw.get("message", text)
+                        else:
+                            err_msg = err_raw if isinstance(err_raw, str) else text
                     except Exception:
                         err_msg = text
                     return {"error": err_msg}
@@ -765,11 +900,11 @@ async def _vision_call_multi(
     user_text: str,
     images: list[tuple[str, str]],  # list of (base64_data, mime_type)
     max_tokens: int,
-    is_google: bool,
+    vision_backend: str,
     referer: str = "https://planarally.io",
 ) -> dict:
     """Call a vision-capable AI model with one or more image/document attachments."""
-    if is_google:
+    if vision_backend == "google":
         parts: list[dict] = [{"text": user_text}]
         for b64, mime in images:
             parts.append({"inline_data": {"mime_type": mime, "data": b64}})
@@ -798,7 +933,8 @@ async def _vision_call_multi(
         out_text = " ".join(p.get("text", "") for p in out_parts).strip()
         return {"text": out_text}
     else:
-        # OpenRouter
+        upstream_model = _cerebras_upstream_model_id(model) if vision_backend == "cerebras" else model
+        base_url = CEREBRAS_API if vision_backend == "cerebras" else OPENROUTER_API
         content: list[dict] = []
         for b64, mime in images:
             data_url = f"data:{mime};base64,{b64}"
@@ -808,19 +944,24 @@ async def _vision_call_multi(
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": content})
-        payload = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.3}
-        headers = {
+        payload = {"model": upstream_model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.3}
+        headers: dict[str, str] = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": referer,
         }
+        if vision_backend == "openrouter":
+            headers["HTTP-Referer"] = referer
         async with aiohttp.ClientSession() as session:
-            async with session.post(f"{OPENROUTER_API}/chat/completions", json=payload, headers=headers) as resp:
+            async with session.post(f"{base_url}/chat/completions", json=payload, headers=headers) as resp:
                 text = await resp.text()
                 if resp.status != 200:
                     try:
                         err_data = json.loads(text)
-                        err_msg = err_data.get("error", {}).get("message", text)
+                        err_raw = err_data.get("error")
+                        if isinstance(err_raw, dict):
+                            err_msg = err_raw.get("message", text)
+                        else:
+                            err_msg = err_raw if isinstance(err_raw, str) else text
                     except Exception:
                         err_msg = text
                     return {"error": err_msg}
@@ -896,14 +1037,26 @@ async def import_character(request: web.Request) -> web.Response:
 
     opts = UserOptions.get_by_id(user.default_options)
     model = (opts.openrouter_vision_model or opts.openrouter_model or DEFAULT_FREE_MODEL).strip()
-    is_google = model.startswith("gemini")
+    if model.startswith("gemini"):
+        vision_backend = "google"
+    elif _is_cerebras_model(model):
+        vision_backend = "cerebras"
+    else:
+        vision_backend = "openrouter"
     max_tokens = opts.openrouter_max_tokens or 8192
 
-    if is_google:
+    if vision_backend == "google":
         api_key = (opts.google_ai_api_key or "").strip()
         if not api_key:
             return web.json_response(
                 {"error": "Google AI API key not configured. Set it in the AI Generator settings."},
+                status=400,
+            )
+    elif vision_backend == "cerebras":
+        api_key = (opts.cerebras_api_key or "").strip()
+        if not api_key:
+            return web.json_response(
+                {"error": "Cerebras API key not configured. Set it in the AI Generator settings."},
                 status=400,
             )
     else:
@@ -927,7 +1080,7 @@ async def import_character(request: web.Request) -> web.Response:
             b64 = base64.b64encode(fbytes).decode("ascii")
             image_parts.append((b64, mime_type))
         elif ext == ".pdf":
-            if is_google:
+            if vision_backend == "google":
                 b64 = base64.b64encode(fbytes).decode("ascii")
                 image_parts.append((b64, "application/pdf"))
             else:
@@ -960,7 +1113,7 @@ async def import_character(request: web.Request) -> web.Response:
         if text_parts:
             full_prompt += "\n\nContenuto testuale aggiuntivo:\n" + "\n---\n".join(text_parts)
         result = await _vision_call_multi(
-            api_key, model, system_prompt, full_prompt, image_parts, max_tokens, is_google, referer
+            api_key, model, system_prompt, full_prompt, image_parts, max_tokens, vision_backend, referer
         )
     elif text_parts:
         # Text-only: use chat completion
@@ -969,20 +1122,31 @@ async def import_character(request: web.Request) -> web.Response:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": full_content},
         ]
-        if is_google:
+        if vision_backend == "google":
             result_raw = await _chat_google(api_key, model, messages, max_tokens, 0.3)
             content = (result_raw.get("choices") or [{}])[0].get("message", {}).get("content", "")
             result = {"text": content}
         else:
-            payload = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.3}
-            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "HTTP-Referer": referer}
+            upstream_model = _cerebras_upstream_model_id(model) if vision_backend == "cerebras" else model
+            base_url = CEREBRAS_API if vision_backend == "cerebras" else OPENROUTER_API
+            payload = {"model": upstream_model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.3}
+            headers: dict[str, str] = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
+            if vision_backend == "openrouter":
+                headers["HTTP-Referer"] = referer
             async with aiohttp.ClientSession() as session:
-                async with session.post(f"{OPENROUTER_API}/chat/completions", json=payload, headers=headers) as resp:
+                async with session.post(f"{base_url}/chat/completions", json=payload, headers=headers) as resp:
                     text_r = await resp.text()
                     if resp.status != 200:
                         try:
                             err_data = json.loads(text_r)
-                            err_msg = err_data.get("error", {}).get("message", text_r)
+                            err_raw = err_data.get("error")
+                            if isinstance(err_raw, dict):
+                                err_msg = err_raw.get("message", text_r)
+                            else:
+                                err_msg = err_raw if isinstance(err_raw, str) else text_r
                         except Exception:
                             err_msg = text_r
                         return web.json_response({"error": err_msg}, status=resp.status)
@@ -1042,13 +1206,25 @@ async def import_map(request: web.Request) -> web.Response:
 
     opts = UserOptions.get_by_id(user.default_options)
     model = (opts.openrouter_vision_model or opts.openrouter_model or DEFAULT_FREE_MODEL).strip()
-    is_google = model.startswith("gemini")
+    if model.startswith("gemini"):
+        vision_backend = "google"
+    elif _is_cerebras_model(model):
+        vision_backend = "cerebras"
+    else:
+        vision_backend = "openrouter"
 
-    if is_google:
+    if vision_backend == "google":
         api_key = (opts.google_ai_api_key or "").strip()
         if not api_key:
             return web.json_response(
                 {"error": "Google AI API key not configured. Set it in the AI Generator settings."},
+                status=400,
+            )
+    elif vision_backend == "cerebras":
+        api_key = (opts.cerebras_api_key or "").strip()
+        if not api_key:
+            return web.json_response(
+                {"error": "Cerebras API key not configured. Set it in the AI Generator settings."},
                 status=400,
             )
     else:
@@ -1064,7 +1240,7 @@ async def import_map(request: web.Request) -> web.Response:
     referer = str(request.url.origin()) if request.url.absolute else "https://planarally.io"
 
     result = await _vision_call(
-        api_key, model, "", _MAP_ANALYSIS_PROMPT, b64, mime_type, 4096, is_google, referer
+        api_key, model, "", _MAP_ANALYSIS_PROMPT, b64, mime_type, 4096, vision_backend, referer
     )
 
     if "error" in result:
@@ -1073,7 +1249,7 @@ async def import_map(request: web.Request) -> web.Response:
     map_data = _parse_json_response(result.get("text", ""))
     if not map_data or "gridCells" not in map_data:
         return web.json_response(
-            {"error": "L'AI non ha restituito dati mappa validi. Riprova con un modello con visione (es. Gemini o modello multimodale OpenRouter)."},
+            {"error": "L'AI non ha restituito dati mappa validi. Riprova con un modello con visione (es. Gemini, multimodale OpenRouter o Cerebras con supporto immagini)."},
             status=502,
         )
 

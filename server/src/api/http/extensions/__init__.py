@@ -10,7 +10,7 @@ from . import assets_installer
 from . import character_sheet
 from . import documents
 from . import dungeongen
-from . import openrouter
+from . import aigenerator
 from . import compendium
 from . import watabou
 from zipfile import BadZipFile, ZipFile
