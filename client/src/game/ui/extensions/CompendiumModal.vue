@@ -9,7 +9,7 @@ import { uuidv4 } from "../../../core/utils";
 import Modal from "../../../core/components/modals/Modal.vue";
 import { useModal } from "../../../core/plugins/modals/plugin";
 import { http } from "../../../core/http";
-import { normalizeToPaLocale } from "../../../core/paUiLocales";
+import { localeToCompendiumTranslationBadge, normalizeToPaLocale } from "../../../core/paUiLocales";
 import {
     applyCompendiumResolverMap,
     ensureQeLinksCompendiumContext,
@@ -38,6 +38,8 @@ import { assetState } from "../../../assets/state";
 import { socket } from "../../../assets/socket";
 import type { DropAssetInfo } from "../../dropAsset";
 import type { IndexCollNode } from "./compendium/indexTree";
+import { stripPaCompendiumTitleCommentForRender } from "./compendium/indexTree";
+import { formatTranslationCaughtError } from "./compendium/translationErrors";
 import {
     collectLeafItemsFromIndexNodes,
     extractFirstMarkdownHeading,
@@ -338,10 +340,7 @@ function effectiveCompendiumTargetLang(): string {
     return compendiumTranslateTarget.value ?? normalizeToPaLocale(locale.value);
 }
 
-const translationTargetLabel = computed(() => {
-    const code = effectiveCompendiumTargetLang();
-    return t(`game.ui.extensions.OpenRouterModal.locale_${code}`);
-});
+const translationTargetBadge = computed(() => localeToCompendiumTranslationBadge(effectiveCompendiumTargetLang()));
 
 // Global tag filter state
 interface GlobalTag { id: number; name: string; compendiumId: string; }
@@ -392,13 +391,18 @@ function toggleTagInFilter(tagId: number): void {
     }
 }
 
-/** Traduzione salvata in DB per la vista corrente (indice o voce). */
+/**
+ * Traduzione salvata per la vista corrente (indice o voce).
+ * In indice: solo se il ramo mostrato (intero compendio o capitolo focalizzato) ha almeno un nome
+ * diverso dal canonico — altrimenti un overlay esistente per altri capitoli non mostra «Cancella traduzione» qui.
+ */
 const hasSavedTranslation = computed(() => {
     if (showIndex.value && canonicalIndex.value.length > 0) {
-        return translatedIndexOverlay.value != null;
+        if (translatedIndexOverlay.value == null) return false;
+        return indexOpenTranslationState.value !== "none";
     }
     if (selectedItem.value) {
-        return currentMarkdown.value.trim().length > 0;
+        return originalMarkdown.value != null;
     }
     return false;
 });
@@ -871,13 +875,14 @@ const selectedMarkdownHtml = computed(() => {
     const orig = selectedItem.value?.item.markdown ?? "";
     const raw =
         showTranslatedContent.value && currentMarkdown.value.trim().length > 0 ? currentMarkdown.value : orig;
+    const rawForRender = stripPaCompendiumTitleCommentForRender(raw);
     const linkName =
         selectedItem.value != null
             ? displayedItemTitle.value.trim() || selectedItem.value.item.name
             : "";
     const withLinks = !qeNames.value.length
-        ? raw
-        : injectQeLinks(raw, qeNames.value, selectedItem.value ? [linkName] : []);
+        ? rawForRender
+        : injectQeLinks(rawForRender, qeNames.value, selectedItem.value ? [linkName] : []);
     const rendered = renderQeMarkdown(withLinks);
     return ensureQeLinksCompendiumContext(rendered, selectedItem.value?.compendium.slug);
 });
@@ -1494,7 +1499,12 @@ async function runTranslateCurrentView(): Promise<void> {
         } catch (e: unknown) {
             if (isDomAbortError(e)) return;
             console.error(e);
-            toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
+            const detail = formatTranslationCaughtError(e);
+            toast.error(
+                detail.length > 0
+                    ? `${t("game.ui.extensions.CompendiumModal.translate_error")}: ${detail}`
+                    : t("game.ui.extensions.CompendiumModal.translate_error"),
+            );
         } finally {
             translateLoading.value = false;
         }
@@ -1830,10 +1840,12 @@ async function executeIndexTranslationBatch(p: {
     try {
         let failed = 0;
         let batchCancelled = false;
+        let batchLastError: string | undefined;
         if (leafItems.length > 0) {
             const batch = await runTranslateIndexRecursiveBatch(leafItems, targetCode);
             failed = batch.failed;
             batchCancelled = batch.cancelled;
+            batchLastError = batch.lastError;
         }
         if (!props.visible || batchCancelled) {
             return;
@@ -1845,18 +1857,22 @@ async function executeIndexTranslationBatch(p: {
             return;
         }
         if (leafItems.length > 0) {
+            const errSuffix =
+                batchLastError != null && batchLastError.length > 0 ? ` — ${batchLastError}` : "";
             if (indexOk) {
                 if (failed > 0) {
                     toast.success(
                         t("game.ui.extensions.CompendiumModal.translate_batch_done_with_entry_failures", {
                             count: failed,
-                        }),
+                        }) + errSuffix,
                     );
                 } else {
                     toast.success(t("game.ui.extensions.CompendiumModal.translate_batch_done"));
                 }
             } else if (failed > 0) {
-                toast.warning(t("game.ui.extensions.CompendiumModal.translate_batch_partial", { count: failed }));
+                toast.warning(
+                    t("game.ui.extensions.CompendiumModal.translate_batch_partial", { count: failed }) + errSuffix,
+                );
                 toast.warning(t("game.ui.extensions.CompendiumModal.translate_batch_index_failed"));
             } else {
                 toast.warning(t("game.ui.extensions.CompendiumModal.translate_batch_index_failed"));
@@ -1867,7 +1883,12 @@ async function executeIndexTranslationBatch(p: {
     } catch (e: unknown) {
         if (isDomAbortError(e)) return;
         console.error(e);
-        toast.error(t("game.ui.extensions.CompendiumModal.translate_error"));
+        const detail = formatTranslationCaughtError(e);
+        toast.error(
+            detail.length > 0
+                ? `${t("game.ui.extensions.CompendiumModal.translate_error")}: ${detail}`
+                : t("game.ui.extensions.CompendiumModal.translate_error"),
+        );
     } finally {
         translateLoading.value = false;
         batchTranslateProgress.value = null;
@@ -1917,8 +1938,10 @@ function shareToChatAndClose(): void {
 async function addCompendiumToNote(): Promise<void> {
     if (!selectedItem.value) return;
     const { item } = selectedItem.value;
-    const text = (
-        showTranslatedContent.value && currentMarkdown.value.trim().length > 0 ? currentMarkdown.value : item.markdown
+    const text = stripPaCompendiumTitleCommentForRender(
+        (showTranslatedContent.value && currentMarkdown.value.trim().length > 0
+            ? currentMarkdown.value
+            : item.markdown ).trim(),
     ).trim();
     const title =
         (displayedItemTitle.value.trim() || item.name || "").trim() ||
@@ -2539,8 +2562,8 @@ onMounted(() => {
                                 :class="itemTranslationIconClass"
                                 :title="
                                     hasSavedTranslation
-                                        ? t('game.ui.extensions.CompendiumModal.translated_to', {
-                                              lang: translationTargetLabel,
+                                        ? t('game.ui.extensions.CompendiumModal.translated_badge', {
+                                              badge: translationTargetBadge,
                                           })
                                         : t('game.ui.extensions.CompendiumModal.translation_status_item_none')
                                 "
@@ -2556,8 +2579,8 @@ onMounted(() => {
                                     @click.stop="showTranslationTools = !showTranslationTools"
                                 >
                                     {{
-                                        t("game.ui.extensions.CompendiumModal.translated_to", {
-                                            lang: translationTargetLabel,
+                                        t("game.ui.extensions.CompendiumModal.translated_badge", {
+                                            badge: translationTargetBadge,
                                         })
                                     }}
                                     <font-awesome-icon icon="chevron-down" class="ms-1" />
@@ -2596,8 +2619,8 @@ onMounted(() => {
                                             v-if="hasSavedTranslation"
                                             class="translation-tag translation-tag--index-icon-only"
                                             :title="
-                                                t('game.ui.extensions.CompendiumModal.translated_to', {
-                                                    lang: translationTargetLabel,
+                                                t('game.ui.extensions.CompendiumModal.translated_badge', {
+                                                    badge: translationTargetBadge,
                                                 })
                                             "
                                             @click.stop="showTranslationTools = !showTranslationTools"

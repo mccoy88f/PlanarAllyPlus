@@ -1511,9 +1511,81 @@ async def get_db(request: web.Request) -> web.Response:
         )
 
 
+def _compendium_clean_md_heading(raw: str) -> str:
+    line = raw.strip()
+    line = re.sub(r"\s*\{#[^}]+\}\s*$", "", line).strip()
+    line = re.sub(r"^\*\*|\*\*$", "", line).strip()
+    return line
+
+
+_PA_TITLE_COMMENT_RE = re.compile(
+    r"^\s*<!--\s*pa-compendium-title:([\s\S]*?)\s*-->\s*\n*",
+    re.IGNORECASE,
+)
+
+
+def _item_translation_display_title(content: str) -> str:
+    """Allineato al client: commento pa-compendium-title o primo heading markdown."""
+    if not content or not str(content).strip():
+        return ""
+    norm = str(content).lstrip("\ufeff")
+    m = _PA_TITLE_COMMENT_RE.match(norm)
+    if m:
+        t = " ".join(m.group(1).split()).strip()
+        if t:
+            return t
+    h1 = re.search(r"^#\s+(.+)$", norm, re.MULTILINE)
+    if h1:
+        c = _compendium_clean_md_heading(h1.group(1))
+        if c:
+            return c
+    sub = re.search(r"^#{2,6}\s+(.+)$", norm, re.MULTILINE)
+    if sub:
+        c = _compendium_clean_md_heading(sub.group(1))
+        if c:
+            return c
+    return ""
+
+
+async def _get_item_translation_titles_manifest(request: web.Request) -> web.Response:
+    """Elenco titoli voce derivati dalle traduzioni `type=item` (per indice / stato UI)."""
+    comp_id = request.query.get("compendium", "").strip()
+    config = _load_config()
+    if not comp_id:
+        comp_id = config.get("defaultId") or ""
+    lang = request.query.get("lang", "").strip()
+    if not comp_id or not lang:
+        return web.json_response({"error": "compendium and lang required"}, status=400)
+    if not _ensure_sqlite(comp_id):
+        return web.json_response({"titles": {}})
+    try:
+        conn = _get_conn(comp_id)
+        rows = conn.execute(
+            """
+            SELECT collection_slug, item_slug, content FROM translations
+            WHERE type = 'item' AND lang = ? AND collection_slug IS NOT NULL AND item_slug IS NOT NULL
+            """,
+            (lang,),
+        ).fetchall()
+        conn.close()
+        titles: dict[str, str] = {}
+        for coll, item, raw in rows:
+            if not coll or not item:
+                continue
+            title = _item_translation_display_title(raw or "")
+            if title:
+                titles[f"{coll}::{item}"] = title
+        return web.json_response({"titles": titles})
+    except Exception as e:
+        return web.json_response({"error": str(e), "titles": {}}, status=500)
+
+
 async def get_translation(request: web.Request) -> web.Response:
     """Recupera una traduzione salvata."""
     await get_authorized_user(request)
+    if request.query.get("manifest", "").strip() == "item_titles":
+        return await _get_item_translation_titles_manifest(request)
+
     comp_id = request.query.get("compendium", "").strip()
     config = _load_config()
     if not comp_id:

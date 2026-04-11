@@ -199,17 +199,88 @@ function cleanMarkdownHeadingContent(raw: string): string {
  * Se manca, usa il primo `##` … `######`. Utile quando l’indice non ha ancora il nome tradotto.
  */
 export function extractFirstMarkdownHeading(markdown: string): string | null {
-    const h1 = markdown.match(/^#\s+(.+)$/m);
+    // Ignora BOM / righe vuote in testa (modelli a volte restituiscono paragrafi prima del #)
+    const body = markdown.replace(/^\uFEFF/, "").replace(/^\s*\n+/, "");
+    const h1 = body.match(/^#\s+(.+)$/m);
     if (h1?.[1]) {
         const t = cleanMarkdownHeadingContent(h1[1]);
         if (t.length > 0) return t;
     }
-    const sub = markdown.match(/^#{2,6}\s+(.+)$/m);
+    const sub = body.match(/^#{2,6}\s+(.+)$/m);
     if (sub?.[1]) {
         const t = cleanMarkdownHeadingContent(sub[1]);
         if (t.length > 0) return t;
     }
     return null;
+}
+
+/** Prima riga non vuota del documento è un H1 (`# …`, non `##`). */
+export function markdownDocumentStartsWithH1Line(markdown: string): boolean {
+    const norm = markdown.replace(/^\uFEFF/, "").replace(/^\s*\n+/, "");
+    const line = (norm.split(/\r?\n/, 1)[0] ?? "").trimEnd();
+    if (line.length === 0) return false;
+    return line.startsWith("# ") || (line === "#" ? false : /^#\s+\S/.test(line));
+}
+
+/** Rimuove la prima riga `# …` e le righe vuote subito dopo (titolo sintetico aggiunto per l’indice). */
+export function stripFirstMarkdownH1AndFollowingBlankLines(markdown: string): string {
+    const norm = markdown.replace(/^\uFEFF/, "").replace(/^\s*\n+/, "");
+    return norm.replace(/^#\s+[^\r\n]*\r?\n(?:\s*\r?\n)*/, "").trimStart();
+}
+
+const PA_TITLE_COMMENT = /^\s*<!--\s*pa-compendium-title:([\s\S]*?)\s*-->\s*\n*/i;
+
+/** Metadato invisibile in rendering: titolo tradotto per indice quando il corpo non ha H1 iniziale. */
+export function parsePaCompendiumTitleComment(markdown: string): { metaTitle: string | null; rest: string } {
+    const norm = markdown.replace(/^\uFEFF/, "");
+    const m = norm.match(PA_TITLE_COMMENT);
+    if (!m || m.index === undefined) {
+        return { metaTitle: null, rest: markdown };
+    }
+    const metaTitle = m[1].trim().replace(/\s+/g, " ");
+    const rest = norm.slice(m.index + m[0].length);
+    return { metaTitle: metaTitle.length > 0 ? metaTitle : null, rest };
+}
+
+export function prependPaCompendiumTitleComment(title: string, body: string): string {
+    const safe = title.trim().replace(/\s+/g, " ").replace(/--/g, "—");
+    const b = body.replace(/^\uFEFF/, "").trimStart();
+    return `<!-- pa-compendium-title:${safe} -->\n\n${b}`;
+}
+
+/** Titolo voce da markdown tradotto: commento persistito o primo heading. */
+export function extractItemTranslationDisplayTitle(markdown: string): string | null {
+    const { metaTitle } = parsePaCompendiumTitleComment(markdown);
+    if (metaTitle != null && metaTitle.length > 0) {
+        return metaTitle;
+    }
+    return extractFirstMarkdownHeading(markdown);
+}
+
+/** Rimuove il commento titolo prima del render (non deve apparire nel corpo). */
+export function stripPaCompendiumTitleCommentForRender(markdown: string): string {
+    const norm = markdown.replace(/^\uFEFF/, "");
+    const m = norm.match(PA_TITLE_COMMENT);
+    if (!m || m.index === undefined) {
+        return markdown;
+    }
+    return norm.slice(m.index + m[0].length);
+}
+
+/**
+ * Se il sorgente non aveva H1 iniziale, toglie l’H1 imposto dal modello e salva il titolo nel commento.
+ * Se il sorgente aveva già H1, lascia il testo del modello com’è.
+ */
+export function finalizeTranslatedItemBodyForStorage(originalMarkdown: string, fullAiMarkdown: string): string {
+    if (markdownDocumentStartsWithH1Line(originalMarkdown)) {
+        return fullAiMarkdown;
+    }
+    const h1Title = extractFirstMarkdownHeading(fullAiMarkdown);
+    const body = stripFirstMarkdownH1AndFollowingBlankLines(fullAiMarkdown);
+    if (h1Title != null && h1Title.length > 0) {
+        return prependPaCompendiumTitleComment(h1Title, body);
+    }
+    return body.trimStart();
 }
 
 /**

@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
     extractFirstMarkdownHeading,
+    extractItemTranslationDisplayTitle,
+    finalizeTranslatedItemBodyForStorage,
     findIndexNodeBySlug,
+    markdownDocumentStartsWithH1Line,
     indexRootsTranslationState,
     indexSubtreeFullyTranslated,
     indexSubtreeHasAnyTranslation,
@@ -12,6 +15,7 @@ import {
     mergeIndexPreservePriorRoots,
     patchItemDisplayNameInIndexTree,
     replaceIndexNodeInTree,
+    stripPaCompendiumTitleCommentForRender,
 } from "../../../../../src/game/ui/extensions/compendium/indexTree";
 
 describe("indexTree", () => {
@@ -126,5 +130,29 @@ describe("indexTree", () => {
         expect(extractFirstMarkdownHeading("## Solo secondo\n")).toBe("Solo secondo");
         expect(extractFirstMarkdownHeading("## In cima\n\n# Dopo\n")).toBe("Dopo");
         expect(extractFirstMarkdownHeading("no heading")).toBeNull();
+    });
+
+    it("markdownDocumentStartsWithH1Line rileva solo # iniziale", () => {
+        expect(markdownDocumentStartsWithH1Line("# Intro\n\np")).toBe(true);
+        expect(markdownDocumentStartsWithH1Line("\n\n# T\n")).toBe(true);
+        expect(markdownDocumentStartsWithH1Line("Testo senza H1")).toBe(false);
+        expect(markdownDocumentStartsWithH1Line("## Due\n")).toBe(false);
+    });
+
+    it("finalizeTranslatedItemBodyForStorage toglie H1 sintetico se l’originale non aveva H1", () => {
+        const orig = "The town of…";
+        const ai = "# Introduzione\n\nLa città di…";
+        const out = finalizeTranslatedItemBodyForStorage(orig, ai);
+        expect(out.startsWith("<!-- pa-compendium-title:Introduzione -->")).toBe(true);
+        expect(out).not.toContain("# Introduzione");
+        expect(out).toContain("La città");
+        expect(extractItemTranslationDisplayTitle(out)).toBe("Introduzione");
+        expect(stripPaCompendiumTitleCommentForRender(out).trimStart()).toMatch(/^La città/);
+    });
+
+    it("finalizeTranslatedItemBodyForStorage mantiene output se l’originale ha già H1", () => {
+        const orig = "# Introduction\n\nBody";
+        const ai = "# Introduzione\n\nCorpo";
+        expect(finalizeTranslatedItemBodyForStorage(orig, ai)).toBe(ai);
     });
 });

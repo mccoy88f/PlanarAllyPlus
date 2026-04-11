@@ -239,10 +239,21 @@ async def _chat_google(api_key: str, model: str, messages: list, max_tokens: int
             if resp.status != 200:
                 try:
                     err_data = json.loads(text)
-                    err_msg = (err_data.get("error") or {}).get("message", text)
+                    err_raw = err_data.get("error")
+                    if isinstance(err_raw, str):
+                        return {"error": err_raw, "_status": resp.status}
+                    err_obj = err_raw if isinstance(err_raw, dict) else {}
+                    err_msg = err_obj.get("message", text) if err_obj else text
+                    out: dict = {"error": err_msg, "_status": resp.status}
+                    st = err_obj.get("status")
+                    if isinstance(st, str) and st:
+                        out["upstreamStatus"] = st
+                    code = err_obj.get("code")
+                    if isinstance(code, int):
+                        out["upstreamCode"] = code
+                    return out
                 except Exception:
-                    err_msg = text
-                return {"error": err_msg, "_status": resp.status}
+                    return {"error": text if text else str(resp.status), "_status": resp.status}
             data = json.loads(text)
     cands = (data.get("candidates") or [])
     if not cands:
@@ -282,10 +293,12 @@ async def chat(request: web.Request) -> web.Response:
         temperature = float(body.get("temperature", 0.7))
         result = await _chat_google(api_key, model, messages, max_tokens, temperature)
         if "error" in result:
-            return web.json_response(
-                {"error": result["error"]},
-                status=result.get("_status", 502),
-            )
+            payload: dict = {"error": result["error"]}
+            if result.get("upstreamStatus"):
+                payload["upstreamStatus"] = result["upstreamStatus"]
+            if result.get("upstreamCode") is not None:
+                payload["upstreamCode"] = result["upstreamCode"]
+            return web.json_response(payload, status=int(result.get("_status", 502)))
         return web.json_response(result)
 
     # OpenRouter
@@ -322,10 +335,31 @@ async def chat(request: web.Request) -> web.Response:
                 if resp.status != 200:
                     try:
                         err_data = json.loads(text)
-                        err_msg = err_data.get("error", {}).get("message", text)
-                    except Exception:
+                        err = err_data.get("error")
                         err_msg = text
-                    return web.json_response({"error": err_msg}, status=resp.status)
+                        upstream_code = None
+                        upstream_status = None
+                        if isinstance(err, dict):
+                            err_msg = err.get("message") or text
+                            c = err.get("code")
+                            if isinstance(c, int):
+                                upstream_code = c
+                            t = err.get("type") or err.get("status")
+                            if isinstance(t, str) and t:
+                                upstream_status = t
+                        elif isinstance(err, str):
+                            err_msg = err
+                        body: dict = {"error": err_msg}
+                        if upstream_code is not None:
+                            body["upstreamCode"] = upstream_code
+                        if upstream_status:
+                            body["upstreamStatus"] = upstream_status
+                        return web.json_response(body, status=resp.status)
+                    except Exception:
+                        return web.json_response(
+                            {"error": (text[:2000] if text else "Unknown error")},
+                            status=resp.status,
+                        )
                 return web.json_response(json.loads(text))
     except Exception as e:
         return web.json_response({"error": str(e)}, status=502)
