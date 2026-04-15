@@ -48,6 +48,13 @@ def get_stored_acl(resource_key: str) -> ExtensionResourceAclPayload | None:
         return None
 
 
+def set_stored_acl_payload(resource_key: str, acl: ExtensionResourceAclPayload) -> None:
+    """Scrive l'ACL senza controlli HTTP (uso interno da altre estensioni)."""
+    raw = _load_raw()
+    raw[resource_key] = acl.model_dump(by_alias=True)
+    _save_raw(raw)
+
+
 async def get_resource_acl(request: web.Request) -> web.Response:
     """GET /api/extensions/resource-acl?key=documents:123"""
     user = await get_authorized_user(request)

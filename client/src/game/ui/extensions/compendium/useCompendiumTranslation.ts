@@ -2,6 +2,7 @@ import type { ComputedRef, Ref } from "vue";
 import type { Composer } from "vue-i18n";
 
 import { http } from "../../../../core/http";
+import { compendiumRoomScopeQuerySuffix } from "../../../systems/extensions/compendium";
 import { localeToEnglishPromptName } from "../../../../core/paUiLocales";
 import { finalizeIndexOverlayWithItemTitles } from "./indexTranslationDisplay";
 import {
@@ -183,7 +184,7 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
     async function fetchItemTranslationTitlesManifest(compId: string, lang: string): Promise<Map<string, string>> {
         const url =
             `/api/extensions/compendium/translations?compendium=${encodeURIComponent(compId)}` +
-            `&lang=${encodeURIComponent(lang)}&manifest=item_titles`;
+            `&lang=${encodeURIComponent(lang)}&manifest=item_titles${compendiumRoomScopeQuerySuffix()}`;
         try {
             const r = await http.get(url, { signal: trAbort() });
             if (!r.ok) return new Map();
@@ -254,6 +255,7 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
         if (type === "item" && d.selectedItem.value) {
             url += `&collection=${encodeURIComponent(d.selectedItem.value.collection.slug)}&slug=${encodeURIComponent(d.selectedItem.value.item.slug)}`;
         }
+        url += compendiumRoomScopeQuerySuffix();
 
         const itemKey =
             type === "item" && d.selectedItem.value
@@ -459,7 +461,7 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
     ): Promise<string | null> {
         const url =
             `/api/extensions/compendium/translations?compendium=${encodeURIComponent(compId)}&lang=${encodeURIComponent(lang)}&type=item` +
-            `&collection=${encodeURIComponent(collectionSlug)}&slug=${encodeURIComponent(itemSlug)}`;
+            `&collection=${encodeURIComponent(collectionSlug)}&slug=${encodeURIComponent(itemSlug)}${compendiumRoomScopeQuerySuffix()}`;
         try {
             const r = await http.get(url, { signal: trAbort() });
             if (!r.ok) return null;
@@ -526,7 +528,7 @@ export function useCompendiumTranslation(d: CompendiumTranslationDeps): Compendi
                 }
                 // oxlint-disable-next-line no-await-in-loop -- batch sequenziale
                 const r = await http.get(
-                    `/api/extensions/compendium/item?compendium=${encodeURIComponent(compId)}&collection=${encodeURIComponent(collectionSlug)}&slug=${encodeURIComponent(itemSlug)}`,
+                    `/api/extensions/compendium/item?compendium=${encodeURIComponent(compId)}&collection=${encodeURIComponent(collectionSlug)}&slug=${encodeURIComponent(itemSlug)}${compendiumRoomScopeQuerySuffix()}`,
                     { signal: trAbort() },
                 );
                 if (!r.ok) {

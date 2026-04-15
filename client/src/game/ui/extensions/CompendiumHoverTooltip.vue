@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 
 import { baseAdjust } from "../../../core/http";
 import {
+    compendiumRoomScopeQuerySuffix,
     getQeNames,
     loadCompendiumResolverMap,
     parseQePathSegments,
@@ -39,7 +40,9 @@ async function fetchItem(comp: string | undefined, coll: string, slug: string): 
         const compResolved = resolveCompendiumIdForItemQuery(comp);
         if (compResolved) params.set("compendium", compResolved);
         const r = await fetch(
-            baseAdjust(`/api/extensions/compendium/item?${params.toString()}`),
+            baseAdjust(
+                `/api/extensions/compendium/item?${params.toString()}${compendiumRoomScopeQuerySuffix()}`,
+            ),
             { credentials: "include" },
         );
         if (r.ok) {

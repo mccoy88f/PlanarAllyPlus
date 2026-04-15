@@ -12,6 +12,7 @@ import { http } from "../../../core/http";
 import { localeToCompendiumTranslationBadge, normalizeToPaLocale } from "../../../core/paUiLocales";
 import {
     applyCompendiumResolverMap,
+    compendiumRoomScopeQuerySuffix,
     ensureQeLinksCompendiumContext,
     getQeNames,
     injectQeLinks,
@@ -19,6 +20,12 @@ import {
     parseQePathSegments,
     renderQeMarkdown,
 } from "../../systems/extensions/compendium";
+import {
+    ExtensionResourcePermissionsModal,
+    compendiumResourceAclKey,
+    defaultExtensionResourceAcl,
+    type ExtensionResourceAcl,
+} from "./permissions";
 import { chatSystem } from "../../systems/chat";
 import { focusExtension } from "../../systems/extensions/ui";
 import { extensionsState } from "../../systems/extensions/state";
@@ -163,6 +170,9 @@ const prevItem = ref<{
     collectionSlug: string;
     collectionName: string;
 } | null>(null);
+const compendiumPermVisible = ref(false);
+const compendiumPermAcl = ref<ExtensionResourceAcl>(defaultExtensionResourceAcl(""));
+const compendiumPermKey = ref("");
 const itemLoading = ref(false);
 const showIndex = ref(false);
 /** Merge traduzione indice (DB/AI); null = nessuna traduzione salvata per questo compendio. */
@@ -963,7 +973,10 @@ async function toggleCompendium(compId: string): Promise<void> {
     await withTreeLoad(async () => {
         try {
             const tagsParam = Array.from(selectedTagIds.value).join(",");
-            const url = `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}` + (tagsParam ? `&tags=${tagsParam}` : "");
+            const url =
+                `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}` +
+                (tagsParam ? `&tags=${tagsParam}` : "") +
+                compendiumRoomScopeQuerySuffix();
             const r = await http.get(url);
             if (r.ok) {
                 const data = (await r.json()) as { collections: CollectionMeta[] };
@@ -985,7 +998,7 @@ async function ensureCompendiumExpanded(compId: string): Promise<void> {
     await withTreeLoad(async () => {
         try {
             const r = await http.get(
-                `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}`,
+                `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}${compendiumRoomScopeQuerySuffix()}`,
             );
             if (r.ok) {
                 const data = (await r.json()) as { collections: CollectionMeta[] };
@@ -1012,7 +1025,7 @@ async function ensureCollectionExpanded(compId: string, collSlug: string): Promi
             const tagsParam = Array.from(selectedTagIds.value).join(",");
 
             const r = await http.get(
-                `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}`,
+                `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}${compendiumRoomScopeQuerySuffix()}`,
             );
             if (r.ok) {
                 const data = (await r.json()) as { items: ItemMeta[] };
@@ -1038,7 +1051,7 @@ async function toggleCollection(compId: string, collSlug: string): Promise<void>
                     const tagsParam = Array.from(selectedTagIds.value).join(",");
 
                     const r = await http.get(
-                        `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}`,
+                        `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}${compendiumRoomScopeQuerySuffix()}`,
                     );
                     if (r.ok) {
                         const data = (await r.json()) as { items: ItemMeta[] };
@@ -1106,7 +1119,7 @@ async function selectItem(
     itemLoading.value = true;
     try {
         const r = await http.get(
-            `/api/extensions/compendium/item?compendium=${encodeURIComponent(compendium.id)}&collection=${encodeURIComponent(collection.slug)}&slug=${encodeURIComponent(item.slug)}`,
+            `/api/extensions/compendium/item?compendium=${encodeURIComponent(compendium.id)}&collection=${encodeURIComponent(collection.slug)}&slug=${encodeURIComponent(item.slug)}${compendiumRoomScopeQuerySuffix()}`,
         );
         if (r.ok) {
             const full = (await r.json()) as ItemFull;
@@ -1139,7 +1152,7 @@ async function selectFromSearch(result: SearchResult): Promise<void> {
     if (!itemsByKey.value.has(key)) {
         try {
             const r = await http.get(
-                `/api/extensions/compendium/collections/${encodeURIComponent(result.collectionSlug)}/items?compendium=${encodeURIComponent(compId)}`,
+                `/api/extensions/compendium/collections/${encodeURIComponent(result.collectionSlug)}/items?compendium=${encodeURIComponent(compId)}${compendiumRoomScopeQuerySuffix()}`,
             );
             if (r.ok) {
                 const data = (await r.json()) as { items: ItemMeta[] };
@@ -1166,7 +1179,7 @@ async function fetchNextItem(compId: string, collSlug: string, itemSlug: string)
     prevItem.value = null;
     try {
         const r = await http.get(
-            `/api/extensions/compendium/next?compendium=${encodeURIComponent(compId)}&collection=${encodeURIComponent(collSlug)}&slug=${encodeURIComponent(itemSlug)}`,
+            `/api/extensions/compendium/next?compendium=${encodeURIComponent(compId)}&collection=${encodeURIComponent(collSlug)}&slug=${encodeURIComponent(itemSlug)}${compendiumRoomScopeQuerySuffix()}`,
         );
         if (r.ok) {
             const data = (await r.json()) as {
@@ -1231,7 +1244,7 @@ async function showCompendiumIndex(comp: CompendiumMeta): Promise<void> {
 
     try {
         const r = await http.get(
-            `/api/extensions/compendium/index?compendium=${encodeURIComponent(comp.id)}`,
+            `/api/extensions/compendium/index?compendium=${encodeURIComponent(comp.id)}${compendiumRoomScopeQuerySuffix()}`,
         );
         if (r.ok) {
             const data = (await r.json()) as { index: any[], metadata?: Record<string, string> };
@@ -1281,7 +1294,7 @@ async function showCollectionIndex(comp: CompendiumMeta, coll: CollectionMeta): 
         expandedIndexCollections.value.clear();
         try {
             const r = await http.get(
-                `/api/extensions/compendium/index?compendium=${encodeURIComponent(comp.id)}`,
+                `/api/extensions/compendium/index?compendium=${encodeURIComponent(comp.id)}${compendiumRoomScopeQuerySuffix()}`,
             );
             if (r.ok) {
                 const data = (await r.json()) as { index: any[], metadata?: Record<string, string> };
@@ -1798,7 +1811,7 @@ async function runSearch(q: string, compendiumId?: string | null): Promise<void>
 
         if (tagsParam) params.set("tags", tagsParam);
         const r = await http.get(
-            `/api/extensions/compendium/search?${params.toString()}`,
+            `/api/extensions/compendium/search?${params.toString()}${compendiumRoomScopeQuerySuffix()}`,
         );
         if (r.ok) {
             const data = (await r.json()) as { results: SearchResult[] };
@@ -1927,6 +1940,41 @@ function closeShareModal(): void {
     shareModalOpen.value = false;
 }
 
+async function openCompendiumPermissions(): Promise<void> {
+    if (!selectedItem.value || !gameState.reactive.isDm) return;
+    const { compendium, collection, item } = selectedItem.value;
+    compendiumPermKey.value = compendiumResourceAclKey(compendium.id, collection.slug, item.slug);
+    const creator = coreStore.state.username;
+    let acl: ExtensionResourceAcl = defaultExtensionResourceAcl(creator);
+    try {
+        const params = new URLSearchParams({ key: compendiumPermKey.value });
+        const r = await http.get(`/api/extensions/resource-acl?${params.toString()}`);
+        if (r.ok) {
+            const data = (await r.json()) as { acl: ExtensionResourceAcl | null };
+            if (data.acl) {
+                acl = data.acl;
+            }
+        }
+    } catch {
+        /* default ACL */
+    }
+    compendiumPermAcl.value = acl;
+    compendiumPermVisible.value = true;
+}
+
+async function onCompendiumPermissionsApply(acl: ExtensionResourceAcl): Promise<void> {
+    try {
+        const r = await http.putJson("/api/extensions/resource-acl", { key: compendiumPermKey.value, acl });
+        if (r.ok) {
+            toast.success(t("game.ui.extensions.resourcePermissions.save_success"));
+        } else {
+            toast.error(t("game.ui.extensions.resourcePermissions.save_error"));
+        }
+    } catch {
+        toast.error(t("game.ui.extensions.resourcePermissions.save_error"));
+    }
+}
+
 function shareToChat(): void {
     if (!selectedItem.value) return;
     const { compendium, collection, item } = selectedItem.value;
@@ -2019,7 +2067,10 @@ async function refetchAllCollections(): Promise<void> {
     for (const compId of expandedComps.value) {
         promises.push((async () => {
             try {
-                const url = `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}` + (tagsParam ? `&tags=${tagsParam}` : "");
+                const url =
+                    `/api/extensions/compendium/collections?compendium=${encodeURIComponent(compId)}` +
+                    (tagsParam ? `&tags=${tagsParam}` : "") +
+                    compendiumRoomScopeQuerySuffix();
                 const r = await http.get(url);
                 if (r.ok) {
                     const data = (await r.json()) as { collections: CollectionMeta[] };
@@ -2044,7 +2095,9 @@ async function refetchAllVisibleItems(): Promise<void> {
          const collSlug = parts[1]!;
          promises.push((async () => {
              try {
-                 const r = await http.get(`/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}`);
+                 const r = await http.get(
+                     `/api/extensions/compendium/collections/${encodeURIComponent(collSlug)}/items?compendium=${encodeURIComponent(compId)}&tags=${tagsParam}${compendiumRoomScopeQuerySuffix()}`,
+                 );
                  if (r.ok) {
                      const data = (await r.json()) as { items: ItemMeta[] };
                      itemsByKey.value.set(key, data.items);
@@ -2570,6 +2623,16 @@ onMounted(() => {
                         :class="{ 'qe-item-title-bar--index-context': showIndex }"
                     >
                         <h2 class="qe-item-view-heading">{{ displayedItemTitle }}</h2>
+                        <button
+                            v-if="gameState.reactive.isDm && !showIndex"
+                            type="button"
+                            class="qe-permissions-btn"
+                            :title="t('game.ui.extensions.resourcePermissions.title')"
+                            :aria-label="t('game.ui.extensions.resourcePermissions.title')"
+                            @click="openCompendiumPermissions"
+                        >
+                            <font-awesome-icon icon="users" />
+                        </button>
                         <div v-if="showTranslatedContent && !showIndex" class="qe-tr-toolbar-group">
                             <font-awesome-icon
                                 icon="language"
@@ -2815,6 +2878,13 @@ onMounted(() => {
         </div>
     </div>
 </Modal>
+
+    <ExtensionResourcePermissionsModal
+        v-model:visible="compendiumPermVisible"
+        :creator-name="coreStore.state.username"
+        :acl="compendiumPermAcl"
+        @apply="onCompendiumPermissionsApply"
+    />
 
     <Teleport to="body">
         <div
@@ -3709,6 +3779,26 @@ onMounted(() => {
     &.qe-item-title-bar--index-context {
         .qe-item-view-heading {
             flex: 1;
+        }
+    }
+
+    .qe-permissions-btn {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        padding: 0;
+        border: 1px solid #ccc;
+        border-radius: 0.25rem;
+        background: #fff;
+        cursor: pointer;
+        color: #1565c0;
+
+        &:hover {
+            background: rgba(21, 101, 192, 0.08);
+            border-color: #1565c0;
         }
     }
 

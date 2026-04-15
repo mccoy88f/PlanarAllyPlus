@@ -14,6 +14,8 @@ from .dndbeyond_schema import empty_character, get_character_name
 from pathlib import Path
 
 from ....auth import get_authorized_user
+from .permission_acl import ExtensionResourceAclPayload, acl_payload_from_dict, user_can_edit_acl, user_can_view_acl
+from .resource_acl import get_stored_acl, get_stored_acl_dict, set_stored_acl_payload
 from ....db.models.asset import Asset
 from ....db.models.asset_entry import AssetEntry
 from ....db.models.character import Character
@@ -118,6 +120,19 @@ def _get_room(creator_name: str, room_name: str) -> Room | None:
     return Room.get_or_none(Room.creator == creator, Room.name == room_name)
 
 
+def _sheet_resource_key(sheet_id: int) -> str:
+    return f"character-sheet:{sheet_id}"
+
+
+def _player_can_view_sheet(user: User, sheet_record: CharacterSheet) -> bool:
+    if sheet_record.owner_id == user.id:
+        return True
+    acl = get_stored_acl(_sheet_resource_key(sheet_record.id))
+    if acl is not None:
+        return user_can_view_acl(user.name, acl)
+    return bool(sheet_record.visible_to_players)
+
+
 def _can_edit_character(user: User, character: Character, is_dm: bool) -> bool:
     if is_dm:
         return True
@@ -130,18 +145,28 @@ def _can_edit_sheet_content(user: User, pr: PlayerRoom, sheet_record: CharacterS
         return True
     if sheet_record.owner_id == user.id:
         return True
+    acl = get_stored_acl(_sheet_resource_key(sheet_record.id))
+    if acl is not None:
+        return user_can_edit_acl(user.name, acl)
     return bool(sheet_record.visible_to_players)
 
 
 def _get_characters_for_room(room: Room, user: User, is_dm: bool) -> list[Character]:
     characters = Character.select().where(Character.campaign == room)
     if not is_dm:
-        # Include owned characters OR characters that have a sheet visible to players
         from ....db.models.character_sheet import CharacterSheet
-        public_char_ids = CharacterSheet.select(CharacterSheet.character).where(
-            (CharacterSheet.room == room) & (CharacterSheet.visible_to_players == True)
-        )
-        characters = characters.where((Character.owner_id == user.id) | (Character.id.in_(public_char_ids)))
+
+        visible_char_ids: set[int] = set()
+        for sh in CharacterSheet.select().where(CharacterSheet.room == room):
+            cid = sh.character_id
+            if cid and _player_can_view_sheet(user, sh):
+                visible_char_ids.add(cid)
+        if visible_char_ids:
+            characters = characters.where(
+                (Character.owner_id == user.id) | (Character.id.in_(list(visible_char_ids)))
+            )
+        else:
+            characters = characters.where(Character.owner_id == user.id)
     return list(characters)
 
 
@@ -182,17 +207,11 @@ async def list_all(request: web.Request) -> web.Response:
         default_sheet_id = str(default_record.sheet.id) if default_record else None
 
         sheets_query = CharacterSheet.select().where(CharacterSheet.room == room)
-        if player_view:
-            if dm_simulates_player:
-                sheets_query = sheets_query.where(CharacterSheet.visible_to_players == True)
-            else:
-                # Use owner_id so filtering does not depend on FK object identity (Peewee User instance).
-                sheets_query = sheets_query.where(
-                    (CharacterSheet.owner_id == user.id) | (CharacterSheet.visible_to_players == True)
-                )
 
         result_sheets = []
         for sheet_record in sheets_query:
+            if player_view and not _player_can_view_sheet(user, sheet_record):
+                continue
             sheet_data = {}
             try:
                 sheet_data = json.loads(sheet_record.data) if sheet_record.data else {}
@@ -225,6 +244,7 @@ async def list_all(request: web.Request) -> web.Response:
                 "name": name,
                 "characterId": char_id,
                 "characterName": char_name,
+                "ownerName": sheet_record.owner.name,
                 "canEdit": can_edit,
                 "canDelete": can_delete,
                 "isDefault": default_sheet_id == str(sheet_record.id),
@@ -281,7 +301,7 @@ async def get_sheet(request: web.Request) -> web.Response:
         return web.HTTPNotFound(text="Sheet not found")
     if sheet_record.room.id != room.id:
         return web.HTTPNotFound(text="Sheet not in this room")
-    if pr.role != Role.DM and sheet_record.owner.id != user.id and not sheet_record.visible_to_players:
+    if pr.role != Role.DM and not _player_can_view_sheet(user, sheet_record):
         return web.HTTPForbidden(text="Cannot access this sheet")
 
     try:
@@ -822,11 +842,106 @@ async def toggle_sheet_visibility(request: web.Request) -> web.Response:
     if pr.role != Role.DM and sheet_record.owner.id != user.id:
         return web.HTTPForbidden(text="Cannot change visibility of this sheet")
 
-    sheet_record.visible_to_players = not sheet_record.visible_to_players
+    key = _sheet_resource_key(sheet_id_int)
+    stored_acl = get_stored_acl(key)
+    if stored_acl is not None:
+        new_pub = not stored_acl.public_view
+        set_stored_acl_payload(key, stored_acl.model_copy(update={"public_view": new_pub}))
+        sheet_record.visible_to_players = new_pub
+    else:
+        sheet_record.visible_to_players = not sheet_record.visible_to_players
     sheet_record.updated_at = datetime.datetime.now(datetime.UTC).isoformat()
     sheet_record.save()
     
     return web.json_response({"ok": True, "visibleToPlayers": sheet_record.visible_to_players})
+
+
+async def get_sheet_resource_acl(request: web.Request) -> web.Response:
+    """GET ACL risorsa scheda (solo proprietario o DM)."""
+    user = await get_authorized_user(request)
+    sheet_id_str = request.match_info.get("sheet_id", "").strip()
+    if not sheet_id_str:
+        return web.HTTPBadRequest(text="sheet_id required")
+    try:
+        sheet_id_int = int(sheet_id_str)
+    except ValueError:
+        return web.HTTPBadRequest(text="Invalid sheet_id")
+
+    creator = request.query.get("room_creator", "").strip()
+    room_name = request.query.get("room_name", "").strip()
+    if not creator or not room_name:
+        return web.HTTPBadRequest(text="room_creator and room_name required")
+
+    room = _get_room(creator, room_name)
+    if not room:
+        return web.HTTPNotFound(text="Room not found")
+    pr = PlayerRoom.get_or_none(PlayerRoom.room == room, PlayerRoom.player == user)
+    if not pr:
+        return web.HTTPForbidden(text="Not in this room")
+
+    sheet_record = CharacterSheet.get_or_none(CharacterSheet.id == sheet_id_int)
+    if not sheet_record or sheet_record.room_id != room.id:
+        return web.HTTPNotFound(text="Sheet not found")
+
+    if pr.role != Role.DM and sheet_record.owner_id != user.id:
+        return web.HTTPForbidden(text="Cannot manage permissions for this sheet")
+
+    key = _sheet_resource_key(sheet_record.id)
+    data = get_stored_acl_dict(key)
+    return web.json_response({"acl": data})
+
+
+async def put_sheet_resource_acl(request: web.Request) -> web.Response:
+    """PUT ACL risorsa scheda (solo proprietario o DM); creatorName deve essere il proprietario della scheda."""
+    user = await get_authorized_user(request)
+    sheet_id_str = request.match_info.get("sheet_id", "").strip()
+    if not sheet_id_str:
+        return web.HTTPBadRequest(text="sheet_id required")
+    try:
+        sheet_id_int = int(sheet_id_str)
+    except ValueError:
+        return web.HTTPBadRequest(text="Invalid sheet_id")
+
+    try:
+        body = await request.json()
+    except Exception:
+        return web.HTTPBadRequest(text="Invalid JSON")
+
+    creator = (body.get("roomCreator") or request.query.get("room_creator") or "").strip()
+    room_name = (body.get("roomName") or request.query.get("room_name") or "").strip()
+    acl_obj = body.get("acl")
+    if not creator or not room_name or not isinstance(acl_obj, dict):
+        return web.HTTPBadRequest(text="roomCreator, roomName and acl required")
+
+    room = _get_room(creator, room_name)
+    if not room:
+        return web.HTTPNotFound(text="Room not found")
+    pr = PlayerRoom.get_or_none(PlayerRoom.room == room, PlayerRoom.player == user)
+    if not pr:
+        return web.HTTPForbidden(text="Not in this room")
+
+    sheet_record = CharacterSheet.get_or_none(CharacterSheet.id == sheet_id_int)
+    if not sheet_record or sheet_record.room_id != room.id:
+        return web.HTTPNotFound(text="Sheet not found")
+
+    if pr.role != Role.DM and sheet_record.owner_id != user.id:
+        return web.HTTPForbidden(text="Cannot manage permissions for this sheet")
+
+    owner_name = sheet_record.owner.name
+    try:
+        acl = acl_payload_from_dict({**acl_obj, "creatorName": owner_name})
+    except Exception as e:
+        return web.HTTPBadRequest(text=f"Invalid acl: {e}")
+
+    if acl.creator_name != owner_name:
+        return web.HTTPBadRequest(text="creatorName must be the sheet owner")
+
+    key = _sheet_resource_key(sheet_record.id)
+    set_stored_acl_payload(key, acl)
+    sheet_record.visible_to_players = acl.public_view
+    sheet_record.updated_at = datetime.datetime.now(datetime.UTC).isoformat()
+    sheet_record.save()
+    return web.json_response({"ok": True, "acl": acl.model_dump(by_alias=True)})
 
 
 async def get_sheet_for_character(request: web.Request) -> web.Response:
@@ -869,7 +984,7 @@ async def get_sheet_for_character(request: web.Request) -> web.Response:
             return web.json_response({"sheetId": str(sheet_record.id)})
         if sheet_record.owner_id == user.id:
             return web.json_response({"sheetId": str(sheet_record.id)})
-        if sheet_record.visible_to_players:
+        if _player_can_view_sheet(user, sheet_record):
             return web.json_response({"sheetId": str(sheet_record.id)})
         return web.HTTPForbidden(text="Cannot access sheet for this character")
 

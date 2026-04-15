@@ -3,7 +3,20 @@ import { ref } from "vue";
 
 import { http } from "../../../core/http";
 
+import { gameState } from "../game/state";
 import { extensionsState } from "./state";
+
+/** Suffisso query per filtri ACL voce compendio in partita (allineato a `compendium.py`). */
+export function compendiumRoomScopeQuerySuffix(): string {
+    const rc = gameState.reactive.roomCreator;
+    const rn = gameState.reactive.roomName;
+    if (!rc || !rn) return "";
+    let s = `&room_creator=${encodeURIComponent(rc)}&room_name=${encodeURIComponent(rn)}`;
+    if (gameState.reactive.isFakePlayer) {
+        s += "&preview_as_player=1";
+    }
+    return s;
+}
 
 /** Segmenti path dopo `qe:`: lo slug voce può contenere `/` (es. `5.5e/creatura`). */
 export interface QePathParts {

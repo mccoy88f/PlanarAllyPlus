@@ -62,3 +62,15 @@ export function normalizeResourceAcl(acl: ExtensionResourceAcl): ExtensionResour
 export function resourceAclKey(namespace: string, resourceId: string | number): string {
     return `${namespace}:${resourceId}`;
 }
+
+/** Chiave stabile per voci compendio (stesso encoding di `compendium_resource_key` sul server). */
+export function compendiumResourceAclKey(compId: string, collectionSlug: string, itemSlug: string): string {
+    const json = JSON.stringify([compId, collectionSlug, itemSlug]);
+    const bytes = new TextEncoder().encode(json);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]!);
+    }
+    const b64 = btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return `compendium:${b64}`;
+}

@@ -203,6 +203,34 @@ def _get_visible_document_ids(owner: User, vis_map: dict[str, bool]) -> set[int]
     return visible_ids
 
 
+def _effective_visible_document_ids_for_viewer(
+    owner: User, viewer_name: str, vis_map: dict[str, bool]
+) -> set[int]:
+    """PDF del DM visibili al viewer in partita.
+
+    Se per un documento esiste ACL salvata, vale solo quella (come ``serve_document``).
+    Altrimenti si usa la visibilità legacy (toggle occhio / cartelle).
+    """
+    legacy = _get_visible_document_ids(owner, vis_map)
+    docs_folder = _get_or_create_documents_folder(owner)
+    out: set[int] = set()
+
+    def walk_folder(folder: AssetEntry) -> None:
+        for child in AssetEntry.select().where((AssetEntry.parent == folder) & (AssetEntry.owner == owner)):
+            if child.asset and child.name and child.name.lower().endswith(".pdf"):
+                acl = get_stored_acl(f"documents:{child.id}")
+                if acl is not None:
+                    if user_can_view_acl(viewer_name, acl):
+                        out.add(child.id)
+                elif child.id in legacy:
+                    out.add(child.id)
+            elif child.asset is None:
+                walk_folder(child)
+
+    walk_folder(docs_folder)
+    return out
+
+
 def _reparent_dm_visible_tree_top_level(nodes: list[dict], new_parent_id: int) -> list[dict]:
     """Collega i nodi di primo livello dell'albero documenti del DM sotto la cartella virtuale (id new_parent_id)."""
     result: list[dict] = []
@@ -313,7 +341,7 @@ async def list_documents(request: web.Request) -> web.Response:
                 if pr.role == Role.DM:
                     # DM testing "fake player": same tree a player would see (only visible PDFs).
                     if preview_as_player:
-                        visible_ids = _get_visible_document_ids(user, vis)
+                        visible_ids = _effective_visible_document_ids_for_viewer(user, user.name, vis)
                         tree = _build_documents_tree(
                             user, None, owner_filter=user, visible_asset_ids=visible_ids
                         )
@@ -327,7 +355,7 @@ async def list_documents(request: web.Request) -> web.Response:
                     dm = room.creator
                     dm_tree: list[dict] = []
                     if dm != user:
-                        visible_ids = _get_visible_document_ids(dm, vis)
+                        visible_ids = _effective_visible_document_ids_for_viewer(dm, user.name, vis)
                         dm_tree = _build_documents_tree(
                             user, None, owner_filter=dm, visible_asset_ids=visible_ids
                         )

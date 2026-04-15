@@ -452,6 +452,149 @@
       background: #f5f5f5;
     }
 
+    .cs-sheet-list .ext-item-actions .ext-action-btn.permissions-btn {
+      color: #1565c0;
+    }
+
+    .cs-sheet-list .ext-item-actions .ext-action-btn.permissions-btn:hover {
+      background: rgba(21, 101, 192, 0.12);
+      color: #0d47a1;
+    }
+
+    .doc-perm-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 1rem;
+      box-sizing: border-box;
+    }
+
+    .doc-perm-modal {
+      width: min(560px, 92vw);
+      max-height: min(80vh, 720px);
+      overflow: auto;
+      background: #fff;
+      border-radius: 0.75rem;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.3);
+      border: 1px solid #ddd;
+    }
+
+    .doc-perm-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid #eee;
+    }
+
+    .doc-perm-title {
+      font-weight: 700;
+      font-size: 1rem;
+      color: #333;
+      margin: 0;
+    }
+
+    .doc-perm-body {
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .doc-perm-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .doc-perm-users {
+      border: 1px solid #eee;
+      border-radius: 0.5rem;
+      padding: 0.6rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .doc-perm-add-row {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-top: 0.25rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .doc-perm-modal .ext-toolbar-btn.ext-toolbar-btn-add .fa-solid {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .doc-perm-user-row {
+      display: grid;
+      grid-template-columns: minmax(96px, 1fr) auto auto 28px;
+      gap: 0.4rem 0.5rem;
+      align-items: center;
+    }
+
+    .doc-perm-user-row label {
+      font-size: 0.85rem;
+      color: #444;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      margin: 0;
+    }
+
+    .doc-perm-user-row select[data-role="name"] {
+      min-width: 0;
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #ddd;
+      border-radius: 0.35rem;
+      padding: 0.35rem 0.45rem;
+      background: #fff;
+    }
+
+    .doc-perm-user-row.doc-perm-user-row-owner {
+      background: #f7fafc;
+      border: 1px solid #e8eef5;
+      border-radius: 0.35rem;
+      padding: 0.2rem 0.35rem;
+    }
+
+    .doc-perm-owner-name {
+      font-weight: 600;
+      color: #2c3e50;
+    }
+
+    .doc-perm-owner-badge {
+      margin-left: 0.35rem;
+      font-size: 0.75rem;
+      color: #607d8b;
+    }
+
+    .doc-perm-actions {
+      padding: 0.8rem 1rem;
+      border-top: 1px solid #eee;
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .doc-perm-empty {
+      font-size: 0.9rem;
+      color: #666;
+      font-style: italic;
+    }
+
     @media print {
       @page {
         margin: 10mm;
@@ -550,6 +693,36 @@
     </main>
   </div>
 
+  <div id="csPermissionsOverlay" class="doc-perm-overlay" role="dialog" aria-modal="true" aria-labelledby="csPermissionsTitle">
+    <div class="doc-perm-modal">
+      <div class="doc-perm-header">
+        <h3 id="csPermissionsTitle" class="doc-perm-title"></h3>
+        <button type="button" id="csPermissionsCloseBtn" class="ext-toolbar-btn" title="">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div class="doc-perm-body">
+        <div id="csPermissionsSheetName" class="ext-ui-muted"></div>
+        <label class="doc-perm-row">
+          <input type="checkbox" id="csPermissionsPublicView" />
+          <span id="csPermissionsPublicViewLabel"></span>
+        </label>
+        <div class="doc-perm-users">
+          <div id="csPermissionsUsers" class="doc-perm-users-list"></div>
+          <div class="doc-perm-add-row">
+            <button type="button" id="csPermissionsAddUserBtn" class="ext-toolbar-btn ext-toolbar-btn-add" title="">
+              <i class="fa-solid fa-plus" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="doc-perm-actions">
+        <button type="button" id="csPermissionsCancelBtn" class="ext-ui-btn"></button>
+        <button type="button" id="csPermissionsSaveBtn" class="ext-ui-btn ext-ui-btn-primary"></button>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       var params = new URLSearchParams(window.location.search);
@@ -598,7 +771,18 @@
           previewPlayerView: "Vista come giocatore: solo schede condivise (le tue private da Master non compaiono)",
           masterView: "Vista Master: tutte le schede e tutti i comandi",
           searchSheets: "Cerca schede...",
-          imageTooBig: "Immagine troppo grande (max 2MB)", uploadSuccess: "Caricamento completato", uploadFailed: "Upload fallito", uploadError: "Errore di connessione durante l'upload"
+          imageTooBig: "Immagine troppo grande (max 2MB)", uploadSuccess: "Caricamento completato", uploadFailed: "Upload fallito", uploadError: "Errore di connessione durante l'upload",
+          permissions: "Permessi",
+          permissions_title: "Permessi scheda",
+          public_view: "Visibile a tutti i giocatori in stanza",
+          add_user_permission: "Aggiungi utente",
+          can_view: "Vedi",
+          can_edit: "Modifica",
+          remove: "Rimuovi",
+          perm_save_failed: "Salvataggio permessi fallito.",
+          perm_save_ok: "Permessi salvati.",
+          permissions_owner_badge: "(creatore)",
+          cancel: "Annulla"
         },
         en: {
           name: "Name", classLevel: "Class & Level", background: "Background", playerName: "Player Name", faction: "Faction", race: "Race", alignment: "Alignment", xp: "XP", dciNo: "DCI Number",
@@ -630,7 +814,18 @@
           previewPlayerView: "Player view: shared sheets only (your private DM sheets are hidden here)",
           masterView: "DM view: all sheets and full controls",
           searchSheets: "Search sheets...",
-          imageTooBig: "Image too big (max 2MB)", uploadSuccess: "Upload complete", uploadFailed: "Upload failed", uploadError: "Connection error during upload"
+          imageTooBig: "Image too big (max 2MB)", uploadSuccess: "Upload complete", uploadFailed: "Upload failed", uploadError: "Connection error during upload",
+          permissions: "Permissions",
+          permissions_title: "Sheet permissions",
+          public_view: "Visible to all players in this room",
+          add_user_permission: "Add user",
+          can_view: "View",
+          can_edit: "Edit",
+          remove: "Remove",
+          perm_save_failed: "Could not save permissions.",
+          perm_save_ok: "Permissions saved.",
+          permissions_owner_badge: "(creator)",
+          cancel: "Cancel"
         }
       };
       var t = function (k) { return (L[locale] || L.en)[k] || L.en[k] || k; };
@@ -768,16 +963,20 @@
         return o;
       }
 
-      /** Evita il raddoppio: planarally.proficiencies è il merge usato in salvataggio; il textarea "Altre competenze" deve essere solo il testo libero in dndsheets.otherProficiencies. */
-      function deriveOtherProficiencies(paProficiencies, ds) {
-        if (ds.otherProficiencies != null && String(ds.otherProficiencies).trim() !== '') {
-          return String(ds.otherProficiencies);
-        }
-        var p = String(paProficiencies || '').trim();
+      /**
+       * Rimuove da un testo i blocchi che in salvataggio finiscono anche in planarally.proficiencies
+       * (lingue con prefisso IT/EN, armi, strumenti). Così "Altre competenze" non duplica quei campi.
+       * Usare sempre entrambi i prefissi lingue: il merge in salvataggio dipende dalla locale corrente,
+       * ma in lettura la UI può essere cambiata → altrimenti lo strip fallisce e il contenuto si accumula.
+       */
+      function stripMergedProficiencySections(text, ds) {
+        var p = String(text || '').trim();
         if (!p) return '';
         var strips = [];
         if (ds.languagesText && String(ds.languagesText).trim()) {
-          strips.push((locale === 'it' ? 'Lingue: ' : 'Languages: ') + String(ds.languagesText).trim());
+          var lt = String(ds.languagesText).trim();
+          strips.push('Lingue: ' + lt);
+          strips.push('Languages: ' + lt);
         }
         if (ds.weaponsProfText && String(ds.weaponsProfText).trim()) {
           strips.push(String(ds.weaponsProfText).trim());
@@ -791,6 +990,12 @@
           p = p.split(block).join('').replace(/\n{3,}/g, '\n\n').trim();
         }
         return p;
+      }
+
+      function deriveOtherProficiencies(paProficiencies, ds) {
+        var fromDs = ds.otherProficiencies != null && String(ds.otherProficiencies).trim() !== '';
+        var source = fromDs ? String(ds.otherProficiencies) : String(paProficiencies || '');
+        return stripMergedProficiencySections(source, ds);
       }
 
       function toFormData(d) {
@@ -1155,8 +1360,7 @@
         var filtered = searchVal ? sheets.filter(function (s) { return (s.name || '').toLowerCase().indexOf(searchVal) >= 0; }) : sheets;
         sheetList.innerHTML = '';
         var trashFa = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i>';
-        var eyeFa = '<i class="fa-solid fa-eye" aria-hidden="true"></i>';
-        var eyeSlashFa = '<i class="fa-solid fa-eye-slash" aria-hidden="true"></i>';
+        var usersFa = '<i class="fa-solid fa-users" aria-hidden="true"></i>';
         filtered.forEach(function (s) {
           var li = document.createElement('li');
           li.className = 'ext-ui-list-item' + (selectedId === s.id ? ' selected' : '');
@@ -1169,13 +1373,14 @@
           var actions = document.createElement('div');
           actions.className = 'ext-item-actions';
           if (s.canToggleVisibility) {
-            var visBtn = document.createElement('button');
-            visBtn.className = 'ext-action-btn visibility' + (s.visibleToPlayers ? ' visibility-on' : '');
-            visBtn.type = 'button';
-            visBtn.title = s.visibleToPlayers ? t('visibleToPlayers') : t('hiddenFromPlayers');
-            visBtn.innerHTML = s.visibleToPlayers ? eyeFa : eyeSlashFa;
-            visBtn.onclick = function (e) { e.stopPropagation(); toggleVisibility(s.id); };
-            actions.appendChild(visBtn);
+            var permBtn = document.createElement('button');
+            permBtn.className = 'ext-action-btn permissions-btn';
+            permBtn.type = 'button';
+            permBtn.title = t('permissions');
+            permBtn.setAttribute('aria-label', t('permissions'));
+            permBtn.innerHTML = usersFa;
+            permBtn.onclick = function (e) { e.stopPropagation(); openSheetPermissionsModal(s); };
+            actions.appendChild(permBtn);
           }
           if (s.canDelete) {
             var delBtn = document.createElement('button');
@@ -1344,17 +1549,215 @@
       editForm.addEventListener('input', scheduleAutoSave);
       editForm.addEventListener('change', scheduleAutoSave);
 
-      function toggleVisibility(id) {
-        if (!id || !roomCreator || !roomName) return;
-        fetch(api('/api/extensions/character-sheet/sheet/' + id + '/visibility'), {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ roomCreator: roomCreator, roomName: roomName })
-        }).then(function (r) { return r.json(); }).then(function (d) {
-          if (d.ok) { toast(d.visibleToPlayers ? (locale === 'it' ? 'Visibile a tutti' : 'Visible to all') : (locale === 'it' ? 'Nascosta ai giocatori' : 'Hidden from players')); loadList(); }
-        }).catch(function () { toast(locale === 'it' ? 'Errore' : 'Error', true); });
+      var permissionDraft = null;
+      var activePermissionSheet = null;
+      var roomUsersCs = [];
+      var roomUsersLoadedKeyCs = '';
+      var iconTrashCs = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i>';
+
+      var csPermOverlay = document.getElementById('csPermissionsOverlay');
+      var csPermTitle = document.getElementById('csPermissionsTitle');
+      var csPermSheetName = document.getElementById('csPermissionsSheetName');
+      var csPermPublic = document.getElementById('csPermissionsPublicView');
+      var csPermPublicLabel = document.getElementById('csPermissionsPublicViewLabel');
+      var csPermUsers = document.getElementById('csPermissionsUsers');
+      var csPermAddBtn = document.getElementById('csPermissionsAddUserBtn');
+      var csPermClose = document.getElementById('csPermissionsCloseBtn');
+      var csPermCancel = document.getElementById('csPermissionsCancelBtn');
+      var csPermSave = document.getElementById('csPermissionsSaveBtn');
+
+      csPermTitle.textContent = t('permissions_title');
+      csPermPublicLabel.textContent = t('public_view');
+      csPermAddBtn.title = t('add_user_permission');
+      csPermAddBtn.setAttribute('aria-label', t('add_user_permission'));
+      csPermCancel.textContent = t('cancel');
+      csPermSave.textContent = t('save');
+      csPermClose.title = t('cancel');
+
+      function escAttrCs(s) {
+        return String(s != null ? s : '')
+          .replace(/&/g, '&amp;')
+          .replace(/"/g, '&quot;')
+          .replace(/</g, '&lt;');
       }
+
+      function closeCsPermissionsModal() {
+        csPermOverlay.style.display = 'none';
+        activePermissionSheet = null;
+        permissionDraft = null;
+      }
+
+      function selectedGrantUsersCs(exceptIdx) {
+        if (!permissionDraft || !Array.isArray(permissionDraft.grants)) return new Set();
+        var names = new Set();
+        permissionDraft.grants.forEach(function (g, idx) {
+          if (idx === exceptIdx) return;
+          var n = String(g.userName || '').trim();
+          if (n) names.add(n);
+        });
+        return names;
+      }
+
+      async function loadRoomUsersCs() {
+        var key = roomCreator + '|' + roomName;
+        if (key && key === roomUsersLoadedKeyCs && roomUsersCs.length > 0) return;
+        roomUsersLoadedKeyCs = key;
+        roomUsersCs = [];
+        if (!roomCreator || !roomName) return;
+        try {
+          var url = api('/api/extensions/documents/room-users?room_creator=' + encodeURIComponent(roomCreator) + '&room_name=' + encodeURIComponent(roomName));
+          var response = await fetch(url, { credentials: 'include' });
+          if (!response.ok) return;
+          var payload = await response.json();
+          if (payload && Array.isArray(payload.users)) {
+            roomUsersCs = payload.users.map(function (u) { return String(u || '').trim(); }).filter(Boolean);
+          }
+        } catch (e) {
+          roomUsersCs = [];
+        }
+      }
+
+      function renderCsPermissionRows() {
+        if (!permissionDraft || !csPermUsers) return;
+        var grants = permissionDraft.grants || [];
+        var removeTitle = escAttrCs(t('remove'));
+        var ownerName = String(permissionDraft.creatorName || '').trim();
+        var ownerEsc = escAttrCs(ownerName);
+        var ownerBadgeEsc = escAttrCs(t('permissions_owner_badge'));
+        var ownerRow = ownerName
+          ? '<div class="doc-perm-user-row doc-perm-user-row-owner">' +
+              '<div class="doc-perm-owner-name">' + ownerEsc + '<span class="doc-perm-owner-badge">' + ownerBadgeEsc + '</span></div>' +
+              '<label><input type="checkbox" checked disabled /> ' + t('can_view') + '</label>' +
+              '<label><input type="checkbox" checked disabled /> ' + t('can_edit') + '</label>' +
+              '<span></span></div>'
+          : '';
+        var grantsHtml = grants.length === 0
+          ? '<div class="doc-perm-empty">-</div>'
+          : grants.map(function (g, idx) {
+            var selectedName = String(g.userName || '').trim();
+            var taken = selectedGrantUsersCs(idx);
+            var baseOptions = roomUsersCs.filter(function (name) {
+              if (name === ownerName) return false;
+              return !taken.has(name) || name === selectedName;
+            });
+            if (selectedName && baseOptions.indexOf(selectedName) < 0) baseOptions.unshift(selectedName);
+            var optionsHtml = '<option value=""></option>' + baseOptions.map(function (name) {
+              var esc = escAttrCs(name);
+              var sel = name === selectedName ? ' selected' : '';
+              return '<option value="' + esc + '"' + sel + '>' + esc + '</option>';
+            }).join('');
+            return '<div class="doc-perm-user-row" data-idx="' + idx + '">' +
+              '<select data-role="name">' + optionsHtml + '</select>' +
+              '<label><input type="checkbox" data-role="view" ' + (g.canView ? 'checked' : '') + ' /> ' + t('can_view') + '</label>' +
+              '<label><input type="checkbox" data-role="edit" ' + (g.canEdit ? 'checked' : '') + ' /> ' + t('can_edit') + '</label>' +
+              '<button type="button" class="ext-action-btn delete" data-role="remove" title="' + removeTitle + '" aria-label="' + removeTitle + '">' + iconTrashCs + '</button></div>';
+          }).join('');
+        csPermUsers.innerHTML = ownerRow + grantsHtml;
+
+        csPermUsers.querySelectorAll('.doc-perm-user-row[data-idx]').forEach(function (row) {
+          var idx = parseInt(row.getAttribute('data-idx'), 10);
+          var sel = row.querySelector('select[data-role="name"]');
+          var viewInput = row.querySelector('input[data-role="view"]');
+          var editInput = row.querySelector('input[data-role="edit"]');
+          var removeBtn = row.querySelector('button[data-role="remove"]');
+          if (sel) sel.addEventListener('change', function () {
+            permissionDraft.grants[idx].userName = sel.value || '';
+            renderCsPermissionRows();
+          });
+          if (viewInput) viewInput.addEventListener('change', function () {
+            permissionDraft.grants[idx].canView = !!viewInput.checked;
+            if (!viewInput.checked) permissionDraft.grants[idx].canEdit = false;
+            renderCsPermissionRows();
+          });
+          if (editInput) editInput.addEventListener('change', function () {
+            permissionDraft.grants[idx].canEdit = !!editInput.checked;
+            if (editInput.checked) permissionDraft.grants[idx].canView = true;
+            renderCsPermissionRows();
+          });
+          if (removeBtn) removeBtn.addEventListener('click', function () {
+            permissionDraft.grants.splice(idx, 1);
+            renderCsPermissionRows();
+          });
+        });
+      }
+
+      async function openSheetPermissionsModal(s) {
+        if (!s || !roomCreator || !roomName) return;
+        activePermissionSheet = s;
+        var ownerNm = String(s.ownerName || '').trim();
+        permissionDraft = { creatorName: ownerNm, publicView: !!s.visibleToPlayers, grants: [] };
+        await loadRoomUsersCs();
+        try {
+          var aclUrl = qs('/api/extensions/character-sheet/sheet/' + encodeURIComponent(s.id) + '/acl');
+          var response = await fetch(aclUrl, { credentials: 'include' });
+          if (response.ok) {
+            var payload = await response.json();
+            if (payload && payload.acl) {
+              permissionDraft = payload.acl;
+              if (!permissionDraft.grants) permissionDraft.grants = [];
+            }
+          }
+        } catch (e) { /* ignore */ }
+        permissionDraft.creatorName = ownerNm;
+        csPermSheetName.textContent = s.name || '';
+        csPermPublic.checked = !!permissionDraft.publicView;
+        renderCsPermissionRows();
+        csPermOverlay.style.display = 'flex';
+      }
+
+      async function saveCsPermissions() {
+        if (!activePermissionSheet || !permissionDraft) return;
+        permissionDraft.publicView = !!csPermPublic.checked;
+        var ownerForAcl = String(activePermissionSheet.ownerName || '').trim();
+        permissionDraft.creatorName = ownerForAcl;
+        permissionDraft.grants = (permissionDraft.grants || []).map(function (g) {
+          return {
+            userName: String(g.userName || '').trim(),
+            canView: !!g.canView || !!g.canEdit,
+            canEdit: !!g.canEdit,
+          };
+        }).filter(function (g) {
+          return g.userName && g.userName !== ownerForAcl;
+        });
+        try {
+          var response = await fetch(api('/api/extensions/character-sheet/sheet/' + encodeURIComponent(activePermissionSheet.id) + '/acl'), {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roomCreator: roomCreator, roomName: roomName, acl: permissionDraft }),
+          });
+          if (response.ok) {
+            toast(t('perm_save_ok'));
+            closeCsPermissionsModal();
+            loadList(undefined, { silent: true });
+          } else {
+            toast((await response.text()) || t('perm_save_failed'), true);
+          }
+        } catch (e) {
+          toast(t('perm_save_failed'), true);
+        }
+      }
+
+      csPermClose.addEventListener('click', closeCsPermissionsModal);
+      csPermCancel.addEventListener('click', closeCsPermissionsModal);
+      csPermOverlay.addEventListener('click', function (ev) { if (ev.target === csPermOverlay) closeCsPermissionsModal(); });
+      csPermPublic.addEventListener('change', function () {
+        if (permissionDraft) permissionDraft.publicView = !!csPermPublic.checked;
+      });
+      csPermAddBtn.addEventListener('click', function () {
+        if (!permissionDraft) return;
+        var used = new Set((permissionDraft.grants || []).map(function (g) { return String(g.userName || '').trim(); }));
+        used.add(permissionDraft.creatorName);
+        var pick = roomUsersCs.filter(function (n) { return !used.has(n); })[0];
+        if (!pick) {
+          toast(locale === 'it' ? 'Nessun altro utente in stanza' : 'No other room users', true);
+          return;
+        }
+        permissionDraft.grants = permissionDraft.grants || [];
+        permissionDraft.grants.push({ userName: pick, canView: true, canEdit: false });
+        renderCsPermissionRows();
+      });
+      csPermSave.addEventListener('click', saveCsPermissions);
 
       async function deleteSheet(id) {
         if (!id) return;

@@ -164,6 +164,8 @@ main_app.router.add_post(f"{subpath}/api/extensions/character-sheet/sheet/{{shee
 main_app.router.add_post(f"{subpath}/api/extensions/character-sheet/sheet/{{sheet_id}}/associate", extensions.character_sheet.associate_sheet)
 main_app.router.add_post(f"{subpath}/api/extensions/character-sheet/sheet/{{sheet_id}}/dissociate", extensions.character_sheet.dissociate_sheet)
 main_app.router.add_post(f"{subpath}/api/extensions/character-sheet/sheet/{{sheet_id}}/visibility", extensions.character_sheet.toggle_sheet_visibility)
+main_app.router.add_get(f"{subpath}/api/extensions/character-sheet/sheet/{{sheet_id}}/acl", extensions.character_sheet.get_sheet_resource_acl)
+main_app.router.add_put(f"{subpath}/api/extensions/character-sheet/sheet/{{sheet_id}}/acl", extensions.character_sheet.put_sheet_resource_acl)
 main_app.router.add_post(f"{subpath}/api/extensions/character-sheet/upload", extensions.character_sheet.upload_portrait)
 main_app.router.add_post(f"{subpath}/api/extensions/character-sheet/default", extensions.character_sheet.set_default)
 main_app.router.add_get(f"{subpath}/api/extensions/character-sheet/default", extensions.character_sheet.get_default)

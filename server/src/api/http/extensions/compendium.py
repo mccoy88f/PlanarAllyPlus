@@ -1,5 +1,6 @@
 """Compendium extension - multi-compendium knowledge base from JSON files."""
 
+import base64
 import json
 import re
 import uuid
@@ -11,10 +12,116 @@ from pathlib import Path
 from aiohttp import web
 
 from ....auth import get_authorized_user
+from ....db.models.player_room import PlayerRoom
+from ....db.models.room import Room
+from ....db.models.user import User
+from ....models.role import Role
 from ....utils import DATA_DIR, EXTENSIONS_DIR
 from .assets_installer import upload_zip_data
+from .permission_acl import user_can_view_acl
+from .resource_acl import get_stored_acl
 
 EXT_ID = "compendium"
+
+
+def compendium_resource_key(comp_id: str, collection_slug: str, item_slug: str) -> str:
+    """Chiave stabile per ACL (`resource_acl`); allineata al client `compendiumResourceAclKey`."""
+    payload = json.dumps([comp_id, collection_slug, item_slug], separators=(",", ":"), ensure_ascii=False)
+    b64 = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii").rstrip("=")
+    return f"compendium:{b64}"
+
+
+def _get_room_for_compendium(creator_name: str, room_name: str) -> Room | None:
+    creator = User.get_or_none(User.name == creator_name)
+    if not creator:
+        return None
+    return Room.get_or_none(Room.creator == creator, Room.name == room_name)
+
+
+def _compendium_parse_room_scope(user: User, request: web.Request) -> tuple[Room | None, PlayerRoom | None] | web.Response:
+    creator = request.query.get("room_creator", "").strip()
+    room_name = request.query.get("room_name", "").strip()
+    if not creator and not room_name:
+        return None, None
+    if not creator or not room_name:
+        return web.HTTPBadRequest(text="room_creator and room_name are both required when scoping to a room")
+    room = _get_room_for_compendium(creator, room_name)
+    if not room:
+        return web.HTTPNotFound(text="Room not found")
+    pr = PlayerRoom.get_or_none(PlayerRoom.room == room, PlayerRoom.player == user)
+    if not pr:
+        return web.HTTPForbidden(text="Not in this room")
+    return room, pr
+
+
+def _compendium_apply_player_acl(pr: PlayerRoom, request: web.Request) -> bool:
+    """True se la richiesta deve applicare i filtri ACL «da giocatore»."""
+    preview = request.query.get("preview_as_player", "").strip().lower() in ("1", "true", "yes")
+    if pr.role == Role.DM:
+        return preview
+    return True
+
+
+def _compendium_item_visible_to(
+    user: User,
+    comp_id: str,
+    coll_slug: str,
+    item_slug: str,
+    *,
+    room: Room | None,
+    pr: PlayerRoom | None,
+    request: web.Request,
+) -> bool:
+    if room is None or pr is None:
+        return True
+    if not _compendium_apply_player_acl(pr, request):
+        return True
+    acl = get_stored_acl(compendium_resource_key(comp_id, coll_slug, item_slug))
+    if acl is None:
+        return True
+    return user_can_view_acl(user.name, acl)
+
+
+def _filter_compendium_index_for_viewer(
+    index: list,
+    *,
+    user: User,
+    comp_id: str,
+    room: Room | None,
+    pr: PlayerRoom | None,
+    request: web.Request,
+) -> list:
+    if room is None or pr is None or not _compendium_apply_player_acl(pr, request):
+        return index
+
+    def filter_coll(node: dict) -> dict | None:
+        cslug = node.get("slug") or ""
+        items_out = []
+        for it in node.get("items") or []:
+            islug = it.get("slug")
+            if not islug:
+                continue
+            if _compendium_item_visible_to(user, comp_id, cslug, islug, room=room, pr=pr, request=request):
+                items_out.append(it)
+        colls_out = []
+        for sc in node.get("collections") or []:
+            if not isinstance(sc, dict):
+                continue
+            fc = filter_coll(sc)
+            if fc and ((fc.get("items") or []) or (fc.get("collections") or [])):
+                colls_out.append(fc)
+        if not items_out and not colls_out:
+            return None
+        return {**node, "items": items_out, "collections": colls_out}
+
+    roots: list = []
+    for root in index:
+        if not isinstance(root, dict):
+            continue
+        fr = filter_coll(root)
+        if fr:
+            roots.append(fr)
+    return roots
 
 
 # Snapshot JSON dell'albero indice in `metadata` (stesso formato della risposta `index` di get_index).
@@ -1086,7 +1193,11 @@ async def get_collections(request: web.Request) -> web.Response:
 
 async def get_index(request: web.Request) -> web.Response:
     """Ritorna l'indice (ToC) del compendio. Struttura ad albero 2 livelli."""
-    await get_authorized_user(request)
+    user = await get_authorized_user(request)
+    scope = _compendium_parse_room_scope(user, request)
+    if isinstance(scope, web.Response):
+        return scope
+    room, pr = scope
     comp_id = _resolve_compendium_id(request.query.get("compendium", "").strip())
     if not comp_id or not _ensure_sqlite(comp_id):
         return web.json_response({"index": []})
@@ -1115,6 +1226,7 @@ async def get_index(request: web.Request) -> web.Response:
             metadata = {}
 
         conn.close()
+        index = _filter_compendium_index_for_viewer(index, user=user, comp_id=comp_id, room=room, pr=pr, request=request)
         return web.json_response({"index": index, "metadata": metadata})
     except Exception as e:
         return web.json_response({"error": str(e), "index": [], "metadata": {}}, status=500)
@@ -1123,7 +1235,11 @@ async def get_index(request: web.Request) -> web.Response:
 
 async def get_items(request: web.Request) -> web.Response:
     """Items di una collezione. Query: compendium=id o slug, collection_slug nel path, tags=1,2,3 (opzionale)."""
-    await get_authorized_user(request)
+    user = await get_authorized_user(request)
+    scope = _compendium_parse_room_scope(user, request)
+    if isinstance(scope, web.Response):
+        return scope
+    room, pr = scope
     comp_id = _resolve_compendium_id(request.query.get("compendium", "").strip())
     slug = request.match_info.get("collection_slug", "").strip()
     tag_ids_str = request.query.get("tags", "").strip()
@@ -1164,7 +1280,11 @@ async def get_items(request: web.Request) -> web.Response:
         
         rows = conn.execute(query, params).fetchall()
         conn.close()
-        items = [{"slug": r[0], "name": r[1], "order": r[2]} for r in rows]
+        items = [
+            {"slug": r[0], "name": r[1], "order": r[2]}
+            for r in rows
+            if _compendium_item_visible_to(user, comp_id, slug, r[0], room=room, pr=pr, request=request)
+        ]
         return web.json_response({"items": items})
     except Exception as e:
         return web.json_response({"error": str(e), "items": []}, status=500)
@@ -1172,7 +1292,11 @@ async def get_items(request: web.Request) -> web.Response:
 
 async def get_item(request: web.Request) -> web.Response:
     """Singolo item. Query: compendium=id o slug (opzionale, default=predefinito), collection=, slug=."""
-    await get_authorized_user(request)
+    user = await get_authorized_user(request)
+    scope = _compendium_parse_room_scope(user, request)
+    if isinstance(scope, web.Response):
+        return scope
+    room, pr = scope
     config = _load_config()
     comp_param = request.query.get("compendium", "").strip()
     comp_id = _resolve_compendium_id(comp_param) if comp_param else config.get("defaultId")
@@ -1188,6 +1312,7 @@ async def get_item(request: web.Request) -> web.Response:
         conn = _get_conn(comp_id)
         row = None
         resolved_item_slug = item_slug
+        resolved_coll_slug = coll_slug
         for variant in _item_slug_lookup_variants(item_slug):
             row = conn.execute(
                 """
@@ -1200,6 +1325,7 @@ async def get_item(request: web.Request) -> web.Response:
             ).fetchone()
             if row:
                 resolved_item_slug = row[2]
+                resolved_coll_slug = row[0]
                 break
         # Link qe:…/glossario/5.5e senza sottovoce: nel DB gli slug sono 5.5e/abilita, ecc.
         if not row and "/" not in item_slug:
@@ -1217,10 +1343,17 @@ async def get_item(request: web.Request) -> web.Response:
                 ).fetchone()
                 if row:
                     resolved_item_slug = row[2]
+                    resolved_coll_slug = row[0]
                     break
         if not row:
             conn.close()
             return web.json_response({"error": "Item not found"}, status=404)
+
+        if not _compendium_item_visible_to(
+            user, comp_id, resolved_coll_slug, resolved_item_slug, room=room, pr=pr, request=request
+        ):
+            conn.close()
+            return web.json_response({"error": "Forbidden"}, status=403)
 
         # Fetch tags
         tag_rows = conn.execute(
@@ -1231,9 +1364,9 @@ async def get_item(request: web.Request) -> web.Response:
             JOIN tag_categories tc ON tc.id = t.category_id
             JOIN items i ON i.id = it.item_id
             JOIN collections c ON c.id = i.collection_id
-            WHERE lower(c.slug) = lower(?) AND i.slug = ?
+            WHERE c.slug = ? AND i.slug = ?
             """,
-            (coll_slug, resolved_item_slug),
+            (resolved_coll_slug, resolved_item_slug),
         ).fetchall()
         conn.close()
         
@@ -1246,9 +1379,9 @@ async def get_item(request: web.Request) -> web.Response:
         return web.json_response({
             "compendiumId": comp_id,
             "compendiumName": comp_name,
-            "collectionSlug": row[0],
+            "collectionSlug": resolved_coll_slug,
             "collectionName": row[1],
-            "slug": row[2],
+            "slug": resolved_item_slug,
             "name": row[3],
             "markdown": row[4],
             "tags": tags,
@@ -1398,7 +1531,11 @@ def _search_in_compendium(conn, q: str, comp_id: str, comp_name: str, tag_ids: l
 
 async def search(request: web.Request) -> web.Response:
     """Ricerca. Query: q=..., compendium=id o slug, tags=1,2,3 (opzionali)."""
-    await get_authorized_user(request)
+    user = await get_authorized_user(request)
+    scope = _compendium_parse_room_scope(user, request)
+    if isinstance(scope, web.Response):
+        return scope
+    room, pr = scope
     q = request.query.get("q", "").strip()
     comp_filter = request.query.get("compendium", "").strip() or None
     tag_ids_str = request.query.get("tags", "").strip()
@@ -1423,7 +1560,17 @@ async def search(request: web.Request) -> web.Response:
             conn = _get_conn(comp_id)
             part = _search_in_compendium(conn, q, comp_id, comp.get("name", ""), tag_ids)
             conn.close()
-            results.extend(part)
+            for hit in part:
+                if _compendium_item_visible_to(
+                    user,
+                    comp_id,
+                    hit["collectionSlug"],
+                    hit["itemSlug"],
+                    room=room,
+                    pr=pr,
+                    request=request,
+                ):
+                    results.append(hit)
         except Exception:
             pass
 
@@ -1582,7 +1729,7 @@ async def _get_item_translation_titles_manifest(request: web.Request) -> web.Res
 
 async def get_translation(request: web.Request) -> web.Response:
     """Recupera una traduzione salvata."""
-    await get_authorized_user(request)
+    user = await get_authorized_user(request)
     if request.query.get("manifest", "").strip() == "item_titles":
         return await _get_item_translation_titles_manifest(request)
 
@@ -1601,6 +1748,14 @@ async def get_translation(request: web.Request) -> web.Response:
     
     if not _ensure_sqlite(comp_id):
         return web.json_response({"error": "Database not found"}, status=404)
+
+    if t_type == "item" and coll_slug and item_slug:
+        scope = _compendium_parse_room_scope(user, request)
+        if isinstance(scope, web.Response):
+            return scope
+        room, pr = scope
+        if not _compendium_item_visible_to(user, comp_id, coll_slug, item_slug, room=room, pr=pr, request=request):
+            return web.json_response({"error": "Forbidden"}, status=403)
 
     try:
         conn = _get_conn(comp_id)
@@ -1690,7 +1845,11 @@ async def delete_translation(request: web.Request) -> web.Response:
 
 async def get_next_item(request: web.Request) -> web.Response:
     """Ritorna item precedente e successivo secondo l'alberatura (DFS). Query: compendium, collection, slug."""
-    await get_authorized_user(request)
+    user = await get_authorized_user(request)
+    scope = _compendium_parse_room_scope(user, request)
+    if isinstance(scope, web.Response):
+        return scope
+    room, pr = scope
     comp_param = request.query.get("compendium", "").strip()
     comp_id = _resolve_compendium_id(comp_param)
     coll_slug = request.query.get("collection", "").strip()
@@ -1771,11 +1930,19 @@ async def get_next_item(request: web.Request) -> web.Response:
             # Se vogliamo includere anche i suoi item, dobbiamo chiamare traverse()
             traverse(r["slug"])
 
+        visible_flat = [
+            e
+            for e in all_flattened_items
+            if _compendium_item_visible_to(
+                user, comp_id, e["collectionSlug"], e["itemSlug"], room=room, pr=pr, request=request
+            )
+        ]
+
         # 4. Elemento precedente e successivo (stesso ordine DFS della sidebar)
-        for i, entry in enumerate(all_flattened_items):
+        for i, entry in enumerate(visible_flat):
             if entry["collectionSlug"] == coll_slug and entry["itemSlug"] == item_slug:
-                prev_entry = all_flattened_items[i - 1] if i > 0 else None
-                next_entry = all_flattened_items[i + 1] if i + 1 < len(all_flattened_items) else None
+                prev_entry = visible_flat[i - 1] if i > 0 else None
+                next_entry = visible_flat[i + 1] if i + 1 < len(visible_flat) else None
                 return web.json_response({"next": next_entry, "prev": prev_entry})
 
         return web.json_response({"next": None, "prev": None})
