@@ -583,6 +583,10 @@
           "search_placeholder": "Cerca nei compendi...",
           "filter_tags_placeholder": "Cerca o seleziona tag...",
           "searching": "Ricerca...",
+          "hover_pick_title": "Scegli una voce",
+          "hover_section_preferred": "Compendio predefinito",
+          "hover_section_other": "Altri compendi",
+          "hover_back_list": "Torna all’elenco",
 
           "no_results": "Nessun risultato",
           "filter_all": "Tutti",

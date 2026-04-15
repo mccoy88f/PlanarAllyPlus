@@ -168,6 +168,19 @@ export async function loadCompendiumResolverMap(): Promise<void> {
 }
 
 /** Parametro `compendium` per GET /api/extensions/compendium/item (preferisce UUID da slug→id). */
+/** Slug compendio da id (per apertura modale / link) usando la mappa sync. */
+export function compendiumSlugFromResolvedId(compendiumId: string | undefined): string | undefined {
+    if (!compendiumId) return undefined;
+    const map = extensionsState.reactive.compendiumSlugToId;
+    for (const key of Object.keys(map)) {
+        if (map[key] !== compendiumId) continue;
+        if (key === compendiumId) continue;
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)) continue;
+        return key;
+    }
+    return undefined;
+}
+
 export function resolveCompendiumIdForItemQuery(compFromLink: string | undefined): string | undefined {
     const ctx = extensionsState.reactive.compendiumPreviewContext;
     const link = compFromLink?.trim();

@@ -1594,35 +1594,72 @@ async def search(request: web.Request) -> web.Response:
 
 
 async def get_names(request: web.Request) -> web.Response:
-    """Lista nomi per autolink. Query: compendium=id o slug (opzionale, default=predefinito)."""
+    """Lista nomi per autolink. Query: compendium=id o slug (opzionale, default=predefinito);
+    all=1 unisce tutti i compendi installati (es. autolink scheda con più database)."""
     await get_authorized_user(request)
     config = _load_config()
     comp_param = request.query.get("compendium", "").strip()
-    comp_id = _resolve_compendium_id(comp_param) if comp_param else config.get("defaultId")
+    all_flag = request.query.get("all", "").strip().lower() in ("1", "true", "yes")
+
+    def _rows_for_comp(cid: str, cslug: str) -> list[dict]:
+        if not cid or not _ensure_sqlite(cid):
+            return []
+        try:
+            conn = _get_conn(cid)
+            rows = conn.execute(
+                """
+                SELECT i.name, c.slug, i.slug
+                FROM items i
+                JOIN collections c ON i.collection_id = c.id
+                ORDER BY LENGTH(i.name) DESC
+                """
+            ).fetchall()
+            conn.close()
+            return [
+                {
+                    "name": r[0],
+                    "compendiumSlug": cslug,
+                    "collectionSlug": r[1],
+                    "itemSlug": r[2],
+                }
+                for r in rows
+            ]
+        except Exception:
+            return []
+
+    if comp_param:
+        comp_id = _resolve_compendium_id(comp_param)
+        if not comp_id:
+            return web.json_response({"names": []})
+        comp = _get_compendium(comp_id)
+        comp_slug = comp.get("slug", comp_id) if comp else comp_id
+        names = _rows_for_comp(comp_id, comp_slug)
+        return web.json_response({"names": names})
+
+    if all_flag:
+        seen: set[tuple] = set()
+        names: list[dict] = []
+        for comp in config.get("compendiums", []):
+            cid = comp.get("id")
+            if not cid:
+                continue
+            cslug = comp.get("slug", cid)
+            for row in _rows_for_comp(cid, cslug):
+                key = (row.get("compendiumSlug"), row.get("collectionSlug"), row.get("itemSlug"))
+                if key in seen:
+                    continue
+                seen.add(key)
+                names.append(row)
+        names.sort(key=lambda r: -len(r.get("name") or ""))
+        return web.json_response({"names": names})
+
+    comp_id = config.get("defaultId")
     if not comp_id:
-        return web.json_response({"names": []})
-    if not _ensure_sqlite(comp_id):
         return web.json_response({"names": []})
     comp = _get_compendium(comp_id)
     comp_slug = comp.get("slug", comp_id) if comp else comp_id
-    try:
-        conn = _get_conn(comp_id)
-        rows = conn.execute(
-            """
-            SELECT i.name, c.slug, i.slug
-            FROM items i
-            JOIN collections c ON i.collection_id = c.id
-            ORDER BY LENGTH(i.name) DESC
-            """
-        ).fetchall()
-        conn.close()
-        names = [
-            {"name": r[0], "compendiumSlug": comp_slug, "collectionSlug": r[1], "itemSlug": r[2]}
-            for r in rows
-        ]
-        return web.json_response({"names": names})
-    except Exception as e:
-        return web.json_response({"error": str(e), "names": []}, status=500)
+    names = _rows_for_comp(comp_id, comp_slug)
+    return web.json_response({"names": names})
 
 
 async def get_db(request: web.Request) -> web.Response:

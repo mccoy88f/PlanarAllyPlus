@@ -78,21 +78,22 @@
         var attrs = 'data-qe-collection="' + esc(e.collectionSlug || '') + '" data-qe-slug="' + esc(e.itemSlug || '') + '"';
         if (e.compendiumSlug) attrs = 'data-qe-compendium="' + esc(e.compendiumSlug) + '" ' + attrs;
         var link = '<a href="#" ' + attrs + ' class="qe-internal-link">' + esc(e.name) + '</a>';
-        safe = safe.replace(new RegExp('"(' + accentName + ')"', 'gi'), function () {
+        safe = safe.replace(new RegExp('"(' + accentName + ')"', 'giu'), function () {
           var id = ph();
           placeholders[placeholders.length - 1] = '"' + link + '"';
           return id;
         });
-        safe = safe.replace(new RegExp('\\(' + accentName + '\\)', 'gi'), function () {
+        safe = safe.replace(new RegExp('\\(' + accentName + '\\)', 'giu'), function () {
           var id = ph();
           placeholders[placeholders.length - 1] = '(' + link + ')';
           return id;
         });
-        var wordBoundary = new RegExp('(^|[^A-Za-zÀ-ÖØ-öø-ÿ0-9_])(' + accentName + ')(?=$|[^A-Za-zÀ-ÖØ-öø-ÿ0-9_])', 'gi');
-        safe = safe.replace(wordBoundary, function (_, pre) {
+        // Confini parola Unicode (es. "Invisibilità") senza buchi tra range Latin-1 manuali.
+        var wordBoundary = new RegExp('(?<![\\p{L}\\p{N}_])(' + accentName + ')(?![\\p{L}\\p{N}_])', 'giu');
+        safe = safe.replace(wordBoundary, function () {
           var id = ph();
           placeholders[placeholders.length - 1] = link;
-          return (pre || '') + id;
+          return id;
         });
       }
     }
@@ -500,6 +501,7 @@
               collection: coll,
               slug: slug,
               compendium: comp || undefined,
+              linkLabel: (a.textContent || '').trim() || undefined,
               clientX: ev.clientX,
               clientY: ev.clientY
             },

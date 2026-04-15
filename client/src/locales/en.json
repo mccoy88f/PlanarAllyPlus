@@ -1158,6 +1158,10 @@
           "search_placeholder": "Search in compendiums...",
           "filter_tags_placeholder": "Search or select tags...",
           "searching": "Searching...",
+          "hover_pick_title": "Choose an entry",
+          "hover_section_preferred": "Default compendium",
+          "hover_section_other": "Other compendiums",
+          "hover_back_list": "Back to list",
 
           "no_results": "No results",
           "filter_all": "All",

@@ -1761,9 +1761,11 @@ async function loadCompendiums(): Promise<void> {
             const openItem = extensionsState.raw.compendiumOpenItem;
             if (openItem && compendiums.value.length > 0) {
                 sidebarCollapsed.value = true;
-                const comp = openItem.compendiumSlug
-                    ? compendiums.value.find((c: CompendiumMeta) => c.slug === openItem.compendiumSlug)
-                    : compendiums.value.find((c: CompendiumMeta) => c.isDefault) ?? compendiums.value[0];
+                const comp = openItem.compendiumId
+                    ? compendiums.value.find((c: CompendiumMeta) => c.id === openItem.compendiumId)
+                    : openItem.compendiumSlug
+                      ? compendiums.value.find((c: CompendiumMeta) => c.slug === openItem.compendiumSlug)
+                      : compendiums.value.find((c: CompendiumMeta) => c.isDefault) ?? compendiums.value[0];
                 if (comp) {
                     selectedCompendiumId.value = comp.id;
                     expandedComps.value = new Set([comp.id]);
@@ -2152,9 +2154,11 @@ watch(
     async ([openItem]) => {
         if (!openItem || !props.visible || !compendiums.value.length) return;
         sidebarCollapsed.value = true;
-        const comp = openItem.compendiumSlug
-            ? compendiums.value.find((c: CompendiumMeta) => c.slug === openItem.compendiumSlug)
-            : compendiums.value.find((c: CompendiumMeta) => c.isDefault) ?? compendiums.value[0];
+        const comp = openItem.compendiumId
+            ? compendiums.value.find((c: CompendiumMeta) => c.id === openItem.compendiumId)
+            : openItem.compendiumSlug
+              ? compendiums.value.find((c: CompendiumMeta) => c.slug === openItem.compendiumSlug)
+              : compendiums.value.find((c: CompendiumMeta) => c.isDefault) ?? compendiums.value[0];
         if (!comp) return;
         await ensureCompendiumExpanded(comp.id);
         const colls = collectionsByComp.value.get(comp.id) ?? [];

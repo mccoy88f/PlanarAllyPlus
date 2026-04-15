@@ -127,8 +127,9 @@ export function openCompendiumModalForItem(
     collectionSlug: string,
     itemSlug: string,
     compendiumSlug?: string,
+    compendiumId?: string,
 ): void {
-    const key = `${compendiumSlug ?? ""}|${collectionSlug}|${itemSlug}`;
+    const key = `${compendiumId ?? compendiumSlug ?? ""}|${collectionSlug}|${itemSlug}`;
     const now = Date.now();
     if (key === lastCompendiumOpenKey && now - lastCompendiumOpenAt < 400) return;
     lastCompendiumOpenKey = key;
@@ -136,6 +137,7 @@ export function openCompendiumModalForItem(
 
     extensionsState.mutableReactive.compendiumOpenItem = {
         compendiumSlug,
+        compendiumId,
         collectionSlug,
         itemSlug,
     };

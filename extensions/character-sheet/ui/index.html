@@ -864,7 +864,7 @@
       }
 
       if (qeEnabled) {
-        qs('/api/extensions/compendium/names').then(function (r) { return r.ok ? r.json() : { names: [] }; }).then(function (data) {
+        qs('/api/extensions/compendium/names?all=1').then(function (r) { return r.ok ? r.json() : { names: [] }; }).then(function (data) {
           qeNamesCache = (data.names || []).slice().sort(function (a, b) { return (b.name || '').length - (a.name || '').length; });
           if (selectedId && editForm.innerHTML && !editingEnabled) renderAll(toFormData(currentData));
         }).catch(function () { qeNamesCache = []; });

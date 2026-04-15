@@ -42,6 +42,7 @@ interface ReactiveExtensionsState {
     /** When set, Compendium modal opens and navigates to this item */
     compendiumOpenItem: {
         compendiumSlug?: string;
+        compendiumId?: string;
         collectionSlug: string;
         itemSlug: string;
     } | undefined;
