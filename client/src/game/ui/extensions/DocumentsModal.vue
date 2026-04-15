@@ -5,8 +5,15 @@ import { useToast } from "vue-toastification";
 
 import { http } from "../../../core/http";
 import LoadingBar from "../../../core/components/LoadingBar.vue";
+import { coreStore } from "../../../store/core";
 import { openDocumentsPdfViewer } from "../../systems/extensions/ui";
 import { gameState } from "../../systems/game/state";
+import {
+    ExtensionResourcePermissionsModal,
+    defaultExtensionResourceAcl,
+    resourceAclKey,
+    type ExtensionResourceAcl,
+} from "./permissions";
 
 const props = defineProps<{
     visible: boolean;
@@ -29,6 +36,10 @@ const uploadProgress = ref(0);
 const uploadingFilename = ref("");
 const deleting = ref(false);
 const uploadInput = useTemplateRef<HTMLInputElement>("uploadInput");
+
+const permVisible = ref(false);
+const permAcl = ref<ExtensionResourceAcl>(defaultExtensionResourceAcl(""));
+const activePermDoc = ref<DocumentItem | null>(null);
 
 async function loadDocuments(): Promise<void> {
     loading.value = true;
@@ -165,6 +176,41 @@ function triggerUpload(): void {
     uploadInput.value?.click();
 }
 
+async function openDocumentPermissions(doc: DocumentItem): Promise<void> {
+    activePermDoc.value = doc;
+    const creator = coreStore.state.username;
+    let acl: ExtensionResourceAcl = defaultExtensionResourceAcl(creator);
+    try {
+        const params = new URLSearchParams({ key: resourceAclKey("documents", doc.id) });
+        const response = await http.get(`/api/extensions/resource-acl?${params.toString()}`);
+        if (response.ok) {
+            const data = (await response.json()) as { acl: ExtensionResourceAcl | null };
+            if (data.acl) {
+                acl = data.acl;
+            }
+        }
+    } catch {
+        /* default ACL */
+    }
+    permAcl.value = acl;
+    permVisible.value = true;
+}
+
+async function onPermissionsApply(acl: ExtensionResourceAcl): Promise<void> {
+    if (!activePermDoc.value) return;
+    const key = resourceAclKey("documents", activePermDoc.value.id);
+    try {
+        const response = await http.putJson("/api/extensions/resource-acl", { key, acl });
+        if (response.ok) {
+            toast.success(t("game.ui.extensions.resourcePermissions.save_success"));
+        } else {
+            toast.error(t("game.ui.extensions.resourcePermissions.save_error"));
+        }
+    } catch {
+        toast.error(t("game.ui.extensions.resourcePermissions.save_error"));
+    }
+}
+
 watch(
     () => props.visible,
     (visible) => {
@@ -254,6 +300,12 @@ onMounted(() => {
                         </div>
                         <div class="ext-item-actions">
                             <font-awesome-icon
+                                class="ext-action-btn permissions"
+                                icon="users"
+                                :title="t('game.ui.extensions.DocumentsModal.permissions')"
+                                @click.stop="openDocumentPermissions(doc)"
+                            />
+                            <font-awesome-icon
                                 class="ext-action-btn delete"
                                 icon="trash-alt"
                                 :title="t('common.remove')"
@@ -265,6 +317,12 @@ onMounted(() => {
             </div>
         </div>
     </Modal>
+    <ExtensionResourcePermissionsModal
+        v-model:visible="permVisible"
+        :creator-name="coreStore.state.username"
+        :acl="permAcl"
+        @apply="onPermissionsApply"
+    />
 </template>
 
 <style lang="scss" scoped>

@@ -262,6 +262,27 @@ export function preprocessQeLinksToHtml(text: string): string {
     return result;
 }
 
+function accentInsensitiveTokenPattern(text: string): string {
+    const map: Record<string, string> = {
+        a: "aàáâäãå",
+        e: "eèéêë",
+        i: "iìíîï",
+        o: "oòóôöõ",
+        u: "uùúûü",
+        c: "cç",
+        n: "nñ",
+        y: "yÿ",
+    };
+    let out = "";
+    for (const ch of text) {
+        const base = ch.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const cls = map[base];
+        if (cls) out += `[${cls}]`;
+        else out += ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+    return out;
+}
+
 function buildQeLink(entry: QeNameEntry): string {
     if (entry.compendiumSlug) {
         return `[${entry.name}](qe:${entry.compendiumSlug}/${entry.collectionSlug}/${entry.itemSlug})`;
@@ -297,10 +318,10 @@ export function injectQeLinks(
     /* ── Step 2: inietta link tra virgolette e parentesi ─────────────────── */
     for (const entry of sorted) {
         if (exclude.has(entry.name.toLowerCase().trim())) continue;
-        const escaped = entry.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const accentPattern = accentInsensitiveTokenPattern(entry.name);
         const link = buildQeLink(entry);
-        result = result.replace(new RegExp(`"(${escaped})"`, "gi"), () => `"${link}"`);
-        result = result.replace(new RegExp(`\\((${escaped})\\)`, "gi"), () => `(${link})`);
+        result = result.replace(new RegExp(`"(${accentPattern})"`, "gi"), () => `"${link}"`);
+        result = result.replace(new RegExp(`\\((${accentPattern})\\)`, "gi"), () => `(${link})`);
     }
 
     /* ── Step 3: proteggi tutti i link qe: già esistenti (step 2 + originali)
@@ -318,14 +339,17 @@ export function injectQeLinks(
      *  successive con termini più corti non entrano dentro link già creati. ── */
     for (const entry of sorted) {
         if (exclude.has(entry.name.toLowerCase().trim())) continue;
-        const escaped = entry.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const re = new RegExp(`\\b(${escaped})\\b`, "gi");
+        const accentPattern = accentInsensitiveTokenPattern(entry.name);
+        const re = new RegExp(
+            `(^|[^A-Za-zÀ-ÖØ-öø-ÿ0-9_])(${accentPattern})(?=$|[^A-Za-zÀ-ÖØ-öø-ÿ0-9_])`,
+            "gi",
+        );
         const link = buildQeLink(entry);
 
         let replaced = false;
-        result = result.replace(re, (_match) => {
+        result = result.replace(re, (_match, prefix: string) => {
             replaced = true;
-            return link;
+            return `${prefix ?? ""}${link}`;
         });
 
         /* Se abbiamo creato nuovi link, proteggili subito come placeholder */

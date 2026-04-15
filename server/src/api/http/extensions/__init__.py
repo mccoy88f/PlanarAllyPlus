@@ -4,11 +4,13 @@ import io
 import json
 import shutil
 from pathlib import Path
+from urllib.parse import quote
 
 from . import ambient_music
 from . import assets_installer
 from . import character_sheet
 from . import documents
+from . import resource_acl
 from . import dungeongen
 from . import aigenerator
 from . import compendium
@@ -22,6 +24,17 @@ from ....auth import get_authorized_user
 from ....utils import DATA_DIR, EXTENSIONS_DIR
 
 VISIBILITY_FILE = DATA_DIR / "extension_visibility.json"
+
+# L'iframe delle estensioni usa URL stabili (/api/extensions/<folder>/ui/): senza header anti-cache
+# il browser può tenere index.html vecchio dopo aggiornamenti in dev.
+_NO_CACHE_HTML_HEADERS = {
+    "Cache-Control": "no-store, max-age=0, must-revalidate",
+    "Pragma": "no-cache",
+}
+
+
+def _file_response_no_cache(path: Path) -> web.FileResponse:
+    return web.FileResponse(path, headers=dict(_NO_CACHE_HTML_HEADERS))
 
 
 def _resolve_extension_dir(folder: str) -> Path | None:
@@ -165,7 +178,9 @@ async def list_extensions(request: web.Request) -> web.Response:
             continue
         ext_result = {**ext, "visibleToPlayers": visible_to_players}
         if ext.get("entry"):
-            ext_result["uiUrl"] = f"/api/extensions/{ext['folder']}/ui/"
+            # ext_ver evita iframe HTML servito da cache del browser dopo aggiornamenti all'estensione
+            ver = quote(str(ext.get("version") or "0.0.0"), safe="")
+            ext_result["uiUrl"] = f"/api/extensions/{ext['folder']}/ui/?ext_ver={ver}"
         result.append(ext_result)
 
     return web.json_response({"extensions": result})
@@ -335,8 +350,10 @@ async def serve_extension_ui(request: web.Request) -> web.Response:
         if file_path.is_dir():
             index_path = file_path / "index.html"
             if index_path.is_file():
-                return web.FileResponse(index_path)
+                return _file_response_no_cache(index_path)
             return web.HTTPNotFound(text="Asset not found")
+        if file_path.suffix.lower() in (".html", ".htm"):
+            return _file_response_no_cache(file_path)
         return web.FileResponse(file_path)
 
     ui_path = ext_dir / entry
@@ -348,4 +365,4 @@ async def serve_extension_ui(request: web.Request) -> web.Response:
     except ValueError:
         return web.HTTPForbidden(text="Invalid path")
 
-    return web.FileResponse(ui_path)
+    return _file_response_no_cache(ui_path)

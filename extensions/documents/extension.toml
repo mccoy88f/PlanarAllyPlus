@@ -1,7 +1,7 @@
 [extension]
 id = "documents"
 name = "Documents"
-version = "1.0.0"
+version = "1.0.6"
 description_en = "Upload and view PDF documents in a dedicated folder. Share documents with players."
 description_it = "Carica e visualizza documenti PDF in una cartella dedicata. Condividi documenti con i giocatori."
 author = "mccoy88f"

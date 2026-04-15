@@ -768,6 +768,31 @@
         return o;
       }
 
+      /** Evita il raddoppio: planarally.proficiencies è il merge usato in salvataggio; il textarea "Altre competenze" deve essere solo il testo libero in dndsheets.otherProficiencies. */
+      function deriveOtherProficiencies(paProficiencies, ds) {
+        if (ds.otherProficiencies != null && String(ds.otherProficiencies).trim() !== '') {
+          return String(ds.otherProficiencies);
+        }
+        var p = String(paProficiencies || '').trim();
+        if (!p) return '';
+        var strips = [];
+        if (ds.languagesText && String(ds.languagesText).trim()) {
+          strips.push((locale === 'it' ? 'Lingue: ' : 'Languages: ') + String(ds.languagesText).trim());
+        }
+        if (ds.weaponsProfText && String(ds.weaponsProfText).trim()) {
+          strips.push(String(ds.weaponsProfText).trim());
+        }
+        if (ds.toolsProfText && String(ds.toolsProfText).trim()) {
+          strips.push(String(ds.toolsProfText).trim());
+        }
+        for (var si = 0; si < strips.length; si++) {
+          var block = strips[si];
+          if (!block) continue;
+          p = p.split(block).join('').replace(/\n{3,}/g, '\n\n').trim();
+        }
+        return p;
+      }
+
       function toFormData(d) {
         var s = d || {}, pa = s.planarally || {}, st = pa.savingThrows || {}, sk = pa.skills || {};
         var stats = s.stats || [{ value: 10 }, { value: 10 }, { value: 10 }, { value: 10 }, { value: 10 }, { value: 10 }];
@@ -813,7 +838,7 @@
           bonds: tr.bonds || ds.bonds || '',
           flaws: tr.flaws || ds.flaws || '',
           featuresTraits: pa.features || ds.featuresTraits || '',
-          otherProficiencies: pa.proficiencies || ds.otherProficiencies || '',
+          otherProficiencies: deriveOtherProficiencies(pa.proficiencies, ds),
           cp: String(cur.cp != null ? cur.cp : (ds.cp || 0)), sp: String(cur.sp != null ? cur.sp : (ds.sp || 0)), ep: String(cur.ep != null ? cur.ep : (ds.ep || 0)),
           gp: String(cur.gp != null ? cur.gp : (ds.gp || 0)), pp: String(cur.pp != null ? cur.pp : (ds.pp || 0)),
           strSave: String((st.str || {}).mod || 0), strSaveChecked: !!(st.str || {}).proficient,
@@ -911,6 +936,7 @@
           languagesText: fd.languagesText || '', appearanceText: fd.appearanceText || '',
           spellcastingAbility: fd.spellcastingAbility || '', spellcastingModText: fd.spellcastingModText || '',
           attunement1: fd.attunement1 || '', attunement2: fd.attunement2 || '', attunement3: fd.attunement3 || '',
+          otherProficiencies: fd.otherProficiencies || '',
           weaponRows: wRows, spellBookRows: fd.spellBookRows || []
         };
         Object.assign(dndsheets, spellMerged);

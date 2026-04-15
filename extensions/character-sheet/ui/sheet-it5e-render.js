@@ -20,6 +20,32 @@
     return escHtml(s).replace(/\*\*([\s\S]*?)\*\*/g, '<strong>$1</strong>');
   }
 
+
+  function accentInsensitiveTokenPattern(text) {
+    var map = {
+      a: 'aàáâäãå',
+      e: 'eèéêë',
+      i: 'iìíîï',
+      o: 'oòóôöõ',
+      u: 'uùúûü',
+      c: 'cç',
+      n: 'nñ',
+      y: 'yÿ'
+    };
+    var out = '';
+    for (var i = 0; i < text.length; i++) {
+      var ch = text.charAt(i);
+      var base = ch.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+      var cls = map[base];
+      if (cls) {
+        out += '[' + cls + ']';
+      } else {
+        out += ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      }
+    }
+    return out;
+  }
+
   function injectQeLinksHtml(text, names, esc) {
     if (!text) return text;
     var safe = esc(text);
@@ -48,24 +74,25 @@
       for (var i = 0; i < names.length; i++) {
         var e = names[i];
         if (!e || !e.name) continue;
-        var escName = e.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        var accentName = accentInsensitiveTokenPattern(e.name || '');
         var attrs = 'data-qe-collection="' + esc(e.collectionSlug || '') + '" data-qe-slug="' + esc(e.itemSlug || '') + '"';
         if (e.compendiumSlug) attrs = 'data-qe-compendium="' + esc(e.compendiumSlug) + '" ' + attrs;
         var link = '<a href="#" ' + attrs + ' class="qe-internal-link">' + esc(e.name) + '</a>';
-        safe = safe.replace(new RegExp('"(' + escName + ')"', 'gi'), function () {
+        safe = safe.replace(new RegExp('"(' + accentName + ')"', 'gi'), function () {
           var id = ph();
           placeholders[placeholders.length - 1] = '"' + link + '"';
           return id;
         });
-        safe = safe.replace(new RegExp('\\(' + escName + '\\)', 'gi'), function () {
+        safe = safe.replace(new RegExp('\\(' + accentName + '\\)', 'gi'), function () {
           var id = ph();
           placeholders[placeholders.length - 1] = '(' + link + ')';
           return id;
         });
-        safe = safe.replace(new RegExp('\\b(' + escName + ')\\b', 'gi'), function () {
+        var wordBoundary = new RegExp('(^|[^A-Za-zÀ-ÖØ-öø-ÿ0-9_])(' + accentName + ')(?=$|[^A-Za-zÀ-ÖØ-öø-ÿ0-9_])', 'gi');
+        safe = safe.replace(wordBoundary, function (_, pre) {
           var id = ph();
           placeholders[placeholders.length - 1] = link;
-          return id;
+          return (pre || '') + id;
         });
       }
     }

@@ -17,6 +17,9 @@ from ....models.role import Role
 from ....thumbnail import generate_thumbnail_for_asset
 from ....utils import ASSETS_DIR, DATA_DIR, THUMBNAILS_DIR, get_asset_hash_subpath
 
+from .permission_acl import user_can_view_acl
+from .resource_acl import get_stored_acl
+
 DOCUMENT_VISIBILITY_FILE = DATA_DIR / "document_visibility.json"
 
 EXTENSION_ID = "documents"
@@ -58,7 +61,7 @@ async def serve_document(request: web.Request) -> web.Response:
         pass  # User's own document
     else:
         entry = None
-        vis_data = _load_document_visibility()
+        # ACL unificata (extension_resource_acl.json), indipendente dalla campagna
         for candidate in (
             AssetEntry.select()
             .join(Asset, on=(AssetEntry.asset == Asset.id))
@@ -66,25 +69,44 @@ async def serve_document(request: web.Request) -> web.Response:
         ):
             if not candidate.name or not candidate.name.lower().endswith(".pdf"):
                 continue
-            for room_key, vis_map in vis_data.items():
-                visible_ids = _get_visible_document_ids(candidate.owner, vis_map)
-                if candidate.id not in visible_ids:
-                    continue
-                parts = room_key.split("/", 1)
-                if len(parts) != 2:
-                    continue
-                cr, rn = parts[0], parts[1]
-                room = _get_room(cr, rn)
-                if not room or room.creator_id != candidate.owner_id:
-                    continue
-                pr = PlayerRoom.get_or_none(PlayerRoom.room == room, PlayerRoom.player == user)
-                # Il creatore della stanza può servire i propri PDF anche senza riga PlayerRoom (dati legacy / edge case).
-                if not pr and room.creator_id != user.id:
-                    continue
+            if not _is_in_documents_tree(candidate, candidate.owner):
+                continue
+            acl = get_stored_acl(f"documents:{candidate.id}")
+            if acl is not None and user_can_view_acl(user.name, acl):
                 entry = candidate
                 break
-            if entry is not None:
-                break
+
+        if entry is None:
+            vis_data = _load_document_visibility()
+            for candidate in (
+                AssetEntry.select()
+                .join(Asset, on=(AssetEntry.asset == Asset.id))
+                .where(Asset.file_hash == file_hash)
+            ):
+                if not candidate.name or not candidate.name.lower().endswith(".pdf"):
+                    continue
+                # Se esiste un ACL unificato per questa voce, non usare più la visibilità legacy per quel PDF
+                if get_stored_acl(f"documents:{candidate.id}") is not None:
+                    continue
+                for room_key, vis_map in vis_data.items():
+                    visible_ids = _get_visible_document_ids(candidate.owner, vis_map)
+                    if candidate.id not in visible_ids:
+                        continue
+                    parts = room_key.split("/", 1)
+                    if len(parts) != 2:
+                        continue
+                    cr, rn = parts[0], parts[1]
+                    room = _get_room(cr, rn)
+                    if not room or room.creator_id != candidate.owner_id:
+                        continue
+                    pr = PlayerRoom.get_or_none(PlayerRoom.room == room, PlayerRoom.player == user)
+                    # Il creatore della stanza può servire i propri PDF anche senza riga PlayerRoom (dati legacy / edge case).
+                    if not pr and room.creator_id != user.id:
+                        continue
+                    entry = candidate
+                    break
+                if entry is not None:
+                    break
 
     if not entry:
         return web.HTTPNotFound(text="Document not found")
@@ -355,8 +377,31 @@ async def list_documents(request: web.Request) -> web.Response:
             "tree": tree,
             "rootId": docs_folder.id,
             "canManageDocuments": can_manage_documents,
+            "currentUser": user.name,
         }
     )
+
+
+async def list_room_users(request: web.Request) -> web.Response:
+    """List usernames in current room for ACL dropdown."""
+    user = await get_authorized_user(request)
+    room_creator = request.query.get("room_creator", "").strip()
+    room_name = request.query.get("room_name", "").strip()
+    if not room_creator or not room_name:
+        return web.json_response({"users": [user.name]})
+
+    room = _get_room(room_creator, room_name)
+    if room is None:
+        return web.HTTPNotFound(text="Room not found")
+
+    pr = PlayerRoom.get_or_none(PlayerRoom.room == room, PlayerRoom.player == user)
+    if pr is None:
+        return web.HTTPForbidden(text="Not in this room")
+
+    users = {room.creator.name}
+    for player_room in PlayerRoom.select().where(PlayerRoom.room == room):
+        users.add(player_room.player.name)
+    return web.json_response({"users": sorted(users, key=str.lower)})
 
 
 def _get_documents_parent(user: User, parent_id: int | None) -> AssetEntry:

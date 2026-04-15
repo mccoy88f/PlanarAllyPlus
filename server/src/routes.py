@@ -126,6 +126,7 @@ main_app.router.add_post(f"{subpath}/api/extensions/install/zip", extensions.ins
 main_app.router.add_post(f"{subpath}/api/extensions/install/url", extensions.install_from_url)
 main_app.router.add_post(f"{subpath}/api/extensions/uninstall", extensions.uninstall)
 main_app.router.add_get(f"{subpath}/api/extensions/documents/list", extensions.documents.list_documents)
+main_app.router.add_get(f"{subpath}/api/extensions/documents/room-users", extensions.documents.list_room_users)
 main_app.router.add_get(
     f"{subpath}/api/extensions/documents/serve/{{file_hash}}",
     extensions.documents.serve_document,
@@ -143,6 +144,9 @@ main_app.router.add_patch(
     f"{subpath}/api/extensions/documents/visibility",
     extensions.documents.toggle_document_visibility,
 )
+main_app.router.add_get(f"{subpath}/api/extensions/resource-acl", extensions.resource_acl.get_resource_acl)
+main_app.router.add_put(f"{subpath}/api/extensions/resource-acl", extensions.resource_acl.put_resource_acl)
+main_app.router.add_delete(f"{subpath}/api/extensions/resource-acl", extensions.resource_acl.delete_resource_acl)
 main_app.router.add_get(f"{subpath}/api/extensions/assets-installer/list", extensions.assets_installer.list_installs)
 main_app.router.add_get(f"{subpath}/api/extensions/assets-installer/folders", extensions.assets_installer.list_folders)
 main_app.router.add_post(f"{subpath}/api/extensions/assets-installer/upload", extensions.assets_installer.upload_zip)

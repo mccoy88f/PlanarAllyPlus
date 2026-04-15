@@ -1253,7 +1253,24 @@
           "delete_success": "Document deleted",
           "delete_confirm": "Are you sure you wish to delete the document \"{name}\"?",
           "delete_confirm_NAME": "Are you sure you wish to delete the document \"{name}\"?",
-          "delete_error": "Failed to delete document"
+          "delete_error": "Failed to delete document",
+          "permissions": "Access and visibility"
+        },
+        "resourcePermissions": {
+          "title": "Access and visibility",
+          "creator_section": "Owner",
+          "creator_hint": "The owner always has full view and edit rights. This is not tied to a specific campaign.",
+          "public_view": "Any logged-in user can view",
+          "public_view_hint": "Does not grant edit rights to others. Use per-user rows for edit access.",
+          "users_section": "Participants in this session",
+          "user": "User",
+          "view": "View",
+          "edit": "Edit",
+          "add_user": "Add user",
+          "add_user_title": "Add users",
+          "remove": "Remove",
+          "save_success": "Access settings saved",
+          "save_error": "Could not save access settings"
         },
         "DocumentsPdfViewer": {
           "search": "Search in document",

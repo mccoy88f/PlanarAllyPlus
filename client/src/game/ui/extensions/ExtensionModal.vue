@@ -163,7 +163,8 @@ const iframeUrl = computed(() => {
     if (gameState.reactive.isFakePlayer) {
         params.set("preview_as_player", "1");
     }
-    url += "?" + params.toString();
+    const sep = url.includes("?") ? "&" : "?";
+    url += sep + params.toString();
     return url;
 });
 

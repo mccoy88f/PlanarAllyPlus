@@ -678,7 +678,24 @@
           "delete_success": "Documento eliminato",
           "delete_confirm": "Sei sicuro di voler eliminare il documento \"{name}\"?",
           "delete_confirm_NAME": "Sei sicuro di voler eliminare il documento \"{name}\"?",
-          "delete_error": "Impossibile eliminare il documento"
+          "delete_error": "Impossibile eliminare il documento",
+          "permissions": "Accesso e visibilità"
+        },
+        "resourcePermissions": {
+          "title": "Accesso e visibilità",
+          "creator_section": "Proprietario",
+          "creator_hint": "Il proprietario ha sempre visualizzazione e modifica complete, indipendentemente dalla campagna.",
+          "public_view": "Qualunque utente autenticato può visualizzare",
+          "public_view_hint": "Non concede il diritto di modifica agli altri. Usa le righe per utente per l’edit.",
+          "users_section": "Partecipanti a questa sessione",
+          "user": "Utente",
+          "view": "Vedi",
+          "edit": "Modifica",
+          "add_user": "Aggiungi utente",
+          "add_user_title": "Aggiungi utenti",
+          "remove": "Rimuovi",
+          "save_success": "Diritti salvati",
+          "save_error": "Impossibile salvare i diritti"
         },
         "DocumentsPdfViewer": {
           "search": "Cerca nel documento",
